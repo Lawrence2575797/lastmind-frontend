@@ -11938,7 +11938,7 @@ SQIDAQAB
             const { resp, body } = await createAuthedFetch('/create/projects');
             if (resp.ok && !body.unavailable) {
                 const local = createLocalProjects().map((p) => ({ id: p.id, title: p.title, kind: p.kind, href: p.data && p.data.href, meta: p.data && p.data.meta, isReference: false, updatedAt: p.updatedAt, role: p.data && p.data.trial && p.data.trial.role, minutes: p.data && p.data.trial && p.data.trial.minutes, local: true }));
-                const projects = [...(body.projects || []), ...local].filter((p) => p.kind !== 'criminal-trial');
+                const projects = [...(body.projects || []), ...local].filter((p) => p.kind !== 'criminal-trial' && p.kind !== 'football-backup');
                 const references = (body.references || []).filter((p) => /kasper\s+nowicki/i.test(String(p.title || '')));
                 return { projects: createWithFootball(projects), references };
             }

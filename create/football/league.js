@@ -79,6 +79,7 @@
   FM.WORLD_SEED = 20261004;
   FM.RATING_BASE = 58; FM.STRENGTH_SCALE = 4.5; // the league average starting eleven, and rating points per step of club strength
   FM.createLeague = function (opts) {
+    if (FM.markReplaceNext) FM.markReplaceNext();
     // Every game is the same league (same clubs, squads and fixtures), so the pre-season friendlies could be played once, in advance.
     const seed = opts.seed || FM.WORLD_SEED;
     const runSeed = opts.runSeed | 0;   // what makes one game's matches different from another's; 0 for the shared pre-made history
@@ -734,7 +735,12 @@
   const currentSaveKey = () => accountKey(SAVE_KEY);
   const currentAtKey = () => accountKey(AT_KEY);
   const currentCloudIdKey = () => accountKey(CLOUD_ID_KEY);
-  let cloudTimer = 0, cloudBusy = false, cloudAgain = false, cloudLeague = null;
+  let cloudTimer = 0, cloudBusy = false, cloudAgain = false, cloudLeague = null, replaceNext = false;
+  // How far on a season is: the season number and the matches played in it. A save further back never replaces one further on.
+  const progressOfLeague = (lg) => (lg.season || 1) * 1000 + lg.fixtures.filter((f) => f.played && (f.homeId === lg.userId || f.awayId === lg.userId)).length;
+  const progressOfText = (text) => { try { const d = JSON.parse(text); return (d.season || 1) * 1000 + (d.fixtures || []).filter((f) => f.played && (f.homeId === d.userId || f.awayId === d.userId)).length; } catch (e) { return -1; } };
+  FM.leagueProgress = progressOfLeague;
+  FM.markReplaceNext = () => { replaceNext = true; };
   async function cloudWrite() {
     const league = cloudLeague; if (!league || DEMO_MODE || !accountUid) return;
     if (cloudBusy) { cloudAgain = true; return; }
@@ -749,9 +755,11 @@
         } finally { league.fixtures.forEach((f, i) => { f.clips = kept[i]; }); }
       }
       const user = FM.teamById(league, league.userId);
-      const body = { id: lsGet(currentCloudIdKey()) || undefined, title: 'Be the manager: ' + (user ? user.name : 'My club'), kind: 'football-manager', data: { href: '/create/football/', meta: 'Season ' + league.season, football: { save: text, savedAt: new Date().toISOString() } } };
+      const body = { id: lsGet(currentCloudIdKey()) || undefined, title: 'Be the manager: ' + (user ? user.name : 'My club'), kind: 'football-manager', data: { href: '/create/football/', meta: 'Season ' + league.season, football: { save: text, savedAt: new Date().toISOString(), progress: progressOfLeague(league) } } };
+      if (replaceNext) body.replace = true;
       const r = await FM.apiCall('POST', '/create/projects', body);
-      if (r && r.ok && r.json && r.json.id && r.uid === accountUid) { lsSet(currentCloudIdKey(), r.json.id); lsSet(currentAtKey(), new Date().toISOString()); }
+      if (r && r.ok && r.json && r.json.id && r.uid === accountUid) { lsSet(currentCloudIdKey(), r.json.id); lsSet(currentAtKey(), new Date().toISOString()); replaceNext = false; }
+      else if (r && r.status === 409) { replaceNext = false; FM.cloudRefused = true; }   // the account holds a season further on than this one: the next page open offers it
     } catch (e) { /* the browser copy is still saved; the next change tries again */ }
     cloudBusy = false;
     if (cloudAgain) { cloudAgain = false; cloudTimer = setTimeout(cloudWrite, 800); }
@@ -764,36 +772,43 @@
   // Called once as the page opens: when the account holds a newer game than this browser (or this browser's game belongs to a different
   // account), the account's game is loaded here. Resolves quickly if nobody is signed in.
   FM.pullCloud = async function () {
-    if (DEMO_MODE) return false;
+    if (DEMO_MODE) return 'none';
     try {
       // Wait for the signed-in account's cloud save. Render can take a while
       // to wake, and an arbitrary browser-side cutoff can open the wrong local
       // state before the account response arrives.
       const list = await FM.apiCall('GET', '/create/projects');
-      if (!list || !list.ok || !list.json || list.json.unavailable || !list.uid) return false;
+      if (!list) return 'nosession';   // not signed in
+      if (list.uid) accountUid = list.uid;   // the account is known as soon as the sign-in is, even if the server is slow or down
+      if (list.netError || list.status >= 500 || list.status === 429 || list.status === 0) return 'error';
+      if (!list.ok || !list.json || list.json.unavailable || !list.uid) return 'none';
       const uid = list.uid;
-      accountUid = uid;
       // One-time migration from the old device-wide slot, but only when its
       // recorded owner is this exact account. Another account's save is never copied.
       const owner = lsGet(OWNER_KEY), legacyText = lsGet(SAVE_KEY);
-      if (!lsGet(currentSaveKey()) && legacyText && owner === uid) {
+      if (!lsGet(currentSaveKey()) && legacyText && (!owner || owner === uid)) {   // the old shared slot: this browser's own game from before saves were kept per account
         lsSet(currentSaveKey(), legacyText);
         if (lsGet(AT_KEY)) lsSet(currentAtKey(), lsGet(AT_KEY));
         if (lsGet(CLOUD_ID_KEY)) lsSet(currentCloudIdKey(), lsGet(CLOUD_ID_KEY));
       }
       const localText = lsGet(currentSaveKey());
-      const row = (list.json.projects || []).filter((p) => p.kind === 'football-manager').sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)))[0];
-      if (!row) return false;
+      // the season furthest on is the one to carry on with (then the most recently saved)
+      const row = (list.json.projects || []).filter((p) => p.kind === 'football-manager').sort((a, b) => ((b.progress || 0) - (a.progress || 0)) || String(b.updatedAt).localeCompare(String(a.updatedAt)))[0];
+      if (!row) return 'ok';
       const at = lsGet(currentAtKey());
-      const cloudNewer = !localText || !at || String(row.updatedAt) > at;
-      if (!cloudNewer) { lsSet(currentCloudIdKey(), row.id); return false; }
+      const localProg = localText ? progressOfText(localText) : -1;
+      const cloudNewer = !localText || !at || String(row.updatedAt) > at || (row.progress || 0) > localProg;
+      if (!cloudNewer) { lsSet(currentCloudIdKey(), row.id); return 'ok'; }
       const got = await FM.apiCall('GET', '/create/projects/' + encodeURIComponent(row.id));
-      const text = got && got.ok && got.json && got.json.data && got.json.data.football && got.json.data.football.save;
-      if (!text) return false;
-      try { FM.deserializeLeague(text); } catch (e) { return false; }
+      if (!got || !got.ok) return localText ? 'ok' : 'error';
+      const text = got.json && got.json.data && got.json.data.football && got.json.data.football.save;
+      if (!text) return 'ok';
+      try { FM.deserializeLeague(text); } catch (e) { return 'ok'; }
+      // never swap a season for one that is further back
+      if (localText && progressOfText(text) < localProg) { lsSet(currentCloudIdKey(), row.id); return 'ok'; }
       lsSet(currentSaveKey(), text); lsSet(currentAtKey(), String(row.updatedAt)); lsSet(currentCloudIdKey(), row.id);
-      return true;
-    } catch (e) { return false; }
+      return 'ok';
+    } catch (e) { return 'error'; }
   };
   FM.saveLeague = function (league) {
     const done = FM.saveLeagueRaw(league);

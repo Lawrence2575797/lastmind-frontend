@@ -2263,7 +2263,20 @@
   window.FM_WORLD = world; // debug handle for the console
   if (FM.mountAgent) { FM.mountAgent(() => FM.agentContext(world.league, world.view === 'tactics' ? 'tactics: ' + (world.tab || '') : world.view)); FM.agentHide(true); }
   window.addEventListener('resize', resize);
-  if (FM.pullCloud) await FM.pullCloud();   // the account's saved game, when it is newer than this browser's
+  // the account's saved game, when it is further on than this browser's. If the account cannot be reached, a new game is NOT offered: it
+  // could replace a season that is saved there.
+  if (FM.pullCloud) {
+    const pulled = await FM.pullCloud();
+    if (pulled === 'error') {
+      const card = document.createElement('section');
+      card.className = 'card'; card.style.cssText = 'max-width:560px;margin:40px auto';
+      card.innerHTML = '<h2>Loading your season</h2><p class="desc">LastMind could not reach your account just now, so your saved season has not loaded. Nothing has been lost. This usually means the server is waking up.</p><div class="row"><button class="primary" id="cloudRetry">Try again</button></div>';
+      document.body.appendChild(card);
+      card.querySelector('#cloudRetry').addEventListener('click', () => location.reload());
+      el('newGame').hidden = true;
+      return;
+    }
+  }
   world.league = FM.loadLeague();
   // "New project" comes here with ?new=1: the set-up choices, even when a game is saved (resuming is what Your projects is for)
   const wantsNew = /[?&]new=1/.test(location.search);

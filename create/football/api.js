@@ -26,9 +26,12 @@
       if (!client) client = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
       const { data } = await client.auth.getSession();
       if (!data || !data.session || data.session.user && data.session.user.is_anonymous) return null;
-      const resp = await fetch(BACKEND + path, { method, headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + data.session.access_token }, body: body ? JSON.stringify(body) : undefined });
+      const uid = data.session.user && data.session.user.id;
+      let resp;
+      try { resp = await fetch(BACKEND + path, { method, headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + data.session.access_token }, body: body ? JSON.stringify(body) : undefined }); }
+      catch (err) { return { ok: false, status: 0, json: {}, uid, netError: true }; }   // signed in, but the server could not be reached
       const json = await resp.json().catch(() => ({}));
-      return { ok: resp.ok, status: resp.status, json, uid: data.session.user && data.session.user.id };
+      return { ok: resp.ok, status: resp.status, json, uid };
     } catch (e) { return null; }
   };
   FM.purchaseFootball = async function () {
