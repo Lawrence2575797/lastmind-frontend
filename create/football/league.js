@@ -741,9 +741,10 @@
   FM.leagueProgress = progressOfLeague;
   FM.markReplaceNext = () => { replaceNext = true; };
   async function cloudWrite() {
-    const league = cloudLeague; if (!league || DEMO_MODE || !accountUid) return;
-    if (cloudBusy) { cloudAgain = true; return; }
+    const league = cloudLeague; if (!league || DEMO_MODE || !accountUid) return false;
+    if (cloudBusy) { cloudAgain = true; return false; }
     cloudBusy = true;
+    let ok = false;
     try {
       let text = FM.serializeLeague(league);
       if (text.length > 4400000) {   // too big for the account copy: the oldest match clips (replays) are left out of it, nothing else
@@ -757,12 +758,25 @@
       const body = { id: lsGet(currentCloudIdKey()) || undefined, title: 'Be the manager: ' + (user ? user.name : 'My club'), kind: 'football-manager', data: { href: '/create/football/', meta: 'Season ' + league.season, football: { save: text, savedAt: new Date().toISOString(), progress: progressOfLeague(league) } } };
       if (replaceNext) body.replace = true;
       const r = await FM.apiCall('POST', '/create/projects', body);
-      if (r && r.ok && r.json && r.json.id && r.uid === accountUid) { lsSet(currentCloudIdKey(), r.json.id); lsSet(currentAtKey(), new Date().toISOString()); replaceNext = false; }
+      if (r && r.ok && r.json && r.json.id && r.uid === accountUid) { ok = true; lsSet(currentCloudIdKey(), r.json.id); lsSet(currentAtKey(), new Date().toISOString()); replaceNext = false; }
       else if (r && r.status === 409) { replaceNext = false; FM.cloudRefused = true; }   // the account holds a season further on than this one: the next page open offers it
     } catch (e) { /* the browser copy is still saved; the next change tries again */ }
     cloudBusy = false;
     if (cloudAgain) { cloudAgain = false; cloudTimer = setTimeout(cloudWrite, 800); }
+    return ok;
   }
+  // The Save button: writes the game to this device and to the account now, and says how it went:
+  // 'saved' (both), 'device' (this device only: the account could not be reached) or 'failed'.
+  FM.saveNow = async function (league) {
+    const local = FM.saveLeagueRaw(league);
+    if (local) FM.syncProject(league);
+    if (DEMO_MODE) return local ? 'saved' : 'failed';
+    clearTimeout(cloudTimer); cloudTimer = 0;
+    cloudLeague = league;
+    for (let i = 0; cloudBusy && i < 80; i++) await new Promise((r) => setTimeout(r, 250));   // let a write already on its way finish first
+    const ok = await cloudWrite();
+    return local && ok ? 'saved' : local ? 'device' : 'failed';
+  };
   FM.cloudSaveSoon = function (league) {
     if (DEMO_MODE) return;
     cloudLeague = league; clearTimeout(cloudTimer); cloudTimer = setTimeout(cloudWrite, 1200);

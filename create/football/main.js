@@ -398,6 +398,17 @@
     if (done) el('finishText').textContent = 'Full time: ' + home.name + ' ' + m.score[home.id] + '-' + m.score[away.id] + ' ' + away.name + '.';
   }
 
+  // the Save button: saves the game now (this device and the account) and says so
+  el('saveBtn').addEventListener('click', async () => {
+    const b = el('saveBtn'); if (!world.league || b.disabled) return;
+    b.disabled = true; b.classList.remove('ok', 'warn'); b.textContent = 'Saving...';
+    let res = 'failed';
+    try { res = await FM.saveNow(world.league); } catch (e) { res = 'failed'; }
+    b.textContent = res === 'saved' ? 'Saved \u2713' : res === 'device' ? 'Saved on this device only' : 'Could not save';
+    b.classList.add(res === 'saved' ? 'ok' : 'warn');
+    b.setAttribute('role', 'status');
+    setTimeout(() => { b.disabled = false; b.classList.remove('ok', 'warn'); b.textContent = 'Save'; }, res === 'saved' ? 2500 : 5000);
+  });
   el('pitchPlay').addEventListener('click', () => el('playBtn').click());
   el('pitchPause').addEventListener('click', () => el('playBtn').click());
   el('playBtn').addEventListener('click', () => {
@@ -776,6 +787,7 @@
   function setView(v) {
     if (v !== 'tactics' && backBtn) dropBackBtn();
     world.view = v;
+    { const sb = el('saveBtn'); if (sb) sb.hidden = !world.league; }
     if (FM.agentHide) FM.agentHide(v === 'match');
     document.body.dataset.view = v;
     VIEWS.forEach((k) => { el('view-' + k).hidden = k !== v; });
