@@ -774,6 +774,7 @@
   function storeDrop(key) { mem.set(key, null); writes = writes.then(async () => { await idbPut(key, null); try { localStorage.removeItem(key); } catch (e) { /* fine */ } return true; }); }
   FM.flushStore = async () => { await writes; return lastWriteOk; };
   let accountUid = null;
+  FM.accountId = () => accountUid;
   const accountKey = (base) => (!DEMO_MODE && accountUid ? base + ':' + accountUid : base);
   const currentSaveKey = () => accountKey(SAVE_KEY);
   const currentAtKey = () => accountKey(AT_KEY);

@@ -1491,7 +1491,7 @@
     const host = el('planBar'), lg = world.league, plans = lg.tacticalPlans = lg.tacticalPlans || [];
     const active = plans.find((p) => p.id === lg.activePlanId) || null;
     if (!active) lg.activePlanId = null;
-    host.innerHTML = `<select id="planSelect" aria-label="Saved tactical plans"><option value="">Saved match plans</option>${plans.map((p) => `<option value="${p.id}"${active && active.id === p.id ? ' selected' : ''}>${esc(p.name)}</option>`).join('')}</select><button id="savePlan" class="primary" title="${active ? 'Write the team as it is now into this plan' : 'Save the team as it is now as a new plan'}">${active ? 'Update plan' : 'Save as new plan'}</button>${active ? '<button id="saveNewPlan">Save as new plan</button>' : ''}<button id="loadPlan"${active ? '' : ' disabled'} title="Discard changes since the plan was saved">Restore</button><button id="deletePlan"${active ? '' : ' disabled'}>Delete</button>${world.planNote ? `<span class="note plan-active" role="status">${esc(world.planNote)}</span>` : ''}${active ? `<span class="note plan-active">Playing the next game with “${esc(active.name)}”.</span>` : ''}`;
+    host.innerHTML = `<select id="planSelect" aria-label="Saved tactical plans"><option value="">Saved match plans</option>${plans.map((p) => `<option value="${p.id}"${active && active.id === p.id ? ' selected' : ''}>${esc(p.name)}</option>`).join('')}</select><button id="savePlan" class="primary" title="${active ? 'Write the team as it is now into this plan' : 'Save the team as it is now as a new plan'}">${active ? 'Update plan' : 'Save as new plan'}</button><button id="newPlan" title="Start a new plan from a clean slate: only what you do from here is in it">New plan</button>${active ? '<button id="saveNewPlan">Save as new plan</button>' : ''}<button id="loadPlan"${active ? '' : ' disabled'} title="Discard changes since the plan was saved">Restore</button><button id="deletePlan"${active ? '' : ' disabled'}>Delete</button>${world.planNote ? `<span class="note plan-active" role="status">${esc(world.planNote)}</span>` : ''}${active ? `<span class="note plan-active">Playing the next game with “${esc(active.name)}”.</span>` : ''}`;
     world.planNote = '';
     const select = host.querySelector('#planSelect');
     select.addEventListener('change', () => {
@@ -1507,6 +1507,22 @@
       plans.push(plan); lg.activePlanId = plan.id; lg.labCtx = plan.id + '|' + ((nextOpponent() || {}).name || '');   // a copy of the team as it is: the tests still apply
       saveSoon(); renderTactics();
     };
+    // New plan: the team goes back to its formation's defaults (positions, settings, pages, instructions; the squad and shape are kept), and from
+    // here everything done belongs to this plan alone. The other plans are not touched.
+    host.querySelector('#newPlan').addEventListener('click', () => {
+      if (!confirm('Start a new plan from a clean slate? Positions, settings and instructions go back to the defaults for your formation, and only what you do from here will be in the new plan. Your other plans are kept.')) return;
+      const name = prompt('Enter plan name (for example Plan ' + (plans.length + 1) + '):', 'Plan ' + (plans.length + 1));
+      if (!name || !name.trim()) return;
+      team.tactics = FM.defaultTactics();
+      team.phasePos = {}; team.phaseBall = {}; team.pages = {}; team.pageDefaults = {};
+      team.scenarios = []; team.defScenarios = []; team.scenarioEnd = {}; team.scenarioInfo = {}; team.scenarioBall = {}; team.scenarioEvidence = {}; team.scenarioDefEvidence = {};
+      team.rules = [];
+      if (FM.inferShapeTactics) FM.inferShapeTactics(team);
+      const plan = capturePlan(team, name.trim());
+      plans.push(plan); lg.activePlanId = plan.id; lg.labCtx = plan.id + '|' + ((nextOpponent() || {}).name || '');
+      world.scn = {}; world.selSlot = null; world.planNote = '“' + plan.name + '” started: only what you do now is in it.';
+      saveSoon(); renderTactics();
+    });
     host.querySelector('#savePlan').addEventListener('click', () => {
       if (!active) { saveNew(); return; }
       // updating asks for the plan's name (the current one is offered, e.g. "Plan 1") and then says it has been updated

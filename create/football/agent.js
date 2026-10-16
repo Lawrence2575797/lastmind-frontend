@@ -3,7 +3,37 @@
 (function () {
   const FM = (window.FM = window.FM || {});
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  const state = { open: false, busy: false, messages: [], ctx: () => '' };
+  const state = { open: false, busy: false, messages: [], ctx: () => '', loaded: false };
+
+  // The chat is kept (in the browser's database, per account) so it is still there next time the game is opened.
+  const histKey = () => 'agent:' + ((FM.accountId && FM.accountId()) || 'guest');
+  const openDb = () => new Promise((resolve) => {
+    try {
+      const req = indexedDB.open('lastmind-football', 1);
+      req.onupgradeneeded = () => { if (!req.result.objectStoreNames.contains('saves')) req.result.createObjectStore('saves'); };
+      req.onsuccess = () => resolve(req.result); req.onerror = () => resolve(null); req.onblocked = () => resolve(null);
+    } catch (e) { resolve(null); }
+  });
+  async function loadHistory() {
+    if (state.loaded) return;
+    state.loaded = true;
+    const d = await openDb(); let saved = null;
+    if (d) saved = await new Promise((res) => { try { const r = d.transaction('saves').objectStore('saves').get(histKey()); r.onsuccess = () => res(r.result || null); r.onerror = () => res(null); } catch (e) { res(null); } });
+    if (!saved) { try { saved = JSON.parse(localStorage.getItem(histKey()) || 'null'); } catch (e) { saved = null; } }
+    if (Array.isArray(saved) && saved.length) state.messages = saved.concat(state.messages.filter((m) => !saved.some((s) => s.at === m.at)));
+  }
+  let saveTimer = 0;
+  function saveHistory() {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(async () => {
+      const keep = state.messages.slice(-80).map((m) => ({ role: m.role, text: m.text, show: m.show, at: m.at }));
+      const d = await openDb();
+      let ok = false;
+      if (d) ok = await new Promise((res) => { try { const tx = d.transaction('saves', 'readwrite'); tx.objectStore('saves').put(keep, histKey()); tx.oncomplete = () => res(true); tx.onerror = () => res(false); tx.onabort = () => res(false); } catch (e) { res(false); } });
+      if (!ok) { try { localStorage.setItem(histKey(), JSON.stringify(keep)); } catch (e) { /* the chat just is not kept */ } }
+    }, 400);
+  }
+  const push = (m) => { m.at = m.at || Date.now() + Math.random(); state.messages.push(m); saveHistory(); return m; };
 
   const STAT_NAMES = { shots: 'shots', onTarget: 'shots on target', xg: 'expected goals', possession: 'possession (seconds with the ball)', passes: 'passes', passesCompleted: 'passes completed', tackles: 'tackles', corners: 'corners', fouls: 'fouls', dribbles: 'dribbles', saves: 'saves' };
 
@@ -42,6 +72,9 @@
     if (!root) return;
     root.classList.toggle('open', state.open);
     const log = root.querySelector('.ag-log');
+    state.messages.forEach((m) => {   // pictures are drawn from the saved data each time, so only what was asked for is kept
+      if (m.html === undefined) { m.html = ''; (Array.isArray(m.show) ? m.show : []).slice(0, 3).forEach((spec) => { try { m.html += FM.dataVisual && window.FM_WORLD && window.FM_WORLD.league ? FM.dataVisual(window.FM_WORLD.league, spec) : ''; } catch (e) { /* skip a picture that cannot be drawn */ } }); }
+    });
     log.innerHTML = state.messages.map((m) => `<div class="ag-msg ${m.role}">${esc(m.text)}${m.html ? '<div class="ag-vis">' + m.html + '</div>' : ''}</div>`).join('') + (state.busy ? '<div class="ag-msg agent ag-think">Thinking…</div>' : '');
     if (FM.mountClips && window.FM_WORLD && window.FM_WORLD.league) FM.mountClips(log, window.FM_WORLD.league);
     log.scrollTop = log.scrollHeight;
@@ -51,23 +84,22 @@
   async function send(text) {
     text = String(text || '').trim();
     if (!text || state.busy) return;
-    state.messages.push({ role: 'manager', text });
+    push({ role: 'manager', text });
     state.busy = true; draw();
     try {
       const out = await FM.api('/football/agent', { messages: state.messages.slice(-10).map((m) => ({ role: m.role, text: m.text })), context: state.ctx() });
-      let html = '';
-      (Array.isArray(out.show) ? out.show : []).slice(0, 3).forEach((spec) => { try { html += FM.dataVisual ? FM.dataVisual(window.FM_WORLD && window.FM_WORLD.league, spec) : ''; } catch (e) { /* skip a picture that cannot be drawn */ } });
-      state.messages.push({ role: 'agent', text: out.reply || 'Tell me what you notice first.', html });
+      push({ role: 'agent', text: out.reply || 'Tell me what you notice first.', show: Array.isArray(out.show) ? out.show.slice(0, 3) : [] });
     } catch (e) {
       const msg = e && e.code === 'NO_SESSION' ? 'Sign in to LastMind and I can guide you through your matches.' : e && (e.code === 'LOCK_LIMIT_REACHED' || e.code === '402') ? 'You are out of Locks for now, so I cannot answer just yet.' : 'I could not be reached just now. Try again in a moment.';
-      state.messages.push({ role: 'agent', text: msg });
+      push({ role: 'agent', text: msg });
     }
     state.busy = false; draw();
   }
 
-  FM.agentOpen = function (starter) {
-    state.open = true;
-    if (!state.messages.length) state.messages.push({ role: 'agent', text: 'Hello, I am the LastMind AI Agent. Ask me anything: what a term means, how to read a heat map, or ask me to show you your build-up play, a pass network or how your shots have changed over the season. I can also take you through your matches step by step.' });
+  FM.agentOpen = async function (starter) {
+    state.open = true; draw();
+    await loadHistory();   // the earlier conversation comes back
+    if (!state.messages.length) push({ role: 'agent', text: 'Hello, I am the LastMind AI Agent. Ask me anything: what a term means, how to read a heat map, or ask me to show you your build-up play, a pass network or how your shots have changed over the season. I can also take you through your matches step by step.' });
     draw();
     if (starter) send(starter);
   };
@@ -79,13 +111,14 @@
     root.id = 'lmAgent';
     root.setAttribute('aria-label', 'LastMind AI Agent');
     root.innerHTML = `<button type="button" class="ag-tab" aria-expanded="false">LastMind AI Agent</button>
-      <div class="ag-panel"><div class="ag-head"><b>LastMind AI Agent</b><button type="button" class="ag-close" aria-label="Close">×</button></div>
+      <div class="ag-panel"><div class="ag-head"><b>LastMind AI Agent</b><span><button type="button" class="ag-clear" title="Clear the chat history">Clear history</button><button type="button" class="ag-close" aria-label="Close">×</button></span></div>
         <div class="ag-log" role="log" aria-live="polite"></div>
         <form class="ag-form"><textarea rows="2" placeholder="Say what you notice, or ask what to look at…" aria-label="Message to the agent"></textarea><button class="ag-send primary" type="submit">Send</button></form></div>`;
     document.body.appendChild(root);
     const ta = root.querySelector('textarea');
     root.querySelector('.ag-tab').addEventListener('click', () => { state.open ? (state.open = false, draw()) : FM.agentOpen(); root.querySelector('.ag-tab').setAttribute('aria-expanded', String(state.open)); });
     root.querySelector('.ag-close').addEventListener('click', () => { state.open = false; draw(); });
+    root.querySelector('.ag-clear').addEventListener('click', () => { if (!confirm('Clear the whole chat history with the agent?')) return; state.messages = []; saveHistory(); push({ role: 'agent', text: 'Fresh start. What would you like to look at?' }); draw(); });
     root.querySelector('.ag-form').addEventListener('submit', (e) => { e.preventDefault(); const t = ta.value; ta.value = ''; send(t); });
     ta.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); root.querySelector('.ag-form').requestSubmit(); } });
     draw();
