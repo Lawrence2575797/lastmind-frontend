@@ -329,7 +329,7 @@
         // still holding it. Closed down, or already in the box, he holds the ball where he is (a man backing away from a defender can never be
         // tackled, which breaks the game: 30+ goals a match).
         const nd = nearestOpponent(match, c.team, c.player).d, toward = FM.toTeamSpace(c.team.attackDir, c.player.x, c.player.y).d;
-        if (nd > 5 && toward < 0.84) ov.set(c.player, { x: clamp(c.player.x + c.team.attackDir * (nd > 10 ? 8 * (FM.JOG_K == null ? .34 : FM.JOG_K) : 3.2), 1, L - 1), y: clamp(c.player.y + (W / 2 - c.player.y) * 0.04, 1, W - 1) });
+        if (nd > 5 && toward < 0.84 && c.player.group !== 'GK') ov.set(c.player, { x: clamp(c.player.x + c.team.attackDir * (nd > 10 ? 8 * (FM.JOG_K == null ? .34 : FM.JOG_K) : 3.2), 1, L - 1), y: clamp(c.player.y + (W / 2 - c.player.y) * 0.04, 1, W - 1) });
       }
       // Whatever the moment, a man with the ball is never sent back to his usual position: past the last defender he goes on, otherwise he holds.
       // A man clear through on goal runs on at the keeper; he is never sent back toward his usual position into the men chasing him.
@@ -816,7 +816,7 @@
     // Softmax: the manager's settings favour an action, but nothing is certain.
     const temp = 0.22 + 0.25 * (1 - carrier.ratings.composure / 100);
     let pool = options;
-    if (match.forcePass) { const only = options.filter((o) => o.kind === 'pass' && o.d < 40); if (only.length) pool = only; }
+    if (match.forcePass || carrier.group === 'GK') { const only = options.filter((o) => o.kind === 'pass' && o.d < 40); if (only.length) pool = only; }   // a goalkeeper plays it: he does not dribble out with it
     if (carrier.group === 'GK' && nearNow < 6 && directness >= 0.45) { const longs = options.filter((o) => o.kind === 'pass' && o.d >= 26); if (longs.length) pool = longs; }
     if (FM.debugChoose) FM.debugChoose(carrier, options, pool, directness, risk, { through, ownDepth0, throughDef });
     const maxScore = Math.max.apply(null, pool.map((o) => o.score));

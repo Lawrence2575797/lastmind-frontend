@@ -777,6 +777,9 @@
   .ds-key { list-style: none; padding: 0; margin: 8px 0 0; display: grid; gap: 4px; font-size: .8rem; } .ds-key i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; }
   .ds-table { font-size: .82rem; } #lmAgent .ds-fig { margin-top: 8px; }
   .save-btn { padding: 9px 16px; border-radius: 10px; font-weight: 700; cursor: pointer; border: 1px solid rgba(215,184,107,.55); background: rgba(215,184,107,.14); color: inherit; } .save-btn:hover { background: rgba(215,184,107,.26); } .save-btn[disabled] { opacity: .7; cursor: default; } .save-btn.ok { background: #1f8a4c; border-color: #1f8a4c; color: #fff; } .save-btn.warn { background: #8a5a1f; border-color: #8a5a1f; color: #fff; }
+  .round-progress { margin-top: 12px; display: grid; gap: 8px; } .round-progress[hidden] { display: none; } .rp-msg { margin: 0; font-style: italic; opacity: .85; }
+  .rp-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; } .rp-list li { display: grid; grid-template-columns: 1fr auto 1fr; gap: 10px; align-items: center; padding: 7px 10px; border-radius: 8px; background: rgba(255,255,255,.06); animation: rpIn .3s ease both; } .rp-list li.me { background: rgba(215,184,107,.2); } .rp-list li b { font-variant-numeric: tabular-nums; } .rp-list li span:last-child { text-align: right; } .rp-list li.rp-head { display: block; background: none; padding: 6px 0 0; font-size: .75rem; letter-spacing: .06em; text-transform: uppercase; opacity: .7; }
+  @keyframes rpIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } } @media (prefers-reduced-motion: reduce) { .rp-list li { animation: none; } }
   #lmAgent[hidden] { display: none; }
   #lmAgent { position: fixed; right: 0; top: 0; bottom: 0; z-index: 60; pointer-events: none; }
   #lmAgent .ag-tab { pointer-events: auto; position: absolute; right: 0; top: 38%; transform-origin: right top; writing-mode: vertical-rl; padding: 14px 9px; border-radius: 10px 0 0 10px; background: var(--gold, #d7b86b); color: #14181a; font-weight: 800; letter-spacing: .04em; border: 0; cursor: pointer; box-shadow: -4px 6px 18px rgba(0,0,0,.35); }
@@ -897,12 +900,6 @@
       <div class="ng-mode">
         <h3>A season on your own</h3>
         <p class="desc">Take charge of a club in an eight-club league. Read the match, shape the tactics and see what happens. The other clubs are run by the computer.</p>
-        <div style="display:grid;gap:6px">
-          <b>What level do you want to learn at?</b>
-          <label class="radio"><input type="radio" name="tier" value="gcse" checked> <span>GCSE</span></label>
-          <label class="radio"><input type="radio" name="tier" value="alevel"> <span>A-level</span></label>
-          <label class="radio"><input type="radio" name="tier" value="above"> <span>Beyond A-level</span></label>
-        </div>
         <div class="row"><button class="primary" id="ngStart" style="flex:0 0 auto">Start the season</button></div>
       </div>
       <div class="ng-mode">
@@ -973,6 +970,7 @@
           <div class="group" id="finishBox" hidden>
             <p class="desc" id="finishText"></p>
             <button class="primary" id="finishBtn">Finish and see the table</button>
+            <div class="round-progress" id="roundProgress" hidden aria-live="polite"><p class="rp-msg" id="rpMsg"></p><ul class="rp-list" id="rpList"></ul></div>
           </div>
         </aside>
       </div>
@@ -997,8 +995,8 @@
 <script src="/create/football/rules.js?v=20261106a"></script>
 <script src="/create/football/instructions.js?v=20261010c"></script>
 <script src="/create/football/fitness.js?v=20261010c"></script>
-<script src="/create/football/match.js?v=20261106g"></script>
-<script src="/create/football/league.js?v=20261106l"></script>
+<script src="/create/football/match.js?v=20261106m"></script>
+<script src="/create/football/league.js?v=20261106m"></script>
 <script src="/create/football/preseason.js?v=20261010n"></script>
 <script src="/create/football/stats_math.js?v=20261010c"></script>
 <script src="/create/football/stats.js?v=20261013a"></script>
@@ -1025,6 +1023,6 @@
 <script src="/create/football/cases.js?v=20261028a"></script>
 <script src="/create/football/scenario.js?v=20261105z"></script>
 <script src="/create/football/multiplayer.js?v=20261106d"></script>
-<script src="/create/football/main.js?v=20261106l"></script>
+<script src="/create/football/main.js?v=20261106m"></script>
 </body>
 </html>

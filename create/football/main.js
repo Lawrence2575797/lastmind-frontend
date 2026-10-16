@@ -686,7 +686,24 @@
     setTimeout(async () => {
       const fx = world.fixture, m = world.match, me = world.league.userId;
       const mine = m.score[me], theirs = m.score[m.home.id === me ? m.away.id : m.home.id], result = mine > theirs ? 'W' : mine < theirs ? 'L' : 'D';
-      await FM.completeRound(world.league, world.fixture, world.match);
+      // the rest of the round plays out on screen: a message while it happens, and each score as that match finishes
+      const box = el('roundProgress'), list = el('rpList'), msg = el('rpMsg');
+      const MSGS = ['The other grounds are kicking off...', 'Waiting for the final whistles...', 'Checking the scores come in...', 'Nearly there, the last games are finishing...'];
+      let mi = 0; box.hidden = false; list.innerHTML = ''; msg.textContent = MSGS[0];
+      const ticker = setInterval(() => { mi = (mi + 1) % MSGS.length; msg.textContent = MSGS[mi]; }, 1800);
+      const line = (home, away, hg, ag, mineRow) => `<li class="${mineRow ? 'me' : ''}"><span>${esc(home)}</span><b>${hg} - ${ag}</b><span>${esc(away)}</span></li>`;
+      list.insertAdjacentHTML('beforeend', line(m.home.name, m.away.name, m.score[m.home.id], m.score[m.away.id], true));
+      let shownOther = false;
+      const onResult = async (f, lg, otherDivision) => {
+        if (otherDivision && !shownOther) { shownOther = true; list.insertAdjacentHTML('beforeend', '<li class="rp-head">Other division</li>'); }
+        const h = FM.teamById(lg, f.homeId), a = FM.teamById(lg, f.awayId);
+        list.insertAdjacentHTML('beforeend', line(h ? h.name : '', a ? a.name : '', f.hg, f.ag, false));
+        await new Promise((r) => setTimeout(r, 450));   // long enough to read each one
+      };
+      try { await FM.completeRound(world.league, world.fixture, world.match, onResult); } finally { clearInterval(ticker); }
+      msg.textContent = 'All the results are in.';
+      await new Promise((r) => setTimeout(r, 700));
+      box.hidden = true;
       world.league.prepStep = 0; world.league.prepPhaseMax = 0; world.league.testPhaseMax = 0;
       // The plan picked for this game is already in place when preparing the next one: the pages, positions and settings start from it
       { const lg = world.league, plan = (lg.tacticalPlans || []).find((p) => p.id === lg.activePlanId), tm = FM.teamById(lg, lg.userId); if (plan && tm) restorePlan(tm, plan); world.scn = {}; }
@@ -858,7 +875,7 @@
     const host = el('topRight');
     if (!lg) { host.innerHTML = ''; el('subtitle').textContent = ''; return; }
     const user = userTeam();
-    el('subtitle').textContent = user.name + ' · Season ' + lg.season + ' · ' + TIER_NAMES[lg.tier] + ' statistics';
+    el('subtitle').textContent = user.name + ' · Season ' + lg.season;
     host.innerHTML = `<span class="hint" style="color:inherit;opacity:0.8">${esc(FM.dayLabel(lg.day))}</span>
       <button data-top="home" class="${world.view === 'home' ? 'on' : ''}">Home</button>
       <button data-top="squad" class="${world.view === 'squad' ? 'on' : ''}">Squad</button>
@@ -2254,7 +2271,7 @@
   el('ngMatch').addEventListener('click', () => openMp('match'));
   el('ngJoin').addEventListener('click', () => openMp('join'));
   el('ngStart').addEventListener('click', async () => {
-    const btn = el('ngStart'), tier = document.querySelector('input[name="tier"]:checked').value;
+    const btn = el('ngStart'), tier = 'gcse';
     btn.disabled = true; btn.textContent = 'Setting up the clubs...';
     await new Promise((r) => setTimeout(r, 30));
     // The league is the same each time (clubs, squads, fixtures, last season), but each new game rolls its own dice: injuries and results differ.

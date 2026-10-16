@@ -558,14 +558,14 @@
   };
 
   // After the user's match: record it, then play the rest of that round in the background.
-  FM.completeRound = async function (league, userFx, userMatch) {
+  FM.completeRound = async function (league, userFx, userMatch, onResult) {
     FM.finishFixture(league, userFx, userMatch);
-    for (const fixture of league.fixtures.filter((f) => f.round === userFx.round && !f.played)) await FM.simulateFixtureAsync(league, fixture);
+    for (const fixture of league.fixtures.filter((f) => f.round === userFx.round && !f.played)) { await FM.simulateFixtureAsync(league, fixture); if (onResult) await onResult(fixture, league, false); }
     // The parallel division plays on the same matchday. It is simulated with
     // the same engine, but without a human-controlled club or match logs.
     const other = FM.ensureTwoDivisions(league);
     const shadow = { seed: league.seed + 44000, runSeed: league.runSeed || 0, day: league.day, userId: '__none__', teams: other.teams, fixtures: other.fixtures, news: [], friendlies: [], captains: {} };
-    for (const fixture of other.fixtures.filter((f) => f.round === userFx.round && !f.played)) await FM.simulateFixtureAsync(shadow, fixture);
+    for (const fixture of other.fixtures.filter((f) => f.round === userFx.round && !f.played)) { await FM.simulateFixtureAsync(shadow, fixture); if (onResult) await onResult(fixture, shadow, true); }
     FM.aiAfterRound(league, userFx.round);
     FM.updateBoardApproval(league);
     if (FM.testPendingHypotheses) FM.testPendingHypotheses(league, userFx);
@@ -718,7 +718,7 @@
         const ord = (n) => n + (['th', 'st', 'nd', 'rd'][(n % 100 > 10 && n % 100 < 14) || n % 10 > 3 ? 0 : n % 10]);
         const tier = { gcse: 'GCSE', alevel: 'A-level', above: 'Beyond A-level' }[league.tier] || league.tier;
         list.unshift({ id: PROJECT_ID, title: DEMO_MODE ? 'Lastmind football demo' : 'Be the manager: ' + user.name, kind: DEMO_MODE ? 'football-demo' : 'football-manager', updatedAt: new Date().toISOString(), isReference: false,
-          data: { href: DEMO_MODE ? '/create/football/?demo=1' : '/create/football/', meta: DEMO_MODE ? 'Opening match · ' + tier + ' statistics' : 'Season ' + league.season + ' · ' + (played >= 14 ? 'season complete' : played + ' of 14 played') + (played ? ' · ' + ord(pos) + ' in the table' : '') + ' · ' + tier + ' statistics' } });
+          data: { href: DEMO_MODE ? '/create/football/?demo=1' : '/create/football/', meta: DEMO_MODE ? 'Opening match' : 'Season ' + league.season + ' · ' + (played >= 14 ? 'season complete' : played + ' of 14 played') + (played ? ' · ' + ord(pos) + ' in the table' : '') } });
       }
       localStorage.setItem(PROJECTS_KEY, JSON.stringify(list));
     } catch (e) { /* the projects list is a convenience */ }

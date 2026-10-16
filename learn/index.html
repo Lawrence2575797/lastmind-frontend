@@ -11872,7 +11872,7 @@ SQIDAQAB
             const tier = { gcse: 'GCSE', alevel: 'A-level', above: 'Beyond A-level' }[d.tier] || d.tier;
             return { id: demo ? 'local-football-demo' : 'local-football-manager', title: demo ? 'Lastmind football demo' : 'Be the manager: ' + team.name, kind: demo ? 'football-demo' : 'football-manager', href: demo ? '/create/football/?demo=1' : '/create/football/', isReference: false, local: true,
                 updatedAt: new Date().toISOString(),
-                meta: demo ? 'Opening match · ' + tier + ' statistics' : 'Season ' + d.season + ' · ' + (mine >= 14 ? 'season complete' : mine + ' of 14 played') + (mine ? ' · ' + ord(pos) + ' in the table' : '') + ' · ' + tier + ' statistics' };
+                meta: demo ? 'Opening match' : 'Season ' + d.season + ' · ' + (mine >= 14 ? 'season complete' : mine + ' of 14 played') + (mine ? ' · ' + ord(pos) + ' in the table' : '') };
         } catch (err) { return null; }
     }
     // Be the Chancellor also runs on its own full-window page. Its real
