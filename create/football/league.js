@@ -729,6 +729,50 @@
   const OWNER_KEY = SAVE_KEY + '_owner', AT_KEY = SAVE_KEY + '_at', CLOUD_ID_KEY = SAVE_KEY + '_cloud_id';
   const lsGet = (k) => { try { return localStorage.getItem(k); } catch (e) { return null; } };
   const lsSet = (k, v) => { try { if (v == null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) { /* fine */ } };
+  // ---- where the game is kept on this device ----
+  // The browser's small storage (about 5 MB for the whole site) was full, so saving failed and the season was lost. The game is now kept in
+  // the browser's much larger database (IndexedDB). A copy in memory answers straight away; the database write follows, and the Save button
+  // waits for it. Anything an older version left in the small storage is moved across and then removed to free the space.
+  const mem = new Map();
+  let idbPromise = null, writes = Promise.resolve(true), lastWriteOk = true;
+  const idb = () => {
+    if (!idbPromise) idbPromise = new Promise((resolve) => {
+      try {
+        const req = indexedDB.open('lastmind-football', 1);
+        req.onupgradeneeded = () => { if (!req.result.objectStoreNames.contains('saves')) req.result.createObjectStore('saves'); };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => resolve(null);
+        req.onblocked = () => resolve(null);
+      } catch (e) { resolve(null); }
+    });
+    return idbPromise;
+  };
+  const idbGet = async (key) => { const d = await idb(); if (!d) return null; return new Promise((res) => { try { const r = d.transaction('saves').objectStore('saves').get(key); r.onsuccess = () => res(r.result == null ? null : r.result); r.onerror = () => res(null); } catch (e) { res(null); } }); };
+  const idbPut = async (key, val) => { const d = await idb(); if (!d) return false; return new Promise((res) => { try { const tx = d.transaction('saves', 'readwrite'); tx.objectStore('saves')[val == null ? 'delete' : 'put'](...(val == null ? [key] : [val, key])); tx.oncomplete = () => res(true); tx.onerror = () => res(false); tx.onabort = () => res(false); } catch (e) { res(false); } }); };
+  // load a save into memory: from the database, or (once) from the old small storage, moving it across
+  async function storeEnsure(key) {
+    if (mem.has(key)) return mem.get(key);
+    let v = await idbGet(key);
+    if (v == null) {
+      const old = (() => { try { return localStorage.getItem(key); } catch (e) { return null; } })();
+      if (old) { v = old; const ok = await idbPut(key, old); if (ok) { try { localStorage.removeItem(key); } catch (e) { /* fine */ } } }
+    }
+    mem.set(key, v == null ? null : v);
+    return mem.get(key);
+  }
+  const storeGet = (key) => (mem.has(key) ? mem.get(key) : null);
+  function storeSet(key, text) {
+    mem.set(key, text);
+    writes = writes.then(async () => {
+      let ok = await idbPut(key, text);
+      if (!ok) { try { localStorage.setItem(key, text); ok = true; } catch (e) { ok = false; } }   // no database in this browser: the small storage, if it has room
+      else { try { localStorage.removeItem(key); } catch (e) { /* fine */ } }   // anything an older version left there is no longer needed
+      lastWriteOk = ok; return ok;
+    });
+    return true;
+  }
+  function storeDrop(key) { mem.set(key, null); writes = writes.then(async () => { await idbPut(key, null); try { localStorage.removeItem(key); } catch (e) { /* fine */ } return true; }); }
+  FM.flushStore = async () => { await writes; return lastWriteOk; };
   let accountUid = null;
   const accountKey = (base) => (!DEMO_MODE && accountUid ? base + ':' + accountUid : base);
   const currentSaveKey = () => accountKey(SAVE_KEY);
@@ -768,14 +812,14 @@
   // The Save button: writes the game to this device and to the account now, and says how it went:
   // 'saved' (both), 'device' (this device only: the account could not be reached) or 'failed'.
   FM.saveNow = async function (league) {
-    const local = FM.saveLeagueRaw(league);
-    if (local) FM.syncProject(league);
+    let local = FM.saveLeagueRaw(league);
+    if (local) { FM.syncProject(league); local = await FM.flushStore(); }   // the database write has really finished
     if (DEMO_MODE) return local ? 'saved' : 'failed';
     clearTimeout(cloudTimer); cloudTimer = 0;
     cloudLeague = league;
     for (let i = 0; cloudBusy && i < 80; i++) await new Promise((r) => setTimeout(r, 250));   // let a write already on its way finish first
     const ok = await cloudWrite();
-    return local && ok ? 'saved' : local ? 'device' : 'failed';
+    return local && ok ? 'saved' : local ? 'device' : ok ? 'account' : 'failed';
   };
   FM.cloudSaveSoon = function (league) {
     if (DEMO_MODE) return;
@@ -785,26 +829,27 @@
   // Called once as the page opens: when the account holds a newer game than this browser (or this browser's game belongs to a different
   // account), the account's game is loaded here. Resolves quickly if nobody is signed in.
   FM.pullCloud = async function () {
-    if (DEMO_MODE) return 'none';
+    if (DEMO_MODE) { await storeEnsure(currentSaveKey()); return 'none'; }
     try {
       // Wait for the signed-in account's cloud save. Render can take a while
       // to wake, and an arbitrary browser-side cutoff can open the wrong local
       // state before the account response arrives.
       const list = await FM.apiCall('GET', '/create/projects');
       if (!list) return 'nosession';   // not signed in
-      if (list.uid) accountUid = list.uid;   // the account is known as soon as the sign-in is, even if the server is slow or down
-      if (list.netError || list.status >= 500 || list.status === 429 || list.status === 0) return 'error';
+      if (list.uid) { accountUid = list.uid; await storeEnsure(currentSaveKey()); }   // the account is known as soon as the sign-in is, even if the server is slow or down
+      if (list.netError || list.status >= 500 || list.status === 429 || list.status === 0) return storeGet(currentSaveKey()) ? 'ok' : 'error';   // a game kept on this device still opens
       if (!list.ok || !list.json || list.json.unavailable || !list.uid) return 'none';
       const uid = list.uid;
       // One-time migration from the old device-wide slot, but only when its
       // recorded owner is this exact account. Another account's save is never copied.
-      const owner = lsGet(OWNER_KEY), legacyText = lsGet(SAVE_KEY);
-      if (!lsGet(currentSaveKey()) && legacyText && (!owner || owner === uid)) {   // the old shared slot: this browser's own game from before saves were kept per account
-        lsSet(currentSaveKey(), legacyText);
+      await storeEnsure(currentSaveKey()); await storeEnsure(SAVE_KEY);
+      const owner = lsGet(OWNER_KEY), legacyText = storeGet(SAVE_KEY);
+      if (!storeGet(currentSaveKey()) && legacyText && (!owner || owner === uid)) {   // the old shared slot: this browser's own game from before saves were kept per account
+        storeSet(currentSaveKey(), legacyText); storeDrop(SAVE_KEY);
         if (lsGet(AT_KEY)) lsSet(currentAtKey(), lsGet(AT_KEY));
         if (lsGet(CLOUD_ID_KEY)) lsSet(currentCloudIdKey(), lsGet(CLOUD_ID_KEY));
       }
-      const localText = lsGet(currentSaveKey());
+      const localText = storeGet(currentSaveKey());
       // the season furthest on is the one to carry on with (then the most recently saved)
       const row = (list.json.projects || []).filter((p) => p.kind === 'football-manager').sort((a, b) => ((b.progress || 0) - (a.progress || 0)) || String(b.updatedAt).localeCompare(String(a.updatedAt)))[0];
       if (!row) return 'ok';
@@ -819,7 +864,7 @@
       try { FM.deserializeLeague(text); } catch (e) { return 'ok'; }
       // never swap a season for one that is further back
       if (localText && progressOfText(text) < localProg) { lsSet(currentCloudIdKey(), row.id); return 'ok'; }
-      lsSet(currentSaveKey(), text); lsSet(currentAtKey(), String(row.updatedAt)); lsSet(currentCloudIdKey(), row.id);
+      storeSet(currentSaveKey(), text); lsSet(currentAtKey(), String(row.updatedAt)); lsSet(currentCloudIdKey(), row.id);
       return 'ok';
     } catch (e) { return 'error'; }
   };
@@ -832,13 +877,7 @@
     // Paid saves are account-scoped. If identity has not been established,
     // refuse to write into a device-wide slot that another account could see.
     if (!DEMO_MODE && !accountUid) return false;
-    try { localStorage.setItem(currentSaveKey(), FM.serializeLeague(league)); return true; } catch (e) { /* storage full: drop the oldest clips and try again */ }
-    const withClips = league.fixtures.filter((f) => f.clips && f.clips.length).sort((a, b) => a.round - b.round);
-    for (const f of withClips) {
-      f.clips = []; f.clipsDropped = true;
-      try { localStorage.setItem(currentSaveKey(), FM.serializeLeague(league)); return true; } catch (e) { /* keep trimming */ }
-    }
-    return false;
+    try { return storeSet(currentSaveKey(), FM.serializeLeague(league)); } catch (e) { return false; }
   };
   // A game saved before pre-season friendlies existed has none: if no match has been played yet, add them so the reports have data.
   FM.ensureFriendlies = function (league) {
@@ -873,14 +912,14 @@
   FM.loadLeague = function () {
     try {
       if (!DEMO_MODE && !accountUid) return null;
-      const t = localStorage.getItem(currentSaveKey()), lg = t ? FM.deserializeLeague(t) : null;
+      const t = storeGet(currentSaveKey()), lg = t ? FM.deserializeLeague(t) : null;
       if (lg) lg.teams.forEach((tm) => { tm.squad.forEach((p) => FM.backfillPhysique(p)); FM.migrateRoles(tm); }); // saves from before heights existed and before the positional roles went
       FM.syncProject(lg);
       return lg;
     } catch (e) { return null; }
   };
   FM.clearSave = function () {
-    try { localStorage.removeItem(currentSaveKey()); } catch (e) { /* ignore */ }
+    storeDrop(currentSaveKey());
     clearTimeout(cloudTimer); cloudLeague = null;
     const id = lsGet(currentCloudIdKey());
     if (id && !DEMO_MODE) { FM.apiCall('DELETE', '/create/projects/' + encodeURIComponent(id)); lsSet(currentCloudIdKey(), null); lsSet(currentAtKey(), null); }

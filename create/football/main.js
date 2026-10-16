@@ -404,8 +404,8 @@
     b.disabled = true; b.classList.remove('ok', 'warn'); b.textContent = 'Saving...';
     let res = 'failed';
     try { res = await FM.saveNow(world.league); } catch (e) { res = 'failed'; }
-    b.textContent = res === 'saved' ? 'Saved \u2713' : res === 'device' ? 'Saved on this device only' : 'Could not save';
-    b.classList.add(res === 'saved' ? 'ok' : 'warn');
+    b.textContent = res === 'saved' ? 'Saved \u2713' : res === 'account' ? 'Saved to your account \u2713' : res === 'device' ? 'Saved on this device only' : 'Could not save';
+    b.classList.add(res === 'saved' || res === 'account' ? 'ok' : 'warn');
     b.setAttribute('role', 'status');
     setTimeout(() => { b.disabled = false; b.classList.remove('ok', 'warn'); b.textContent = 'Save'; }, res === 'saved' ? 2500 : 5000);
   });

@@ -34,6 +34,7 @@ function environment(uid) {
   const austin = environment('austin');
   await austin.pullCloud();
   const austinLoaded = austin.loadLeague();
+  await james.flushStore(); await austin.flushStore();   // saves reach the browser's storage a moment after they are made
   const separate = storage.has('lm_football_save_v1:james') && storage.has('lm_football_save_v1:austin') && storage.get('lm_football_save_v1:james') !== storage.get('lm_football_save_v1:austin');
   const ok = !jamesSawAustin && jamesSaved && austinLoaded && austinLoaded.runSeed === 111 && separate;
   console.log(JSON.stringify({ jamesSawAustin, jamesSaved, austinLegacyMigrated: !!austinLoaded, accountSlotsSeparate: separate }, null, 2));

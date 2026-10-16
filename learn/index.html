@@ -11849,7 +11849,11 @@ SQIDAQAB
     function createFootballProject(demo = false) {
         try {
             const raw = localStorage.getItem(demo ? 'lm_football_demo_save_v1' : `lm_football_save_v1:${createFootballUid}`);
-            if (!raw) return null;
+            if (!raw) {
+                // the season is kept in the browser's database now; the small summary the game page leaves is enough for the card
+                const sum = createLocalProjects().find((x) => x.id === (demo ? 'local-football-demo' : 'local-football-manager'));
+                return sum ? { id: sum.id, title: sum.title, kind: sum.kind, href: (sum.data && sum.data.href) || (demo ? '/create/football/?demo=1' : '/create/football/'), isReference: false, local: true, updatedAt: sum.updatedAt, meta: sum.data && sum.data.meta } : null;
+            }
             const d = JSON.parse(raw);
             const team = (d.teams || []).find((t) => t.id === d.userId);
             if (!team) return null;
@@ -11984,6 +11988,10 @@ SQIDAQAB
     async function createDeleteProject(id) {
         if (id === 'local-football-manager') {
             try { localStorage.removeItem('lm_football_save_v1'); const cid = localStorage.getItem('lm_football_save_v1_cloud_id'); localStorage.removeItem('lm_football_save_v1_cloud_id'); localStorage.removeItem('lm_football_save_v1_at'); localStorage.removeItem('lm_football_save_v1_owner'); if (cid) await createAuthedFetch(`/create/projects/${encodeURIComponent(cid)}`, { method: 'DELETE' }); } catch (err) { /* nothing to remove */ }
+        }
+        if (id === 'local-football-demo' || id === 'local-football-manager') {
+            // the saved game itself is in the browser's database: remove it there too
+            try { const open = indexedDB.open('lastmind-football', 1); open.onsuccess = () => { try { const d = open.result; if (!d.objectStoreNames.contains('saves')) return; const st = d.transaction('saves', 'readwrite').objectStore('saves'); st.openCursor().onsuccess = (e) => { const c = e.target.result; if (!c) return; if (String(c.key).indexOf(id === 'local-football-demo' ? 'lm_football_demo_save_v1' : 'lm_football_save_v1') === 0) c.delete(); c.continue(); }; } catch (err) { /* nothing to remove */ } }; } catch (err) { /* nothing to remove */ }
         }
         if (id === 'local-football-demo') { try { localStorage.removeItem('lm_football_demo_save_v1'); } catch (err) { /* nothing to remove */ } }
         if (id === 'local-chancellor') { try { localStorage.removeItem(CHN_GAME_KEY); } catch (err) { /* nothing to remove */ } }
