@@ -230,6 +230,7 @@
 
     host.innerHTML = `
       <div style="display:grid;gap:16px">
+        <div id="anReview" style="display:grid;gap:16px"></div>
         <div id="anData"></div>
         <div class="card">
           <h2>Analysis Centre</h2>
@@ -253,6 +254,7 @@
         <div class="card" id="anClips"></div>
       </div>`;
     const askBtn = host.querySelector('#anAskAgent'); if (askBtn) askBtn.addEventListener('click', () => { if (FM.agentOpen) FM.agentOpen('Take me through my latest match.'); });
+    if (FM.renderMatchReview) FM.renderMatchReview(host.querySelector('#anReview'), league);
     if (FM.renderDatasetTop) FM.renderDatasetTop(host.querySelector('#anData'), league);
     host.querySelector('#anMatch').addEventListener('change', (e) => { state.fxId = e.target.value; FM.renderAnalysis(host, league); });
     host.querySelector('#anTeam').addEventListener('change', (e) => { state.teamSel = e.target.value; state.playerSel = 'all'; FM.renderAnalysis(host, league); });

@@ -851,15 +851,8 @@
     else if (v === 'recruit') FM.renderRecruit(el('view-recruit'), world.league, { save: saveSoon, openSquad: () => setView('squad') });
     else if (v === 'analysis') {
       const av = el('view-analysis');
+      // the analysis is of the match just played; who the next opponent are (and the history behind a derby) is on the match preview
       FM.renderAnalysis(av, world.league);
-      // the opposition report comes first: it is what the preparation is for
-      const oppBox = document.createElement('div'); oppBox.id = 'analysisOpp'; av.insertBefore(oppBox, av.firstChild);
-      try { FM.renderReports(oppBox, world.league); } catch (e) { oppBox.remove(); }
-      // before anything else: who the next opponent are to this club (and, for a derby, how much the two sides hate each other)
-      try {
-        const nx = nextOpponent(), hc = FM.historyCardHtml ? FM.historyCardHtml(world.league, nx) : '';
-        if (hc) { const hb = document.createElement('div'); hb.id = 'analysisHistory'; hb.innerHTML = hc; av.insertBefore(hb, av.firstChild); }
-      } catch (e) { /* the history is a nicety */ }
     }
     else if (v === 'reports') FM.renderReports(el('view-reports'), world.league);
     else if (v === 'news') FM.renderNews(el('view-news'), world.league);
@@ -941,6 +934,12 @@
         <div class="card"><h2>Opponent</h2><p class="fixture-big">${esc(opp.name)}</p><p class="desc">${FM.derbyBetween && FM.derbyBetween(me.name, opp.name) ? '<b>' + esc(FM.derbyBetween(me.name, opp.name).name) + '</b> · ' : ''}${esc(profile.tag || 'Opponent')} · likely ${esc(opp.formationKey)} · ${esc({ balanced:'balanced',possession:'patient in possession',counter:'dangerous in transition',press:'aggressive without the ball',direct:'direct with the ball' }[opp.style] || opp.style)}.</p></div>
         <div class="card"><h2>Evidence so far</h2><p class="desc">${findings}</p></div>
       </div></div>`;
+    // who the opponent are to this club (and, for a derby, how much the two sides hate each other)
+    try {
+      const hc = FM.historyCardHtml ? FM.historyCardHtml(lg, opp) : '';
+      const hero = host.querySelector('.preview-hero');
+      if (hc && hero) hero.insertAdjacentHTML('afterend', '<div id="previewHistory">' + hc + '</div>');
+    } catch (e) { /* the history is a nicety */ }
     host.querySelector('#previewTactics').addEventListener('click', () => { world.testing = false; world.tab = 'squad'; setView('tactics'); });
     const pt = host.querySelector('#previewTest'); if (pt) pt.addEventListener('click', () => { world.testing = true; world.tab = 'build'; setView('tactics'); });
     const rep = host.querySelector('#previewReport'); if (rep) rep.addEventListener('click', () => setView('reports'));
