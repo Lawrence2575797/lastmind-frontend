@@ -582,45 +582,66 @@
     }[R];
     return [performance, decided, next];
   }
+  // Which of several wordings to use: it depends on the club, the season and the round, so each game's press conference reads differently.
+  function variant(arr, fx, qi, salt) {
+    const lg = world.league, h = FM.hashString([lg.seed, lg.runSeed || 0, lg.season || 1, fx.round || 0, qi, salt].join(':'));
+    return arr[h % arr.length];
+  }
   function interviewQuestions(kind, fx, result) {
     { const dk = derbyInterview(kind, fx, result); if (dk) return dk.questions; }
     const lg = world.league, me = userTeam(), home = FM.teamById(lg, fx.homeId), away = FM.teamById(lg, fx.awayId), opp = home.id === me.id ? away : home;
     if (kind === 'pre') return [
-      `What do you expect from ${opp.name} today?`,
-      `What will matter most in your game plan?`,
-      `What is your message to the players before kick-off?`
+      variant([`What do you expect from ${opp.name} today?`, `How do you see ${opp.name} setting up against you?`, `What sort of game is this going to be against ${opp.name}?`, `${opp.name} are next. What are the dangers?`], fx, 0, 'q'),
+      variant([`What will matter most in your game plan?`, `Where do you think this game will be won?`, `What are you asking of the team tactically?`, `What is the key to getting a result today?`], fx, 1, 'q'),
+      variant([`What is your message to the players before kick-off?`, `What have you told the players in the dressing room?`, `How are you getting the team ready mentally?`, `Any final words for the players?`], fx, 2, 'q')
     ];
     const lead = result === 'W' ? 'After that win' : result === 'L' ? 'After that defeat' : 'After that draw';
-    return [`${lead}, how do you assess the performance?`, 'Where was the match decided?', 'What do you want the players to take into the next game?'];
+    return [
+      variant([`${lead}, how do you assess the performance?`, `${lead}, what did you make of the team's display?`, `What is your reaction to the result?`, `${lead}: pleased, or are there things you were unhappy with?`], fx, 0, 'q'),
+      variant(['Where was the match decided?', 'What made the difference in the end?', 'When did you feel the game turned?', 'What was the key moment or phase?'], fx, 1, 'q'),
+      variant(['What do you want the players to take into the next game?', 'How do you move on from this one?', 'What happens in training this week?', 'What is the focus now?'], fx, 2, 'q')
+    ];
   }
   function interviewMoodChoices(kind, fx, result, questionIndex, standard) {
     const lg = world.league, me = userTeam(), home = FM.teamById(lg, fx.homeId), away = FM.teamById(lg, fx.awayId), opp = home.id === me.id ? away : home;
     let confident, provocative;
     if (kind === 'pre') {
       const confidentSet = [
-        `We respect ${opp.name}, but if we play our game, we win.`,
-        'We will take control early and make them react to us.',
-        'Be brave, impose yourselves and give them a match they will remember.'
+        [`We respect ${opp.name}, but if we play our game, we win.`, `They are a fine side, and we are better when we play to our level.`, `Whoever they put out, we have the quality to beat them.`],
+        ['We will take control early and make them react to us.', 'We set the tempo and they follow, that is the plan.', 'We go out to dominate the ball and the game.'],
+        ['Be brave, impose yourselves and give them a match they will remember.', 'Go and play like you know you can, and the rest takes care of itself.', 'Believe in each other and take the game to them.']
       ];
       const provocativeSet = [
-        `I do not see one ${opp.name} player who gets into my team.`,
-        'Their plan is predictable. We know exactly where they are vulnerable.',
-        'Go after them from the first whistle. They will not enjoy it.'
+        [`I do not see one ${opp.name} player who gets into my team.`, `${opp.name} have had a good press. I have not seen it on the pitch.`, `If ${opp.name} think they are favourites, they are in for a shock.`],
+        ['Their plan is predictable. We know exactly where they are vulnerable.', 'They will try to wind us up. It will not work, and it will cost them.', 'We have studied them. There are weaknesses we will go straight for.'],
+        ['Go after them from the first whistle. They will not enjoy it.', 'Make them uncomfortable from the first tackle. They are not used to it.', 'Remind them whose ground this is, and whose game.']
       ];
-      confident = confidentSet[questionIndex]; provocative = provocativeSet[questionIndex];
+      confident = variant(confidentSet[questionIndex], fx, questionIndex, 'c'); provocative = variant(provocativeSet[questionIndex], fx, questionIndex, 'p');
     } else {
       const R = result === 'W' ? 'W' : result === 'L' ? 'L' : 'D';
       const confidentSet = {
-        W: ['We were the better side and earned every bit of that win.', 'Our quality decided it when the pressure was highest.', 'This is the standard now. We expect to keep winning.'],
-        L: ['The result hurts, but this side is much better than it showed.', 'Small margins decided it; the plan itself was right.', 'We will respond. I have complete faith in this group.'],
-        D: ['We were closer to winning it and should take confidence from that.', 'We controlled the important parts but lacked the final touch.', 'Keep playing like that and the wins will come.']
+        W: [['We were the better side and earned every bit of that win.', 'That was a complete performance and nobody can argue with the result.', 'We played the way we want to play, and it showed on the scoreboard.'],
+          ['Our quality decided it when the pressure was highest.', 'When it mattered we were sharper than them, and that is what wins matches.', 'We were calmer in the big moments, and that was the difference.'],
+          ['This is the standard now. We expect to keep winning.', 'We have shown what we can do, and now we expect it every week.', 'No one gets carried away, but we know we belong at this level.']],
+        L: [['The result hurts, but this side is much better than it showed.', 'That is not who we are, and the next few weeks will prove it.', 'I saw plenty to be positive about, whatever the score says.'],
+          ['Small margins decided it; the plan itself was right.', 'We were in it until a couple of moments, and the plan was sound.', 'On another day the same performance wins it.'],
+          ['We will respond. I have complete faith in this group.', 'This group has the character to bounce back, and I back them.', 'We go again, and I am confident of the reaction.']],
+        D: [['We were closer to winning it and should take confidence from that.', 'On the balance of play we should have taken all three.', 'We created enough to win, and that is what I will build on.'],
+          ['We controlled the important parts but lacked the final touch.', 'The pattern was right. We just needed the last pass or the finish.', 'Everything but the goal, which tells me we are close.'],
+          ['Keep playing like that and the wins will come.', 'Do that again and we will be celebrating next week.', 'The performance was there, so the results will follow.']]
       }[R];
       const provocativeSet = {
-        W: [`The score flattered ${opp.name}; they could not live with us.`, 'They spent the match chasing us and hoping for mistakes.', 'Anyone doubting this team should start paying attention.'],
-        L: [`${opp.name} can celebrate, but they were not the better team.`, 'The officials got the biggest decision wrong. Everyone saw it.', 'Some players should be worried about keeping their shirts.'],
-        D: [`${opp.name} came for a draw and played like it.`, 'Their time-wasting killed the match, and the referee allowed it.', 'A few players were too comfortable today. That changes now.']
+        W: [[`The score flattered ${opp.name}; they could not live with us.`, `${opp.name} were second best all afternoon and they know it.`, `${opp.name} were never in it. It could have been more.`],
+          ['They spent the match chasing us and hoping for mistakes.', 'They had no answer to us, and no plan B either.', 'They hoped we would slip. We did not, and they ran out of ideas.'],
+          ['Anyone doubting this team should start paying attention.', 'The critics can find something else to talk about now.', 'People wrote us off, and they were wrong.']],
+        L: [[`${opp.name} can celebrate, but they were not the better team.`, `${opp.name} got the points, but I did not see a better side out there.`, `They will say they deserved it. They did not.`],
+          ['The officials got the biggest decision wrong. Everyone saw it.', 'One decision changed the match, and it should not have gone the way it did.', 'I will keep my opinion on the referee to myself, but you all saw it.'],
+          ['Some players should be worried about keeping their shirts.', 'There are players who need to look hard at themselves this week.', 'Standards slipped, and some people will pay for it.']],
+        D: [[`${opp.name} came for a draw and played like it.`, `They defended as if a point was a victory. It says everything.`, `${opp.name} had no ambition and were happy to hang on.`],
+          ['Their time-wasting killed the match, and the referee allowed it.', 'The game was constantly broken up, and it was allowed to be.', 'They slowed everything down and nobody stopped them.'],
+          ['A few players were too comfortable today. That changes now.', 'Some of them thought it would be easy. They know better now.', 'Comfort is the enemy. Some players will be reminded this week.']]
       }[R];
-      confident = confidentSet[questionIndex]; provocative = provocativeSet[questionIndex];
+      confident = variant(confidentSet[questionIndex], fx, questionIndex, 'c'); provocative = variant(provocativeSet[questionIndex], fx, questionIndex, 'p');
     }
     const reaction = (mood) => {
       if (mood === 'measured') return 1;
@@ -1645,7 +1666,8 @@
     const backs = team.players.filter((p) => p.group === 'CB' || p.group === 'FB'), now = backs.reduce((s, p) => s + FM.phasePos(team, p, 'without').d, 0) / Math.max(1, backs.length), shift = target - now;
     team.players.forEach((p) => {
       const q = FM.phasePos(team, p, 'without'); FM.setPhasePos(team, p, 'without', { d: Math.max(.03, Math.min(.82, q.d + shift)), w: q.w });
-      const r = FM.phasePos(team, p, 'press'); if (r && p.group !== 'GK') FM.setPhasePos(team, p, 'press', { d: Math.max(.05, Math.min(.9, r.d + shift)), w: r.w });
+      // how high they stand to press a build-up is read off the two default shapes: the full press, and the block they drop into; mid is between
+      if (p.group !== 'GK') { const hi = FM.defaultPhasePos(team, p, 'press'), lo = FM.defaultPhasePos(team, p, 'without'), f = { high: 1, mid: 0.55, low: 0 }[kind]; FM.setPhasePos(team, p, 'press', { d: Math.max(.05, Math.min(.92, lo.d + (hi.d - lo.d) * f)), w: hi.w }); }
     });
     team.tactics.block = kind;
     team.tactics.pressing = kind === 'high' ? .82 : kind === 'mid' ? .5 : .22;

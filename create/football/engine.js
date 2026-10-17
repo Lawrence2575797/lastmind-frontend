@@ -776,7 +776,8 @@
     w = clamp(w, 0.04, 0.96);
     // A leash: whatever the ball, the opposition and his role ask of him, a player stays within a short distance of where the manager put him
     // (a few metres to find space or leave a marker; a little more as an attack reaches the box), so a pass does not rearrange the team.
-    if (player.group !== 'GK') {
+    // (Without the ball the leash only holds while the ball is near our own goal: pressing and closing down further up the pitch are not limited.)
+    if (player.group !== 'GK' && (hasBall || b.d < (FM.LEASH_ZONE == null ? 0.4 : FM.LEASH_ZONE))) {
       const home = toMetres(team.attackDir, boardPos.d, boardPos.w), at = toMetres(team.attackDir, d, w);
       const fzr = hasBall ? clamp((b.d - 0.56) / 0.26, 0, 1) : 0;
       const R = (FM.LEASH == null ? 6 : FM.LEASH) * clamp(1 + 0.5 * m.roam, 0.6, 1.6) * (hasBall ? 1 : (b.d > 0.5 ? (FM.LEASH_PRESS == null ? 3 : FM.LEASH_PRESS) : 0.7)) + (hasBall ? 5 * fzr : 0);   // the press of a build-up is left free: pressing is moving a long way
