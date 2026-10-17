@@ -100,6 +100,8 @@
     const { m, u } = S.eng, h = S.own[S.holder];
     m.ball.x = h.y; m.ball.y = h.x; m.ball.state = 'carried';
     m.carrier = { team: u, player: u.players[S.holder] };
+    // the whole team starts the engine where the shirts are, so what the engine moves later is a small step from the board, not a run from wherever the match model had them
+    S.own.forEach((o, i) => { const p = u.players[i]; if (p) { p.x = o.y; p.y = o.x; p.vx = 0; p.vy = 0; } });
     syncOwn(S);
     m.lastTeam = u; m.nextDecision = m.clock + 999;
   }
