@@ -149,18 +149,62 @@
   FM.clubHistory = (name) => FM.CLUB_HISTORY[name] || null;
 
   // The history card on the Analysis page: who the next opponent are to this club, and (for a derby) how much the two sides hate each other.
-  FM.historyCardHtml = function (league, opp) {
+  // Every game gets its own explanation. The first time the club meets an opponent in a season it is the story of the opposition (and of the
+  // derby, where there is one). The second time is the return fixture: how the first game went, where both sides stand now, and what this one means.
+  const ordw = (n) => n + (['th', 'st', 'nd', 'rd'][(n % 100 > 10 && n % 100 < 14) || n % 10 > 3 ? 0 : n % 10]);
+  function returnCardHtml(league, me, opp, fx, prev, d, esc) {
+    const myId = league.userId, rows = FM.tableRows(league), pos = (id) => rows.findIndex((r) => r.id === id) + 1, row = (id) => rows.find((r) => r.id === id) || { pts: 0, form: [] };
+    const mine = row(myId), theirs = row(opp.id), myPos = pos(myId), thPos = pos(opp.id);
+    const iHome = prev.homeId === myId, gf = iHome ? prev.hg : prev.ag, ga = iHome ? prev.ag : prev.hg, res = gf > ga ? 'win' : gf === ga ? 'draw' : 'loss';
+    const score = `${esc(prev.homeId === myId ? me.name : opp.name)} ${prev.hg}-${prev.ag} ${esc(prev.homeId === myId ? opp.name : me.name)}`;
+    const venueNow = fx.homeId === myId ? 'home' : 'away', h = FM.CLUB_HISTORY[opp.name] || {}, ground = h.ground || (opp.name + "'s ground");
+    const scorers = (prev.summary && prev.summary.goals ? prev.summary.goals : []).map((g) => `${esc(g.name || '')} (${g.t}')`).join(', ');
+    const potm = prev.summary && prev.summary.potm ? prev.summary.potm : null;
+    const form5 = (r) => (r.form || []).slice(-5), pts5 = (r) => form5(r).reduce((a, x) => a + (x === 'W' ? 3 : x === 'D' ? 1 : 0), 0);
+    const badge = (f) => f.map((x) => `<i class="fm-form ${x}" title="${x === 'W' ? 'Won' : x === 'D' ? 'Drew' : 'Lost'}">${x}</i>`).join('') || '<span class="note">no games yet</span>';
+    const gap = myPos && thPos ? thPos - myPos : 0, left = 13 - fx.round;
+    const mood = d && FM.derbyMood ? FM.derbyMood(d, d.a === me.name ? 'a' : 'b', res) : null;
+    const lede = d ? ({
+      win: `Round ${prev.round + 1} went our way, ${score}, and ${esc(opp.name)} have not forgotten it. In a derby the return is never just another match: this is their chance to take it back.`,
+      draw: `Round ${prev.round + 1} finished ${score}, and neither side could claim it. The argument is still open, and this game is where it gets settled.`,
+      loss: `${esc(opp.name)} beat us ${score} in round ${prev.round + 1}, and the town has not stopped talking about it. This is the chance to answer.`,
+    }[res]) : ({
+      win: `We beat ${esc(opp.name)} ${score} when we met in round ${prev.round + 1}. They will want to put that right, and a side that has lost to you once comes back with something to prove.`,
+      draw: `It finished ${score} last time we met ${esc(opp.name)}, in round ${prev.round + 1}. Nothing was settled, so this one matters.`,
+      loss: `${esc(opp.name)} beat us ${score} in round ${prev.round + 1}. This is the return, and a chance to put it right.`,
+    }[res]);
+    const stakes = Math.abs(gap) <= 2 ? `The two clubs are so close in the table (${ordw(myPos)} against ${ordw(thPos)}) that this match could decide which finishes above the other.` : gap > 0 ? `We are ${gap} place${gap === 1 ? '' : 's'} above them (${ordw(myPos)} against ${ordw(thPos)}), so on paper we are favourites, which brings its own pressure: nobody wants to be the side that threw it away.` : `They are ${-gap} place${gap === -1 ? '' : 's'} above us (${ordw(thPos)} against ${ordw(myPos)}), so we have the most to gain, and the table gives us a reason to go for it.`;
+    const venue = venueNow === 'away' ? `This time it is away, at ${esc(ground)}, so expect a hostile crowd that remembers the first game and a ground that makes a team play more cautiously than it would like.` : `This time it is at home, so the crowd will be on our side and expect us to take the game to them.`;
+    const timing = left <= 4 ? `With only ${left} match${left === 1 ? '' : 'es'} left after this one, every point now counts for the season.` : left <= 8 ? 'We are past the middle of the season, so the table is starting to take shape.' : '';
+    return `<div class="card hist-card${d && d.key === 'iron' ? ' hist-iron' : ''}">
+      <span class="eyebrow">Round ${fx.round + 1} · ${venueNow === 'home' ? 'Home' : 'Away'} · the return fixture</span>
+      <h2>${d ? esc(d.name) + ': ' : ''}${esc(me.name)} v ${esc(opp.name)}, again</h2>
+      <p class="hist-lede">${lede}</p>
+      <h3>How the first game went</h3>
+      <p><b>${score}</b>${scorers ? `. Goals: ${scorers}` : ''}${potm ? `. Player of the match: ${esc(potm.name || potm)}` : ''}.${mood ? ' ' + esc(mood) : ''}</p>
+      <h3>Where both sides stand now</h3>
+      <div class="hist-record" aria-label="Table positions"><div><b>${ordw(myPos)}</b><span>${esc(me.name)} · ${mine.pts} pts</span></div><div><b>${ordw(thPos)}</b><span>${esc(opp.name)} · ${theirs.pts} pts</span></div><div><b>${pts5(mine)}</b><span>our points from the last 5</span></div><div><b>${pts5(theirs)}</b><span>theirs from the last 5</span></div></div>
+      <p class="hist-form"><span>Us</span> ${badge(form5(mine))} <span>${esc(opp.name)}</span> ${badge(form5(theirs))}</p>
+      <h3>What this game means</h3>
+      <p>${stakes} ${venue} ${timing}</p>
+    </div>`;
+  }
+  FM.historyCardHtml = function (league, opp, fx) {
     const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
     const me = FM.teamById(league, league.userId);
     if (!opp || !me) return '';
     const d = FM.derbyBetween(me.name, opp.name), h = FM.CLUB_HISTORY[opp.name];
+    // already met this season: this is the return fixture, with its own story
+    const prev = fx ? league.fixtures.filter((f) => f.played && !f.friendly && f !== fx && ((f.homeId === me.id && f.awayId === opp.id) || (f.homeId === opp.id && f.awayId === me.id))).sort((a, b) => a.round - b.round) : [];
+    if (prev.length) return returnCardHtml(league, me, opp, fx, prev[prev.length - 1], d, esc);
+    const firstEver = (league.season || 1) === 1 && !league.fixtures.some((f) => f.played);
     if (d && d.key === 'iron') {
       const rec = FM.derbyRecord(league, d), meIsA = me.name === d.a, played = rec.thisGame.a + rec.thisGame.b + rec.thisGame.d;
       const row = (y) => `<li><b>${y.year}: ${esc(y.title)}.</b> ${esc(y.text)}</li>`;
       return `<div class="card hist-card hist-iron">
         <span class="eyebrow">Before you do anything else</span>
         <h2>${esc(d.name)}: Ashford Rovers v Northfield United</h2>
-        <p class="hist-lede">Welcome to Ashford, boss. Your first game is the one this whole town has been waiting for, and it is worth understanding before you pick a team: <b>they hate Northfield. All of them, and for good reason.</b></p>
+        <p class="hist-lede">${firstEver ? 'Welcome to Ashford, boss. Your first game is the one this whole town has been waiting for, and it is worth understanding before you pick a team: <b>they hate Northfield. All of them, and for good reason.</b>' : `Season ${league.season} opens the way every season does: <b>Ashford against Northfield</b>, the Iron Derby, before anything else matters. Whatever happened last year, the town starts again from nothing, and the first game sets the mood for the winter.`}</p>
         <div class="hist-record" aria-label="All-time record"><div><b>${rec.a}</b><span>Ashford wins</span></div><div><b>${rec.d}</b><span>draws</span></div><div><b>${rec.b}</b><span>Northfield wins</span></div><div class="hist-total"><b>${rec.total}</b><span>meetings</span></div></div>
         ${played ? `<p class="note">This game so far: Ashford ${rec.thisGame.a}, Northfield ${rec.thisGame.b}, ${rec.thisGame.d} drawn.</p>` : ''}
         <h3>How the hatred began</h3>

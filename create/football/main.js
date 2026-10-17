@@ -936,7 +936,7 @@
       </div></div>`;
     // who the opponent are to this club (and, for a derby, how much the two sides hate each other)
     try {
-      const hc = FM.historyCardHtml ? FM.historyCardHtml(lg, opp) : '';
+      const hc = FM.historyCardHtml ? FM.historyCardHtml(lg, opp, fx) : '';
       const hero = host.querySelector('.preview-hero');
       if (hc && hero) hero.insertAdjacentHTML('afterend', '<div id="previewHistory">' + hc + '</div>');
     } catch (e) { /* the history is a nicety */ }
