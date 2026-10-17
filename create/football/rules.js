@@ -143,7 +143,12 @@
     const out = [];
     c.me = p;
     const oppId = team.oppRef ? String(team.oppRef.id || '') : '';   // an instruction for one game applies only against that opponent
-    (team.rules || []).forEach((r) => { if (r.off || (r.game && r.game.vs && oppId && r.game.vs !== oppId) || !scopeMatches(r.scope, p) || !whenHolds(r.when, c)) return; r.effects.forEach((e) => out.push(e)); });
+    const inferred = [];
+    (team.rules || []).forEach((r) => { if (r.off || (r.game && r.game.vs && oppId && r.game.vs !== oppId) || !scopeMatches(r.scope, p) || !whenHolds(r.when, c)) return; r.effects.forEach((e) => (r.source === 'scenario' ? inferred : out).push(e)); });
+    // What the manager wrote is certain; what was worked out from the scenarios they played is a guess. Where both speak about the same thing, the written instruction wins.
+    const key = (e) => e.type + (e.type === 'position' ? ':' + e.phase : '');
+    const written = new Set(out.map(key));
+    inferred.forEach((e) => { if (!written.has(key(e))) out.push(e); });
     return out;
   };
   // A passer's rules folded into the numbers the decision uses.
