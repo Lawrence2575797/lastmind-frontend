@@ -15,6 +15,167 @@
   const poissonUpper = (k, lam) => { let c = 0, t = Math.exp(-lam); for (let i = 0; i < k; i++) { c += t; t *= lam / (i + 1); } return Math.max(0, Math.min(1, 1 - c)); };   // P(X >= k)
   const SIG = 0.05, ACT = 0.1;   // a result is significant below 5%; below 10% something is worth changing
 
+  // ---------- the techniques ----------
+  // Used where each one is needed and not otherwise: a binomial or Poisson test for "is this more than luck", a Poisson match model and expected points for
+  // "what did the chances say about the result", correlation and regression for "does this really go with winning", a chi-square test for "does it
+  // depend on where or how", confidence intervals for "is this difference bigger than the noise", and a look at the seconds after an event for cause.
+  function lgam(x) { const c = [76.18009172947146, -86.50532032941677, 24.01409824083091, -1.231739572450155, 0.1208650973866179e-2, -0.5395239384953e-5]; let y = x, tmp = x + 5.5; tmp -= (x + 0.5) * Math.log(tmp); let ser = 1.000000000190015; for (let j = 0; j < 6; j++) ser += c[j] / ++y; return -tmp + Math.log(2.5066282746310005 * ser / x); }
+  function betacf(a, b, x) {
+    const FP = 1e-30; let qab = a + b, qap = a + 1, qam = a - 1, c = 1, d = 1 - qab * x / qap; if (Math.abs(d) < FP) d = FP; d = 1 / d; let h = d;
+    for (let m = 1; m <= 200; m++) {
+      const m2 = 2 * m; let aa = m * (b - m) * x / ((qam + m2) * (a + m2));
+      d = 1 + aa * d; if (Math.abs(d) < FP) d = FP; c = 1 + aa / c; if (Math.abs(c) < FP) c = FP; d = 1 / d; h *= d * c;
+      aa = -(a + m) * (qab + m) * x / ((a + m2) * (qap + m2));
+      d = 1 + aa * d; if (Math.abs(d) < FP) d = FP; c = 1 + aa / c; if (Math.abs(c) < FP) c = FP; d = 1 / d; const del = d * c; h *= del; if (Math.abs(del - 1) < 3e-7) break;
+    }
+    return h;
+  }
+  function ibeta(x, a, b) { if (x <= 0) return 0; if (x >= 1) return 1; const bt = Math.exp(lgam(a + b) - lgam(a) - lgam(b) + a * Math.log(x) + b * Math.log(1 - x)); return x < (a + 1) / (a + b + 2) ? bt * betacf(a, b, x) / a : 1 - bt * betacf(b, a, 1 - x) / b; }
+  const tTwoSided = (t, df) => ibeta(df / (df + t * t), df / 2, 0.5);
+  const erfc = (x) => { const z = Math.abs(x), t = 1 / (1 + 0.5 * z); const r = t * Math.exp(-z * z - 1.26551223 + t * (1.00002368 + t * (0.37409196 + t * (0.09678418 + t * (-0.18628806 + t * (0.27886807 + t * (-1.13520398 + t * (1.48851587 + t * (-0.82215223 + t * 0.17087277))))))))); return x >= 0 ? r : 2 - r; };
+  const chi2p = (x, df) => (df === 1 ? erfc(Math.sqrt(Math.max(0, x) / 2)) : Math.exp(-Math.max(0, x) / 2));   // df 1 or 2
+  const wilson = (k, n) => { if (!n) return [0, 0]; const z = 1.96, p = k / n, d = 1 + z * z / n, ctr = (p + z * z / (2 * n)) / d, w = z * Math.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / d; return [Math.max(0, ctr - w), Math.min(1, ctr + w)]; };
+  function pearson(xs, ys) {
+    const n = xs.length, mx = mean(xs), my = mean(ys); let sxy = 0, sxx = 0, syy = 0;
+    for (let i = 0; i < n; i++) { sxy += (xs[i] - mx) * (ys[i] - my); sxx += (xs[i] - mx) ** 2; syy += (ys[i] - my) ** 2; }
+    if (!(sxx > 0 && syy > 0)) return null;
+    const r = sxy / Math.sqrt(sxx * syy), t = r * Math.sqrt((n - 2) / Math.max(1e-9, 1 - r * r)), slope = sxy / sxx;
+    return { r, n, slope, intercept: my - slope * mx, r2: r * r, p: tTwoSided(t, n - 2) };
+  }
+  const pois = (l, k) => { let p = Math.exp(-l); for (let i = 1; i <= k; i++) p *= l / i; return p; };
+  function outcomeProbs(lf, la) {
+    let w = 0, d = 0, l = 0;
+    for (let i = 0; i <= 10; i++) { const pi = pois(lf, i); for (let j = 0; j <= 10; j++) { const pj = pois(la, j); if (i > j) w += pi * pj; else if (i === j) d += pi * pj; else l += pi * pj; } }
+    const s = w + d + l; return { win: w / s, draw: d / s, loss: l / s, pts: 3 * w / s + d / s };
+  }
+  // every team-match this season (league and pre-season) as a row, for asking what goes with winning
+  function leagueRows(league) {
+    const rows = [];
+    league.fixtures.concat(league.friendlies || []).forEach((f) => {
+      if (!f.played || !f.stats) return; const h = f.stats[f.homeId], a = f.stats[f.awayId]; if (!h || !a) return;
+      const row = (me, ag, gf, ga) => ({ xgd: me.xg - ag.xg, gd: gf - ga, pass: me.passes ? 100 * me.passesOk / me.passes : 0, poss: 100 * me.possession / Math.max(1, me.possession + ag.possession), shots: me.shots, fouls: me.fouls });
+      rows.push(row(h, a, f.hg, f.ag)); rows.push(row(a, h, f.ag, f.hg));
+    });
+    return rows;
+  }
+  function scatter(rows, xk, yk, xl, yl, reg, now) {
+    const W0 = 560, H0 = 300, padL = 52, padB = 44, padT = 14, padR = 16;
+    const xs = rows.map((r) => r[xk]).concat([now.x]), ys = rows.map((r) => r[yk]).concat([now.y]);
+    let x0 = Math.min.apply(null, xs), x1 = Math.max.apply(null, xs), y0 = Math.min.apply(null, ys), y1 = Math.max.apply(null, ys);
+    if (x1 - x0 < 1e-6) { x0 -= 1; x1 += 1; } if (y1 - y0 < 1e-6) { y0 -= 1; y1 += 1; }
+    const mx = (x1 - x0) * 0.06, my = (y1 - y0) * 0.1; x0 -= mx; x1 += mx; y0 -= my; y1 += my;
+    const X = (v) => padL + (v - x0) / (x1 - x0) * (W0 - padL - padR), Y = (v) => H0 - padB - (v - y0) / (y1 - y0) * (H0 - padB - padT);
+    const ticks = (a, b) => [0, 0.25, 0.5, 0.75, 1].map((t) => a + (b - a) * t);
+    const grid = ticks(x0, x1).map((v) => `<line x1="${X(v).toFixed(1)}" y1="${padT}" x2="${X(v).toFixed(1)}" y2="${H0 - padB}" stroke="currentColor" stroke-opacity=".12"/><text x="${X(v).toFixed(1)}" y="${H0 - padB + 16}" text-anchor="middle" font-size="11" fill="currentColor" opacity=".75">${f1(v)}</text>`).join('')
+      + ticks(y0, y1).map((v) => `<line x1="${padL}" y1="${Y(v).toFixed(1)}" x2="${W0 - padR}" y2="${Y(v).toFixed(1)}" stroke="currentColor" stroke-opacity=".12"/><text x="${padL - 6}" y="${(Y(v) + 4).toFixed(1)}" text-anchor="end" font-size="11" fill="currentColor" opacity=".75">${f1(v)}</text>`).join('');
+    const dots = rows.map((r) => `<circle cx="${X(r[xk]).toFixed(1)}" cy="${Y(r[yk]).toFixed(1)}" r="4" fill="#7FB5FF" fill-opacity=".55"/>`).join('');
+    const line = reg ? `<line x1="${X(x0).toFixed(1)}" y1="${Y(reg.intercept + reg.slope * x0).toFixed(1)}" x2="${X(x1).toFixed(1)}" y2="${Y(reg.intercept + reg.slope * x1).toFixed(1)}" stroke="#FFB020" stroke-width="2.5"/>` : '';
+    const me = `<circle cx="${X(now.x).toFixed(1)}" cy="${Y(now.y).toFixed(1)}" r="7" fill="#FFE27A" stroke="#000" stroke-width="2"/><text x="${(X(now.x) + 10).toFixed(1)}" y="${(Y(now.y) - 8).toFixed(1)}" font-size="12" font-weight="700" fill="currentColor">last match</text>`;
+    return `<figure class="rv-fig"><svg viewBox="0 0 ${W0} ${H0}" class="rv-scatter" role="img" aria-label="${esc(yl)} against ${esc(xl)}" style="width:100%;height:auto">${grid}${line}${dots}${me}<text x="${(padL + W0 - padR) / 2}" y="${H0 - 6}" text-anchor="middle" font-size="12" font-weight="700" fill="currentColor">${esc(xl)}</text><text x="14" y="${(padT + H0 - padB) / 2}" text-anchor="middle" font-size="12" font-weight="700" fill="currentColor" transform="rotate(-90 14 ${(padT + H0 - padB) / 2})">${esc(yl)}</text></svg><figcaption>Each blue dot is one team in one match this season; the gold line is the line of best fit, and the yellow dot is our last match.</figcaption></figure>`;
+  }
+  const sumOf = (a, f) => a.reduce((x, y) => x + f(y), 0);
+
+  // What the chances said about the result, where the gap between result and chances came from, whether chances go with results across the
+  // league, and what that does and does not tell us about cause. `who` is a player (or the team) whose finishing is being asked about.
+  function resultSection(c, who) {
+    const ours = c.fx.log.other.filter((e) => e.type === 'shot' && e.team === c.me), theirs = c.fx.log.other.filter((e) => e.type === 'shot' && e.team !== c.me);
+    const xgUs = sumOf(ours, (e) => e.xg || 0), xgThem = sumOf(theirs, (e) => e.xg || 0), pr = outcomeProbs(xgUs, xgThem);
+    const pts = c.gf > c.ga ? 3 : c.gf === c.ga ? 1 : 0, short = xgUs - c.gf, over = c.ga - xgThem, swing = short + over;
+    const verdictWord = pr.win >= pr.draw && pr.win >= pr.loss ? 'win' : pr.draw >= pr.loss ? 'draw' : 'defeat', actualWord = c.gf > c.ga ? 'win' : c.gf === c.ga ? 'draw' : 'defeat';
+    const adj = who ? c.gf + (who.expected - who.goals) : c.gf, adjRound = Math.round(adj), adjWord = adjRound > c.ga ? 'win' : adjRound === c.ga ? 'draw' : 'defeat';
+    const rows = leagueRows(c.league), reg = rows.length >= 10 ? pearson(rows.map((r) => r.xgd), rows.map((r) => r.gd)) : null;
+    const share = who && short > 0.05 ? Math.min(1, Math.max(0, who.missed / Math.max(short, 0.01))) : 0, ofSwing = who && swing > 0.3 ? Math.min(1, Math.max(0, who.missed / swing)) : 0;
+    const name = who ? who.name : 'our finishing';
+    const tbl = `<table class="books-table calc"><thead><tr><th class="l">What the chances say about the result</th><th>Us</th><th>${esc(c.opp.name)}</th></tr></thead><tbody>
+      <tr><td class="l">Expected goals (xG) from the chances created</td><td class="n">${f2(xgUs)}</td><td class="n">${f2(xgThem)}</td></tr>
+      <tr><td class="l">Goals scored</td><td class="n">${c.gf}</td><td class="n">${c.ga}</td></tr>
+      <tr><td class="l">Goals compared with the chances (goals − xG)</td><td class="n">${(c.gf - xgUs >= 0 ? '+' : '') + f2(c.gf - xgUs)}</td><td class="n">${(c.ga - xgThem >= 0 ? '+' : '') + f2(c.ga - xgThem)}</td></tr>
+      <tr class="tot"><td class="l">How likely each result was, from the chances alone (Poisson model)</td><td class="l" colspan="2">win <b>${pc(pr.win)}</b> · draw <b>${pc(pr.draw)}</b> · defeat <b>${pc(pr.loss)}</b></td></tr>
+      <tr><td class="l">Expected points from the chances / points we took</td><td class="n" colspan="2">${f2(pr.pts)} / ${pts}</td></tr></tbody></table>`;
+    const gap = `<table class="books-table calc"><thead><tr><th class="l">Where the gap between chances and result came from</th><th>Goals</th></tr></thead><tbody>
+      <tr><td class="l">${short >= 0 ? 'We scored fewer' : 'We scored more'} than our chances were worth</td><td class="n">${f2(Math.abs(short))}</td></tr>
+      ${who ? `<tr><td class="l">&nbsp;&nbsp;of which ${esc(who.name)}'s own ${who.missed >= 0 ? 'shortfall' : 'surplus'}</td><td class="n">${f2(Math.abs(who.missed))}</td></tr>` : ''}
+      <tr><td class="l">${esc(c.opp.name)} scored ${over >= 0 ? 'more' : 'fewer'} than their chances were worth</td><td class="n">${f2(Math.abs(over))}</td></tr>
+      <tr class="tot"><td class="l">${swing >= 0 ? 'Total swing against us: the result was worse than the chances deserved' : 'Total swing in our favour: the result was better than the chances deserved'}</td><td class="n">${f2(Math.abs(swing))}</td></tr></tbody></table>`;
+    const corr = reg ? `${scatter(rows, 'xgd', 'gd', 'xG difference in the match (for − against)', 'Goal difference', reg, { x: xgUs - xgThem, y: c.gf - c.ga })}
+      <p>Across ${reg.n} team-matches this season, the correlation between the xG difference and the goal difference is <b>r = ${f2(reg.r)}</b> (r² = ${f2(reg.r2)}, so the chances explain about ${Math.round(reg.r2 * 100)}% of the variation in results). ${reg.p < 0.05 ? `With a p-value of ${reg.p < 0.001 ? 'below 0.1%' : pc(reg.p)}, that is statistically significant.` : `With a p-value of ${pc(reg.p)}, that is not yet statistically significant.`} The line of best fit says each extra 1.0 of xG difference goes with about <b>${f2(reg.slope)}</b> more goals of goal difference.</p>` : `<p>There are not yet enough matches in the league to measure how closely chances go with results (it needs about ten team-matches); it will appear as the season goes on.</p>`;
+    const caution = `<p><b>Correlation is not causation.</b> That the chances and the results go together across the league shows they are associated; it does not by itself show that ${esc(name)}${who ? "'s misses" : ''} decided this match. To get nearer to cause I asked three things. <b>Does it come first and can it work?</b> A chance that is missed is a goal that is not scored, so ${who ? 'his misses' : 'the misses'} did reduce our total, and goals decide matches by definition. <b>Is there another explanation?</b> ${over > 0.4 ? `Yes: ${esc(c.opp.name)} scored ${c.ga} from chances worth ${f2(xgThem)}, which is ${f2(over)} more than expected. Some of the swing is their good luck, not our failing.` : `Not really: ${esc(c.opp.name)} scored about what their chances were worth, so there is no large piece of luck on their side to point to.`} <b>How big is it?</b> ${who ? `${esc(who.name)}'s shortfall of ${f2(who.missed)} goals is ${Math.round(ofSwing * 100)}% of the total swing of ${f2(swing)}.` : `Our shortfall is ${f2(short)} goals out of a total swing of ${f2(swing)}.`}</p>`;
+    let verdict;
+    if (swing < -0.3) verdict = `The result was better than the chances deserved, so ${esc(name)} did not cost us here: we were helped by luck${over < -0.4 ? ' at the other end, where ' + esc(c.opp.name) + ' scored fewer than their chances were worth' : ''}. A result like this should not be read as proof that the way we play is working.`;
+    else if (swing <= 0.3) verdict = `The result was about what the chances deserved, so ${esc(name)} was not the reason we got what we got.`;
+    else if (adjWord !== actualWord && ofSwing >= 0.4) verdict = `Taken together: had ${who ? esc(who.name) : 'we'} converted at the league rate, the score would have been about ${adjRound}-${c.ga} (a ${adjWord}, not a ${actualWord}), and the shortfall is a large part of the swing. So it is fair to say the finishing was the main reason the result went against us. Whether that is something to fix depends on the test above: if it says it was probably chance, the sensible reading is that we were unlucky, not that the finishing is poor.`;
+    else if (ofSwing >= 0.4) verdict = `Taken together: ${who ? esc(who.name) : 'our finishing'} accounts for a large part of the swing, but even at the league rate the match would have finished ${adjRound}-${c.ga}, still a ${adjWord}. So it explains part of why we did not do better, not why the result was what it was.`;
+    else verdict = `Taken together: ${who ? esc(who.name) : 'our finishing'} is only a small part of the swing (${Math.round(ofSwing * 100)}%). Most of why the result was not better lies elsewhere: ${over > 0.4 ? 'the opposition finished well above what their chances deserved, and ' : ''}the other areas of the game matter more here.`;
+    return `<div class="rv-cause"><h4>${c.gf > c.ga ? 'Did it matter for the result?' : c.gf === c.ga ? 'Was it the reason we did not win?' : 'Was it the reason we lost?'}</h4><p>${verdictWord === actualWord ? `From the chances alone, the most likely result was a ${verdictWord}, which is what we got.` : `From the chances alone, the most likely result was a <b>${verdictWord}</b> (${pc(pr[verdictWord === 'defeat' ? 'loss' : verdictWord])}), and we got a ${actualWord}.`} Here is what the chances said, and where the difference came from.</p>
+      <div class="books-wrap">${tbl}</div><div class="books-wrap">${gap}</div>
+      ${who ? `<p>If ${esc(who.name)} had converted his ${who.n} shot${who.n === 1 ? '' : 's'} at the league rate ${f2(who.p0)}, he would have scored ${f2(who.expected)} instead of ${who.goals}, which gives an adjusted score of about ${f1(adj)}-${c.ga}.</p>` : ''}
+      ${corr}${caution}<p class="rv-verdict">${verdict}</p></div>`;
+  }
+
+  // Does this go with winning? One thing, set against the goal difference over every team-match this season.
+  function matterSection(c, key, label, unit) {
+    const rows = leagueRows(c.league).filter((r) => key !== 'pass' || r.pass > 0), reg = rows.length >= 10 ? pearson(rows.map((r) => r[key]), rows.map((r) => r.gd)) : null;
+    if (!reg) return `<p>I would also like to check whether ${esc(label)} goes with winning across the league, but there are not enough matches in the league yet (about ten team-matches are needed).</p>`;
+    const now = c.fx.stats && c.fx.stats[c.me] ? (key === 'pass' ? (c.fx.stats[c.me].passes ? 100 * c.fx.stats[c.me].passesOk / c.fx.stats[c.me].passes : 0) : 0) : 0;
+    return `<div class="rv-cause"><h4>Does ${esc(label)} actually go with winning?</h4>
+      ${scatter(rows, key, 'gd', label + ' (' + unit + ')', 'Goal difference', reg, { x: now, y: c.gf - c.ga })}
+      <p>Across ${reg.n} team-matches this season the correlation between ${esc(label)} and goal difference is <b>r = ${f2(reg.r)}</b> (p = ${reg.p < 0.001 ? 'below 0.1%' : pc(reg.p)}), so ${reg.p < 0.05 ? (Math.abs(reg.r) >= 0.5 ? 'it is strongly' : 'it is somewhat') + ' associated with results' : 'it has not been shown to be associated with results so far'}. The line says each extra ${unit.indexOf('%') >= 0 ? 'percentage point' : 'unit'} goes with about <b>${f2(reg.slope)}</b> goals of goal difference.</p>
+      <p><b>Correlation is not causation.</b> Teams that pass the ball well also tend to be the better teams, and teams that are winning also tend to keep the ball. So this tells us the figure is worth improving only if the improvement comes without losing something else: it does not tell us that passing more accurately <i>makes</i> a team win. Treat it as a reason to try a change and then test whether the change worked, which is a fairer test of cause.</p></div>`;
+  }
+
+  // What happened in the seconds after we lost the ball: did the shots against follow our turnovers?
+  function linkSection(c, mode) {
+    const xr = c.fx.log.xr; if (!xr) return '';
+    const dur = Math.max(600, c.fx.log.duration || 5400), losses = xr.seq.filter((q) => q[0] === c.side && q[6] === 0 && q[8] >= 0 && (mode === 'all' || q[8] < 1 / 3));
+    const theirs = c.fx.log.other.filter((e) => e.type === 'shot' && e.team !== c.me);
+    if (losses.length < 3) return '';
+    const WINDOW = 15, followed = losses.filter((q) => { const T = q[1] + q[7]; return theirs.some((e) => e.t >= T && e.t <= T + WINDOW); }).length;
+    const base = Math.min(0.95, theirs.length * WINDOW / dur), pv = FM.binomTest(followed, losses.length, Math.max(0.001, base), 'greater');
+    return `<div class="rv-cause"><h4>Did losing the ball lead to their chances?</h4>
+      <p>Whether one thing caused another is easier to judge when you can see one follow the other. I looked at the ${WINDOW} seconds after each of our ${losses.length} ${mode === 'all' ? '' : 'own-third '}turnovers, and counted how many were followed by a shot for ${esc(c.opp.name)}. <b>${followed}</b> of them (${pc(followed / losses.length)}) were. A shot happens in about ${pc(base)} of ordinary ${WINDOW}-second stretches in this match, so if turnovers made no difference we would expect about ${f1(losses.length * base)} of them to be followed by a shot.</p>
+      <p>The probability of seeing ${followed} or more by chance, if the turnovers made no difference (a binomial test with p = ${f2(base)}), is <b>${pc(pv)}</b>: ${pv < SIG ? 'significant, so the shots really do tend to follow our turnovers. That fits a cause you can act on: the chances are coming from the ball we give away, not only from how the opposition attack.' : 'not significant, so there is no clear sign from this match that the turnovers are what led to their chances.'}</p>
+      <p class="note">One match is a small sample, and the opposition may be both pressing us into mistakes and attacking well: those would produce the same pattern. It is the best evidence one match can give, and the next review will check it again.</p></div>`;
+  }
+  function sourceSection(c) {
+    const xr = c.fx.log.xr, theirs = c.fx.log.other.filter((e) => e.type === 'shot' && e.team !== c.me);
+    if (!theirs.length) return '';
+    const losses = xr ? xr.seq.filter((q) => q[0] === c.side && q[6] === 0 && q[8] >= 0).map((q) => q[1] + q[7]) : [];
+    let turn = 0, setp = 0, other = 0, xgTurn = 0, xgSet = 0, xgOther = 0;
+    theirs.forEach((e) => { const xg = e.xg || 0; if (e.setPiece === 'freekick' || e.setPiece === 'penalty') { setp++; xgSet += xg; } else if (losses.some((T) => e.t >= T && e.t <= T + 15)) { turn++; xgTurn += xg; } else { other++; xgOther += xg; } });
+    return `<div class="books-wrap"><table class="books-table calc"><thead><tr><th class="l">Where their shots came from</th><th>Shots</th><th>xG</th></tr></thead><tbody>
+      <tr><td class="l">Within 15 seconds of us losing the ball</td><td class="n">${turn}</td><td class="n">${f2(xgTurn)}</td></tr>
+      <tr><td class="l">From free kicks and penalties</td><td class="n">${setp}</td><td class="n">${f2(xgSet)}</td></tr>
+      <tr><td class="l">After a settled attack</td><td class="n">${other}</td><td class="n">${f2(xgOther)}</td></tr></tbody></table></div>`;
+  }
+  // Does where we challenge go with whether we win? (chi-square test of independence)
+  function zoneSection(c, rows) {
+    const zones = [['our own third', (d) => d < 1 / 3], ['the middle third', (d) => d >= 1 / 3 && d < 2 / 3], ['their third', (d) => d >= 2 / 3]];
+    const data = zones.map(([n, f]) => { const r = rows.filter((x) => f(mine(c, x[5], x[6]).d)); return { n, tot: r.length, won: r.filter((x) => x[4] === 1).length }; });
+    if (data.filter((d) => d.tot >= 3).length < 2) return '';
+    const T = sumOf(data, (d) => d.tot), Wn = sumOf(data, (d) => d.won), pw = Wn / T;
+    let chi = 0; data.forEach((d) => { if (!d.tot) return; const ew = d.tot * pw, el = d.tot * (1 - pw); chi += (d.won - ew) ** 2 / Math.max(ew, 1e-9) + ((d.tot - d.won) - el) ** 2 / Math.max(el, 1e-9); });
+    const df = data.filter((d) => d.tot > 0).length - 1, pv = chi2p(chi, Math.min(2, Math.max(1, df)));
+    return `<div class="rv-cause"><h4>Does where we challenge change whether we win?</h4><div class="books-wrap"><table class="books-table"><thead><tr><th class="l">Where</th><th>Challenges</th><th>Won</th><th>Won (95% interval)</th></tr></thead><tbody>${data.map((d) => { const [lo, hi] = wilson(d.won, d.tot); return `<tr><td class="l">${d.n}</td><td class="n">${d.tot}</td><td class="n">${d.won}</td><td class="n">${d.tot ? pc(d.won / d.tot) + ' (' + pc(lo) + ' to ' + pc(hi) + ')' : '–'}</td></tr>`; }).join('')}</tbody></table></div>
+      <p>I used a chi-square test of independence to see whether the share we win depends on the part of the pitch: χ² = ${f2(chi)} with ${Math.min(2, Math.max(1, df))} degree${df === 1 ? '' : 's'} of freedom gives a p-value of <b>${pc(pv)}</b>. ${pv < SIG ? 'That is significant: where we challenge really does go with whether we win, so the zone where we win least is the one to change.' : 'That is not significant, so with this sample we cannot say the zone matters. The intervals are wide because there are only a few challenges in each zone.'}</p></div>`;
+  }
+  // Does the defender's distance go with whether a dribble comes off? (chi-square on a 2 × 2 table)
+  function distanceSection(c, rows) {
+    const near = rows.filter((r) => r[6] < 2), far = rows.filter((r) => r[6] >= 2);
+    if (near.length < 3 || far.length < 3) return '';
+    const a = near.filter((r) => r[3] === 1).length, b = near.length - a, cc = far.filter((r) => r[3] === 1).length, d = far.length - cc, n = a + b + cc + d;
+    const num2 = n * (Math.abs(a * d - b * cc) - n / 2) ** 2, den = (a + b) * (cc + d) * (a + cc) * (b + d), chi = den > 0 ? Math.max(0, num2) / den : 0, pv = chi2p(chi, 1);
+    return `<div class="rv-cause"><h4>Does the defender's distance decide the dribble?</h4><div class="books-wrap"><table class="books-table"><thead><tr><th class="l">Nearest defender</th><th>Dribbles</th><th>Came off</th><th>Share</th></tr></thead><tbody>
+      <tr><td class="l">Closer than 2 m</td><td class="n">${near.length}</td><td class="n">${a}</td><td class="n">${pc(a / near.length)}</td></tr><tr><td class="l">2 m or more</td><td class="n">${far.length}</td><td class="n">${cc}</td><td class="n">${pc(cc / far.length)}</td></tr></tbody></table></div>
+      <p>A chi-square test (with a continuity correction, because the counts are small) gives χ² = ${f2(chi)} and a p-value of <b>${pc(pv)}</b>. ${pv < SIG ? 'The difference is significant: the dribble really is much more likely to fail with a defender that close, so the lesson is about when to dribble, not who.' : `It is not significant with this few dribbles, but the direction (${pc(a / near.length)} against ${pc(cc / far.length)}) is what you would expect, and it is the pattern to watch.`}</p></div>`;
+  }
+  // The shares of passes completed this match and earlier, with their 95% intervals: is the difference bigger than the noise?
+  function intervalTable(label, k, n, k0, n0) {
+    const [a, b] = wilson(k, n), [a0, b0] = wilson(k0, n0), overlap = !(a > b0 || a0 > b);
+    return `<div class="books-wrap"><table class="books-table calc"><thead><tr><th class="l">${esc(label)}</th><th>Attempts</th><th>Completed</th><th>Share</th><th>95% interval</th></tr></thead><tbody>
+      <tr><td class="l">This match</td><td class="n">${n}</td><td class="n">${k}</td><td class="n">${pc(k / n)}</td><td class="n">${pc(a)} to ${pc(b)}</td></tr><tr><td class="l">Earlier matches</td><td class="n">${n0}</td><td class="n">${k0}</td><td class="n">${pc(k0 / n0)}</td><td class="n">${pc(a0)} to ${pc(b0)}</td></tr></tbody></table></div>
+      <p>The two 95% intervals ${overlap ? 'overlap, which already hints that the difference may be within the noise' : 'do not overlap, which already hints that the difference is real'}. The test below puts a precise number on it.</p>`;
+  }
+
   // ---------- the data from the last match ----------
   function context(league) {
     const me = league.userId, played = league.fixtures.filter((f) => f.played && f.log && (f.homeId === me || f.awayId === me)).sort((a, b) => a.round - b.round);
@@ -75,7 +236,17 @@
     }
     return `<div class="rv-improve rv-calm"><h4>Does anything need changing?</h4><p>${o.leave}</p><p><b>What to keep an eye on:</b> ${o.watch}</p></div>`;
   }
-  const box = (title, html) => `<article class="card rv-box"><h3>${esc(title)}</h3>${html}</article>`;
+  const METHOD = {
+    finishing: 'a binomial test, because each shot is either a goal or not; an expected-goals (Poisson) model, to see what the chances said the result should have been; and a correlation across the league, to ask whether chances really go with winning and what that does and does not prove.',
+    passFinal: 'confidence intervals and a binomial test against our own record, then a correlation across the league to ask whether passing goes with winning.', passMid: 'confidence intervals and a binomial test against our own record, then a correlation across the league to ask whether passing goes with winning.', passBuild: 'confidence intervals and a binomial test against our own record, then a correlation across the league to ask whether passing goes with winning.',
+    crossing: 'a binomial test against our own record, because each cross either finds a teammate or does not.',
+    turnovers: 'a Poisson test, because these are counts of events, and a look at what happened in the seconds after each loss, to judge cause.',
+    defending: 'a Poisson test against the league, a breakdown of where the shots came from, and a look at the seconds after our turnovers, to judge cause.',
+    duels: 'a binomial test against our own record and a chi-square test to see whether where we challenge matters.',
+    dribbling: 'a binomial test against our own record and a chi-square test to see whether the defender\'s distance matters.',
+    fouls: 'a Poisson test against the league, because fouls are counts of events.', regains: 'a binomial test against our own record.'
+  };
+  const box = (title, html, method) => `<article class="card rv-box"><h3>${esc(title)}</h3>${method ? `<p class="rv-method"><b>How I looked at this:</b> I used ${method}</p>` : ''}${html}</article>`;
   const costLine = (c, missed) => {
     const extra = Math.round(missed);
     if (extra < 1) return 'Even so, the extra goals would not have changed how the match ended.';
@@ -144,7 +315,7 @@
       <p>${esc(grp.charAt(0).toUpperCase() + grp.slice(1))} in the league have had <b>${b.conv.shots} shots</b> combined this season, scoring <b>${b.conv.goals}</b> of them, which is <b>${pc(b.p0)}</b> of shots resulting in a goal. So if we calculate ${esc(surname(b.p))}'s expected number of goals in the last match using that probability, it is ${n} × ${f2(b.p0)} = <b>${f2(n * b.p0)} goals</b>.</p>
       ${testBlock({ h0: `${esc(surname(b.p))} converts shots at the league rate for ${esc(grp)} (p = ${f2(b.p0)}).`, h1: `${esc(surname(b.p))} converts shots at a lower rate than the league for ${esc(grp)} (p &lt; ${f2(b.p0)}).`, baseline: `${b.conv.goals} goals from ${b.conv.shots} shots = ${f2(b.p0)}`, expect: `n × p = ${n} × ${f2(b.p0)} = ${f2(n * b.p0)} goals (he scored ${b.goals}; the chances were worth ${f2(b.xg)} xG)`, model: `X ~ B(n = ${n}, p = ${f2(b.p0)}); P(X ≤ ${b.goals})`, p: b.pv,
         sig: `his finishing really is below the league average, and that is worth working on.`, notSig: `his finishing is not necessarily below the league average, and the misses may simply be bad luck. Despite the figures looking underwhelming at face value, I would not worry about him yet.` })}
-      <p class="note">In hindsight, comparing his goals with his xG (${b.goals} against ${f2(b.xg)}) uses the quality of each chance, which this simple test does not. That is a more sophisticated test you could ask me about.</p>
+      ${resultSection(c, { name: surname(b.p), missed: b.gap, expected: n * b.p0, goals: b.goals, n, p0: b.p0 })}
       ${finishingImprove(c, dg, surname(b.p), b.pv, b.p.name)}`;
     return { kind: 'finishing', p: b.pv, impact: b.gap, title: `${b.p.name} shooting`, html };
   }
@@ -160,6 +331,7 @@
       <p>${esc(costLine(c, gap))} To see whether the team's finishing is really a problem, or just a bad day, I tested it against the league.</p>
       <p>Across the league, ${conv.shots} shots have been taken this season and ${conv.goals} scored: <b>${pc(p0)}</b>. At that rate, ${shots.length} shots would give ${f2(shots.length * p0)} goals.</p>
       ${testBlock({ h0: `Our shots become goals at the league rate (p = ${f2(p0)}).`, h1: `Our shots become goals at a lower rate than the league (p &lt; ${f2(p0)}).`, baseline: `${conv.goals} goals from ${conv.shots} shots = ${f2(p0)}`, expect: `n × p = ${shots.length} × ${f2(p0)} = ${f2(shots.length * p0)} goals (we scored ${goals}; the chances were worth ${f2(xg)} xG)`, model: `X ~ B(n = ${shots.length}, p = ${f2(p0)}); P(X ≤ ${goals})`, p: pv, sig: 'our finishing is genuinely below the league average.', notSig: 'we cannot say our finishing is worse than the rest of the league: this could well be one of those days.' })}
+      ${resultSection(c, null)}
       ${finishingImprove(c, dg, 'the team', pv, 'the player who took most of them')}`;
     return { kind: 'finishing', p: pv, impact: gap, title: 'Our finishing', html };
   }
@@ -180,9 +352,9 @@
     return improve(pv, {
       why: [`Looking at the failed passes: ${reasons.join('; ')}.`, `A pass fails when the receiver is not available at the right angle, or when it asks too much of the passer. ${marked ? 'Here the receivers were too well marked, so the fix is to give the player on the ball a nearer, freer option rather than ask for the same pass more carefully.' : long ? 'Here the passes are asking too much, so the fix is shorter, safer options with the more ambitious pass kept for when it is really on.' : 'The fix is in the shape, not the instruction: players need to stand where the passer can find them.'}`],
       steps: [`<b>Prepare tactics ▸ ${page}:</b> drag one player (a midfielder or the nearest full-back) a few metres closer to where the ball usually is, so there is a short outlet, and spread the others so no two stand in the same line.`, marked ? `Move a receiver who is often marked to a position where he comes off his marker: a little deeper, or across to the side the defender cannot see.` : `Make the passer's job easier: a more direct option kept in reserve, with a short option always on.`, `<b>Squad ▸ the players making the failed passes ▸ Passing:</b> try <i>Shorter, simpler passes</i>${long ? '' : ' or, if they are good passers, leave it'}, and <i>Risk: Play it safe</i> for the ones who give it away most.`, `If you want the team to stay ambitious, tell them what to look for in the box at the bottom of the page.`],
-      expect: `A higher share of completed passes in ${where}, and fewer turnovers there. You may lose a little speed in the move, which is the price of keeping the ball.`,
-      check: `Run the matching test on Test phases before and after, and compare completion in ${where} and the number of times the move ends in a shot. In the next match, this box will test the same thing again against the new baseline.`,
-      leave: `That is within the normal swing from game to game for us.`, watch: `completion in ${where} in the next two matches. Two bad ones in a row would be a pattern worth acting on.` });
+      expect: `A higher share of completed passes ${where}, and fewer turnovers there. You may lose a little speed in the move, which is the price of keeping the ball.`,
+      check: `Run the matching test on Test phases before and after, and compare completion ${where} and the number of times the move ends in a shot. In the next match, this box will test the same thing again against the new baseline.`,
+      leave: `That is within the normal swing from game to game for us.`, watch: `completion ${where} in the next two matches. Two bad ones in a row would be a pattern worth acting on.` });
   }
   function candPassingZone(c, key, label, test, page) {
     const log = c.fx.log, side = c.side, inZone = test;
@@ -194,8 +366,10 @@
     const p0 = h.k / h.n, pv = FM.binomTest(ok, rows.length, p0, 'less'), rate = ok / rows.length, d = passDiagnosis(c, rows);
     const html = `<p>${esc(label.charAt(0).toUpperCase() + label.slice(1))} we attempted <b>${rows.length} passes</b> against ${esc(c.opp.name)} and <b>${ok}</b> reached a teammate: <b>${pc(rate)}</b>. In our earlier matches this season the figure was <b>${pc(p0)}</b> (${h.k} of ${h.n}). Below, each failed pass is a dashed red line from where it started (white dot) to where it was meant to go (red dot).</p>
       ${passMap(c, rows, 'Failed passes', `${rows.length - ok} passes ${label} did not find a teammate. Attacking to the right.`, true)}
-      <p>Giving the ball away ${label} wastes what we have built or hands the opposition a chance. I wanted to know whether this was a real drop in our passing or an ordinary swing from match to match, so I tested it against our own record.</p>
+      <p>Giving the ball away ${label} wastes what we have built or hands the opposition a chance. I wanted to know whether this was a real drop in our passing or an ordinary swing from match to match. First, the plain comparison with how sure we can be of each figure:</p>
+      ${intervalTable('Passes ' + label, ok, rows.length, h.k, h.n)}
       ${testBlock({ h0: `Our passing ${label} was the same as usual this match (p = ${f2(p0)}).`, h1: `Our passing ${label} was worse than usual (p &lt; ${f2(p0)}).`, baseline: `${h.k} completed of ${h.n} in our earlier matches = ${f2(p0)}`, expect: `n × p = ${rows.length} × ${f2(p0)} = ${f1(rows.length * p0)} completed (we completed ${ok})`, model: `X ~ B(n = ${rows.length}, p = ${f2(p0)}); P(X ≤ ${ok})`, p: pv, sig: `our passing ${label} really was worse than our usual level.`, notSig: 'that is within the normal swing from game to game, so it does not look like a lasting problem.' })}
+      ${matterSection(c, 'pass', 'overall pass completion', '%')}
       ${passingImprove(c, d, label, pv, page)}`;
     return { kind: key, family: 'passing', p: pv, impact: (p0 - rate) * rows.length, title: key === 'passFinal' ? 'Passing in the final third' : key === 'passBuild' ? 'Passing out from the back' : 'Passing through midfield', html };
   }
@@ -240,6 +414,7 @@
       ${dotMap(pts, '#FF5A36', 'Where we lost the ball in our own third', `${now.length} turnovers in our own third. The closer to our goal, the more dangerous.`)}
       <p>Turnovers that deep give the opposition their best chances, so I checked whether ${now.length} was just a random bad day for us or a real rise on our normal number.</p>
       ${testBlock({ h0: `The number of own-third turnovers this match is in line with our usual rate (${f1(lam)} a match).`, h1: `The number was higher than our usual rate.`, baseline: `${n0} own-third turnovers in ${m0} earlier match${m0 === 1 ? '' : 'es'} = ${f1(lam)} a match`, expect: `${f1(lam)} turnovers (we lost it ${now.length} times)`, model: `X ~ Poisson(λ = ${f1(lam)}); P(X ≥ ${now.length})`, p: pv, sig: 'we really did lose it more often than usual.', notSig: 'that is within the normal variation for us, so it is not clear that anything has changed.' })}
+      ${linkSection(c, 'own')}
       ${improve(pv, {
         why: [ownFails.length ? `Of the passes we lost in our own third, <b>${ownFails.length}</b> were failed passes, averaging ${f1(d.badDist)} m, with the receiver ${f1(d.badPress)} m from the nearest defender${longShare >= 0.4 ? `. ${d.long} of them went more than 25 m: we are asking the back line and the keeper to find a distant teammate under pressure.` : '. Most were short passes under pressure: the ball was played to a teammate who was already being closed down.'}` : `Most of the lost balls came from challenges and dribbles rather than failed passes, so the players on the ball are being caught holding it.`,
           `Losing the ball near your own goal is the most expensive mistake there is, because the opposition are already close to goal. The aim is to make the safe pass the easy pass, and to keep the dangerous ball for when the opposition cannot reach it.`],
@@ -263,6 +438,7 @@
       ${shotMap(c, theirs, 'Their', !c.home)}
       <p>I wanted to know whether we are giving up too many chances or whether they simply had a good afternoon.</p>
       ${testBlock({ h0: `The shots we conceded are in line with a typical match in the league (${f1(lam)}).`, h1: `We conceded more shots than a typical match.`, baseline: `${num(total)} shots across ${count} team-matches = ${f1(lam)} a match`, expect: `${f1(lam)} shots against (we faced ${theirs.length})`, model: `X ~ Poisson(λ = ${f1(lam)}); P(X ≥ ${theirs.length})`, p: pv, sig: 'we really are conceding more than normal.', notSig: 'that is within the normal range, so I would not rebuild the defence on the strength of this one game.' })}
+      ${sourceSection(c)}${linkSection(c, 'all')}
       ${improve(pv, {
         why: [`${inside} of their ${theirs.length} shots came from inside the box (within 16 m of goal), their nearest marker was on average <b>${f1(dg.def)} m</b> away, and the average chance was worth ${f2(dg.xgEach)} xG${heads ? `; ${heads} were headers` : ''}.${shape.length ? ` Our own shape was ${f1(comp)} m on average from the centre of the team to the players, with the back line at ${f1(line * 100)}% of the pitch.` : ''}`,
           dg.def >= 3.5 ? `Their shooters had time and space. That points to loose marking in and around the box: the defenders are holding zones and letting the man arrive unmarked, or the midfield line is not protecting the space in front of the defence.` : `Their shooters were being closed down, so the chances came from how easily they got into those positions: the pressure on the ball further up the pitch, and the gaps between our lines, matter more than the marking.`],
@@ -288,6 +464,7 @@
       ${dotMap(pts, '#FF5A36', 'Our challenges', 'Where our challenges were made, attacking to the right.')}
       <p>I tested whether that was a real fall in how well we win the ball, or an ordinary variation.</p>
       ${testBlock({ h0: `Our success in challenges was the same as usual (p = ${f2(p0)}).`, h1: `Our success in challenges was lower than usual (p &lt; ${f2(p0)}).`, baseline: `${h.k} won of ${h.n} earlier = ${f2(p0)}`, expect: `n × p = ${rows.length} × ${f2(p0)} = ${f1(rows.length * p0)} won (we won ${won})`, model: `X ~ B(n = ${rows.length}, p = ${f2(p0)}); P(X ≤ ${won})`, p: pv, sig: 'we really did win fewer challenges than usual.', notSig: 'that is within the normal variation for us, so it is not a lasting problem.' })}
+      ${zoneSection(c, rows)}
       ${improve(pv, {
         why: [wp ? `${esc(wp.name)} lost <b>${lostBy[worst]}</b> of our challenges, more than anyone${wp.ratings && wp.ratings.tackling != null ? `. His Tackling rating is ${FM.shown ? FM.shown(wp.ratings.tackling) : wp.ratings.tackling}, so it is worth asking whether he is the right man to be going in` : ''}.` : `The lost challenges were spread across the team.`,
           `The team's pressing is set at ${Math.round(press * 100)}% and its tackling at ${Math.round(agg * 100)}%. Closing down a long way from goal means more one-against-one challenges, and a player who is not a good tackler will lose most of them. Losing a challenge also leaves a gap behind him.`],
@@ -313,6 +490,7 @@
       ${dotMap(pts, '#FF5A36', 'Our dribbles', 'Where our dribbles were attempted, attacking to the right.')}
       <p>I tested whether that was a real fall in how well we beat players, or an ordinary swing.</p>
       ${testBlock({ h0: `Our dribbling success was the same as usual (p = ${f2(p0)}).`, h1: `Our dribbling success was lower than usual (p &lt; ${f2(p0)}).`, baseline: `${h.k} came off from ${h.n} earlier = ${f2(p0)}`, expect: `n × p = ${rows.length} × ${f2(p0)} = ${f1(rows.length * p0)} (${won} did)`, model: `X ~ B(n = ${rows.length}, p = ${f2(p0)}); P(X ≤ ${won})`, p: pv, sig: 'our dribbling really was less successful than usual.', notSig: 'that is within the normal variation.' })}
+      ${distanceSection(c, rows)}
       ${improve(pv, {
         why: [wp ? `${esc(wp.name)} lost the ball ${lostBy[worst]} time${lostBy[worst] === 1 ? '' : 's'} trying to take a man on, and on the dribbles that were lost the defender was on average only <b>${f1(defLost)} m</b> away. A dribble against a defender that close is a coin flip at best, and losing it hands over the ball in a dangerous place.` : `The lost dribbles came from several players.`,
           `Dribbling is worth it when a player is isolated one-on-one in space, and not worth it when a defender is already on top of him. The instructions decide how often a player tries.`],
@@ -386,7 +564,7 @@
     const c = r.c, res = c.gf > c.ga ? 'won' : c.gf === c.ga ? 'drew' : 'lost';
     host.innerHTML = `<div class="card rv-intro"><div class="eyebrow">The last match: round ${c.fx.round + 1}</div><h2>${esc(c.team.name)} ${c.gf}-${c.ga} ${esc(c.opp.name)}</h2>
       <p class="desc">Hi boss, I have done some analysis on the previous match, which we ${res} ${c.gf}-${c.ga}, and here are some things you may want to look over:</p></div>
-      ${r.picked.length ? r.picked.map((x) => box(x.title, x.html)).join('') : '<div class="card"><p class="desc">There was not enough in that match to build a proper test from. Play another and I will have more for you.</p></div>'}
+      ${r.picked.length ? r.picked.map((x) => box(x.title, x.html, METHOD[x.kind])).join('') : '<div class="card"><p class="desc">There was not enough in that match to build a proper test from. Play another and I will have more for you.</p></div>'}
       <div class="card rv-outro"><p class="desc">If you want to explore any other points from the last game, just ask, and I can provide the data and assistance. Any techniques you need help with, I can explain too. I looked at ${r.all.length} different areas of the game to choose these two, including finishing, passing, crossing, tackling, dribbling, fouls and how quickly we win the ball back, so if you want any of the others, say which.</p><div class="row"><button type="button" class="primary" id="rvAsk">Ask the LastMind AI Agent</button></div></div>`;
     const b = host.querySelector('#rvAsk'); if (b) b.addEventListener('click', () => { if (FM.agentOpen) FM.agentOpen(); });
   };
