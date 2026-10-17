@@ -87,7 +87,7 @@
     return b;
   }
   FM.biz = function (lg) {
-    if (!lg.biz || lg.biz.v !== 1) lg.biz = init(lg);
+    if (!lg.biz || lg.biz.v !== 1) { lg.biz = init(lg); ensure(lg.biz); try { offersAfterRound(lg, lg.biz, { round: -1 }); } catch (e) { /* the offers come with the first matchday instead */ } }
     return ensure(lg.biz);
   };
   FM.bizCapacity = (lg) => { const b = FM.biz(lg); return FM.SEGMENTS.reduce((a, s) => a + (b.seats[s.id] || s.seats), 0); };
@@ -239,7 +239,7 @@
       stadiumNews(lg, `New ${seg.name.toLowerCase()} seats open`, `The new block of ${num(pr.seats)} seats in the ${seg.name.toLowerCase()} is finished and ready for the next home match.`, fx.round);
     });
     b.projects = b.projects.filter((pr) => pr.left > 0);
-    if (last) b.seasons.push({ season: lg.season, revenue: seasonSum(b, lg.season, 'revenue'), net: seasonSum(b, lg.season, 'net'), close: b.cash, dividend });
+    if (last) b.seasons.push({ season: lg.season, pos: userPos(lg), revenue: seasonSum(b, lg.season, 'revenue'), net: seasonSum(b, lg.season, 'net'), close: b.cash, dividend });
     updateApproval(lg, b, dividend, last);
     offersAfterRound(lg, b, fx);
     FM.bizSyncBudget(lg);
@@ -351,6 +351,7 @@
     if (!lg.biz) return;
     const b = FM.biz(lg); b.season = lg.season; b.lastShare = b.shares.price;
     b.sponsors = b.sponsors.filter((s) => s.left > 0); b.boards = b.boards.filter((s) => s.left > 0);
+    offersAfterRound(lg, b, { round: -1 });   // the advertisers come for every empty board as the season opens
     FM.bizSyncBudget(lg);
   };
 
@@ -413,6 +414,13 @@
 
   // ---------- sponsors and advertisers: they come to you, in the news, and they will talk about the price ----------
   const SPEAKERS = ['their commercial director', 'their marketing manager', 'the owner', 'their finance director'];
+  // How generous advertisers are this year: better after a good finish and a good start, worse after a poor one, and different every season.
+  function boardYear(lg, b, pos) {
+    const last = b.seasons.length ? b.seasons[b.seasons.length - 1] : null, lastPos = last && last.pos ? last.pos : pos;
+    const score = (p) => Math.max(0, Math.min(1, (9 - p) / 8));
+    const luck = FM.mulberry32(lg.seed + (lg.runSeed || 0) + lg.season * 6151 + 17)();
+    return Math.max(0.55, Math.min(1.6, 0.65 + 0.55 * score(lastPos) + 0.25 * score(pos) + (luck - 0.5) * 0.3));
+  }
   function offersAfterRound(lg, b, fx) {
     const rng = FM.mulberry32(lg.seed + (lg.runSeed || 0) + lg.season * 7919 + fx.round * 104729 + 3);
     b.offers.forEach((o) => { if (o.status === 'open' && o.expires < fx.round + 1) o.status = 'expired'; });
@@ -425,8 +433,13 @@
       FM.pushNews(lg, { round: fx.round, day: lg.day, kind: 'Commercial', headline, body, club: lg.userId, mine: true, offer: o.id });
     };
     // an advertising board
-    if (b.boards.length + b.offers.filter((o) => o.status === 'open' && o.kind === 'board').length < BOARDS && rng() < 0.55) {
-      const c = pickCo(), perRound = Math.round((1800 + avgAtt * 0.35 + rng() * 1400 + Math.max(0, 8 - pos) * 120) / 100) * 100, rounds = [7, 14, 14, 28][Math.floor(rng() * 4)];
+    // The boards are meant to be full: every empty board gets an advertiser asking for it (a few a matchday, all of them at the start of a season).
+    // What changes from year to year is what they pay, which follows how the club did last season and how it is doing now, with a little luck.
+    const yf = boardYear(lg, b, pos), openBoards = b.offers.filter((o) => o.status === 'open' && o.kind === 'board').length;
+    const wanted = Math.max(0, BOARDS - b.boards.length - openBoards), nNew = fx.round < 0 ? wanted : Math.min(wanted, 3);
+    for (let k = 0; k < nNew; k++) {
+      if (fx.round >= 0 && rng() > 0.85) continue;
+      const c = pickCo(), perRound = Math.round((1800 + avgAtt * 0.35 + rng() * 1400 + Math.max(0, 8 - pos) * 120) * yf / 100) * 100, rounds = [7, 14, 14, 28][Math.floor(rng() * 4)];
       push({ kind: 'board', company: c[0], perRound, rounds }, `${c[0]} want a place on the advertising boards`, `${c[0]}, a local ${c[1]} firm, have asked for an advertising board at ${me.name}'s ground for the next ${rounds} matchdays. They are offering ${gbp(perRound)} a matchday, ${gbp(perRound * rounds)} in all. The offer stands for a few weeks. You can accept it, turn it down, or try to negotiate.`);
     }
     // a shirt sponsor, when the present deal is nearly over
