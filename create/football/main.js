@@ -1637,12 +1637,31 @@
     else renderBoardTab(team, world.tab);
   }
 
+  // The defensive block is one choice for the whole defending side of the game: where the team stands when the other side have the ball
+  // (the organised defending board), where it stands to press their build-up, and how hard it presses. It moves both boards, the settings the
+  // match uses, and so what the team does in the game.
+  function applyBlock(team, kind) {
+    const target = { low: 0.2, mid: 0.32, high: 0.46 }[kind];
+    const backs = team.players.filter((p) => p.group === 'CB' || p.group === 'FB'), now = backs.reduce((s, p) => s + FM.phasePos(team, p, 'without').d, 0) / Math.max(1, backs.length), shift = target - now;
+    team.players.forEach((p) => {
+      const q = FM.phasePos(team, p, 'without'); FM.setPhasePos(team, p, 'without', { d: Math.max(.03, Math.min(.82, q.d + shift)), w: q.w });
+      const r = FM.phasePos(team, p, 'press'); if (r && p.group !== 'GK') FM.setPhasePos(team, p, 'press', { d: Math.max(.05, Math.min(.9, r.d + shift)), w: r.w });
+    });
+    team.tactics.block = kind;
+    team.tactics.pressing = kind === 'high' ? .82 : kind === 'mid' ? .5 : .22;
+    team.tactics.pressBuildUp = kind === 'high' ? .85 : kind === 'mid' ? .45 : .1;
+    FM.inferShapeTactics(team);
+    world.scn = world.scn || {}; world.scn.press = null; world.scn.organised = null;   // the examples start again from the new block
+  }
+  const blockWord = (t) => (t.block ? t.block : (t.pressBuildUp == null ? .4 : t.pressBuildUp) >= .7 ? 'high' : (t.pressBuildUp == null ? .4 : t.pressBuildUp) >= .3 ? 'mid' : 'low');
   // Build-up, through midfield and the final third are prepared by showing the phase against the opposition (see scenario.js).
   function renderScenarioTab(team, tab) {
     const host = el('tabBody');
     const defTab = tab === 'organised', sub = defTab ? (world.defSub || 'press') : tab;
-    host.innerHTML = (defTab ? '<div class="def-sub" role="tablist"><button data-sub="press" class="' + (sub === 'press' ? 'on' : '') + '">1. Pressing their build-up</button><button data-sub="organised" class="' + (sub === 'organised' ? 'on' : '') + '">2. Defending your third</button></div>' : '') + '<div id="scnHost"></div>' + (DEMO_MODE ? '' : '<div id="scnInstr"></div>');
+    const blk = defTab ? blockWord(team.tactics) : '';
+    host.innerHTML = (defTab ? '<div class="block-presets" style="margin-bottom:10px"><b>Defensive block</b>' + [['high', 'High press'], ['mid', 'Mid block'], ['low', 'Low block']].map(([k, l]) => '<button type="button" data-blockpick="' + k + '" class="' + (blk === k ? 'on' : '') + '">' + l + '</button>').join('') + '</div>' : '') + (defTab ? '<div class="def-sub" role="tablist"><button data-sub="press" class="' + (sub === 'press' ? 'on' : '') + '">1. Pressing their build-up</button><button data-sub="organised" class="' + (sub === 'organised' ? 'on' : '') + '">2. Defending your third</button></div>' : '') + '<div id="scnHost"></div>' + (DEMO_MODE ? '' : '<div id="scnInstr"></div>');
     host.querySelectorAll('[data-sub]').forEach((b) => b.addEventListener('click', () => { world.defSub = b.dataset.sub; renderScenarioTab(team, tab); }));
+    host.querySelectorAll('[data-blockpick]').forEach((b) => b.addEventListener('click', () => { applyBlock(team, b.dataset.blockpick); saveSoon(); renderScenarioTab(team, tab); }));
     world.scn = world.scn || {};
     FM.renderScenario(host.querySelector('#scnHost'), team, nextOpponent(), sub, { store: world.scn, save: saveSoon, applied: (done) => {
       FM.inferShapeTactics(team); renderPrepFlow();
@@ -2188,13 +2207,7 @@
       drawBoard(board, team, key, isShape ? { fit: true } : undefined);
       if (isShape) world.redrawBoards = () => { if (board.isConnected) drawBoard(board, team, key, { fit: true }); };
     }
-    host.querySelectorAll('[data-block]').forEach((b) => b.addEventListener('click', () => {
-      const target = { low: 0.2, mid: 0.32, high: 0.46 }[b.dataset.block];
-      const backs = team.players.filter((p) => p.group === 'CB' || p.group === 'FB'), now = backs.reduce((s,p) => s + FM.phasePos(team,p,'without').d, 0) / Math.max(1, backs.length), shift = target - now;
-      team.players.forEach((p) => { const q = FM.phasePos(team,p,'without'); FM.setPhasePos(team,p,'without',{ d: Math.max(.03,Math.min(.82,q.d + shift)), w:q.w }); });
-      team.tactics.pressing = b.dataset.block === 'high' ? .82 : b.dataset.block === 'mid' ? .5 : .22;
-      FM.inferShapeTactics(team); saveSoon(); renderTactics();
-    }));
+    host.querySelectorAll('[data-block]').forEach((b) => b.addEventListener('click', () => { applyBlock(team, b.dataset.block); saveSoon(); renderTactics(); }));
     const oppReset = host.querySelector('#oppReset');
     if (oppReset) oppReset.addEventListener('click', () => { delete world.oppMoved[key]; renderTactics(); });
     if (SLIDER_TABS[tab]) renderSliderTab(team, SLIDER_TABS[tab], host.querySelector('#phaseSliders'));
