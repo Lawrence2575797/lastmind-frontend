@@ -544,7 +544,7 @@
             ${S && S.defending && S.started ? `<div class="scn2-card"><h3>Defend it</h3><ul class="scn2-help">
               <li><b>Drag your players</b> to where you want them as they bring the ball ${phase === 'press' ? 'out from the back' : 'into your third'}.</li>
               <li><b>Drag one onto the man with the ball</b> to close him down: he can be tackled, and the ball is yours if it comes off.</li>
-              <li>Then press <b>Play on</b> and watch what they do with the ball.</li></ul>
+              <li>Then press <b>Play on</b> and watch what they do with the ball. <b>While it is being passed you can still drag a player into its path</b>: if he gets to it he can cut the pass out or win the ball.</li></ul>
               <div class="scn2-stats">${S.snaps.length} set-up${S.snaps.length === 1 ? '' : 's'} shown · ${S.events.length} move${S.events.length === 1 ? '' : 's'} by them</div>
               <p class="scn2-say" id="scnSay">${esc(S.say || 'They have the ball. Set your team.')}</p>
               <div class="row"><button class="primary" id="scnPlay"${S.ended ? ' disabled' : ''}>Play on</button><button id="scnUndo"${S.defHist && S.defHist.length && !S.finished ? '' : ' disabled'}>Undo</button>${terminal() ? '' : '<button id="scnReset">Restart simulation</button>'}</div></div>`
@@ -601,12 +601,13 @@
       const q = (s2) => host.querySelector(s2), svg = q('#scnSvg');
       let drag = null;
       svg.addEventListener('pointerdown', (ev) => {
-        if (S.busy) return;
+        // while the ball is being played a player can still be dragged into its path: that is not a new set-up, it happens live
+        if (S.busy && !S.animating) return;
         const own = ev.target.closest && ev.target.closest('[data-own]');
         if (!own) return;
         try { svg.setPointerCapture(ev.pointerId); } catch (e) { /* fine */ }
-        pushDef();
-        drag = { i: +own.dataset.own };
+        if (S.animating) { S.liveDrag = S.liveDrag || new Set(); S.liveDrag.add(+own.dataset.own); drag = { i: +own.dataset.own, live: true }; }
+        else { pushDef(); drag = { i: +own.dataset.own }; }
         ev.preventDefault();
       });
       svg.addEventListener('pointermove', (ev) => { if (!drag) return; const p = toBoard(svg, ev), o = S.own[drag.i]; o.x = p.x; o.y = p.y; S.pins = S.pins || {}; S.pins[drag.i] = true; redraw(); });
@@ -681,17 +682,35 @@
         S.say = missText + text;
         // everyone moves together, over a little under the time the engine ran for
         const t0 = Date.now(), dur = clamp((m.clock - S.t0) * 600, 700, 5000);
+        // While the ball moves the manager can drag a player into its way: one who gets to it can cut the pass out (or, with the man on the ball,
+        // win it), judged by his tackling and how well he reads the game. Each player gets one go.
+        S.animating = true; S.liveDrag = new Set();
+        const tried = new Set(), irng = FM.mulberry32((S.seed + S.snaps.length * 104729 + 5) >>> 0);
+        let cut = null;
         await new Promise((resolve) => {
           const step = () => {
             const k = clamp((Date.now() - t0) / dur, 0, 1), e = k * (2 - k);
             S.opp.forEach((o, i) => { o.x = starts[i].x + (ends[i].x - starts[i].x) * e; o.y = starts[i].y + (ends[i].y - starts[i].y) * e; });
-            S.own.forEach((o, i) => { o.x = ownStarts[i].x + (ownEnds[i].x - ownStarts[i].x) * e; o.y = ownStarts[i].y + (ownEnds[i].y - ownStarts[i].y) * e; });
+            S.own.forEach((o, i) => { if (S.liveDrag.has(i)) return; o.x = ownStarts[i].x + (ownEnds[i].x - ownStarts[i].x) * e; o.y = ownStarts[i].y + (ownEnds[i].y - ownStarts[i].y) * e; });
             S.ball = { x: b0.x + (b1.x - b0.x) * e, y: b0.y + (b1.y - b0.y) * e };
+            for (const i of S.liveDrag) {
+              if (tried.has(i)) continue;
+              if (dist(S.own[i], S.ball) > 2.4) continue;
+              tried.add(i);
+              const r = S.own[i].p.ratings || {}, prob = clamp(0.4 + ((r.tackling || 60) - 60) / 110 + ((r.composure || 60) - 60) / 300, 0.2, 0.85) * clamp(1.2 - dist(S.own[i], S.ball) / 3.5, 0.45, 1);
+              if (irng() < prob) { cut = i; break; }
+            }
             redraw();
-            if (k < 1) setTimeout(step, 16); else resolve();
+            if (cut != null || k >= 1) resolve(); else setTimeout(step, 16);
           };
           step();
         });
+        S.animating = false; S.liveDrag = null;
+        if (cut != null) {
+          const wasPass = last && last.type === 'pass' && last.ok;
+          S.ended = true; S.won = true; S.events.push({ type: 'tackle' });
+          S.say = wasPass ? `${nm(S.own[cut].p)} gets across and cuts out the pass. The ball is yours: the defending is done.` : `${nm(S.own[cut].p)} gets to the ball and wins it back. The defending is done.`;
+        }
         S.busy = false;
         draw();
       });
