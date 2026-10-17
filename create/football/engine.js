@@ -779,7 +779,7 @@
     if (player.group !== 'GK') {
       const home = toMetres(team.attackDir, boardPos.d, boardPos.w), at = toMetres(team.attackDir, d, w);
       const fzr = hasBall ? clamp((b.d - 0.56) / 0.26, 0, 1) : 0;
-      const R = (FM.LEASH == null ? 6 : FM.LEASH) * clamp(1 + 0.5 * m.roam, 0.6, 1.6) * (hasBall ? 1 : 0.7) + (hasBall ? 5 * fzr : 0);
+      const R = (FM.LEASH == null ? 6 : FM.LEASH) * clamp(1 + 0.5 * m.roam, 0.6, 1.6) * (hasBall ? 1 : (b.d > 0.5 ? (FM.LEASH_PRESS == null ? 3 : FM.LEASH_PRESS) : 0.7)) + (hasBall ? 5 * fzr : 0);   // the press of a build-up is left free: pressing is moving a long way
       const dx = at.x - home.x, dy = at.y - home.y, dist = Math.hypot(dx, dy);
       if (dist > R) { const k = R / dist; return { x: home.x + dx * k, y: home.y + dy * k }; }
     }
