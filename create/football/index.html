@@ -780,6 +780,16 @@
   .round-progress { margin-top: 12px; display: grid; gap: 8px; } .round-progress[hidden] { display: none; } .rp-msg { margin: 0; font-style: italic; opacity: .85; }
   .rp-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; } .rp-list li { display: grid; grid-template-columns: 1fr auto 1fr; gap: 10px; align-items: center; padding: 7px 10px; border-radius: 8px; background: rgba(255,255,255,.06); animation: rpIn .3s ease both; } .rp-list li.me { background: rgba(215,184,107,.2); } .rp-list li b { font-variant-numeric: tabular-nums; } .rp-list li span:last-child { text-align: right; } .rp-list li.rp-head { display: block; background: none; padding: 6px 0 0; font-size: .75rem; letter-spacing: .06em; text-transform: uppercase; opacity: .7; }
   @keyframes rpIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } } @media (prefers-reduced-motion: reduce) { .rp-list li { animation: none; } }
+  .board-tabs { margin-bottom: 14px; } .board-tabs button.on, .books-tabs button.on { background: var(--fm-cream, #f4edda); color: #07120e; font-weight: 700; } .books-tabs { margin: 10px 0 14px; }
+  .books-wrap { overflow-x: auto; margin: 10px 0; } .books-two { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; }
+  .books-table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; font-size: .86rem; background: rgba(255,255,255,.035); }
+  .books-table th, .books-table td { border: 1px solid rgba(244,237,218,.22); padding: 6px 10px; } .books-table th { background: rgba(255,255,255,.09); text-align: right; font-weight: 700; white-space: nowrap; } .books-table th.l, .books-table td.l { text-align: left; }
+  .books-table td.n { text-align: right; white-space: nowrap; } .books-table .neg, .books-table td.neg { color: #ff8a7a; } .books-table tr.sec td { background: rgba(255,255,255,.07); font-weight: 700; letter-spacing: .03em; }
+  .books-table tr.tot td { font-weight: 700; border-top: 2px solid rgba(244,237,218,.5); } .books-table tr.key td { background: rgba(215,184,107,.14); } .books-table th.fc, .books-table td.fc { background: rgba(120,140,170,.14); font-style: italic; } .books-table small { opacity: .7; font-weight: 400; }
+  .books-table.calc td.l { font-size: .84rem; } .books-table tr.empty td { opacity: .55; font-style: italic; }
+  .books-table input[type=number] { width: 84px; text-align: right; } .pounds { opacity: .7; margin-right: 2px; }
+  .goal-bar { display: grid; gap: 6px; margin: 10px 0; } .board-money .neg, .goal-bar .neg { color: #ff8a7a; }
+  .offer { display: flex; gap: 14px; justify-content: space-between; align-items: center; flex-wrap: wrap; padding: 10px 0; border-top: 1px solid rgba(244,237,218,.16); } .offer small { opacity: .8; } .finrow { align-items: end; gap: 14px; flex-wrap: wrap; }
   #lmAgent[hidden] { display: none; }
   #lmAgent { position: fixed; right: 0; top: 0; bottom: 0; z-index: 60; pointer-events: none; }
   #lmAgent .ag-tab { pointer-events: auto; position: absolute; right: 0; top: 38%; transform-origin: right top; writing-mode: vertical-rl; padding: 14px 9px; border-radius: 10px 0 0 10px; background: var(--gold, #d7b86b); color: #14181a; font-weight: 800; letter-spacing: .04em; border: 0; cursor: pointer; box-shadow: -4px 6px 18px rgba(0,0,0,.35); }
@@ -923,6 +933,7 @@
   </section>
 
   <section id="view-home" hidden></section>
+  <section id="view-board" hidden></section>
   <section id="view-league" hidden></section>
   <section id="view-squad" hidden></section>
   <section id="view-recruit" hidden></section>
@@ -998,7 +1009,7 @@
 <script src="/create/football/instructions.js?v=20261010c"></script>
 <script src="/create/football/fitness.js?v=20261010c"></script>
 <script src="/create/football/match.js?v=20261106m"></script>
-<script src="/create/football/league.js?v=20261106n"></script>
+<script src="/create/football/league.js?v=20261107b"></script>
 <script src="/create/football/preseason.js?v=20261010n"></script>
 <script src="/create/football/stats_math.js?v=20261010c"></script>
 <script src="/create/football/stats.js?v=20261013a"></script>
@@ -1016,15 +1027,17 @@
 <script src="/create/football/instructions_ui.js?v=20261106b"></script>
 <script src="/create/football/lab_replay.js?v=20261106i"></script>
 <script src="/create/football/lab_results.js?v=20261105y"></script>
-<script src="/create/football/transfers.js?v=20261105z"></script>
-<script src="/create/football/recruit.js?v=20261106d"></script>
+<script src="/create/football/transfers.js?v=20261107b"></script>
+<script src="/create/football/recruit.js?v=20261107b"></script>
 <script src="/create/football/development.js?v=20261106b"></script>
-<script src="/create/football/dataset.js?v=20261106g"></script>
-<script src="/create/football/agent.js?v=20261107a"></script>
+<script src="/create/football/club.js?v=20261107b"></script>
+<script src="/create/football/club_ui.js?v=20261107b"></script>
+<script src="/create/football/dataset.js?v=20261107b"></script>
+<script src="/create/football/agent.js?v=20261107b"></script>
 <script src="/create/football/form.js?v=20261029a"></script>
 <script src="/create/football/cases.js?v=20261028a"></script>
 <script src="/create/football/scenario.js?v=20261105z"></script>
 <script src="/create/football/multiplayer.js?v=20261106d"></script>
-<script src="/create/football/main.js?v=20261106n"></script>
+<script src="/create/football/main.js?v=20261107b"></script>
 </body>
 </html>

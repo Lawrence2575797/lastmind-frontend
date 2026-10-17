@@ -43,6 +43,7 @@
         wageBudget[t.id] = r1(t.squad.reduce((a, p) => a + FM.wageOf(p), 0) + 25 + 8 * (t.strength || 0));
       });
       league.transfer = { v: 1, budget, wageBudget, shortlist: [], deals: {}, offers: [], ai: {}, hikes: {}, seq: 1, moves: [] };
+      if (FM.bizSyncBudget && !league.mp) FM.bizSyncBudget(league);   // the money to spend is the cash in the club's books
     }
     if (!league.transfer.reserves) { league.transfer.reserves = true; addReserves(league); }
     // A new game opens with a few offers already waiting: clubs have been looking at the squad all summer. Which clubs, and for whom, differs
@@ -216,6 +217,7 @@
     delete t.hikes[p.id]; delete t.ai[p.id];
     t.offers = t.offers.filter((o) => o.pid !== p.id);
     t.moves.push({ pid: p.id, name: p.name, from: from.id, to: to.id, fee, day: league.day });
+    if (FM.bizTransfer && (to.id === league.userId || from.id === league.userId)) FM.bizTransfer(league, p, from, to, fee, p.wage, years || 3);   // the club's books
     if (from.id !== league.userId) { topUp(league, from); autoPick(from); }
     if (to.id !== league.userId) autoPick(to);
     return true;

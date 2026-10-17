@@ -64,8 +64,9 @@
       const rows = FM.tableRows(league), pos = rows.findIndex((r) => r.id === league.userId) + 1;
       if (pos) out.push('League position: ' + pos + ' of ' + rows.length + '.');
     } catch (e) { /* fine */ }
+    try { if (FM.bizDigest) { const bd = FM.bizDigest(league); if (bd) out.push('', bd); } } catch (e) { /* fine */ }
     try { if (FM.datasetDigest) out.push('', 'Recorded match data (use the id when asking for a picture of one match):', FM.datasetDigest(league)); } catch (e) { /* fine */ }
-    return out.join('\n').slice(0, 7000);
+    return out.join('\n').slice(0, 9000);
   };
 
   function draw() {

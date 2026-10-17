@@ -262,8 +262,10 @@
           <p class="note news-byline">${esc(open.reporter || 'The LastMind Football desk')} · ${esc(open.publication || 'The Touchline')}</p>
           ${p ? `<figure class="nw-photo"><div id="nwPhoto" class="rc-scene"></div><figcaption>${esc(p.name)}, ${esc((FM.clubOf(league, p) || {}).name || '')}</figcaption></figure>` : ''}
           ${paras.map((x, i) => `<p class="nw-body">${esc(x)}</p>${i === 0 && quote ? `<blockquote>“${esc(quote)}”</blockquote>` : ''}`).join('')}
+          ${open.offer && FM.bizOfferBlock ? FM.bizOfferBlock(league, open.offer) : ''}
         </article>
         <aside class="card"><h3>More stories</h3>${more.map((n) => `<button type="button" class="nw-more" data-story="${esc(n.id)}"><span class="nw-kind ${n.mine ? 'mine' : ''}">${esc(n.kind)}</span> ${esc(n.headline)}</button>`).join('')}</aside></div>`;
+      host.querySelectorAll('[data-news-offer]').forEach((b) => b.addEventListener('click', () => { FM.bizOffer(league, b.dataset.newsOffer, !!b.dataset.accept); if (FM.requestSave) FM.requestSave(); FM.renderNews(host, league); }));
       host.querySelector('#nwBack').addEventListener('click', () => { ns.open = null; FM.renderNews(host, league); });
       host.querySelectorAll('[data-story]').forEach((b) => b.addEventListener('click', () => { ns.open = b.dataset.story; FM.renderNews(host, league); if (host.scrollIntoView) host.scrollIntoView(); }));
       if (p) {

@@ -16,6 +16,7 @@
   const shortName = (p) => { const parts = p.name.split(' '); return parts.length > 1 ? parts[0][0] + '. ' + parts.slice(1).join(' ') : p.name; };
   const playerBy = (team, number) => team.squad.find((p) => p.number === number);
   const saveSoon = () => { clearTimeout(world.saveTimer); world.saveTimer = setTimeout(() => { if (world.league) FM.saveLeague(world.league); }, 500); };
+  FM.requestSave = () => saveSoon();
 
   // ---------- drawing the match ----------
   const canvas = el('pitch');
@@ -753,9 +754,9 @@
   el('injuryTen').addEventListener('click', () => { if (world.match) FM.resolveInjury(world.match); });
 
   // ---------- views and navigation ----------
-  const VIEWS = ['home', 'league', 'squad', 'recruit', 'develop', 'analysis', 'reports', 'news', 'preview', 'mp', 'match'];
+  const VIEWS = ['home', 'board', 'league', 'squad', 'recruit', 'develop', 'analysis', 'reports', 'news', 'preview', 'mp', 'match'];
   const NAV = [];
-  const SCREEN_TITLES = { home: 'Club overview', league: 'League centre', squad: 'First-team squad', recruit: 'Recruitment', develop: 'Player development', reports: 'Opposition intelligence', news: 'Football world', analysis: 'Performance analysis', preview: 'Match preview', mp: 'Playing with other managers' };
+  const SCREEN_TITLES = { home: 'Club overview', board: 'The board', league: 'League centre', squad: 'First-team squad', recruit: 'Recruitment', develop: 'Player development', reports: 'Opposition intelligence', news: 'Football world', analysis: 'Performance analysis', preview: 'Match preview', mp: 'Playing with other managers' };
   function demoMatchPlayed() {
     return !!(DEMO_MODE && world.league && world.league.fixtures.some((f) => f.played && (f.homeId === world.league.userId || f.awayId === world.league.userId)));
   }
@@ -842,6 +843,7 @@
     }
     else if (v === 'reports') FM.renderReports(el('view-reports'), world.league);
     else if (v === 'news') FM.renderNews(el('view-news'), world.league);
+    else if (v === 'board') FM.renderBoard(el('view-board'), world.league, { save: saveSoon, goto: (to) => setView(to) });
     else if (v === 'preview') renderPreview();
     else if (v === 'mp') FM.renderMp(el('view-mp'), world.league, { prepare: () => { world.testing = false; world.tab = 'squad'; setView('tactics'); }, afterSync: () => { FM.saveLeague(world.league); renderTop(); } });
     else if (v === 'tactics' || v === 'match') renderTactics();
@@ -878,6 +880,7 @@
     el('subtitle').textContent = user.name + ' · Season ' + lg.season;
     host.innerHTML = `<span class="hint" style="color:inherit;opacity:0.8">${esc(FM.dayLabel(lg.day))}</span>
       <button data-top="home" class="${world.view === 'home' ? 'on' : ''}">Home</button>
+      ${lg.mp || DEMO_MODE ? '' : `<button data-top="board" class="${world.view === 'board' ? 'on' : ''}">Board</button>`}
       <button data-top="squad" class="${world.view === 'squad' ? 'on' : ''}">Squad</button>
       ${lg.mp ? '' : `<button data-top="recruit" class="${world.view === 'recruit' ? 'on' : ''}">Recruitment</button>
       <button data-top="develop" class="${world.view === 'develop' ? 'on' : ''}">Development</button>`}
@@ -1005,11 +1008,10 @@
     const board = lg.board || {}, currentPos = rows.findIndex((r) => r.id === me) + 1, leaguePlayed = rows.find((r) => r.id === me).p;
     const performance = !leaguePlayed ? 'The season has not started' : currentPos < (board.expectedPosition || currentPos) ? 'Ahead of expectations' : currentPos > (board.expectedPosition || currentPos) ? 'Below expectations' : 'Meeting expectations';
     const approval = (kind, value) => `<div class="approval-line"><span><b>${kind}</b><small>${esc(FM.approvalBand(value))}</small></span><div class="approval-track"><i style="width:${Math.max(0, Math.min(100, value))}%"></i></div><strong>${Math.round(value)}%</strong></div>`;
-    const tableCard = `<div class="card home-league"><div class="card-title-row"><h2>League table</h2><select id="homeLeagueSelect" aria-label="Choose division"><option value="${lg.divisionLevel}">${esc(lg.divisionName)}</option><option value="${other.level}"${selectedLevel === other.level ? ' selected' : ''}>${esc(other.name)}</option></select></div>${tableHtml(shownRows, true, selectedLevel)}<div class="home-approvals">${approval('Public approval', Number.isFinite(lg.publicOpinion) ? lg.publicOpinion : 50)}${approval('Board approval', Number.isFinite(lg.boardApproval) ? lg.boardApproval : 50)}</div></div>`;
-    const boardCard = `<div class="card board-card"><div class="eyebrow">The board</div><h2>${esc(board.expectation || 'Establish the club')}</h2><p class="desc">Expected finish: <b>${board.expectedPosition || '—'}${board.expectedPosition === 1 ? 'st' : board.expectedPosition === 2 ? 'nd' : board.expectedPosition === 3 ? 'rd' : 'th'}</b> in the ${esc(lg.divisionName)}. ${leaguePlayed ? `You are currently <b>${currentPos}${currentPos === 1 ? 'st' : currentPos === 2 ? 'nd' : currentPos === 3 ? 'rd' : 'th'}</b> — ${esc(performance.toLowerCase())}.` : esc(performance) + '.'}</p><div class="board-money"><span>Transfer budget<b>${FM.money ? FM.money(transferBudget) : transferBudget}</b></span><span>Wage room<b>${wageRoom}k/week</b></span></div></div>`;
+    const tableCard = `<div class="card home-league"><div class="card-title-row"><h2>League table</h2><select id="homeLeagueSelect" aria-label="Choose division"><option value="${lg.divisionLevel}">${esc(lg.divisionName)}</option><option value="${other.level}"${selectedLevel === other.level ? ' selected' : ''}>${esc(other.name)}</option></select></div>${tableHtml(shownRows, true, selectedLevel)}<div class="home-approvals">${approval('Public approval', Number.isFinite(lg.publicOpinion) ? lg.publicOpinion : 50)}</div></div>`;
     host.innerHTML = `<div class="two">
       <div style="display:grid;gap:16px"><div class="card">${next}</div><div class="card">${lastCard}</div><div class="card">${fitCard}</div><div class="card">${newsCard}</div></div>
-      <div style="display:grid;gap:16px">${tableCard}${boardCard}</div></div>`;
+      <div style="display:grid;gap:16px">${tableCard}</div></div>`;
     const leagueSelect = host.querySelector('#homeLeagueSelect'); if (leagueSelect) leagueSelect.addEventListener('change', () => { world.homeTableLevel = +leagueSelect.value; renderHome(); });
     const nb = host.querySelector('[data-nav-news]'); if (nb) nb.addEventListener('click', () => setView('news'));
     const ns = host.querySelector('#newSeasonBtn'); if (ns) ns.addEventListener('click', () => { ns.disabled = true; ns.textContent = 'Preparing the new season...'; if (FM.startNextSeason(lg)) { world.homeTableLevel = lg.divisionLevel; FM.saveLeague(lg); renderTop(); renderHome(); } });
@@ -2294,6 +2296,7 @@
     world.league = FM.createLeague({ userIndex: 0, tier, runSeed: Math.floor(Math.random() * 1e9) });   // Ashford Rovers is the only club to take charge of
     if (FM.ensurePreseasonNews) FM.ensurePreseasonNews(world.league);
     if (FM.transfer) FM.transfer(world.league);   // the opening offers are made now and saved with the game, not when a screen first asks
+    if (FM.biz && !world.league.mp) { FM.biz(world.league); FM.bizSyncBudget(world.league); }
     await FM.playFriendlies(world.league, (i, n) => { btn.textContent = 'Playing pre-season friendlies (' + i + ' of ' + n + ')...'; });
     FM.saveLeague(world.league);
     btn.disabled = false; btn.textContent = DEMO_MODE ? 'Start the demo' : 'Start the season';
@@ -2326,6 +2329,7 @@
     }
   }
   world.league = FM.loadLeague();
+  if (world.league && !world.league.mp && FM.biz) { FM.biz(world.league); FM.bizSyncBudget(world.league); }   // the club's books
   // "New project" comes here with ?new=1: the set-up choices, even when a game is saved (resuming is what Your projects is for)
   const wantsNew = /[?&]new=1/.test(location.search);
   if (world.league && wantsNew) { el('ngResume').hidden = false; world.league = null; showNewGame(); requestAnimationFrame(frame); return; }

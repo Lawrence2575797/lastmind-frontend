@@ -275,6 +275,8 @@
       case 'passnetwork': return passnetwork(league, d, spec);
       case 'buildup': return buildup(league, d, spec);
       case 'trend': return trend(league, d, spec);
+      case 'cashflow': return FM.bizCashFlowHtml ? FM.bizCashFlowHtml(league) : '';
+      case 'profit': return FM.bizProfitHtml ? FM.bizProfitHtml(league) : '';
       case 'shotmap': return shotmap(league, d, spec);
       case 'clip': return clip(league, d, spec);
       case 'recoveries': return spots(league, d, spec, 'recoveries');
