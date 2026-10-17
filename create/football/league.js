@@ -110,7 +110,7 @@
       return team;
     });
     const league = { seed, tier: opts.tier || 'gcse', userId: teams[opts.userIndex || 0].id, season: 1, day: 0, teams, fixtures: [], testLog: [], hypotheses: [], news: [], tacticalPlans: [], publicOpinion: 50, boardApproval: 50, divisionLevel: 1, divisionName: 'Premier Division', seasonHistory: [] };
-    league.fixtures = makeFixtures(teams.map((t) => t.id), rng, seed + runSeed);
+    { const ash0 = teams.find((t) => t.name === 'Ashford Rovers'), nor0 = teams.find((t) => t.name === 'Northfield United'); league.fixtures = makeFixtures(teams.map((t) => t.id), rng, seed + runSeed, ash0 && nor0 ? [ash0.id, nor0.id] : null); }
     // The first game of every season is the Iron Derby: Ashford Rovers at home to Northfield United. The rounds are re-ordered so the pairing falls
     // in round one, and the return game is the mirror of it.
     (function () {
@@ -141,20 +141,58 @@
   };
 
   // Circle method: seven rounds where everyone plays once, then the same seven with home and away reversed.
-  function makeFixtures(ids, rng, seed) {
+  // `fixed`, when given, is [homeId, awayId]: the match that opens the season, at that ground, which the rest of the schedule is built around
+  function makeFixtures(ids, rng, seed, fixed) {
     const order = ids.slice();
     for (let i = order.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [order[i], order[j]] = [order[j], order[i]]; }
-    const n = order.length, rounds = [];
+    const n = order.length, rounds = [], base = [];
     let ring = order.slice();
     for (let r = 0; r < n - 1; r++) {
       const pairs = [];
-      for (let i = 0; i < n / 2; i++) {
-        const a = ring[i], b = ring[n - 1 - i];
-        pairs.push((r + i) % 2 === 0 ? [a, b] : [b, a]);
-      }
-      rounds.push(pairs);
+      for (let i = 0; i < n / 2; i++) pairs.push([ring[i], ring[n - 1 - i]]);
+      base.push(pairs);
       ring = [ring[0], ring[n - 1]].concat(ring.slice(1, n - 1));
     }
+    const isFixed = (x, y) => !!fixed && ((x === fixed[0] && y === fixed[1]) || (x === fixed[1] && y === fixed[0]));
+    if (fixed) { const r0 = base.findIndex((pairs) => pairs.some(([x, y]) => isFixed(x, y))); if (r0 > 0) { const t = base[0]; base[0] = base[r0]; base[r0] = t; } }
+    // Who is at home when. Every club should alternate home and away as far as it can, never more than two in a row of either, and have a fair
+    // share of each in either half of the season (so the first half is not mostly home and the second mostly away). The orientation of each pairing is
+    // chosen by a randomised search with the second half the mirror of the first, and the best schedule found is used.
+    const evalSched = (rs) => {
+      const seqs = {}; order.forEach((id) => { seqs[id] = []; });
+      rs.concat(rs.map((pairs) => pairs.map(([h, a]) => [a, h]))).forEach((pairs) => pairs.forEach(([h, a]) => { seqs[h].push(1); seqs[a].push(0); }));
+      let bad = 0;
+      order.forEach((id) => {
+        const q = seqs[id]; let run = 1, maxRun = 1;
+        for (let i = 1; i < q.length; i++) { run = q[i] === q[i - 1] ? run + 1 : 1; maxRun = Math.max(maxRun, run); }
+        const h1 = q.slice(0, n - 1).reduce((x, y) => x + y, 0), lo = Math.floor((n - 1) / 2), hi = Math.ceil((n - 1) / 2);
+        bad += Math.max(0, maxRun - 2) * 3 + (h1 < lo || h1 > hi ? 4 : 0);
+        for (let i = 1; i < q.length; i++) if (q[i] === q[i - 1]) bad += 0.25;
+      });
+      return bad;
+    };
+    let best = null, bestBad = Infinity;
+    for (let tries = 0; tries < 4000 && bestBad > 0; tries++) {
+      const last = {}; order.forEach((id) => { last[id] = rng() < 0.5 ? 1 : 0; });
+      const cand = base.map((pairs) => pairs.map(([x, y]) => {
+        // the club that was away last time is the one that goes home, if only one of them wants to; otherwise a coin
+        const wx = last[x] === 0 ? 1 : 0, wy = last[y] === 0 ? 1 : 0;
+        const xHome = isFixed(x, y) ? x === fixed[0] : wx === wy ? rng() < 0.5 : wx > wy;
+        last[x] = xHome ? 1 : 0; last[y] = xHome ? 0 : 1;
+        return xHome ? [x, y] : [y, x];
+      }));
+      const bad = evalSched(cand);
+      if (bad < bestBad) { bestBad = bad; best = cand; }
+    }
+    // then improve it a pairing at a time: turn one fixture round, keep it if the schedule is no worse
+    for (let k = 0; k < 6000 && bestBad > 0; k++) {
+      const r = Math.floor(rng() * best.length), i = Math.floor(rng() * best[r].length), cand = best.map((pairs) => pairs.map((pr) => pr.slice()));
+      if (isFixed(cand[r][i][0], cand[r][i][1])) continue;
+      cand[r][i] = [cand[r][i][1], cand[r][i][0]];
+      const bad = evalSched(cand);
+      if (bad <= bestBad) { bestBad = bad; best = cand; }
+    }
+    best.forEach((pairs) => rounds.push(pairs));
     const fixtures = [];
     let k = 0;
     const add = (round, h, a) => fixtures.push({ id: 'f' + (k++), round, homeId: h, awayId: a, played: false, hg: null, ag: null, seed: seed + 104729 * k, stats: null });
