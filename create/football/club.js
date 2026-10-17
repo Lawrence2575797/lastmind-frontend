@@ -35,6 +35,7 @@
     ['Cobalt Cloud Services', 'software'], ['Greywell Brewery', 'brewing'], ['Ashmoor Plumbing', 'plumbing'],
   ];
   const BOARDS = 8;
+  const AWAY_SHARE = 0.15;   // the visiting club's share of the gate at the other ground
   const LOAN_OPTIONS = [{ term: 14, rate: 0.06 }, { term: 28, rate: 0.075 }, { term: 42, rate: 0.09 }];   // terms in matchdays; rates are per season
   const OVERDRAFT = { limit: 500000, rate: 0.14, penalty: 0.3 };
   const TAX = 0.25;
@@ -159,6 +160,15 @@
     else if (home) {
       const past = b.ledger.filter((e) => e.home).slice(-4);
       if (past.length) { att = past.reduce((a, e) => a + e.attTotal, 0) / past.length; tickets = past.reduce((a, e) => a + e.inflow.tickets, 0) / past.length; spend = past.reduce((a, e) => a + e.inflow.matchday, 0) / past.length; }
+    }
+    // Away from home the club takes a share of the gate at the other ground: their crowd (a bigger one for a bigger club) at roughly the prices this
+    // club charges itself, and the visitors keep AWAY_SHARE of it.
+    if (!home && fx) {
+      const opp = FM.teamById(lg, fx.homeId === lg.userId ? fx.awayId : fx.homeId), str = clamp(((opp && opp.strength) || 0) + 0.5, 0, 1.5);
+      const noise = est ? 1 : 0.94 + 0.12 * FM.mulberry32(lg.seed + (lg.runSeed || 0) + fx.round * 4999 + lg.season * 37 + 5)();
+      const crowd = (5200 + 3600 * str) * noise, seats = FM.SEGMENTS.reduce((a, s) => a + (b.seats[s.id] || s.seats), 0);
+      const avgPrice = FM.SEGMENTS.reduce((a, s) => a + (b.seats[s.id] || s.seats) * clamp((b.prices[s.id] || { price: s.ref }).price, 3, 400), 0) / Math.max(1, seats);
+      tickets = Math.round(crowd * avgPrice * AWAY_SHARE / 100) * 100;
     }
     const pos = userPos(lg), lastAtt = (b.ledger.filter((e) => e.home).slice(-1)[0] || {}).attTotal || 7000;
     const merch = (7000 + 0.9 * (att || lastAtt) + 1400 * Math.max(0, 8 - pos)) * eff.merch;
