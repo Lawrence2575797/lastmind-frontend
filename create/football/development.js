@@ -185,7 +185,7 @@
         const before = FM.abilityOf(p);
         const plan = team === me ? d.plans[p.id] : null;
         const focus = plan && plan.active ? FM.LESSONS[plan.lesson].attrs : [];
-        const passive = 0.22 * af * ls * (0.6 + rng() * 0.8);
+        const passive = 0.22 * af * ls * (0.6 + rng() * 0.8) * (team === me && FM.bizDevBoost ? FM.bizDevBoost(league) : 1);
         // how much he took in when it was explained to him sets how much the weekly work gives
         const uf = plan && plan.understanding != null ? 0.3 + 0.9 * (plan.understanding / 100) : 0.5;
         const focused = plan && plan.active ? 1.0 * af * ls * uf * (0.7 + rng() * 0.6) : 0;

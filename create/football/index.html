@@ -790,6 +790,16 @@
   .books-table input[type=number] { width: 84px; text-align: right; } .pounds { opacity: .7; margin-right: 2px; }
   .goal-bar { display: grid; gap: 6px; margin: 10px 0; } .board-money .neg, .goal-bar .neg { color: #ff8a7a; }
   .offer { display: flex; gap: 14px; justify-content: space-between; align-items: center; flex-wrap: wrap; padding: 10px 0; border-top: 1px solid rgba(244,237,218,.16); } .offer small { opacity: .8; } .finrow { align-items: end; gap: 14px; flex-wrap: wrap; }
+  .banner.warn { background: rgba(255,138,122,.14); border: 1px solid rgba(255,138,122,.5); padding: 9px 12px; border-radius: 10px; }
+  .objectives .st-on-track, .objectives .st-met { color: #7fd49a; font-weight: 700; } .objectives .st-behind, .objectives .st-missed, .objectives .st-failed { color: #ff8a7a; font-weight: 700; } .objectives .st-not-started { opacity: .6; }
+  .offer { display: block; } .offer-top { display: flex; gap: 14px; justify-content: space-between; align-items: center; flex-wrap: wrap; }
+  .neg { display: none; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 10px; } .neg.open { display: flex; } .neg input { width: 96px; text-align: right; } .neg-reply { margin: 8px 0 0; padding: 8px 10px; border-left: 3px solid rgba(215,184,107,.6); background: rgba(255,255,255,.05); font-size: .9rem; }
+  .verdict { position: fixed; inset: 0; z-index: 100001; background: rgba(0,0,0,.72); display: grid; place-items: center; padding: 16px; } .verdict .card { max-width: 520px; width: 100%; }
+  .banner.warn { background: rgba(255,138,122,.14); border: 1px solid rgba(255,138,122,.5); padding: 9px 12px; border-radius: 10px; }
+  .objectives .st-on-track, .objectives .st-met { color: #7fd49a; font-weight: 700; } .objectives .st-behind, .objectives .st-missed, .objectives .st-failed { color: #ff8a7a; font-weight: 700; } .objectives .st-not-started { opacity: .6; }
+  .offer { display: block; } .offer-top { display: flex; gap: 14px; justify-content: space-between; align-items: center; flex-wrap: wrap; }
+  .neg { display: none; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 10px; } .neg.open { display: flex; } .neg input { width: 96px; text-align: right; } .neg-reply { margin: 8px 0 0; padding: 8px 10px; border-left: 3px solid rgba(215,184,107,.6); background: rgba(255,255,255,.05); font-size: .9rem; }
+  .verdict { position: fixed; inset: 0; z-index: 100001; background: rgba(0,0,0,.72); display: grid; place-items: center; padding: 16px; } .verdict .card { max-width: 520px; width: 100%; }
   #lmAgent[hidden] { display: none; }
   #lmAgent { position: fixed; right: 0; top: 0; bottom: 0; z-index: 60; pointer-events: none; }
   #lmAgent .ag-tab { pointer-events: auto; position: absolute; right: 0; top: 38%; transform-origin: right top; writing-mode: vertical-rl; padding: 14px 9px; border-radius: 10px 0 0 10px; background: var(--gold, #d7b86b); color: #14181a; font-weight: 800; letter-spacing: .04em; border: 0; cursor: pointer; box-shadow: -4px 6px 18px rgba(0,0,0,.35); }
@@ -1009,7 +1019,7 @@
 <script src="/create/football/instructions.js?v=20261010c"></script>
 <script src="/create/football/fitness.js?v=20261010c"></script>
 <script src="/create/football/match.js?v=20261106m"></script>
-<script src="/create/football/league.js?v=20261107b"></script>
+<script src="/create/football/league.js?v=20261107c"></script>
 <script src="/create/football/preseason.js?v=20261010n"></script>
 <script src="/create/football/stats_math.js?v=20261010c"></script>
 <script src="/create/football/stats.js?v=20261013a"></script>
@@ -1027,17 +1037,17 @@
 <script src="/create/football/instructions_ui.js?v=20261106b"></script>
 <script src="/create/football/lab_replay.js?v=20261106i"></script>
 <script src="/create/football/lab_results.js?v=20261105y"></script>
-<script src="/create/football/transfers.js?v=20261107b"></script>
-<script src="/create/football/recruit.js?v=20261107b"></script>
-<script src="/create/football/development.js?v=20261106b"></script>
-<script src="/create/football/club.js?v=20261107b"></script>
-<script src="/create/football/club_ui.js?v=20261107b"></script>
-<script src="/create/football/dataset.js?v=20261107b"></script>
-<script src="/create/football/agent.js?v=20261107b"></script>
+<script src="/create/football/transfers.js?v=20261107c"></script>
+<script src="/create/football/recruit.js?v=20261107c"></script>
+<script src="/create/football/development.js?v=20261107c"></script>
+<script src="/create/football/club.js?v=20261107c"></script>
+<script src="/create/football/club_ui.js?v=20261107c"></script>
+<script src="/create/football/dataset.js?v=20261107c"></script>
+<script src="/create/football/agent.js?v=20261107c"></script>
 <script src="/create/football/form.js?v=20261029a"></script>
 <script src="/create/football/cases.js?v=20261028a"></script>
 <script src="/create/football/scenario.js?v=20261105z"></script>
-<script src="/create/football/multiplayer.js?v=20261106d"></script>
-<script src="/create/football/main.js?v=20261107b"></script>
+<script src="/create/football/multiplayer.js?v=20261107c"></script>
+<script src="/create/football/main.js?v=20261107c"></script>
 </body>
 </html>

@@ -265,7 +265,7 @@
           ${open.offer && FM.bizOfferBlock ? FM.bizOfferBlock(league, open.offer) : ''}
         </article>
         <aside class="card"><h3>More stories</h3>${more.map((n) => `<button type="button" class="nw-more" data-story="${esc(n.id)}"><span class="nw-kind ${n.mine ? 'mine' : ''}">${esc(n.kind)}</span> ${esc(n.headline)}</button>`).join('')}</aside></div>`;
-      host.querySelectorAll('[data-news-offer]').forEach((b) => b.addEventListener('click', () => { FM.bizOffer(league, b.dataset.newsOffer, !!b.dataset.accept); if (FM.requestSave) FM.requestSave(); FM.renderNews(host, league); }));
+      if (FM.bizBindOffers) FM.bizBindOffers(host, league, () => { if (FM.requestSave) FM.requestSave(); FM.renderNews(host, league); });
       host.querySelector('#nwBack').addEventListener('click', () => { ns.open = null; FM.renderNews(host, league); });
       host.querySelectorAll('[data-story]').forEach((b) => b.addEventListener('click', () => { ns.open = b.dataset.story; FM.renderNews(host, league); if (host.scrollIntoView) host.scrollIntoView(); }));
       if (p) {

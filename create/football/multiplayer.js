@@ -140,6 +140,11 @@
       league.divisionLevel = originalDivision.level; league.divisionName = originalDivision.name;
       league.userId = me; league.humanIds = keepHuman; league.watchIds = keepWatch;
     }
+    // the club's accounts for the round, for the manager playing on this device
+    if (mp.kind === 'league' && FM.bizAfterRound) {
+      const myFx = (originalDivision.fixtures || []).find((f) => f.round === round && (f.homeId === me || f.awayId === me));
+      if (myFx && myFx.played) { try { FM.bizAfterRound(league, myFx); } catch (e) { /* the books are a nicety here */ } }
+    }
     return out;
   };
 

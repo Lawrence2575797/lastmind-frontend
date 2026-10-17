@@ -714,10 +714,30 @@
       world.match = null; world.fixture = null;
       FM.saveLeague(world.league);
       btn.disabled = false; btn.textContent = 'Finish and see the table';
-      if (DEMO_MODE) showDemoComplete();
-      else runInterview('post', fx, result, () => setView('home'));
+      // the shareholders may have called a vote on the manager
+      boardVerdict(world.league, () => { if (DEMO_MODE) showDemoComplete(); else runInterview('post', fx, result, () => setView('home')); });
     }, 40);
   });
+
+  // A vote of no confidence: the result is shown, and a manager who lost it is dismissed and has to start again.
+  function boardVerdict(lg, done) {
+    const b = lg.biz, v = b && b.conf && b.conf.vote;
+    if (!b || !b.conf || ((!v || v.seen) && !b.conf.dismissed)) { done(); return; }
+    if (v) v.seen = true;
+    const gone = !!b.conf.dismissed, shade = document.createElement('div');
+    shade.className = 'verdict'; shade.setAttribute('role', 'dialog'); shade.setAttribute('aria-modal', 'true');
+    const sup = v ? v.support : 0, against = v ? v.against : 100;
+    shade.innerHTML = `<div class="card"><div class="eyebrow">The shareholders' meeting</div><h2>${gone ? 'You have been dismissed' : 'You survive the vote'}</h2>
+      <p class="desc">${v ? `The shareholders voted on a motion of no confidence in the manager: <b>${sup}% in support</b>, <b>${against}% against</b>. ` : ''}${gone ? 'The board has dismissed you as manager of Ashford Rovers. The accounts and the results were not good enough.' : 'The manager stays, but on notice: the board has been told things have to improve.'}</p>
+      <div class="row"><button class="primary" id="vdGo">${gone ? 'Start a new game' : 'Carry on'}</button></div></div>`;
+    document.body.appendChild(shade);
+    shade.querySelector('#vdGo').addEventListener('click', () => {
+      shade.remove();
+      if (gone) { try { FM.clearSave(); } catch (e) { /* fine */ } location.href = cleanUrl() + (DEMO_MODE ? '&new=1' : '?new=1'); return; }
+      FM.saveLeague(lg); done();
+    });
+  }
+  FM.bizOnChange = () => { if (world.view === 'board' && world.league) setView('board'); };
 
   function startMatch() {
     world.skipTo = null;
@@ -880,7 +900,7 @@
     el('subtitle').textContent = user.name + ' · Season ' + lg.season;
     host.innerHTML = `<span class="hint" style="color:inherit;opacity:0.8">${esc(FM.dayLabel(lg.day))}</span>
       <button data-top="home" class="${world.view === 'home' ? 'on' : ''}">Home</button>
-      ${lg.mp || DEMO_MODE ? '' : `<button data-top="board" class="${world.view === 'board' ? 'on' : ''}">Board</button>`}
+      ${lg.mp && lg.mp.kind === 'match' ? '' : `<button data-top="board" class="${world.view === 'board' ? 'on' : ''}">Board</button>`}
       <button data-top="squad" class="${world.view === 'squad' ? 'on' : ''}">Squad</button>
       ${lg.mp ? '' : `<button data-top="recruit" class="${world.view === 'recruit' ? 'on' : ''}">Recruitment</button>
       <button data-top="develop" class="${world.view === 'develop' ? 'on' : ''}">Development</button>`}
@@ -2296,7 +2316,7 @@
     world.league = FM.createLeague({ userIndex: 0, tier, runSeed: Math.floor(Math.random() * 1e9) });   // Ashford Rovers is the only club to take charge of
     if (FM.ensurePreseasonNews) FM.ensurePreseasonNews(world.league);
     if (FM.transfer) FM.transfer(world.league);   // the opening offers are made now and saved with the game, not when a screen first asks
-    if (FM.biz && !world.league.mp) { FM.biz(world.league); FM.bizSyncBudget(world.league); }
+    if (FM.biz) { FM.biz(world.league); FM.bizSyncBudget(world.league); }
     await FM.playFriendlies(world.league, (i, n) => { btn.textContent = 'Playing pre-season friendlies (' + i + ' of ' + n + ')...'; });
     FM.saveLeague(world.league);
     btn.disabled = false; btn.textContent = DEMO_MODE ? 'Start the demo' : 'Start the season';
@@ -2329,10 +2349,11 @@
     }
   }
   world.league = FM.loadLeague();
-  if (world.league && !world.league.mp && FM.biz) { FM.biz(world.league); FM.bizSyncBudget(world.league); }   // the club's books
+  if (world.league && !(world.league.mp && world.league.mp.kind === 'match') && FM.biz) { FM.biz(world.league); FM.bizSyncBudget(world.league); }   // the club's books
   // "New project" comes here with ?new=1: the set-up choices, even when a game is saved (resuming is what Your projects is for)
   const wantsNew = /[?&]new=1/.test(location.search);
   if (world.league && wantsNew) { el('ngResume').hidden = false; world.league = null; showNewGame(); requestAnimationFrame(frame); return; }
+  if (world.league && world.league.biz && world.league.biz.conf && world.league.biz.conf.dismissed) { boardVerdict(world.league, () => {}); requestAnimationFrame(frame); return; }
   if (world.league) {
     if (FM.transfer) FM.transfer(world.league);
     if (FM.ensurePreseasonNews) { FM.ensurePreseasonNews(world.league); }
