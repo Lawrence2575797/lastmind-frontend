@@ -707,7 +707,9 @@
       box.hidden = true;
       world.league.prepStep = 0; world.league.prepPhaseMax = 0; world.league.testPhaseMax = 0;
       // The plan picked for this game is already in place when preparing the next one: the pages, positions and settings start from it
-      { const lg = world.league, plan = (lg.tacticalPlans || []).find((p) => p.id === lg.activePlanId), tm = FM.teamById(lg, lg.userId); if (plan && tm) restorePlan(tm, plan); world.scn = {}; }
+      { const lg = world.league, plan = (lg.tacticalPlans || []).find((p) => p.id === lg.activePlanId), tm = FM.teamById(lg, lg.userId); const changed = tm && world.startSig != null && shapeSig(tm) !== world.startSig; world.startSig = null;
+        // positions the manager changed during the match are the shape that was played: the next preparation starts from them, for every phase. Only if nothing was changed does the picked plan go back in.
+        if (plan && tm && !changed) restorePlan(tm, plan); world.scn = {}; }
       // The instructions stay for the next game, to be changed in the same preparation as everything else. One that was written for a single game
       // is kept too, as an ordinary instruction that now applies whoever the opposition are.
       { const mine = FM.teamById(world.league, world.league.userId); if (mine && mine.rules) mine.rules.forEach((r) => { delete r.game; }); }
@@ -745,6 +747,7 @@
     if (!fx || fx.played) return;
     world.fixture = fx;
     world.match = FM.startFixture(world.league, fx, { interactive: true });
+    world.startSig = shapeSig(FM.teamById(world.league, world.league.userId));
     world.renderPos.clear(); world.renderBall = null;
     world.hl = null; world.hlScanned = null; world.hlWait = null; world.running = true; world.speed = 1; world.highlightsOnly = false; world.highlightUntil = 0; world.highlightSearching = false; world.highlightRevealFrom = 0; world.shownEvents = 0; world.lastStats = ''; world.trails = []; world.impacts = []; world.vt = 0; world.commentaryUntil = 0; world.commentaryTurns = {};
     say('The teams are ready. The match is about to begin.', '', 2.5);
@@ -1493,6 +1496,8 @@
   const overall = (p) => { const r = p.ratings; return p.natural === 'GK' ? r.gk : Math.round((r.pace + r.dribbling + r.passing + r.finishing + r.tackling) / 5); };
   const inLive = () => world.match && world.match.clock > 0 && world.match.phase !== 'fulltime';
 
+  // the shape of the team in every phase, as one string, to tell whether it was changed
+  function shapeSig(team) { return team ? JSON.stringify([team.phasePos || {}, team.shape || {}, team.phaseBall || {}, team.formationKey]) : ''; }
   function capturePlan(team, name) {
     return { id: 'plan-' + Date.now(), name, savedAt: Date.now(), formationKey: team.formationKey, formationLabel: team.formationLabel || null,
       tactics: JSON.parse(JSON.stringify(team.tactics)), shape: JSON.parse(JSON.stringify(team.shape || {})), phasePos: JSON.parse(JSON.stringify(team.phasePos || {})), phaseBall: JSON.parse(JSON.stringify(team.phaseBall || {})), pages: JSON.parse(JSON.stringify(team.pages || {})), pageDefaults: JSON.parse(JSON.stringify(team.pageDefaults || {})), rules: JSON.parse(JSON.stringify(team.rules || [])),
