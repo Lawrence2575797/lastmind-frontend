@@ -1594,6 +1594,7 @@
     // In a match the pages are the squad and the substitutes, and where the team stands in each phase of play as it is playing now: drag a
     // shirt to change it and the team plays from there. (No ball, no opposition, no tests: those are for the preparation.)
     const inMatch = world.view === 'match';
+    if (!inMatch && !world.match) team.attackDir = 1;   // between matches the team always faces the way the boards are drawn (a match that swapped ends must not leave it reversed)
     if (inMatch) { world.testing = false; if (MATCH_TABS.every(([k]) => k !== world.tab)) world.tab = 'squad'; }
     el('tabs').hidden = false; el('planBar').hidden = inMatch;
     const head = document.querySelector('#tactics .tac-head h2'); if (head) head.textContent = inMatch ? (world.tab === 'squad' ? 'Squad and substitutes' : 'Positions in play') : 'Tactics';

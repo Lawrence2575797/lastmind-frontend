@@ -439,7 +439,7 @@
       if (FM.summariseMatch) fx.summary = FM.summariseMatch(league, fx, match);
       // The managed club's friendlies keep their log too, so the statistics have numbers to work on before the first league match.
       if (FM.isWatched(league, fx.homeId) || FM.isWatched(league, fx.awayId)) fx.log = FM.compactLog(match);
-      [home, away].forEach((t) => { FM.fitnessEnd(t, new Set()); FM.restoreLineup(t, t.snap); t.snap = null; delete t.liveBase; delete t.liveLean; });
+      [home, away].forEach((t) => { FM.fitnessEnd(t, new Set()); t.attackDir = t === home ? 1 : -1; FM.restoreLineup(t, t.snap); t.snap = null; delete t.liveBase; delete t.liveLean; });
       return;
     }
     // Player statistics from the event log.
@@ -470,7 +470,7 @@
       const games = r.violent ? 2 : 1, until = (match.day || league.day || 0) + 7 * games + 1;
       if (!p.injury || p.injury.until < until) p.injury = { until, name: 'Suspended (' + (r.second ? 'second yellow card' : r.violent ? 'violent conduct' : 'red card') + ')', matches: games, suspended: true };
     });
-    [home, away].forEach((t) => { FM.fitnessEnd(t, played); FM.restoreLineup(t, t.snap); t.snap = null; delete t.liveBase; delete t.liveLean; });
+    [home, away].forEach((t) => { FM.fitnessEnd(t, played); t.attackDir = t === home ? 1 : -1; FM.restoreLineup(t, t.snap); t.snap = null; delete t.liveBase; delete t.liveLean; });
   };
 
   // A compact copy of what happened, small enough to keep for every match of a season. Passes are arrays:
