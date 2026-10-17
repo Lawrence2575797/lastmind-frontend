@@ -168,6 +168,23 @@
     if (p.ratings.pace != null) p.maxSpeed = FM.speedFromPace(p.ratings.pace);
     return FM.abilityOf(p);
   }
+  // Growth is simple: the more a player plays, the more he grows, and the closer he gets to his potential the less each match adds, so his
+  // potential works as a ceiling he approaches and never passes. Each round he closes a share of the gap between his ability and his potential;
+  // the share is bigger for the young, for quick learners and for those who played the whole match, and a player left out still grows a little.
+  const BASE_RATE = 0.03;
+  function growBy(p, delta) {
+    if (!(delta > 0)) return FM.abilityOf(p);
+    const keys = ATTRS.concat(['gk']).filter((k) => p.ratings[k] != null), before = {};
+    keys.forEach((k) => { before[k] = p.ratings[k]; });
+    const exact = () => FM.playerRating(p, p.natural) * 10, a0 = exact();
+    const apply = (inc) => keys.forEach((k) => { p.ratings[k] = Math.min(k === 'gk' ? 92 : 95, before[k] + inc); });
+    apply(delta);
+    const got = exact() - a0;
+    if (got > 1e-6) apply(delta * delta / got);
+    if (p.baseRatings) keys.forEach((k) => { p.baseRatings[k] = (p.baseRatings[k] != null ? p.baseRatings[k] : before[k]) + (p.ratings[k] - before[k]); });
+    if (p.ratings.pace != null) p.maxSpeed = FM.speedFromPace(p.ratings.pace);
+    return FM.abilityOf(p);
+  }
   const pick = (rng, arr) => arr[Math.floor(rng() * arr.length)];
   function feed(league, item) {
     const d = FM.develop(league);
@@ -185,11 +202,11 @@
         const before = FM.abilityOf(p);
         const plan = team === me ? d.plans[p.id] : null;
         const focus = plan && plan.active ? FM.LESSONS[plan.lesson].attrs : [];
-        const passive = 0.22 * af * ls * (0.6 + rng() * 0.8) * (team === me && FM.bizDevBoost ? FM.bizDevBoost(league) : 1);
-        // how much he took in when it was explained to him sets how much the weekly work gives
-        const uf = plan && plan.understanding != null ? 0.3 + 0.9 * (plan.understanding / 100) : 0.5;
-        const focused = plan && plan.active ? 1.0 * af * ls * uf * (0.7 + rng() * 0.6) : 0;
-        const after = applyGrowth(p, focus, focused, passive);
+        const pot = FM.potentialOf(p), room = Math.max(0, pot - FM.abilityOf(p));
+        const played = Math.max(0, Math.min(1, (p.lastMins == null ? 45 : p.lastMins) / 90));
+        const rate = BASE_RATE * af * ls * (0.12 + 0.88 * played) * (0.7 + rng() * 0.6) * (team === me && FM.bizDevBoost ? FM.bizDevBoost(league) : 1);
+        const exactRoom = Math.max(0, pot - FM.playerRating(p, p.natural) * 10);
+        const after = growBy(p, Math.min(exactRoom, rate * exactRoom));
         if (team === me) {
           const h = (d.hist[p.id] = d.hist[p.id] || [[Math.max(-1, round - 1), before]]);
           h.push([round, after]);

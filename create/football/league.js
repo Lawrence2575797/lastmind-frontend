@@ -458,6 +458,15 @@
       }
     });
     [home, away].forEach((t) => t.squad.forEach((p) => { if (played.has(p.id)) p.stats.apps++; }));
+    // minutes on the pitch, which is what a player's development follows
+    { const mins = new Map(); [home, away].forEach((t) => match.starters[t.id].forEach((id) => mins.set(id, 90)));
+      match.events.forEach((e) => {
+        const team = e.team === home.id ? home : e.team === away.id ? away : null; if (!team || (e.type !== 'sub' && e.type !== 'keeperSwap')) return;
+        const on = find(team, e.on), off = e.off != null ? find(team, e.off) : null, m = Math.max(0, Math.min(90, (e.t || 0) / 60));
+        if (off && mins.has(off.id)) mins.set(off.id, m);
+        if (on) mins.set(on.id, Math.max(0, 90 - m));
+      });
+      [home, away].forEach((t) => t.squad.forEach((p) => { p.lastMins = mins.get(p.id) || 0; })); }
     // For the user's own matches, keep a compact log for the Analysis Centre.
     if (FM.isWatched(league, fx.homeId) || FM.isWatched(league, fx.awayId)) { fx.log = FM.compactLog(match); fx.clips = FM.finaliseClips(match);
       // Every match's clips are kept so they can be played again on request; if the saved game gets too large the oldest are dropped first.

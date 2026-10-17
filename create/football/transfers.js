@@ -61,6 +61,23 @@
       body: `${team.name} have made a formal offer of ${money(fee)} for ${p.name}, the ${FM.ageOf(p)}-year-old ${POS_NAME[p.natural]}. The decision is with ${me.name}: the offer can be accepted, rejected, or answered with a price of the club's own.`,
       playerId: p.id, mine: true, teams: [team.id, me.id], scene: 'approach' });
   }
+  // Who a club would bid for in the manager's squad. Every player who would improve them is a candidate and the draw is weighted, not a top-four
+  // list, and each club has its own taste this time (a young player with room to grow, an experienced one, or simply the position it is short of),
+  // so the names that come in differ from one game to the next and from one round to the next.
+  function pickTarget(league, team, me, taken, rng, budgetCap) {
+    const taste = ['youth', 'seasoned', 'need', 'any'][Math.floor(rng() * 4)], needs = FM.clubNeeds(team);
+    const cands = me.squad.filter((p) => !taken.has(p.id) && FM.canSell(me, p)).map((p) => {
+      const mates = team.squad.filter((q) => q.natural === p.natural), top = mates.length ? Math.max(...mates.map((q) => FM.playerRating(q))) : 0;
+      const gain = FM.playerRating(p) - top + (needs.indexOf(p.natural) >= 0 ? 0.5 : 0), age = FM.ageOf(p), price = FM.askingPrice(league, p);
+      let w = Math.max(0.05, gain + 1.2) * (0.35 + rng() * 1.3);
+      if (taste === 'youth' && age <= 23) w *= 2.2; else if (taste === 'seasoned' && age >= 28) w *= 2.2; else if (taste === 'need' && needs.indexOf(p.natural) >= 0) w *= 2.5;
+      return { p, gain, price, w };
+    }).filter((o) => o.gain > -0.6 && o.price <= budgetCap);
+    if (!cands.length) return null;
+    let r = rng() * cands.reduce((a, o) => a + o.w, 0);
+    for (const o of cands) { r -= o.w; if (r <= 0) return o; }
+    return cands[cands.length - 1];
+  }
   function openingOffers(league) {
     const t = league.transfer, me = FM.teamById(league, league.userId);
     const rng = FM.mulberry32(league.seed + (league.runSeed || 0) * 977 + 4242);
@@ -70,14 +87,8 @@
     for (const team of clubs) {
       if (t.offers.length >= count) break;
       const budget = t.budget[team.id] || 0;
-      const options = me.squad.filter((p) => !taken.has(p.id) && FM.canSell(me, p)).map((p) => {
-        const mates = team.squad.filter((q) => q.natural === p.natural);
-        const top = mates.length ? Math.max(...mates.map((q) => FM.playerRating(q))) : 0;
-        return { p, gain: FM.playerRating(p) - top + (FM.clubNeeds(team).indexOf(p.natural) >= 0 ? 0.5 : 0), price: FM.askingPrice(league, p) };
-      }).filter((o) => o.gain > -0.1 && o.price <= budget * 1.05);
-      if (!options.length) continue;
-      options.sort((a, b) => b.gain - a.gain);
-      const o = options[Math.floor(rng() * Math.min(4, options.length))];
+      const o = pickTarget(league, team, me, taken, rng, budget * 1.05);
+      if (!o) continue;
       const fee = r1(Math.max(0.2, o.price * (0.9 + rng() * 0.25)));
       taken.add(o.p.id);
       t.offers.push({ id: 'o' + (t.seq++), pid: o.p.id, from: team.id, fee, age: -1, status: 'open' });
@@ -482,6 +493,19 @@
     // 3. offers for the manager's players only stay open for a couple of rounds
     t.offers.forEach((o) => { o.age = (o.age || 0) + 1; });
     t.offers = t.offers.filter((o) => (o.age || 0) <= 2);
+    // 3b. clubs keep coming for the manager's players all season, not only before the first game: most rounds bring a chance of a bid, from a
+    // club and for a player drawn afresh each time
+    if (round >= 1 && t.offers.length < 3 && rng() < (t.offers.length ? 0.4 : 0.65)) {
+      const clubs = league.teams.filter((x) => x.id !== league.userId).sort(() => rng() - 0.5), taken = new Set(t.offers.map((o) => o.pid));
+      for (const team of clubs) {
+        const budget = t.budget[team.id] || 0; if (budget < 1) continue;
+        const o = pickTarget(league, team, me, taken, rng, budget * 0.95); if (!o) continue;
+        const fee = r1(Math.max(0.2, o.price * (0.85 + rng() * 0.3)));
+        t.offers.push({ id: 'o' + (t.seq++), pid: o.p.id, from: team.id, fee, age: 0, status: 'open' });
+        offerStory(league, team, o.p, fee, false);
+        break;
+      }
+    }
     // 4. new moves
     league.teams.forEach((team) => {
       if (team.id === league.userId) return;
