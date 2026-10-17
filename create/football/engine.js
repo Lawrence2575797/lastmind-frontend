@@ -677,6 +677,8 @@
         pos = mix(pos, target, ctx.transDef);
       }
     }
+    // Where the manager's boards put him for this ball: everything below (following the ball, marking, runs) only moves him a short way from here.
+    const boardPos = { d: pos.d, w: pos.w };
     // The board gives each player a place, but real attacks do not stand still on it. Once the ball is in the final third the forwards and
     // attacking midfielders move on toward goal and into the box as the ball arrives (the width pulls inside toward the posts), and the
     // defenders drop off as the ball comes close to their own goal. How far is part of the role: a striker goes furthest, a full-back least.
@@ -772,6 +774,15 @@
     if (player.group === 'GK') d = clamp(d, 0.02, 0.2);
     d = clamp(d, 0.02, 0.97);
     w = clamp(w, 0.04, 0.96);
+    // A leash: whatever the ball, the opposition and his role ask of him, a player stays within a short distance of where the manager put him
+    // (a few metres to find space or leave a marker; a little more as an attack reaches the box), so a pass does not rearrange the team.
+    if (player.group !== 'GK') {
+      const home = toMetres(team.attackDir, boardPos.d, boardPos.w), at = toMetres(team.attackDir, d, w);
+      const fzr = hasBall ? clamp((b.d - 0.56) / 0.26, 0, 1) : 0;
+      const R = (FM.LEASH == null ? 6 : FM.LEASH) * clamp(1 + 0.5 * m.roam, 0.6, 1.6) + (hasBall ? 5 * fzr : 3);
+      const dx = at.x - home.x, dy = at.y - home.y, dist = Math.hypot(dx, dy);
+      if (dist > R) { const k = R / dist; return { x: home.x + dx * k, y: home.y + dy * k }; }
+    }
     return toMetres(team.attackDir, d, w);
   };
 
