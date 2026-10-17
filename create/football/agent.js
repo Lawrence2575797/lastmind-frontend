@@ -3,6 +3,7 @@
 (function () {
   const FM = (window.FM = window.FM || {});
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const DEMO = /(?:^|[?&])demo=1(?:&|$)/.test(location.search);
   const state = { open: false, busy: false, messages: [], ctx: () => '', loaded: false };
 
   // The chat is kept (in the browser's database, per account) so it is still there next time the game is opened.
@@ -78,12 +79,20 @@
     log.innerHTML = state.messages.map((m) => `<div class="ag-msg ${m.role}">${esc(m.text)}${m.html ? '<div class="ag-vis">' + m.html + '</div>' : ''}</div>`).join('') + (state.busy ? '<div class="ag-msg agent ag-think">Thinking…</div>' : '');
     if (FM.mountClips && window.FM_WORLD && window.FM_WORLD.league) FM.mountClips(log, window.FM_WORLD.league);
     log.scrollTop = log.scrollHeight;
-    root.querySelector('.ag-send').disabled = state.busy;
+    root.querySelector('.ag-send').disabled = state.busy || DEMO;
+    const ta = root.querySelector('textarea');
+    ta.disabled = DEMO;
+    if (DEMO) ta.placeholder = 'Chat is switched off in the demo';
+    // in the demo the panel explains why the chat is off, instead of showing a conversation
+    const note = root.querySelector('.ag-demo');
+    if (note) note.hidden = !DEMO;
+    const clr = root.querySelector('.ag-clear'); if (clr) clr.hidden = DEMO;
+    log.hidden = DEMO;
   }
 
   async function send(text) {
     text = String(text || '').trim();
-    if (!text || state.busy) return;
+    if (!text || state.busy || DEMO) return;
     push({ role: 'manager', text });
     state.busy = true; draw();
     try {
@@ -97,6 +106,7 @@
   }
 
   FM.agentOpen = async function (starter) {
+    if (DEMO) { state.open = true; draw(); return; }
     state.open = true; draw();
     await loadHistory();   // the earlier conversation comes back
     if (!state.messages.length) push({ role: 'agent', text: 'Hello, I am the LastMind AI Agent. Ask me anything: what a term means, how to read a heat map, or ask me to show you your build-up play, a pass network or how your shots have changed over the season. I can also take you through your matches step by step.' });
@@ -112,12 +122,18 @@
     root.setAttribute('aria-label', 'LastMind AI Agent');
     root.innerHTML = `<button type="button" class="ag-tab" aria-expanded="false">LastMind AI Agent</button>
       <div class="ag-panel"><div class="ag-head"><b>LastMind AI Agent</b><span><button type="button" class="ag-clear" title="Clear the chat history">Clear history</button><button type="button" class="ag-close" aria-label="Close">×</button></span></div>
+        <div class="ag-demo" hidden><h3>The chat is part of the full game</h3>
+          <p>You are playing the free demo, so the LastMind AI Agent's chat is switched off here. It is an AI feature: every answer is written for you in the moment, and that uses Locks from a full account, so it is kept for the full game.</p>
+          <p>In the full game it explains anything you are unsure about, in plain words, and walks you through your own matches: heat maps, build-up play, where you win and lose the ball, even replays of the moments that mattered. Everything it shows comes from your own games.</p>
+          <button type="button" class="primary ag-unlock">Get the full game</button></div>
         <div class="ag-log" role="log" aria-live="polite"></div>
         <form class="ag-form"><textarea rows="2" placeholder="Say what you notice, or ask what to look at…" aria-label="Message to the agent"></textarea><button class="ag-send primary" type="submit">Send</button></form></div>`;
     document.body.appendChild(root);
     const ta = root.querySelector('textarea');
     root.querySelector('.ag-tab').addEventListener('click', () => { state.open ? (state.open = false, draw()) : FM.agentOpen(); root.querySelector('.ag-tab').setAttribute('aria-expanded', String(state.open)); });
     root.querySelector('.ag-close').addEventListener('click', () => { state.open = false; draw(); });
+    const unlock = root.querySelector('.ag-unlock');
+    if (unlock) unlock.addEventListener('click', () => { if (FM.purchaseFootball) FM.purchaseFootball().catch(() => { location.href = '/learn/'; }); else location.href = '/learn/'; });
     root.querySelector('.ag-clear').addEventListener('click', () => { if (!confirm('Clear the whole chat history with the agent?')) return; state.messages = []; saveHistory(); push({ role: 'agent', text: 'Fresh start. What would you like to look at?' }); draw(); });
     root.querySelector('.ag-form').addEventListener('submit', (e) => { e.preventDefault(); const t = ta.value; ta.value = ''; send(t); });
     ta.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); root.querySelector('.ag-form').requestSubmit(); } });
