@@ -48,13 +48,31 @@
     for (let i = 0; i <= 10; i++) { const pi = pois(lf, i); for (let j = 0; j <= 10; j++) { const pj = pois(la, j); if (i > j) w += pi * pj; else if (i === j) d += pi * pj; else l += pi * pj; } }
     const s = w + d + l; return { win: w / s, draw: d / s, loss: l / s, pts: 3 * w / s + d / s };
   }
+  // How a shot is shown. The match engine's own shot positions and xG are tuned for how it plays; the page shows shots where a real match would
+  // have them (almost nobody shoots from inside the six-yard box) and gives them the xG a shot from there is really worth. Only the display
+  // changes: the match, its goals and the stored log are untouched.
+  function shotShown(e, L, W, homeShooter) {
+    if (e.setPiece === 'penalty' || e.setPiece === 'freekick') return e;
+    const gx = homeShooter ? L : 0, dx = Math.max(0.5, Math.abs(gx - e.x)), dy = e.y - W / 2, d = Math.hypot(dx, dy), th = Math.atan2(dy, dx);
+    const d2 = 6 + 0.95 * d, dx2 = Math.max(1.5, d2 * Math.cos(th)), dy2 = Math.max(-W / 2 + 2, Math.min(W / 2 - 2, d2 * Math.sin(th)));
+    const dd = Math.hypot(dx2, dy2), ang = Math.abs(Math.atan2(dy2 + 3.66, dx2) - Math.atan2(dy2 - 3.66, dx2)), cen = 2 * Math.atan(3.66 / dd);
+    let xg = 0.62 * Math.exp(-0.115 * dd) * Math.pow(Math.min(1, ang / cen), 1.2) * (e.setPiece === 'header' ? 0.6 : 1) * (0.65 + 0.35 * Math.min(e.defDist == null ? 4 : e.defDist, 4) / 4);
+    return Object.assign({}, e, { x: homeShooter ? L - dx2 : dx2, y: W / 2 + dy2, xg: Math.max(0.01, Math.min(0.6, xg)) });
+  }
+  function shotsShown(f) {
+    const home = f.homeId;
+    return Object.assign({}, f, { log: Object.assign({}, f.log, { other: f.log.other.map((e) => (e.type === 'shot' ? shotShown(e, L, W, e.team === home) : e)) }) });
+  }
+  const shownXg = (f, teamId) => f.log && f.log.other ? f.log.other.reduce((a, e) => a + (e.type === 'shot' && e.team === teamId ? (shotShown(e, L, W, e.team === f.homeId).xg || 0) : 0), 0) : null;
+  FM.shownXg = shownXg;
   // every team-match this season (league and pre-season) as a row, for asking what goes with winning
   function leagueRows(league) {
     const rows = [];
     league.fixtures.concat(league.friendlies || []).forEach((f) => {
       if (!f.played || !f.stats) return; const h = f.stats[f.homeId], a = f.stats[f.awayId]; if (!h || !a) return;
-      const row = (me, ag, gf, ga) => ({ xgd: me.xg - ag.xg, gd: gf - ga, pass: me.passes ? 100 * me.passesOk / me.passes : 0, poss: 100 * me.possession / Math.max(1, me.possession + ag.possession), shots: me.shots, fouls: me.fouls });
-      rows.push(row(h, a, f.hg, f.ag)); rows.push(row(a, h, f.ag, f.hg));
+      const xh = shownXg(f, f.homeId), xa = shownXg(f, f.awayId);
+      const row = (me, ag, gf, ga, xm, xo) => ({ xgd: (xm != null && xo != null ? xm - xo : me.xg - ag.xg), gd: gf - ga, pass: me.passes ? 100 * me.passesOk / me.passes : 0, poss: 100 * me.possession / Math.max(1, me.possession + ag.possession), shots: me.shots, fouls: me.fouls });
+      rows.push(row(h, a, f.hg, f.ag, xh, xa)); rows.push(row(a, h, f.ag, f.hg, xa, xh));
     });
     return rows;
   }
@@ -185,7 +203,7 @@
     const gf = home ? fx.hg : fx.ag, ga = home ? fx.ag : fx.hg;
     // positions are kept as if the home side attacked to the right; this puts any team's on the page attacking to the right
     const flip = (teamIsHome, x, y) => (teamIsHome ? [x, y] : [L - x, W - y]);
-    return { league, fx, before, home, opp, team, side, gf, ga, me, flip };
+    return { league, fx: shotsShown(fx), before, home, opp, team, side, gf, ga, me, flip };
   }
   const nameOf = (team, number) => { const p = team.squad.find((q) => q.number === number); return p ? (p.name ? p : Object.assign({}, p, { name: 'Number ' + number })) : { name: 'Number ' + number, natural: '?', ratings: {} }; };
   // a position from a log row, as depth and width (0 to 1) from our own team's point of view

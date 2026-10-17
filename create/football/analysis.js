@@ -38,7 +38,7 @@
       ['Goals', hs.goals, as.goals],
       ['Shots', hs.shots, as.shots],
       ['Shots on target', hs.onTarget, as.onTarget],
-      ['Expected goals (xG)', hs.xg.toFixed(2), as.xg.toFixed(2)],
+      ['Expected goals (xG)', (FM.shownXg && FM.shownXg(fx, h.id) != null ? FM.shownXg(fx, h.id) : hs.xg).toFixed(2), (FM.shownXg && FM.shownXg(fx, a.id) != null ? FM.shownXg(fx, a.id) : as.xg).toFixed(2)],
       ['Possession', pct(hs.possession, poss), pct(as.possession, poss)],
       ['Ball in the attacking third', Math.round(100 * th.att) + '%', Math.round(100 * ta.att) + '%'],
       ['Passes', hs.passes, as.passes],
