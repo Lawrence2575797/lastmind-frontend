@@ -4,7 +4,7 @@
 (function () {
   const FM = (window.FM = window.FM || {});
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  const st = { tab: 'overview', books: 'cash', neg: {} };
+  const st = { tab: 'overview', books: 'cash', neg: {}, trail: [] };
   const gbp = (n) => FM.gbp(n), num = (n) => Math.round(n).toLocaleString('en-GB');
   const cell = (n) => `<td class="n${n < 0 ? ' neg' : ''}">${n === 0 || n == null ? '–' : gbp(n)}</td>`;
   const pct = (a, b) => (b ? Math.round(1000 * a / b) / 10 + '%' : '–');
@@ -234,17 +234,93 @@
       <div class="card"><h2>Advertising boards</h2><div class="books-wrap"><table class="books-table"><thead><tr><th class="l">Board</th><th class="l">Company</th><th>A matchday</th><th>Matchdays left</th></tr></thead><tbody>${slots.join('')}</tbody></table></div></div></div>`;
   }
 
+
+  // ---------- the money report: last match, where the club stands, where it is heading and what to do about it ----------
+  const OUT_NAMES = { wages: 'Wages', matchday: 'Matchday running costs', merchCost: 'Cost of merchandise', marketing: 'Marketing', admin: 'Stadium and administration', fees: 'Transfer fees', capex: 'Stadium and facilities', loans: 'Loan repayments', interest: 'Interest', tax: 'Corporation tax', dividends: 'Dividends' };
+  const IN_NAMES = { tickets: 'Ticket sales', matchday: 'Food, drink and programmes', broadcast: 'Broadcasting rights', sponsor: 'Sponsorship', advert: 'Advertising boards', merch: 'Merchandise', prize: 'League prize money', sales: 'Player sales', loans: 'Loans taken', shares: 'Shares issued' };
+  const sumv = (o) => Object.keys(o || {}).reduce((a, k) => a + (o[k] || 0), 0);
+  function spark(cols, limit) {
+    const W = 600, H = 130, P = 8, vals = cols.map((c) => c.closing).concat([0, -limit]), lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals), span = Math.max(1, hi - lo);
+    const x = (i) => P + (W - 2 * P) * (cols.length < 2 ? 0.5 : i / (cols.length - 1)), y = (v) => P + (H - 2 * P) * (1 - (v - lo) / span);
+    const pts = cols.map((c, i) => [x(i), y(c.closing), c.actual]);
+    const split = pts.findIndex((q) => !q[2]), a = (split < 0 ? pts : pts.slice(0, Math.max(split, 1))), f = split < 0 ? [] : pts.slice(Math.max(split - 1, 0));
+    const path = (q) => q.map((t, i) => (i ? 'L' : 'M') + t[0].toFixed(1) + ' ' + t[1].toFixed(1)).join(' ');
+    return `<svg class="rep-spark" viewBox="0 0 ${W} ${H}" role="img" aria-label="Bank balance by matchday, played and forecast"><line x1="${P}" x2="${W - P}" y1="${y(0).toFixed(1)}" y2="${y(0).toFixed(1)}" stroke="currentColor" stroke-opacity=".35"/><line x1="${P}" x2="${W - P}" y1="${y(-limit).toFixed(1)}" y2="${y(-limit).toFixed(1)}" stroke="#ff8a7a" stroke-dasharray="4 4"/><text x="${W - P}" y="${(y(-limit) - 4).toFixed(1)}" text-anchor="end" font-size="11" fill="#ff8a7a">overdraft limit</text><text x="${P}" y="${(y(0) - 4).toFixed(1)}" font-size="11" fill="currentColor" fill-opacity=".7">£0</text>${a.length > 1 ? `<path d="${path(a)}" fill="none" stroke="#7FD49A" stroke-width="2.5"/>` : ''}${f.length > 1 ? `<path d="${path(f)}" fill="none" stroke="#FFE27A" stroke-width="2.5" stroke-dasharray="6 5"/>` : ''}</svg>`;
+  }
+  function advice(lg) {
+    const b = FM.biz(lg), cols = FM.bizCashFlow(lg), K = FM.bizConst, limit = FM.bizSources.overdraft.limit, rows = b.ledger.filter((e) => e.season === lg.season), last = b.ledger[b.ledger.length - 1];
+    const fut = cols.filter((c) => !c.actual), end = cols.length ? cols[cols.length - 1].closing : b.cash;
+    const neg = fut.find((c) => c.closing < 0), over = fut.find((c) => c.closing < -limit);
+    const low = cols.reduce((m, c) => (!m || c.closing < m.closing ? c : m), null);
+    const revYear = rows.reduce((a, e) => a + e.pl.revenue, 0), wagesYear = rows.reduce((a, e) => a + (e.outflow.wages || 0), 0);
+    const repay = b.loans.reduce((a, l) => a + Math.min(l.balance, l.perRound), 0), owed = b.loans.reduce((a, l) => a + l.balance, 0);
+    const homeRows = rows.filter((e) => e.home), lastHome = homeRows[homeRows.length - 1];
+    const w = [];
+    const S = (label, tab, books) => ({ label, tab, books });
+    if (over) w.push({ sev: 'bad', title: `Boss, the club goes past its overdraft limit in round ${over.round}`, why: `The forecast takes the bank balance to ${gbp(over.closing)}, which is beyond the ${gbp(limit)} the bank allows. Past that limit the interest rate jumps and the bank stops the club spending, so there would be no signings and no building.`, fix: [S('Raise ticket prices', 'matchday'), S('Look at sponsors', 'commercial'), S('Borrow or raise shares', 'finance'), S('Sell a player', 'recruit')] });
+    else if (neg) w.push({ sev: 'warn', title: `Boss, the bank balance goes below zero in round ${neg.round}`, why: `At today's prices, wages and deals the forecast ends the season at ${gbp(end)}. Going below zero puts the club in its overdraft, which costs ${Math.round(FM.bizSources.overdraft.rate * 100)}% a year in interest and worries the shareholders.`, fix: [S('Ticket prices', 'matchday'), S('Sponsor offers', 'commercial'), S('See the cash flow', 'books', 'cash')] });
+    if (revYear > 0 && wagesYear / revYear > 0.7) w.push({ sev: 'warn', title: `Boss, wages are eating ${Math.round(100 * wagesYear / revYear)}% of what the club earns`, why: `Of every £100 of revenue this season, about £${Math.round(100 * wagesYear / revYear)} has gone on wages. That leaves too little for the running costs, interest and any profit, and the shareholders judge the accounts on profit.`, fix: [S('See revenue and costs', 'books', 'costs'), S('Sell a player', 'recruit'), S('Grow income: sponsors', 'commercial')] });
+    if (b.loans.length && repay > 0 && fut.length) { const avgNet = fut.reduce((a, c) => a + sumv(c.inflow) - sumv(c.outflow), 0) / fut.length; if (avgNet < 0) w.push({ sev: 'warn', title: `Boss, you still owe ${gbp(owed)} and the repayments are weighing on the club`, why: `Each matchday ${gbp(repay)} goes on repaying loans, plus interest. The forecast is losing ${gbp(-avgNet)} a matchday on average, so the debt is making the gap wider.`, fix: [S('See the loans', 'finance'), S('See the balance sheet', 'books', 'balance')] }); }
+    if (lastHome && lastHome.away > 0 && lastHome.capacity && lastHome.attTotal >= 0.97 * lastHome.capacity) w.push({ sev: 'good', title: `Boss, the ground is full and ${num(lastHome.away)} fans were turned away`, why: `That is ticket income the club could have had. Either raise the prices a little, or build more seats so more people can come.`, fix: [S('Raise ticket prices', 'matchday'), S('Expand the stadium', 'stadium')] });
+    else if (lastHome && lastHome.capacity && lastHome.attTotal < 0.6 * lastHome.capacity) w.push({ sev: 'warn', title: `Boss, the last home crowd filled only ${Math.round(100 * lastHome.attTotal / lastHome.capacity)}% of the ground`, why: `Empty seats earn nothing. Prices may be above what the fans will pay, or the club needs more marketing to bring them in.`, fix: [S('Lower prices or add marketing', 'matchday')] });
+    const empty = 8 - b.boards.length;
+    if (empty >= 4) w.push({ sev: 'info', title: `Boss, ${empty} of the 8 advertising boards are empty`, why: 'An empty board earns nothing. Companies get in touch after matches, and you can negotiate their price.', fix: [S('Commercial offers', 'commercial')] });
+    if ((b.dividend.policy || 0) > 0.3 && end < 150000) w.push({ sev: 'warn', title: 'Boss, the dividend may be too generous for a club this short of cash', why: `The policy pays ${Math.round(b.dividend.policy * 100)}% of the year's profit to shareholders, but the forecast leaves only ${gbp(end)} in the bank at the end of the season.`, fix: [S('Change the dividend', 'finance')] });
+    if (!w.length) w.push({ sev: 'good', title: 'Boss, nothing in the accounts is worrying me', why: `The forecast ends the season with ${gbp(end)} in the bank${rows.length ? ` after a profit of ${gbp(rows.reduce((a, e) => a + e.pl.net, 0))} so far` : ''}. Keep an eye on it after each match.`, fix: [] });
+    return { w, cols, end, low, neg, over, limit, last, rows, repay, owed };
+  }
+  function report(lg) {
+    const b = FM.biz(lg), A = advice(lg), bal = FM.bizBalance(lg), last = A.last, K = FM.bizConst;
+    const worst = A.w.some((x) => x.sev === 'bad') ? 'bad' : A.w.some((x) => x.sev === 'warn') ? 'warn' : 'good';
+    const headline = { bad: `Boss, we have a problem with the money.`, warn: `Boss, the money needs watching.`, good: `Boss, the money looks healthy.` }[worst];
+    const yearNet = A.rows.reduce((a, e) => a + e.pl.net, 0);
+    let lastHtml = '<p class="note">No matchday has been played yet, boss. The report of each match appears here once it has.</p>';
+    if (last) {
+      const ins = Object.keys(IN_NAMES).filter((k) => (last.inflow[k] || 0) > 0).sort((x, y) => last.inflow[y] - last.inflow[x]), outs = Object.keys(OUT_NAMES).filter((k) => (last.outflow[k] || 0) > 0).sort((x, y) => last.outflow[y] - last.outflow[x]);
+      const tin = sumv(last.inflow), tout = sumv(last.outflow), net = tin - tout, trade = last.pl.revenue;
+      const topIn = ins.filter((k) => ['loans', 'shares', 'sales'].indexOf(k) < 0)[0], topOut = outs[0];
+      lastHtml = `<p class="desc">${last.home ? 'Home' : 'Away'} against <b>${esc(last.opp)}</b> (round ${last.round}). ${last.home && last.attTotal ? `The crowd was ${num(last.attTotal)}${last.capacity ? ' of ' + num(last.capacity) : ''}${last.away ? ', with ' + num(last.away) + ' turned away' : ''}. ` : last.home ? '' : 'Away matches bring in no ticket income for the club. '}Cash in was <b>${gbp(tin)}</b> and cash out was <b>${gbp(tout)}</b>, so the bank ${net >= 0 ? 'rose' : 'fell'} by <b class="${net < 0 ? 'neg' : ''}">${gbp(Math.abs(net))}</b>. ${topIn ? `The biggest source of money was ${IN_NAMES[topIn].toLowerCase()} (${gbp(last.inflow[topIn])}) ` : ''}${topOut ? `and the biggest cost was ${OUT_NAMES[topOut].toLowerCase()} (${gbp(last.outflow[topOut])}).` : ''} ${last.pl.net >= 0 ? `The match made a profit of ${gbp(last.pl.net)}.` : `The match made a loss of ${gbp(-last.pl.net)} once wages, running costs and the wear on the stadium and players are counted.`}</p>
+        <div class="rep-two"><div class="books-wrap"><table class="books-table"><thead><tr><th class="l">Money in</th><th>£</th></tr></thead><tbody>${ins.map((k) => `<tr><td class="l">${IN_NAMES[k]}</td>${cell(last.inflow[k])}</tr>`).join('') || '<tr><td class="l" colspan="2">Nothing</td></tr>'}<tr class="tot"><td class="l">Total in</td>${cell(tin)}</tr></tbody></table></div>
+        <div class="books-wrap"><table class="books-table"><thead><tr><th class="l">Money out</th><th>£</th></tr></thead><tbody>${outs.map((k) => `<tr><td class="l">${OUT_NAMES[k]}</td>${cell(-last.outflow[k])}</tr>`).join('') || '<tr><td class="l" colspan="2">Nothing</td></tr>'}<tr class="tot"><td class="l">Total out</td>${cell(-tout)}</tr></tbody></table></div></div>`;
+    }
+    const loans = b.loans.length ? `<div class="books-wrap"><table class="books-table"><thead><tr><th class="l">Loan</th><th>Still owed</th><th>Each matchday</th><th>Interest a matchday</th></tr></thead><tbody>${b.loans.map((l) => `<tr><td class="l">${l.id}, season ${l.season}</td>${cell(l.balance)}${cell(Math.min(l.balance, l.perRound))}${cell(Math.round(l.balance * l.rate / 14))}</tr>`).join('')}</tbody></table></div>` : '<p class="note">The club has no loans, boss.</p>';
+    const next = A.cols.filter((c) => !c.actual)[0];
+    const fc = A.cols.length ? `<p class="desc">${A.cols.some((c) => !c.actual) ? `Taking today's wages, deals, loans and the crowds you have been getting, I forecast the bank at <b class="${A.end < 0 ? 'neg' : ''}">${gbp(A.end)}</b> at the end of the season${A.low && A.low.closing < b.cash ? `, with the low point of <b class="${A.low.closing < 0 ? 'neg' : ''}">${gbp(A.low.closing)}</b> in round ${A.low.round}` : ''}.` : 'The season is over, boss. Here is how it finished.'}</p>${spark(A.cols, A.limit)}<p class="note"><span style="color:#7FD49A">Solid line</span>: matches played. <span style="color:#FFE27A">Dashed line</span>: forecast. The red line is the most the bank will let the club borrow.</p>` : '';
+    const warns = A.w.map((x, i) => `<div class="rep-warn rep-${x.sev}"><h3>${esc(x.title)}</h3><p>${esc(x.why)}</p>${x.fix.length ? `<div class="row">${x.fix.map((f) => `<button type="button" data-short="${f.tab}${f.books ? ':' + f.books : ''}">${esc(f.label)} →</button>`).join('')}</div>` : ''}</div>`).join('');
+    return `<div style="display:grid;gap:16px"><div class="card rep-hero rep-${worst}"><div class="eyebrow">Money report</div><h2>${esc(headline)}</h2>
+      <div class="board-money"><span>Cash in the bank<b${b.cash < 0 ? ' class="neg"' : ''}>${gbp(b.cash)}</b></span><span>Profit this season<b${yearNet < 0 ? ' class="neg"' : ''}>${gbp(yearNet)}</b></span><span>Owed on loans<b>${gbp(A.owed)}</b></span><span>Forecast, end of season<b${A.end < 0 ? ' class="neg"' : ''}>${gbp(A.end)}</b></span></div></div>
+      <div class="card"><div class="eyebrow">What I would flag</div>${warns}</div>
+      <div class="card"><div class="eyebrow">The last match</div>${lastHtml}</div>
+      <div class="card"><div class="eyebrow">Where the club stands</div>
+        <div class="board-money"><span>Owned: stadium and facilities<b>${gbp(bal.stadium)}</b></span><span>Owned: players<b>${gbp(bal.players)}</b></span><span>Owed: overdraft<b>${gbp(bal.overdraft)}</b></span><span>Owed: loans<b>${gbp(bal.loans)}</b></span></div>
+        ${loans}<p class="note"><button type="button" data-short="books:balance">Full balance sheet →</button> <button type="button" data-short="finance">Loans and shares →</button></p></div>
+      <div class="card"><div class="eyebrow">Where it is heading</div>${fc}<p class="note"><button type="button" data-short="books:cash">Full cash flow forecast →</button></p></div></div>`;
+  }
+
+  FM.bizReportHtml = report;
   // ---------- the page ----------
   FM.renderBoard = function (host, lg, hooks) {
     const save = (hooks && hooks.save) || (() => {}), go = (hooks && hooks.goto) || (() => {});
-    FM.biz(lg);
+    const b0 = FM.biz(lg);
     FM.bizSyncBudget(lg);
-    const tabs = [['overview', 'The board'], ['matchday', 'Matchday'], ['stadium', 'Stadium'], ['books', 'The books'], ['finance', 'Sources of finance'], ['commercial', 'Commercial']];
-    const body = st.tab === 'matchday' ? matchday(lg) : st.tab === 'stadium' ? stadium(lg) : st.tab === 'books' ? books(lg) : st.tab === 'finance' ? finance(lg) : st.tab === 'commercial' ? commercial(lg) : overview(lg);
-    host.innerHTML = `<div class="board-page"><div class="row board-tabs" role="tablist">${tabs.map(([k, l]) => `<button type="button" role="tab" data-tab="${k}" class="${st.tab === k ? 'on' : ''}">${l}</button>`).join('')}</div>${body}</div>`;
+    const tabs = [['overview', 'The board'], ['report', 'Money report'], ['matchday', 'Matchday'], ['stadium', 'Stadium'], ['books', 'The books'], ['finance', 'Finance'], ['commercial', 'Commercial']];
+    const NAMES = Object.assign({}, ...tabs.map(([k, l]) => ({ [k]: l })));
+    const ap0 = FM.bizApprovals(lg), yr0 = FM.bizSeasonSum(lg, 'net');
+    const strip = `<div class="board-strip"><span>Cash<b${b0.cash < 0 ? ' class="neg"' : ''}>${gbp(b0.cash)}</b></span><span>Profit this season<b${yr0 < 0 ? ' class="neg"' : ''}>${gbp(yr0)}</b></span><span>Shareholder approval<b>${Math.round((ap0.financial + ap0.football) / 2)}%</b></span><span>Share price<b>£${ap0.share.toFixed(2)}</b></span></div>`;
+    const back = st.trail.length ? `<button type="button" class="board-back" id="bzBack">← Back to ${esc(NAMES[st.trail[st.trail.length - 1].tab] || 'the board')}</button>` : '';
+    const body = st.tab === 'report' ? report(lg) : st.tab === 'matchday' ? matchday(lg) : st.tab === 'stadium' ? stadium(lg) : st.tab === 'books' ? books(lg) : st.tab === 'finance' ? finance(lg) : st.tab === 'commercial' ? commercial(lg) : overview(lg);
+    host.innerHTML = `<div class="board-page">${strip}<div class="row board-tabs" role="tablist">${tabs.map(([k, l]) => `<button type="button" role="tab" data-tab="${k}" class="${st.tab === k ? 'on' : ''}">${l}</button>`).join('')}</div>${back}${body}</div>`;
     const redo = () => FM.renderBoard(host, lg, hooks);
-    host.querySelectorAll('[data-tab]').forEach((b) => b.addEventListener('click', () => { st.tab = b.dataset.tab; st.msg = ''; redo(); }));
-    host.querySelectorAll('[data-btab]').forEach((b) => b.addEventListener('click', () => { st.tab = b.dataset.btab; st.msg = ''; redo(); }));
+    host.querySelectorAll('[data-tab]').forEach((b) => b.addEventListener('click', () => { st.tab = b.dataset.tab; st.trail = []; st.msg = ''; redo(); }));
+    host.querySelectorAll('[data-btab]').forEach((b) => b.addEventListener('click', () => { st.tab = b.dataset.btab; st.trail = []; st.msg = ''; redo(); }));
+    // shortcuts from the money report: they remember where they came from, so there is always a way back
+    host.querySelectorAll('[data-short]').forEach((b) => b.addEventListener('click', () => {
+      const [t, sub] = b.dataset.short.split(':');
+      if (t === 'recruit') { go('recruit'); return; }
+      st.trail.push({ tab: st.tab, books: st.books }); st.tab = t; if (sub) st.books = sub; st.msg = ''; redo(); window.scrollTo(0, 0);
+    }));
+    const bk = host.querySelector('#bzBack');
+    if (bk) bk.addEventListener('click', () => { const prev = st.trail.pop(); if (prev) { st.tab = prev.tab; st.books = prev.books; } redo(); window.scrollTo(0, 0); });
     host.querySelectorAll('[data-books]').forEach((b) => b.addEventListener('click', () => { st.books = b.dataset.books; redo(); }));
     host.querySelectorAll('[data-goto]').forEach((b) => b.addEventListener('click', () => go(b.dataset.goto)));
     if (st.tab === 'matchday') {
