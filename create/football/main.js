@@ -15,7 +15,11 @@
   const userTeam = () => FM.teamById(world.league, world.league.userId);
   const shortName = (p) => { const parts = p.name.split(' '); return parts.length > 1 ? parts[0][0] + '. ' + parts.slice(1).join(' ') : p.name; };
   const playerBy = (team, number) => team.squad.find((p) => p.number === number);
-  const saveSoon = () => { clearTimeout(world.saveTimer); world.saveTimer = setTimeout(() => { if (world.league) FM.saveLeague(world.league); }, 500); };
+  const saveSoon = () => { clearTimeout(world.saveTimer); world.savePending = true; world.saveTimer = setTimeout(() => { world.savePending = false; if (world.league) FM.saveLeague(world.league); }, 500); };
+  // a change made just before the tab is closed, hidden or navigated away from is written at once, not lost to the half-second wait
+  const flushSave = () => { if (world.savePending && world.league) { clearTimeout(world.saveTimer); world.savePending = false; try { FM.saveLeague(world.league); } catch (e) { /* the next save tries again */ } } };
+  window.addEventListener('pagehide', flushSave);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flushSave(); });
   FM.requestSave = () => saveSoon();
 
   // ---------- drawing the match ----------
