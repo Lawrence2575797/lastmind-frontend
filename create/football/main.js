@@ -1036,7 +1036,22 @@
       rows.map((r, i) => `<tr class="${cls(r, i)}"><td class="l">${i + 1}</td><td class="l">${esc(r.name)}${compact ? '' : ` <span class="pm">${esc(FM.clubProfile(r).tag)}</span>`}</td><td>${r.p}</td><td>${r.w}</td><td>${r.d}</td><td>${r.l}</td>${compact ? '' : `<td>${r.gf}</td><td>${r.ga}</td>`}<td>${r.gf - r.ga > 0 ? '+' : ''}${r.gf - r.ga}</td><td><b>${r.pts}</b></td>${compact ? '' : `<td class="l">${r.form.slice(-5).map((f) => `<span class="pill ${f}">${f}</span>`).join('')}</td>`}</tr>`).join('') +
       '</tbody></table></div>';
   }
+  // The home page never leaves the screen empty: if something in the saved game stops it from drawing, the next match and the table are still shown, with
+  // a note of what went wrong.
   function renderHome() {
+    try { renderHomeFull(); } catch (e) {
+      try { console.error('LastMind football: the home page failed to draw', e); } catch (e2) { /* fine */ }
+      const lg = world.league, host = el('view-home');
+      let body = '';
+      try {
+        const me = lg.userId, rows = FM.tableRows(lg), nf = FM.nextUserFixture(lg);
+        if (nf) { const h = FM.teamById(lg, nf.homeId), a = FM.teamById(lg, nf.awayId); body += `<div class="card"><h2>Next match</h2><div class="fixture-big">${esc(h ? h.name : '?')} <span style="opacity:.6">v</span> ${esc(a ? a.name : '?')}</div><p class="desc">Round ${nf.round + 1} of 14. Work through the preparation flow above, then play from Match preview.</p></div>`; }
+        body += `<div class="card"><h2>League table</h2><div class="tablewrap"><table class="data"><thead><tr><th class="l">#</th><th class="l">Club</th><th>P</th><th>W</th><th>D</th><th>L</th><th>Pts</th></tr></thead><tbody>${rows.map((r, i) => `<tr class="${r.id === me ? 'me' : ''}"><td class="l">${i + 1}</td><td class="l">${esc(r.name)}</td><td>${r.p}</td><td>${r.w}</td><td>${r.d}</td><td>${r.l}</td><td>${r.pts}</td></tr>`).join('')}</tbody></table></div></div>`;
+      } catch (e3) { /* the note below is all there is */ }
+      host.innerHTML = `<div style="display:grid;gap:16px;max-width:900px">${body}<p class="note">Part of the home page could not be drawn (${esc(e && e.message ? e.message : 'unknown error')}). Your game is safe and the other pages work. If this keeps happening, tell me this message.</p></div>`;
+    }
+  }
+  function renderHomeFull() {
     const lg = world.league, host = el('view-home'), me = lg.userId;
     const rows = FM.tableRows(lg);
     const other = FM.ensureTwoDivisions(lg), otherRows = FM.divisionTableRows(other);
