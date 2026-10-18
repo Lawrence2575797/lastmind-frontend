@@ -6,6 +6,77 @@
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const st = { tab: 'overview', books: 'cash', neg: {}, trail: [], ok: null };
   const okMsg = (title, text) => { st.ok = { title, text }; };
+
+  // ---------- how the club talks to its manager ----------
+  // The manager is addressed in a few different ways, and it changes from day to day rather than repeating one word.
+  const ADDR = ['Gaffer', 'Manager', 'Chief'];
+  const addr = (lg, salt) => ADDR[FM.hashString([lg.seed, lg.season || 1, lg.day || 0, salt].join(':')) % ADDR.length];
+  // Four pages instead of seven: what is happening, tickets and the ground, finance and deals, and the books.
+  const TAB_OF = { overview: 'home', report: 'home', home: 'home', matchday: 'ground', stadium: 'ground', ground: 'ground', finance: 'funding', commercial: 'funding', funding: 'funding', books: 'books' };
+  const ANCHORS = { matchday: 1, stadium: 1, finance: 1, commercial: 1 };
+  const tableOf = (lg) => { const rows = FM.tableRows(lg); return { rows, pos: (id) => rows.findIndex((r) => r.id === id) + 1, row: (id) => rows.find((r) => r.id === id) }; };
+  // What the last result means, in football terms: who it was against, where that side are, and what it does for the club.
+  function resultContext(lg, last) {
+    if (!last) return '';
+    const me = lg.userId, fx = lg.fixtures.find((f) => f.played && !f.friendly && f.round === last.round - 1 && (f.homeId === me || f.awayId === me));
+    if (!fx) return '';
+    const home = fx.homeId === me, gf = home ? fx.hg : fx.ag, ga = home ? fx.ag : fx.hg, oppId = home ? fx.awayId : fx.homeId, T = tableOf(lg), op = T.pos(oppId), mp = T.pos(me), n = T.rows.length;
+    const opp = FM.teamById(lg, oppId), on = opp ? opp.name : 'the opposition', venue = home ? 'at home' : 'away';
+    const exp = (lg.board || {}).expectedPosition;
+    let line;
+    if (gf > ga) {
+      if (op && op < mp) line = `A ${gf}-${ga} win ${venue} against ${on}, who are ${ord(op)} and above you, is a big result. It is the kind of win that closes a gap in the table and makes the shareholders sit up.`;
+      else if (op && op >= n - 2) line = `A ${gf}-${ga} win ${venue} against ${on}, who are ${ord(op)}, is what everybody expected. It earns no extra credit, but the points are what keep you where the board wants you.`;
+      else line = `A ${gf}-${ga} win ${venue} against ${on}, who are ${ord(op)}, is a solid three points.`;
+    } else if (gf === ga) {
+      if (!home && op && op < mp) line = `A ${gf}-${ga} draw away to ${on}, ${ord(op)} in the table, is a good point to take from a hard place.`;
+      else if (home && op && op > mp) line = `A ${gf}-${ga} draw at home to ${on}, who are ${ord(op)}, will feel like two points dropped.`;
+      else line = `A ${gf}-${ga} draw ${venue} to ${on} keeps things ticking over without moving you anywhere.`;
+    } else {
+      if (op && op > mp) line = `Losing ${ga}-${gf} ${venue} to ${on}, who are ${ord(op)} and below you, is a poor result. This is the sort of defeat the shareholders remember.`;
+      else line = `Losing ${ga}-${gf} ${venue} to ${on}, ${ord(op)} in the table, is no disgrace on paper, but the points still matter.`;
+    }
+    const form = (T.row(me) || {}).form || [], run = form.slice(-3).join('');
+    const mood = run === 'WWW' ? ' Three wins in a row is the kind of form that fills the ground.' : run === 'LLL' ? ' Three defeats on the trot, and the mood around the club is turning.' : '';
+    const money = gf > ga ? ' Winning raises the next crowds and sells more shirts.' : gf < ga ? ' Defeats cool the crowds a little and slow the merchandise.' : '';
+    return `<p class="desc rep-ctx">${esc(line + mood + money)}${exp && mp ? esc(` You are ${ord(mp)}; the shareholders expected ${ord(exp)}.`) : ''}</p>`;
+  }
+  // The season so far in a few plain sentences.
+  function story(lg) {
+    const b = FM.biz(lg), ap = FM.bizApprovals(lg), pz = FM.bizPrize(lg), exp = (lg.board || {}).expectedPosition, net = FM.bizSeasonSum(lg, 'net');
+    const played = lg.fixtures.filter((f) => f.played && !f.friendly && (f.homeId === lg.userId || f.awayId === lg.userId)).length;
+    if (!played) return 'The season has not kicked off yet. This is the time to set your ticket prices, look at the offers waiting for you, and make sure the club can afford what you plan.';
+    const parts = [];
+    if (exp) parts.push(pz.position <= exp ? `On the pitch you are ${ord(pz.position)}, ahead of the ${ord(exp)} the shareholders hoped for, which keeps them on your side.` : `On the pitch you are ${ord(pz.position)}, behind the ${ord(exp)} the shareholders hoped for, so they are starting to ask questions.`);
+    parts.push(net >= 0 ? `The club is making money this season: ${gbp(net)} profit so far.` : `The club is losing money this season: ${gbp(-net)} loss so far${b.cash < 0 ? ', and the bank is overdrawn' : `, though there is still ${gbp(b.cash)} in the bank`}.`);
+    const mood = (ap.financial + ap.football) / 2;
+    parts.push(mood >= 65 ? 'The shareholders are happy at the moment.' : mood >= 45 ? 'The shareholders are watching, neither pleased nor worried.' : 'The shareholders are uneasy, and a few more bad weeks would put the job at risk.');
+    return parts.join(' ');
+  }
+  // What the ticket prices have been doing, in the words of economics. When a price changed between the last two home matches, what happened to the crowd
+  // and the takings says how sensitive that kind of fan is to price (price elasticity of demand).
+  function ticketInsights(lg) {
+    const b = FM.biz(lg), homes = b.ledger.filter((e) => e.home && e.att && e.prices), out = [];
+    if (!homes.length) return out;
+    const e2 = homes[homes.length - 1], e1 = homes[homes.length - 2];
+    FM.SEGMENTS.forEach((sg) => {
+      const nm = sg.name, who = sg.who.toLowerCase(), p2 = e2.prices[sg.id], q2 = e2.att[sg.id], seats = b.seats[sg.id] || sg.seats;
+      if (e1) {
+        const p1 = e1.prices[sg.id], q1 = e1.att[sg.id];
+        if (p1 && q1 > 0 && Math.abs(p2 - p1) / p1 >= 0.05) {
+          const dP = Math.round(100 * (p2 - p1) / p1), dQ = Math.round(100 * (q2 - q1) / q1), r1 = p1 * q1, r2 = p2 * q2, up = p2 > p1;
+          if (up && r2 < r1) out.push({ sev: 'warn', title: `Boss, raising the ${nm} price to £${p2} cost the club money`, why: `You moved it from £${p1} to £${p2} (${dP > 0 ? '+' : ''}${dP}%) and the crowd there fell ${Math.abs(dQ)}%, so takings dropped from ${gbp(r1)} to ${gbp(r2)}. When a price rise loses a bigger share of the crowd than the share you added to the price, demand is elastic (price elasticity above 1). That fits these fans, ${who}: they react strongly to price. Moving the price back towards £${p1} should bring in more money overall.`, fix: [{ label: 'Review ticket prices', tab: 'matchday' }] });
+          else if (up) out.push({ sev: 'good', title: `Boss, the ${nm} price rise paid off`, why: `You went from £${p1} to £${p2} (${dP > 0 ? '+' : ''}${dP}%) and the crowd only changed by ${dQ}%, so takings rose from ${gbp(r1)} to ${gbp(r2)}. That is inelastic demand (elasticity below 1): ${who} do not mind paying a little more. There may be room to go higher, but watch for the point where the stand starts to empty.`, fix: [{ label: 'Review ticket prices', tab: 'matchday' }] });
+          else if (r2 > r1) out.push({ sev: 'good', title: `Boss, cutting the ${nm} price filled the seats`, why: `The price came down from £${p1} to £${p2} and the crowd rose ${dQ}%, more than the price fell, so takings went up from ${gbp(r1)} to ${gbp(r2)}. That is elastic demand: cheaper tickets bring in far more of ${who}. It is worth leaving it there, or trying a touch lower.`, fix: [{ label: 'Review ticket prices', tab: 'matchday' }] });
+          else out.push({ sev: 'warn', title: `Boss, cutting the ${nm} price gave money away`, why: `You dropped it from £${p1} to £${p2} but the crowd rose only ${dQ}%, so takings fell from ${gbp(r1)} to ${gbp(r2)}. That is inelastic demand: ${who} were going to come anyway, so the discount did not win many new fans. Putting the price back up should earn more.`, fix: [{ label: 'Review ticket prices', tab: 'matchday' }] });
+        }
+      }
+      if (q2 >= seats * 0.99 && p2 > 0) out.push({ sev: 'info', title: `Boss, the ${nm} was full at £${p2}`, why: `Every seat was taken, so more people wanted to come than the stand can hold. That means the price can rise without losing anyone until the stand stops filling${sg.e < 1 ? `, and ${who} are the kind of fan who barely reacts to price, so you can go higher with little risk` : ''}. Another route is more seats if you have the room.`, fix: [{ label: 'Review ticket prices', tab: 'matchday' }, { label: 'Look at the stadium', tab: 'stadium' }] });
+      else if (seats > 0 && q2 < seats * 0.55 && p2 >= sg.ref) out.push({ sev: 'warn', title: `Boss, the ${nm} was barely half full`, why: `Only ${Math.round(100 * q2 / seats)}% of the seats were sold at £${p2}, which is above the usual price for this stand (£${sg.ref}). ${sg.e > 1 ? `${who.charAt(0).toUpperCase() + who.slice(1)} are very sensitive to price, so a cut should fill more seats than it costs you in price and takings should rise.` : `${who.charAt(0).toUpperCase() + who.slice(1)} do not react much to price, so a cut may not fill many more seats; extra marketing is the better lever here.`}`, fix: [{ label: 'Review ticket prices', tab: 'matchday' }] });
+    });
+    return out.slice(0, 3);
+  }
+
   const gbp = (n) => FM.gbp(n), num = (n) => Math.round(n).toLocaleString('en-GB');
   const cell = (n) => `<td class="n${n < 0 ? ' neg' : ''}">${n === 0 || n == null ? '–' : gbp(n)}</td>`;
   const pct = (a, b) => (b ? Math.round(1000 * a / b) / 10 + '%' : '–');
@@ -169,7 +240,7 @@
       <div class="card"><div class="eyebrow">Their aims and objectives this season</div>
         <div class="books-wrap"><table class="books-table objectives"><thead><tr><th class="l">Aim</th><th class="l">Objective</th><th>Now</th><th>Status</th></tr></thead><tbody>${objs.map((o) => `<tr><td class="l"><b>${esc(o.aim)}</b></td><td class="l">${esc(o.title)}</td><td class="n">${esc(o.value)}</td><td class="n st-${o.state.replace(' ', '-')}">${STATE_WORD[o.state] || o.state}</td></tr>`).join('')}</tbody></table></div>
         <p class="note">Expected league finish: ${board.expectedPosition ? ord(board.expectedPosition) : '–'} in the ${esc(lg.divisionName)}.</p></div></div>
-      <div style="display:grid;gap:16px"><div class="card"><div class="eyebrow">Where to look</div><div class="row"><button type="button" data-btab="matchday" class="primary">Ticket prices</button><button type="button" data-btab="stadium">The stadium</button><button type="button" data-btab="books">The books</button><button type="button" data-btab="finance">Sources of finance</button><button type="button" data-btab="commercial">Sponsors and advertising</button></div></div>
+      <div style="display:grid;gap:16px">
       <div class="card"><div class="eyebrow">League prize money</div><div class="books-wrap"><table class="books-table"><thead><tr><th class="l">Finishing position</th><th>Prize money</th></tr></thead><tbody>${pz.table.map((v, i) => `<tr class="${i + 1 === pz.position ? 'key' : ''}"><td class="l">${ord(i + 1)}${i + 1 === pz.position ? ' (the club now)' : ''}</td>${cell(v)}</tr>`).join('')}</tbody></table></div><p class="note">Paid at the end of the season, by where the club finishes in the ${esc(lg.divisionName)}.</p></div>
       <div class="card"><div class="eyebrow">From the boardroom</div>${news.length ? news.map((n) => `<p class="desc"><b>${esc(n.headline)}</b><br>${esc(n.body)}</p>`).join('') : '<p class="note">Nothing yet. The shareholders write when something in the accounts needs saying.</p>'}</div></div></div>`;
   }
@@ -269,14 +340,15 @@
     if (empty >= 4) w.push({ sev: 'info', title: `Boss, ${empty} of the 8 advertising boards are empty`, why: 'An empty board earns nothing. Companies get in touch after matches, and you can negotiate their price.', fix: [S('Commercial offers', 'commercial')] });
     if ((b.dividend.policy || 0) > 0.3 && end < 150000) w.push({ sev: 'warn', title: 'Boss, the dividend may be too generous for a club this short of cash', why: `The policy pays ${Math.round(b.dividend.policy * 100)}% of the year's profit to shareholders, but the forecast leaves only ${gbp(end)} in the bank at the end of the season.`, fix: [S('Change the dividend', 'finance')] });
     if (!w.length) w.push({ sev: 'good', title: 'Boss, nothing in the accounts is worrying me', why: `The forecast ends the season with ${gbp(end)} in the bank${rows.length ? ` after a profit of ${gbp(rows.reduce((a, e) => a + e.pl.net, 0))} so far` : ''}. Keep an eye on it after each match.`, fix: [] });
-    return { w, cols, end, low, neg, over, limit, last, rows, repay, owed };
+    const all = ticketInsights(lg).concat(w).map((x, i) => Object.assign({}, x, { title: x.title.replace(/\bBoss\b/g, addr(lg, 'w' + i)) }));
+    return { w: all, cols, end, low, neg, over, limit, last, rows, repay, owed };
   }
   function report(lg) {
     const b = FM.biz(lg), A = advice(lg), bal = FM.bizBalance(lg), last = A.last, K = FM.bizConst;
     const worst = A.w.some((x) => x.sev === 'bad') ? 'bad' : A.w.some((x) => x.sev === 'warn') ? 'warn' : 'good';
-    const headline = { bad: `Boss, we have a problem with the money.`, warn: `Boss, the money needs watching.`, good: `Boss, the money looks healthy.` }[worst];
+    const who0 = addr(lg, 'h'), headline = { bad: `${who0}, we have a problem with the money.`, warn: `${who0}, the money needs watching.`, good: `${who0}, the money is in good shape.` }[worst];
     const yearNet = A.rows.reduce((a, e) => a + e.pl.net, 0);
-    let lastHtml = '<p class="note">No matchday has been played yet, boss. The report of each match appears here once it has.</p>';
+    let lastHtml = '<p class="note">No matchday has been played yet, ${who0.toLowerCase()}. The report of each match appears here once it has.</p>';
     if (last) {
       const ins = Object.keys(IN_NAMES).filter((k) => (last.inflow[k] || 0) > 0).sort((x, y) => last.inflow[y] - last.inflow[x]), outs = Object.keys(OUT_NAMES).filter((k) => (last.outflow[k] || 0) > 0).sort((x, y) => last.outflow[y] - last.outflow[x]);
       const tin = sumv(last.inflow), tout = sumv(last.outflow), net = tin - tout, trade = last.pl.revenue;
@@ -285,18 +357,18 @@
         <div class="rep-two"><div class="books-wrap"><table class="books-table"><thead><tr><th class="l">Money in</th><th>£</th></tr></thead><tbody>${ins.map((k) => `<tr><td class="l">${IN_NAMES[k]}</td>${cell(last.inflow[k])}</tr>`).join('') || '<tr><td class="l" colspan="2">Nothing</td></tr>'}<tr class="tot"><td class="l">Total in</td>${cell(tin)}</tr></tbody></table></div>
         <div class="books-wrap"><table class="books-table"><thead><tr><th class="l">Money out</th><th>£</th></tr></thead><tbody>${outs.map((k) => `<tr><td class="l">${OUT_NAMES[k]}</td>${cell(-last.outflow[k])}</tr>`).join('') || '<tr><td class="l" colspan="2">Nothing</td></tr>'}<tr class="tot"><td class="l">Total out</td>${cell(-tout)}</tr></tbody></table></div></div>`;
     }
-    const loans = b.loans.length ? `<div class="books-wrap"><table class="books-table"><thead><tr><th class="l">Loan</th><th>Still owed</th><th>Each matchday</th><th>Interest a matchday</th></tr></thead><tbody>${b.loans.map((l) => `<tr><td class="l">${l.id}, season ${l.season}</td>${cell(l.balance)}${cell(Math.min(l.balance, l.perRound))}${cell(Math.round(l.balance * l.rate / 14))}</tr>`).join('')}</tbody></table></div>` : '<p class="note">The club has no loans, boss.</p>';
+    const loans = b.loans.length ? `<div class="books-wrap"><table class="books-table"><thead><tr><th class="l">Loan</th><th>Still owed</th><th>Each matchday</th><th>Interest a matchday</th></tr></thead><tbody>${b.loans.map((l) => `<tr><td class="l">${l.id}, season ${l.season}</td>${cell(l.balance)}${cell(Math.min(l.balance, l.perRound))}${cell(Math.round(l.balance * l.rate / 14))}</tr>`).join('')}</tbody></table></div>` : `<p class="note">The club has no loans, ${who0.toLowerCase()}.</p>`;
     const next = A.cols.filter((c) => !c.actual)[0];
-    const fc = A.cols.length ? `<p class="desc">${A.cols.some((c) => !c.actual) ? `Taking today's wages, deals, loans and the crowds you have been getting, I forecast the bank at <b class="${A.end < 0 ? 'neg' : ''}">${gbp(A.end)}</b> at the end of the season${A.low && A.low.closing < b.cash ? `, with the low point of <b class="${A.low.closing < 0 ? 'neg' : ''}">${gbp(A.low.closing)}</b> in round ${A.low.round}` : ''}.` : 'The season is over, boss. Here is how it finished.'}</p>${spark(A.cols, A.limit)}<p class="note"><span style="color:#7FD49A">Solid line</span>: matches played. <span style="color:#FFE27A">Dashed line</span>: forecast. The red line is the most the bank will let the club borrow.</p>` : '';
+    const fc = A.cols.length ? `<p class="desc">${A.cols.some((c) => !c.actual) ? `Taking today's wages, deals, loans and the crowds you have been getting, I forecast the bank at <b class="${A.end < 0 ? 'neg' : ''}">${gbp(A.end)}</b> at the end of the season${A.low && A.low.closing < b.cash ? `, with the low point of <b class="${A.low.closing < 0 ? 'neg' : ''}">${gbp(A.low.closing)}</b> in round ${A.low.round}` : ''}.` : `The season is over, ${who0.toLowerCase()}. Here is how it finished.`}</p>${spark(A.cols, A.limit)}<p class="note"><span style="color:#7FD49A">Solid line</span>: matches played. <span style="color:#FFE27A">Dashed line</span>: forecast. The red line is the most the bank will let the club borrow.</p>` : '';
     const warns = A.w.map((x, i) => `<div class="rep-warn rep-${x.sev}"><h3>${esc(x.title)}</h3><p>${esc(x.why)}</p>${x.fix.length ? `<div class="row">${x.fix.map((f) => `<button type="button" data-short="${f.tab}${f.books ? ':' + f.books : ''}">${esc(f.label)} →</button>`).join('')}</div>` : ''}</div>`).join('');
-    return `<div style="display:grid;gap:16px"><div class="card rep-hero rep-${worst}"><div class="eyebrow">Money report</div><h2>${esc(headline)}</h2>
+    return `<div style="display:grid;gap:16px"><div class="card rep-hero rep-${worst}"><div class="eyebrow">How the club is doing</div><h2>${esc(headline)}</h2><p class="desc">${esc(story(lg))}</p>
       <div class="board-money"><span>Cash in the bank<b${b.cash < 0 ? ' class="neg"' : ''}>${gbp(b.cash)}</b></span><span>Profit this season<b${yearNet < 0 ? ' class="neg"' : ''}>${gbp(yearNet)}</b></span><span>Owed on loans<b>${gbp(A.owed)}</b></span><span>Forecast, end of season<b${A.end < 0 ? ' class="neg"' : ''}>${gbp(A.end)}</b></span></div></div>
-      <div class="card"><div class="eyebrow">What I would flag</div>${warns}</div>
-      <div class="card"><div class="eyebrow">The last match</div>${lastHtml}</div>
+      <div class="card"><div class="eyebrow">What I would keep an eye on</div>${warns}</div>
+      <div class="card"><div class="eyebrow">The last match</div>${resultContext(lg, last)}${lastHtml}</div>
       <div class="card"><div class="eyebrow">Where the club stands</div>
         <div class="board-money"><span>Owned: stadium and facilities<b>${gbp(bal.stadium)}</b></span><span>Owned: players<b>${gbp(bal.players)}</b></span><span>Owed: overdraft<b>${gbp(bal.overdraft)}</b></span><span>Owed: loans<b>${gbp(bal.loans)}</b></span></div>
         ${loans}<p class="note"><button type="button" data-short="books:balance">Full balance sheet →</button> <button type="button" data-short="finance">Loans and shares →</button></p></div>
-      <div class="card"><div class="eyebrow">Where it is heading</div>${fc}<p class="note"><button type="button" data-short="books:cash">Full cash flow forecast →</button></p></div></div>`;
+      <div class="card"><div class="eyebrow">Where the money is heading</div>${fc}<p class="note"><button type="button" data-short="books:cash">Full cash flow forecast →</button></p></div></div>`;
   }
 
   FM.bizReportHtml = report;
@@ -305,32 +377,35 @@
     const save = (hooks && hooks.save) || (() => {}), go = (hooks && hooks.goto) || (() => {});
     const b0 = FM.biz(lg);
     FM.bizSyncBudget(lg);
-    const tabs = [['overview', 'The board'], ['report', 'Money report'], ['matchday', 'Matchday'], ['stadium', 'Stadium'], ['books', 'The books'], ['finance', 'Finance'], ['commercial', 'Commercial']];
+    st.tab = TAB_OF[st.tab] || 'home';
+    const tabs = [['home', 'Overview'], ['ground', 'Tickets and stadium'], ['funding', 'Finance and deals'], ['books', 'The books']];
     const NAMES = Object.assign({}, ...tabs.map(([k, l]) => ({ [k]: l })));
     const ap0 = FM.bizApprovals(lg), yr0 = FM.bizSeasonSum(lg, 'net');
     const strip = `<div class="board-strip"><span>Cash<b${b0.cash < 0 ? ' class="neg"' : ''}>${gbp(b0.cash)}</b></span><span>Profit this season<b${yr0 < 0 ? ' class="neg"' : ''}>${gbp(yr0)}</b></span><span>Shareholder approval<b>${Math.round((ap0.financial + ap0.football) / 2)}%</b></span><span>Share price<b>£${ap0.share.toFixed(2)}</b></span></div>`;
     const back = st.trail.length ? `<button type="button" class="board-back" id="bzBack">← Back to ${esc(NAMES[st.trail[st.trail.length - 1].tab] || 'the board')}</button>` : '';
-    const body = st.tab === 'report' ? report(lg) : st.tab === 'matchday' ? matchday(lg) : st.tab === 'stadium' ? stadium(lg) : st.tab === 'books' ? books(lg) : st.tab === 'finance' ? finance(lg) : st.tab === 'commercial' ? commercial(lg) : overview(lg);
+    const sec = (id, html) => `<div id="sec-${id}" class="board-sec">${html}</div>`;
+    const body = st.tab === 'home' ? report(lg) + overview(lg) : st.tab === 'ground' ? `<div style="display:grid;gap:22px">${sec('matchday', matchday(lg))}${sec('stadium', stadium(lg))}</div>` : st.tab === 'books' ? books(lg) : `<div style="display:grid;gap:22px">${sec('finance', finance(lg))}${sec('commercial', commercial(lg))}</div>`;
     host.innerHTML = `<div class="board-page">${strip}<div class="row board-tabs" role="tablist">${tabs.map(([k, l]) => `<button type="button" role="tab" data-tab="${k}" class="${st.tab === k ? 'on' : ''}">${l}</button>`).join('')}</div>${back}${st.ok ? `<p class="banner ok" role="status"><b>${esc(st.ok.title)}</b> ${esc(st.ok.text)}</p>` : ''}${body}</div>`;
     const redo = () => FM.renderBoard(host, lg, hooks);
-    host.querySelectorAll('[data-tab]').forEach((b) => b.addEventListener('click', () => { st.tab = b.dataset.tab; st.trail = []; st.msg = ''; st.ok = null; redo(); }));
-    host.querySelectorAll('[data-btab]').forEach((b) => b.addEventListener('click', () => { st.tab = b.dataset.btab; st.trail = []; st.msg = ''; st.ok = null; redo(); }));
+    if (st.anchor) { const target = host.querySelector('#sec-' + st.anchor); st.anchor = null; if (target && target.scrollIntoView) target.scrollIntoView(); }
+    host.querySelectorAll('[data-tab]').forEach((b) => b.addEventListener('click', () => { st.tab = TAB_OF[b.dataset.tab] || 'home'; st.trail = []; st.msg = ''; st.ok = null; redo(); }));
+    host.querySelectorAll('[data-btab]').forEach((b) => b.addEventListener('click', () => { st.tab = TAB_OF[b.dataset.btab] || 'home'; st.trail = []; st.msg = ''; st.ok = null; redo(); }));
     // shortcuts from the money report: they remember where they came from, so there is always a way back
     host.querySelectorAll('[data-short]').forEach((b) => b.addEventListener('click', () => {
       const [t, sub] = b.dataset.short.split(':');
       if (t === 'recruit') { go('recruit'); return; }
-      st.trail.push({ tab: st.tab, books: st.books }); st.tab = t; if (sub) st.books = sub; st.msg = ''; st.ok = null; redo(); window.scrollTo(0, 0);
+      st.trail.push({ tab: st.tab, books: st.books }); st.tab = TAB_OF[t] || 'home'; st.anchor = ANCHORS[t] ? t : null; if (sub) st.books = sub; st.msg = ''; st.ok = null; redo(); if (!st.anchor) window.scrollTo(0, 0);
     }));
     const bk = host.querySelector('#bzBack');
     if (bk) bk.addEventListener('click', () => { const prev = st.trail.pop(); if (prev) { st.tab = prev.tab; st.books = prev.books; } redo(); window.scrollTo(0, 0); });
     host.querySelectorAll('[data-books]').forEach((b) => b.addEventListener('click', () => { st.books = b.dataset.books; redo(); }));
     host.querySelectorAll('[data-goto]').forEach((b) => b.addEventListener('click', () => go(b.dataset.goto)));
-    if (st.tab === 'matchday') {
+    if (st.tab === 'ground') {
       host.querySelectorAll('[data-price]').forEach((i) => i.addEventListener('input', () => { FM.biz(lg).prices[i.dataset.price].price = Math.max(3, Math.min(400, Number(i.value) || 3)); save(); }));
       const mk = host.querySelector('#bzMarketing');
       if (mk) mk.addEventListener('input', () => { FM.biz(lg).marketing = Math.max(0, Math.min(60000, Math.round(Number(mk.value) || 0))); save(); });
     }
-    if (st.tab === 'stadium') {
+    if (st.tab === 'ground') {
       host.querySelectorAll('[data-expand]').forEach((b) => b.addEventListener('click', () => {
         const sg = FM.SEGMENTS.find((x) => x.id === b.dataset.expand), e = FM.EXPANSIONS[b.dataset.expand], cost = FM.bizBuild.standCost(b.dataset.expand), r = FM.bizBuild.expand(lg, b.dataset.expand);
         st.msg = r.ok ? '' : r.text; st.ok = null;
@@ -342,7 +417,7 @@
         if (r.ok) okMsg(`${f.name} bought.`, `${gbp(f.cost)} has left the bank straight away, so there is less cash to spend on signings. It will cost ${gbp(f.upkeep)} every matchday to run. ${f.text} It is added to the stadium and facilities on the balance sheet, and loses some of its value each season.`);
         save(); redo(); }));
     }
-    if (st.tab === 'finance') {
+    if (st.tab === 'funding') {
       const info = () => {
         const a = +host.querySelector('#loanAmt').value, term = +host.querySelector('#loanTerm').value, o = FM.bizSources.loanOptions.find((x) => x.term === term);
         host.querySelector('#loanInfo').textContent = `${gbp(Math.round(a / term))} a matchday in repayments, about ${gbp(Math.round(a * o.rate * (term / 14) / 2))} interest in all.`;
@@ -370,6 +445,6 @@
         if (r && r.ok) okMsg('Loan repaid.', `${gbp(owed)} has gone from the bank and the loan is cleared. The interest on it stops and the matchday repayments end, so the club's costs fall, but there is less cash in hand than before.`);
         save(); redo(); }));
     }
-    if (st.tab === 'commercial') FM.bizBindOffers(host, lg, () => { save(); redo(); });
+    if (st.tab === 'funding') FM.bizBindOffers(host, lg, () => { save(); redo(); });
   };
 })();
