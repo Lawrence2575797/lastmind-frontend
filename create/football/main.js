@@ -2198,14 +2198,16 @@
   const clamp01 = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
   function renderBoardTab(team, tab) {
-    const host = el('tabBody'), key = BOARD_KEY[tab], isShape = key === 'shape';
+    // In a match, Defending is the same two pages as in the preparation (pressing their build-up, and defending your third), each just the positions.
+    const inDef = world.view === 'match' && tab === 'organised', defKey = inDef ? (world.defSubM === 'organised' ? 'without' : 'press') : null;
+    const host = el('tabBody'), key = defKey || BOARD_KEY[tab], isShape = key === 'shape';
     const formationTitle = FM.formationName ? FM.formationName(team) : team.formationKey;
     const formationOptions = Object.keys(FM.FORMATIONS).map((k) => `<option value="${k}"${!team.formationLabel && k === team.formationKey ? ' selected' : ''}>${k}</option>`).join('');
     const bench = team.bench.map((p) => `
       <button class="chip${world.selBench === p ? ' sel' : ''}" data-bench="${p.id}">
         <span class="num" style="${KITNUM(team)}">${p.number}</span><span>${p.natural} ${esc(shortName(p))}</span><span class="meta ${FM.isInjured(p) ? 'out' : FM.conditionOf(p) < 0.6 ? 'low' : ''}">${FM.ratingText(p)} · ${FM.isInjured(p) ? 'injured' : Math.round(100 * FM.conditionOf(p)) + '%'}</span>
       </button>`).join('');
-    const pair = BOARD_PAIRS[tab];
+    const pair = inDef ? null : BOARD_PAIRS[tab];
     host.innerHTML = `
       <div class="tb-grid${pair ? ' tb-pair' : ''}${isShape ? ' tb-shape' : ''}">
         <aside class="tb-controls">
@@ -2214,7 +2216,8 @@
           <div id="phaseSliders"></div>
         </aside>
         <div class="tb-left">
-          <h2>${isShape ? 'Formation: ' + esc(formationTitle) : (PAIR_TITLE[tab] || FM.PHASE_NAMES[key])}</h2>
+          ${inDef ? '<div class="def-sub" role="tablist"><button data-msub="press" class="' + (key === 'press' ? 'on' : '') + '">Pressing their build-up</button><button data-msub="organised" class="' + (key === 'without' ? 'on' : '') + '">Defending your third</button></div>' : ''}
+          <h2>${isShape ? 'Formation: ' + esc(formationTitle) : inDef ? (key === 'press' ? 'Pressing their build-up' : 'Defending your third') : (PAIR_TITLE[tab] || FM.PHASE_NAMES[key])}</h2>
           ${pair ? '<div id="pairHost"></div>' : '<div id="board"></div>'}
           ${pair ? '' : `<div class="row"><button id="resetPhase">${isShape ? 'Reset the shape to the formation' : 'Reset this phase to its default positions'}</button></div>`}
           <p class="err" id="subErr"></p>
@@ -2234,6 +2237,7 @@
       if (isShape) world.redrawBoards = () => { if (board.isConnected) drawBoard(board, team, key, { fit: true }); };
     }
     host.querySelectorAll('[data-block]').forEach((b) => b.addEventListener('click', () => { applyBlock(team, b.dataset.block); saveSoon(); renderTactics(); }));
+    host.querySelectorAll('[data-msub]').forEach((b) => b.addEventListener('click', () => { world.defSubM = b.dataset.msub; renderTactics(); }));
     const oppReset = host.querySelector('#oppReset');
     if (oppReset) oppReset.addEventListener('click', () => { delete world.oppMoved[key]; renderTactics(); });
     if (SLIDER_TABS[tab]) renderSliderTab(team, SLIDER_TABS[tab], host.querySelector('#phaseSliders'));
