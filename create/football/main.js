@@ -266,7 +266,30 @@
       ctx.lineWidth = Math.max(2, scale * .34 * (1 - age * .5)); ctx.stroke();
     });
   }
-  function draw() { drawPitch(); drawTrails(); drawImpacts(); drawPlayers(); }
+  // A goal is announced on the pitch itself: a flash, rings spreading out from the goal that was scored in, and GOAL with the scorer, for a few seconds.
+  function drawGoalFx() {
+    const g = world.goalFx; if (!g) return;
+    const age = world.vt - g.born, T = 4.2;
+    if (age < 0 || age > T) { if (age > T) world.goalFx = null; return; }
+    const fade = age < 3.2 ? 1 : Math.max(0, 1 - (age - 3.2) / (T - 3.2));
+    if (age < 0.5) { ctx.fillStyle = `rgba(255,236,160,${(0.38 * (1 - age / 0.5)).toFixed(3)})`; ctx.fillRect(0, 0, canvas.width, canvas.height); }
+    [0, 0.35, 0.7].forEach((delay) => {
+      const a = (age - delay) / 1.6; if (a < 0 || a > 1) return;
+      ctx.beginPath(); ctx.arc(px(g.x), py(g.y), (2 + a * 20) * scale, 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(242,193,78,${(0.9 * (1 - a)).toFixed(3)})`; ctx.lineWidth = Math.max(3, scale * 0.7 * (1 - a * 0.5)); ctx.stroke();
+    });
+    const pop = Math.min(1, age / 0.28), size = scale * (7 + 2 * Math.sin(Math.min(1, age / 0.5) * Math.PI)) * (0.55 + 0.45 * pop), cx = canvas.width / 2, cy = canvas.height * 0.44;
+    ctx.save(); ctx.globalAlpha = fade; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = 'rgba(8,20,14,.55)'; const bw = Math.min(canvas.width * 0.8, size * 6.2), bh = size * 2.6; ctx.fillRect(cx - bw / 2, cy - bh * 0.62, bw, bh * 1.55);
+    ctx.font = `800 ${size}px system-ui, sans-serif`; ctx.lineWidth = Math.max(3, size * 0.12); ctx.strokeStyle = '#0b1c13'; ctx.fillStyle = '#f2c14e';
+    ctx.strokeText('GOAL!', cx, cy); ctx.fillText('GOAL!', cx, cy);
+    ctx.font = `700 ${size * 0.34}px system-ui, sans-serif`; ctx.fillStyle = '#fff'; ctx.lineWidth = Math.max(2, size * 0.05);
+    ctx.strokeText(g.who, cx, cy + size * 0.78); ctx.fillText(g.who, cx, cy + size * 0.78);
+    ctx.font = `600 ${size * 0.26}px system-ui, sans-serif`; ctx.fillStyle = '#f4edda';
+    ctx.strokeText(g.score, cx, cy + size * 1.16); ctx.fillText(g.score, cx, cy + size * 1.16);
+    ctx.restore();
+  }
+  function draw() { drawPitch(); drawTrails(); drawImpacts(); drawPlayers(); drawGoalFx(); }
 
   const pct = (a, b) => (b ? Math.round(100 * a / b) + '%' : '-');
   const RESTART_NAMES = { throw: 'Throw-in', goalkick: 'Goal kick', corner: 'Corner', freekick: 'Free kick', penalty: 'Penalty' };
@@ -357,6 +380,7 @@
       else if (e.type === 'keeperSwap') text = team.name + ' goalkeeper change: ' + who(e.on) + ' in goal' + (e.emergency ? ' (an outfield player)' : '');
       if (reveal && e.type === 'goal') {
         world.highlightUntil = world.vt + 4.5;
+        world.goalFx = { born: world.vt, x: team.attackDir === 1 ? L : 0, y: W / 2, who: who(e.player) + ' (' + team.name + ')', score: m.home.name + ' ' + m.score[m.home.id] + ' - ' + m.score[m.away.id] + ' ' + m.away.name };
         say(call('goal', [() => 'GOAL! ' + who(e.player) + ' finishes it for ' + team.name + '!', () => who(e.player) + ' scores! ' + team.name + ' have their breakthrough!', () => 'It is in! ' + who(e.player) + ' makes no mistake!', () => team.name + ' strike through ' + who(e.player) + '!']), 'goal', 4.5);
       } else if (reveal && e.type === 'shot') {
         world.highlightUntil = world.vt + 3;
