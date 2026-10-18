@@ -36,10 +36,15 @@
       if (op && op > mp) line = `Losing ${ga}-${gf} ${venue} to ${on}, who are ${ord(op)} and below you, is a poor result. This is the sort of defeat the shareholders remember.`;
       else line = `Losing ${ga}-${gf} ${venue} to ${on}, ${ord(op)} in the table, is no disgrace on paper, but the points still matter.`;
     }
-    const form = (T.row(me) || {}).form || [], run = form.slice(-3).join('');
+    const sgR = seasonStage(lg), form = (T.row(me) || {}).form || [], run = form.slice(-3).join('');
     const mood = run === 'WWW' ? ' Three wins in a row is the kind of form that fills the ground.' : run === 'LLL' ? ' Three defeats on the trot, and the mood around the club is turning.' : '';
     const money = gf > ga ? ' Winning raises the next crowds and sells more shirts.' : gf < ga ? ' Defeats cool the crowds a little and slow the merchandise.' : '';
-    return `<p class="desc rep-ctx">${esc(line + mood + money)}${exp && mp ? esc(` You are ${ord(mp)}; the shareholders expected ${ord(exp)}.`) : ''}</p>`;
+    return `<p class="desc rep-ctx">${esc(line + mood + money)}${exp && mp ? esc(sgR.early ? ` You are ${ord(mp)} after only ${sgR.played} game${sgR.played === 1 ? '' : 's'}; the table is too young to read much into.` : ` You are ${ord(mp)}; the shareholders expected ${ord(exp)}.`) : ''}</p>`;
+  }
+  // How far into the season the club is decides how much the league table is worth reading: two games in, it says very little; ten in, it is nearly the whole story.
+  function seasonStage(lg) {
+    const played = lg.fixtures.filter((f) => f.played && !f.friendly && (f.homeId === lg.userId || f.awayId === lg.userId)).length, total = lg.fixtures.filter((f) => !f.friendly && (f.homeId === lg.userId || f.awayId === lg.userId)).length || 14;
+    return { played, left: total - played, early: played <= 4, late: played >= 10 };
   }
   // The season so far in a few plain sentences.
   function story(lg) {
@@ -47,10 +52,15 @@
     const played = lg.fixtures.filter((f) => f.played && !f.friendly && (f.homeId === lg.userId || f.awayId === lg.userId)).length;
     if (!played) return 'The season has not kicked off yet. This is the time to set your ticket prices, look at the offers waiting for you, and make sure the club can afford what you plan.';
     const parts = [];
-    if (exp) parts.push(pz.position <= exp ? `On the pitch you are ${ord(pz.position)}, ahead of the ${ord(exp)} the shareholders hoped for, which keeps them on your side.` : `On the pitch you are ${ord(pz.position)}, behind the ${ord(exp)} the shareholders hoped for, so they are starting to ask questions.`);
+    const sg = seasonStage(lg), gm = (n) => n + ' game' + (n === 1 ? '' : 's');
+    if (exp) {
+      if (sg.early) parts.push(pz.position <= exp ? `After ${gm(sg.played)} you are ${ord(pz.position)}, which is a good start, though it is far too early for the table to mean much.` : `After ${gm(sg.played)} you are ${ord(pz.position)}, below the ${ord(exp)} the shareholders hoped for. With so few games played that is nothing to worry about yet: the table will move a lot before it settles.`);
+      else if (sg.late) parts.push(pz.position <= exp ? `With only ${gm(sg.left)} left you are ${ord(pz.position)}, ahead of the ${ord(exp)} the shareholders hoped for. The table has settled and this is a real achievement.` : `With only ${gm(sg.left)} left you are ${ord(pz.position)}, behind the ${ord(exp)} the shareholders hoped for. There is not much time to change that, and they know it.`);
+      else parts.push(pz.position <= exp ? `On the pitch you are ${ord(pz.position)} after ${gm(sg.played)}, ahead of the ${ord(exp)} the shareholders hoped for, which keeps them on your side.` : `On the pitch you are ${ord(pz.position)} after ${gm(sg.played)}, behind the ${ord(exp)} the shareholders hoped for, so they are starting to ask questions.`);
+    }
     parts.push(net >= 0 ? `The club is making money this season: ${gbp(net)} profit so far.` : `The club is losing money this season: ${gbp(-net)} loss so far${b.cash < 0 ? ', and the bank is overdrawn' : `, though there is still ${gbp(b.cash)} in the bank`}.`);
     const mood = (ap.financial + ap.football) / 2;
-    parts.push(mood >= 65 ? 'The shareholders are happy at the moment.' : mood >= 45 ? 'The shareholders are watching, neither pleased nor worried.' : 'The shareholders are uneasy, and a few more bad weeks would put the job at risk.');
+    parts.push(sg.early ? 'The shareholders are not judging the season yet: they will want to see a pattern before they decide what they think.' : mood >= 65 ? 'The shareholders are happy at the moment.' : mood >= 45 ? 'The shareholders are watching, neither pleased nor worried.' : sg.late ? 'The shareholders are uneasy, and there is little of the season left to turn it round.' : 'The shareholders are uneasy, and a few more bad weeks would put the job at risk.');
     return parts.join(' ');
   }
   // What the ticket prices have been doing, in the words of economics. When a price changed between the last two home matches, what happened to the crowd

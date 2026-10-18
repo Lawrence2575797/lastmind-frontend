@@ -641,12 +641,14 @@
     const rows = FM.tableRows(league), pos = rows.findIndex((r) => r.id === league.userId) + 1;
     const mine = rows[pos - 1], expected = league.board.expectedPosition || 4;
     const played = mine ? mine.p : 0;
-    const positionScore = (expected - pos) * 1.15;
+    // How much the table says depends on how much of the season has been played: sixth after two games is nothing to worry about, sixth after ten is.
+    const stage = Math.max(0.2, Math.min(1.2, played / 10));
+    const positionScore = (expected - pos) * 1.15 * stage;
     const pointsRate = played ? mine.pts / played : 1.35;
-    const resultScore = (pointsRate - 1.35) * 1.5;
+    const resultScore = (pointsRate - 1.35) * 1.5 * stage;
     const target = Math.max(8, Math.min(92, 52 + (expected - pos) * 7 + (pointsRate - 1.35) * 12));
     const before = Number.isFinite(league.boardApproval) ? league.boardApproval : 50;
-    league.boardApproval = Math.max(0, Math.min(100, Math.round((before + Math.max(-4, Math.min(4, positionScore + resultScore)) + (target - before) * 0.08) * 10) / 10));
+    league.boardApproval = Math.max(0, Math.min(100, Math.round((before + Math.max(-4, Math.min(4, positionScore + resultScore)) + (target - before) * 0.08 * stage) * 10) / 10));
     league.board.currentPosition = pos; league.board.points = mine ? mine.pts : 0; league.board.played = played;
   };
 
