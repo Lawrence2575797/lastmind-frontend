@@ -1662,10 +1662,10 @@
   // (the organised defending board), where it stands to press their build-up, and how hard it presses. It moves both boards, the settings the
   // match uses, and so what the team does in the game.
   function applyBlock(team, kind) {
-    const target = { low: 0.2, mid: 0.32, high: 0.46 }[kind];
+    const target = { low: 0.2, mid: 0.3, high: 0.38 }[kind];
     const backs = team.players.filter((p) => p.group === 'CB' || p.group === 'FB'), now = backs.reduce((s, p) => s + FM.phasePos(team, p, 'without').d, 0) / Math.max(1, backs.length), shift = target - now;
     team.players.forEach((p) => {
-      const q = FM.phasePos(team, p, 'without'); FM.setPhasePos(team, p, 'without', { d: Math.max(.03, Math.min(.82, q.d + shift)), w: q.w });
+      const q = FM.phasePos(team, p, 'without'); FM.setPhasePos(team, p, 'without', { d: Math.max(.03, Math.min(p.group === 'CB' ? .44 : .82, q.d + shift)), w: q.w });
       // how high they stand to press a build-up is read off the two default shapes: the full press, and the block they drop into; mid is between
       if (p.group !== 'GK') { const hi = FM.defaultPhasePos(team, p, 'press'), lo = FM.defaultPhasePos(team, p, 'without'), f = { high: 1, mid: 0.55, low: 0 }[kind]; FM.setPhasePos(team, p, 'press', { d: Math.max(.05, Math.min(.92, lo.d + (hi.d - lo.d) * f)), w: hi.w }); }
     });

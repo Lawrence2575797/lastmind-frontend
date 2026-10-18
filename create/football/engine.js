@@ -771,6 +771,9 @@
       if (cap != null) d = Math.min(d, Math.max(.2, cap));
     }
 
+    // Without the ball a centre-back never goes past the halfway line, however high the press: the other side cannot be offside in their own half, so a
+    // line that high is a long ball over the top and a man in on goal. (A full-back and the holding midfielder are held back a little less firmly.)
+    if (!hasBall && player.group !== 'GK') { const lim = ({ CB: FM.CB_LIMIT == null ? 0.46 : FM.CB_LIMIT, FB: 0.56, DM: 0.64 })[player.group]; if (lim != null) d = Math.min(d, lim); }
     if (player.group === 'GK') d = clamp(d, 0.02, 0.2);
     d = clamp(d, 0.02, 0.97);
     w = clamp(w, 0.04, 0.96);
