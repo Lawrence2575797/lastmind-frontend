@@ -747,10 +747,9 @@
       if (next) next.addEventListener('click', () => { if (hooks && hooks.applied) hooks.applied(ph); });
       const how = q('#scnHow');
       if (how) how.addEventListener('click', () => FM.scenarioDemo());
-      const start = q('#scnStart');
-      if (start) start.addEventListener('click', () => {
-        S.started = true;
-        S.start = S.own.map((o) => ({ x: o.x, y: o.y }));
+      // Where the shirts are is where the team plays this phase: it is written into the plan as soon as a shirt is placed, started or not, so the match, the tests
+      // and 'Update plan' all use it.
+      const persistPlacement = () => {
         if (S.attack) {
           // where the shirts are before starting is where the team plays this phase: in this scenario, in the match and in the tests
           const key = phaseKey(phase), put = {};
@@ -768,6 +767,20 @@
           const u0 = S.eng.u; u0.scenarioEnd = u0.scenarioEnd || {};
           later.forEach((k) => { u0.phasePos[k] = Object.assign({}, ahead[k]); u0.scenarioEnd[k] = Object.assign({}, ahead[k]); });
           if (hooks && hooks.save) hooks.save();
+        } else {
+          const put2 = {}; S.own.forEach((o) => { put2[o.p.index] = { d: clamp(o.y / L, 0.03, 0.97), w: clamp(o.x / W, 0.04, 0.96) }; });
+          const k2 = ph.end === 'press' ? 'press' : 'without';
+          [team, S.eng.u].forEach((t) => { t.phasePos = t.phasePos || {}; t.phasePos[k2] = Object.assign({}, put2); });
+          if (FM.inferShapeTactics) FM.inferShapeTactics(team);
+          if (hooks && hooks.save) hooks.save();
+        }
+      };
+      const start = q('#scnStart');
+      if (start) start.addEventListener('click', () => {
+        S.started = true;
+        S.start = S.own.map((o) => ({ x: o.x, y: o.y }));
+        if (S.attack) {
+          persistPlacement();
           armEngine(S);
         } else S.own.forEach((o, i) => { const p = S.eng.u.players[i]; if (p) { p.x = o.y; p.y = o.x; p.vx = 0; p.vy = 0; } });   // the team defends from where it was placed
         S.say = S.defending ? 'They have the ball. Set your team.' : 'You have the ball. Your move.';
@@ -793,7 +806,7 @@
           if (S.holder === d0) S.ball = { x: p.x + 0.8, y: p.y + 0.6 };
           redraw();
         });
-        svg0.addEventListener('pointerup', () => { d0 = null; });
+        svg0.addEventListener('pointerup', () => { const moved = d0 != null; d0 = null; if (moved) persistPlacement(); });
         return;
       }
       const reset = q('#scnReset');
