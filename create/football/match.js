@@ -818,6 +818,13 @@
     let pool = options;
     if (match.forcePass || carrier.group === 'GK') { const only = options.filter((o) => o.kind === 'pass' && o.d < 40); if (only.length) pool = only; }   // a goalkeeper plays it: he does not dribble out with it
     if (carrier.group === 'GK' && nearNow < 6 && directness >= 0.45) { const longs = options.filter((o) => o.kind === 'pass' && o.d >= 26); if (longs.length) pool = longs; }
+    // A goalkeeper never gives the ball away in front of his own goal: he plays only a pass that is very likely to arrive (a free team-mate, a clear lane),
+    // and with none of those he kicks it long, well away from goal, rather than rolling it to a man a striker is about to close down.
+    if (carrier.group === 'GK' && !match.forcePass) {
+      const safe = options.filter((o) => o.kind === 'pass' && o.d < 40 && o.p >= (FM.GK_SAFE_P == null ? 0.88 : FM.GK_SAFE_P) && o.press >= 6 && o.lane >= 3);
+      if (safe.length) pool = safe;
+      else { const kicks = options.filter((o) => o.kind === 'pass' && o.d >= 30 && (o.tx - carrier.x) * team.attackDir > 20); if (kicks.length) pool = kicks; }
+    }
     if (FM.debugChoose) FM.debugChoose(carrier, options, pool, directness, risk, { through, ownDepth0, throughDef });
     const maxScore = Math.max.apply(null, pool.map((o) => o.score));
     const weights = pool.map((o) => Math.exp((o.score - maxScore) / temp));
@@ -880,7 +887,9 @@
     const rng = match.rng;
     const st = statsOf(match, team);
     st.passes++;
-    const ok = rng() < opt.p;
+    // a goalkeeper's short pass is the most rehearsed pass in the game: half as likely to go wrong as the same pass from anyone else
+    const pEff = carrier.group === 'GK' && opt.d < 35 ? 1 - (1 - opt.p) * 0.5 : opt.p;
+    const ok = rng() < pEff;
     // Metres per simulated second. A routine ground pass should be readable
     // on the pitch rather than flashing between players; only long, firmly
     // struck passes approach the top of this range.
@@ -1805,6 +1814,7 @@
       // Tackles from defenders who are close enough.
       for (const d of opp.players) {
         if (d.group === 'GK') continue;
+        if (c.player.group === 'GK') continue;   // a goalkeeper with the ball is not tackled: he has it in his hands or is protected by the referee, and the ball is cleared from him
         if (dist(d, c.player) > 1.8) continue;
         if (!FM.TACKLE_ANY && (d.x - c.player.x) * team.attackDir < -0.6 && c.player.vx * team.attackDir > 1.5) continue;   // beaten: a defender chasing a man who is running on cannot tackle him from behind
         const rate = .65 * (opp.tacticalFactor || 1) * (0.05 + 0.08 * opp.tactics.pressing + (d.roleId === 'ball_winning_midfielder' ? 0.06 : 0)) * (0.6 + 0.8 * opp.tactics.tackleAggression) * ((FM.CLOSE_TACKLE == null ? 1 : FM.CLOSE_TACKLE) > 1 && dist(c.player, { x: opp.attackDir === 1 ? 0 : L, y: W / 2 }) < 24 ? (FM.CLOSE_TACKLE == null ? 1 : FM.CLOSE_TACKLE) : 1) * (1 + 0.35 * (FM.instrMods(d).tackle + FM.rulesDelta(opp, d, 'tackle', match.ball, false)));
