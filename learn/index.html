@@ -1023,6 +1023,16 @@
         font-weight: 700;
     }
     .km-note-diagram-svg { width: 100%; height: auto; display: block; }
+    /* A diagram in a note opens large in the middle of the page when it is clicked, and closes again with the button, Esc or a click outside. */
+    .km-note-visual { cursor: zoom-in; }
+    .km-note-zoom { position: fixed; inset: 0; z-index: 10050; display: flex; align-items: center; justify-content: center; padding: 14px; background: rgba(10, 10, 12, 0.78); }
+    .km-note-zoom-panel { position: relative; box-sizing: border-box; width: min(96vw, 1100px); max-height: 94vh; overflow: auto; background: var(--bg, #1A1A1C); border: 1px solid rgba(230, 215, 176, 0.3); border-radius: 10px; padding: 16px 18px 18px; box-shadow: 0 18px 60px rgba(0, 0, 0, 0.6); cursor: default; }
+    .km-note-zoom-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+    .km-note-zoom-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; opacity: 0.6; }
+    .km-note-zoom-close { font-size: 13px; padding: 6px 14px; cursor: pointer; }
+    .km-note-zoom-body svg, .km-note-zoom-body img { width: 100%; max-width: 100%; height: auto; display: block; }
+    .km-note-zoom-body .km-note-diagram-caption { font-size: 13px; opacity: 0.85; margin-top: 10px; }
+    .km-note-zoom-body .km-note-visual-label { display: none; }
     .km-note-diagram-caption { font-size: 11px; line-height: 1.5; opacity: 0.75; margin-top: 6px; }
 
     /* Five-step progress ramp (see masteryProgressTier in
@@ -37077,6 +37087,41 @@ SQIDAQAB
     })();
 </script>
 
+    <script>
+    // Clicking the diagram of a note opens it large in the middle of the page. It closes with the Close button, Esc, or a click outside it.
+    (function () {
+        let overlay = null, opener = null;
+        function close() {
+            if (!overlay) return;
+            overlay.remove(); overlay = null;
+            document.removeEventListener('keydown', onKey, true);
+            if (opener && opener.focus) { try { opener.focus({ preventScroll: true }); } catch (e) { /* fine */ } }
+            opener = null;
+        }
+        function onKey(e) { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); } }
+        function open(visual) {
+            close();
+            opener = visual;
+            const label = visual.querySelector('.km-note-visual-label');
+            overlay = document.createElement('div');
+            overlay.className = 'km-note-zoom';
+            overlay.innerHTML = '<div class="km-note-zoom-panel" role="dialog" aria-modal="true" aria-label="Diagram, enlarged"><div class="km-note-zoom-bar"><span class="km-note-zoom-title"></span><button type="button" class="km-note-zoom-close" aria-label="Close the enlarged diagram">Close</button></div><div class="km-note-zoom-body"></div></div>';
+            overlay.querySelector('.km-note-zoom-title').textContent = (label && label.textContent.trim()) || 'Diagram';
+            const body = overlay.querySelector('.km-note-zoom-body');
+            Array.prototype.forEach.call(visual.children, (child) => { if (!child.classList.contains('km-note-visual-label')) body.appendChild(child.cloneNode(true)); });
+            overlay.addEventListener('click', (e) => { if (e.target === overlay || e.target.closest('.km-note-zoom-close')) close(); });
+            document.body.appendChild(overlay);
+            document.addEventListener('keydown', onKey, true);
+            const btn = overlay.querySelector('.km-note-zoom-close'); if (btn) btn.focus({ preventScroll: true });
+        }
+        document.addEventListener('click', (e) => {
+            const v = e.target.closest && e.target.closest('.km-note-visual');
+            if (!v || v.closest('.km-note-zoom') || e.target.closest('button, a, input, textarea, select')) return;
+            if (!v.querySelector('svg, img')) return;
+            open(v);
+        });
+    })();
+    </script>
     <script src="/create/law-career/career-base.js?v=20261006a"></script>
     <script src="/cortex/pricing.js?v=20260916-checkout3"></script>
     <script>
