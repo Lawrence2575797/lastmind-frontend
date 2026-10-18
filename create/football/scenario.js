@@ -332,7 +332,10 @@
     const add = (scope, effects, text) => { const r = FM.rulesClean({ scope, when: { stage: [ph.stage] }, effects, source: 'scenario', text }, team.players.map((p) => p.number)); if (r) { team.rules.push(r); } };
     const T = { kind: 'team' };
     if (ex.passes >= 2) {
-      add(T, [{ type: 'passLength', pref: ex.meanLen < 15 ? 'short' : 'long', strength: ex.meanLen < 15 ? clamp((15 - ex.meanLen) / 10 + 0.4, 0.4, 0.9) : clamp((ex.meanLen - 15) / 15 + 0.4, 0.4, 0.9) }]);
+      // A preference for short or long passes is only written when what was shown really leaned one way: an ordinary mix of passes (around 12 to 24 m
+      // on average) says nothing, so it adds no instruction.
+      if (ex.meanLen < 12) add(T, [{ type: 'passLength', pref: 'short', strength: clamp((12 - ex.meanLen) / 8 + 0.4, 0.4, 0.9) }]);
+      else if (ex.meanLen > 24) add(T, [{ type: 'passLength', pref: 'long', strength: clamp((ex.meanLen - 24) / 12 + 0.4, 0.4, 0.9) }]);
       if (ex.centreShare >= 0.6) add(T, [{ type: 'passTarget', to: { side: 'centre' }, weight: 0.7 }]);
       else if (ex.wideShare >= 0.5) add(T, [{ type: 'passTarget', to: { side: 'wide' }, weight: 0.7 }]);
       if (ex.aerialShare >= 0.3) add(T, [{ type: 'passDirection', dir: 'forward', weight: 0.5 }]);
