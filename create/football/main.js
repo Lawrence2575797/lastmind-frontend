@@ -734,7 +734,10 @@
       // The plan picked for this game is already in place when preparing the next one: the pages, positions and settings start from it
       { const lg = world.league, plan = (lg.tacticalPlans || []).find((p) => p.id === lg.activePlanId), tm = FM.teamById(lg, lg.userId); const changed = tm && world.startSig != null && shapeSig(tm) !== world.startSig; world.startSig = null;
         // positions the manager changed during the match are the shape that was played: the next preparation starts from them, for every phase. Only if nothing was changed does the picked plan go back in.
-        if (plan && tm && !changed) restorePlan(tm, plan); world.scn = {}; }
+        // what was dragged during the match belonged to that match only: the team goes back to the plan it kicked off with
+        if (tm && world.matchSnap) { const sn = world.matchSnap; tm.phasePos = JSON.parse(JSON.stringify(sn.phasePos)); tm.shape = JSON.parse(JSON.stringify(sn.shape)); tm.phaseBall = JSON.parse(JSON.stringify(sn.phaseBall)); tm.tactics = Object.assign(FM.defaultTactics(), JSON.parse(JSON.stringify(sn.tactics))); world.matchSnap = null; if (FM.inferShapeTactics) FM.inferShapeTactics(tm); }
+        else if (plan && tm && !changed) restorePlan(tm, plan);
+        world.scn = {}; }
       // The instructions stay for the next game, to be changed in the same preparation as everything else. One that was written for a single game
       // is kept too, as an ordinary instruction that now applies whoever the opposition are.
       { const mine = FM.teamById(world.league, world.league.userId); if (mine && mine.rules) mine.rules.forEach((r) => { delete r.game; }); }
@@ -773,6 +776,7 @@
     world.fixture = fx;
     world.match = FM.startFixture(world.league, fx, { interactive: true });
     world.startSig = shapeSig(FM.teamById(world.league, world.league.userId));
+    { const t0 = FM.teamById(world.league, world.league.userId); world.matchSnap = JSON.parse(JSON.stringify({ phasePos: t0.phasePos || {}, shape: t0.shape || {}, phaseBall: t0.phaseBall || {}, tactics: t0.tactics })); world.liveMoved = {}; }
     world.renderPos.clear(); world.renderBall = null;
     world.hl = null; world.hlScanned = null; world.hlWait = null; world.running = true; world.speed = 1; world.highlightsOnly = false; world.highlightUntil = 0; world.highlightSearching = false; world.highlightRevealFrom = 0; world.shownEvents = 0; world.lastStats = ''; world.trails = []; world.impacts = []; world.vt = 0; world.commentaryUntil = 0; world.commentaryTurns = {};
     say('The teams are ready. The match is about to begin.', '', 2.5);
@@ -1654,7 +1658,8 @@
       }
       saveSoon(); renderTactics(); renderPrepFlow();
     }));
-    if (inMatch) renderBoardTab(team, world.tab);
+    clearInterval(world.liveTimer);
+    if (inMatch) (['build', 'midfield', 'final', 'organised'].indexOf(world.tab) >= 0 ? renderLiveBoard(team, world.tab) : renderBoardTab(team, world.tab));
     else if (world.testing) renderTestPhase(team, world.tab);
     else if (world.tab === 'setpieces') renderSetPieces(team);
     else if (world.tab === 'transdef' || world.tab === 'transatt') renderTransitionTab(team, world.tab);
@@ -2197,6 +2202,66 @@
   }
   const clamp01 = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
+  // ---------- the live positioning boards, in a match ----------
+  // The phase pages during a match show the pitch as it is right now: the opposition's shirts where they stand, and ours where our players stand. Only our own
+  // shirts can be dragged, and where one is put changes how that player positions and moves for the rest of this game. It is not part of the plan:
+  // when the match ends the plan comes back as it was before kick-off.
+  function liveBoardSvg(team, opp, key) {
+    const W = 68, L = 105, moved = (world.liveMoved && world.liveMoved[key]) || {};
+    const toXY = (d, w) => ({ x: w * W, y: (1 - d) * L });
+    const lines = `<rect x="0" y="0" width="${W}" height="${L}" fill="none" stroke="#fff" stroke-width=".35"/><line x1="0" y1="${L / 2}" x2="${W}" y2="${L / 2}" stroke="#fff" stroke-width=".35"/><circle cx="${W / 2}" cy="${L / 2}" r="9.15" fill="none" stroke="#fff" stroke-width=".35"/>`
+      + [0, 1].map((top) => { const y0 = top ? 0 : L; const dir = top ? 1 : -1; return `<rect x="${(W - 40.3) / 2}" y="${top ? 0 : L - 16.5}" width="40.3" height="16.5" fill="none" stroke="#fff" stroke-width=".35"/><rect x="${(W - 18.3) / 2}" y="${top ? 0 : L - 5.5}" width="18.3" height="5.5" fill="none" stroke="#fff" stroke-width=".35"/><rect x="${(W - 7.3) / 2}" y="${y0 + (top ? -1.6 : 0)}" width="7.3" height="1.6" fill="none" stroke="#fff" stroke-width=".3"/>`; }).join('');
+    const theirs = opp ? opp.players.map((q) => { const t = FM.toTeamSpace(team.attackDir, q.x, q.y), c = toXY(t.d, t.w); return `<g pointer-events="none"><circle cx="${c.x.toFixed(2)}" cy="${c.y.toFixed(2)}" r="2.1" fill="#7fb3e0" stroke="#0e2a44" stroke-width=".35"/><text x="${c.x.toFixed(2)}" y="${(c.y + .85).toFixed(2)}" text-anchor="middle" font-size="2.4" font-weight="700" fill="#06182a">${q.number}</text></g>`; }).join('') : '';
+    const ours = team.players.map((p) => {
+      const pos = moved[p.index] ? FM.phasePos(team, p, key) : FM.toTeamSpace(team.attackDir, p.x, p.y), c = toXY(clamp01(pos.d, 0, 1), clamp01(pos.w, 0, 1));
+      const nm = esc((p.name || '').split(' ').slice(-1)[0]);
+      return `<g data-live="${p.index}" style="cursor:grab"><circle cx="${c.x.toFixed(2)}" cy="${c.y.toFixed(2)}" r="3.6" fill="transparent"/><circle cx="${c.x.toFixed(2)}" cy="${c.y.toFixed(2)}" r="2.3" fill="${moved[p.index] ? '#f4edda' : '#fff'}" stroke="${moved[p.index] ? '#e0a82e' : '#1f8a4c'}" stroke-width=".5"/><text x="${c.x.toFixed(2)}" y="${(c.y + .9).toFixed(2)}" text-anchor="middle" font-size="2.5" font-weight="700" fill="#14653a" pointer-events="none">${p.number}</text><text x="${c.x.toFixed(2)}" y="${(c.y + 5).toFixed(2)}" text-anchor="middle" font-size="2.2" fill="#fff" stroke="#000" stroke-width=".5" style="paint-order:stroke" pointer-events="none">${nm}</text></g>`;
+    }).join('');
+    return `<svg id="liveSvg" viewBox="-2 -2 ${W + 4} ${L + 4}" style="width:100%;max-width:560px;display:block;border-radius:10px;background:#2c7d40;touch-action:none">${lines}${theirs}${ours}</svg>`;
+  }
+  function renderLiveBoard(team, tab) {
+    const host = el('tabBody'), m = world.match, opp = m ? (m.home === team ? m.away : m.home) : null;
+    const def = tab === 'organised', key = def ? (world.defSubM === 'organised' ? 'without' : 'press') : tab;
+    world.liveMoved = world.liveMoved || {}; world.liveMoved[key] = world.liveMoved[key] || {};
+    const title = def ? (key === 'press' ? 'Pressing their build-up' : 'Defending your third') : ({ build: 'Build-up', midfield: 'Through midfield', final: 'Final third' })[tab];
+    host.innerHTML = `<div class="tb-grid"><aside class="tb-controls">
+        ${def ? '<div class="block-presets"><b>Defensive block</b><button data-block="low">Low block</button><button data-block="mid">Mid block</button><button data-block="high">High press</button></div>' : ''}
+        <p class="note">The shirts are where the players are right now, with the opposition beside them. Drag one of yours and he plays from there for the rest of this match. This does not change your plan for the next game.</p>
+        <div class="row"><button type="button" id="liveReset">Let them move as they were</button></div>
+      </aside><div class="tb-left">
+        ${def ? '<div class="def-sub" role="tablist"><button data-msub="press" class="' + (key === 'press' ? 'on' : '') + '">Pressing their build-up</button><button data-msub="organised" class="' + (key === 'without' ? 'on' : '') + '">Defending your third</button></div>' : ''}
+        <h2>${title}</h2><div id="liveHost"></div></div></div>`;
+    const lh = host.querySelector('#liveHost'); let drag = null;
+    const draw = () => { lh.innerHTML = liveBoardSvg(team, opp, key); };
+    draw();
+    const toPos = (svg, ev) => { const r = svg.getBoundingClientRect(), W = 68, L = 105, vx = -2 + (ev.clientX - r.left) / r.width * (W + 4), vy = -2 + (ev.clientY - r.top) / r.height * (L + 4); return { d: clamp01(1 - vy / L, 0.02, 0.98), w: clamp01(vx / W, 0.03, 0.97) }; };
+    lh.addEventListener('pointerdown', (ev) => {
+      const g = ev.target.closest && ev.target.closest('[data-live]'); if (!g) return;
+      const svg = lh.querySelector('svg'); try { svg.setPointerCapture(ev.pointerId); } catch (e) { /* fine */ }
+      drag = { index: +g.dataset.live }; ev.preventDefault();
+    });
+    lh.addEventListener('pointermove', (ev) => {
+      if (!drag) return;
+      const p = team.players.find((q) => q.index === drag.index); if (!p) return;
+      const pos = toPos(lh.querySelector('svg'), ev);
+      FM.setPhasePos(team, p, key, pos); world.liveMoved[key][p.index] = true; draw();
+    });
+    lh.addEventListener('pointerup', () => { if (drag) { drag = null; try { FM.inferShapeTactics(team); } catch (e) { /* fine */ } } });
+    host.querySelectorAll('[data-block]').forEach((b) => b.addEventListener('click', () => { applyBlock(team, b.dataset.block); world.liveMoved = {}; renderTactics(); }));
+    host.querySelectorAll('[data-msub]').forEach((b) => b.addEventListener('click', () => { world.defSubM = b.dataset.msub; renderTactics(); }));
+    host.querySelector('#liveReset').addEventListener('click', () => {
+      // put the shirts of this page back to how the plan had them for this game, and let them follow play again
+      const snap = world.matchSnap;
+      if (snap && snap.phasePos && snap.phasePos[key]) team.phasePos[key] = JSON.parse(JSON.stringify(snap.phasePos[key])); else if (team.phasePos) delete team.phasePos[key];
+      world.liveMoved[key] = {}; renderTactics();
+    });
+    // the shirts follow the play until one is dragged
+    clearInterval(world.liveTimer);
+    world.liveTimer = setInterval(() => {
+      if (!lh.isConnected || world.view !== 'match' || world.tab !== tab) { clearInterval(world.liveTimer); return; }
+      if (!drag) draw();
+    }, 400);
+  }
   function renderBoardTab(team, tab) {
     // In a match, Defending is the same two pages as in the preparation (pressing their build-up, and defending your third), each just the positions.
     const inDef = world.view === 'match' && tab === 'organised', defKey = inDef ? (world.defSubM === 'organised' ? 'without' : 'press') : null;
