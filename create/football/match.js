@@ -823,7 +823,7 @@
     if (carrier.group === 'GK' && !match.forcePass) {
       const safe = options.filter((o) => o.kind === 'pass' && o.d < 40 && o.p >= (FM.GK_SAFE_P == null ? 0.88 : FM.GK_SAFE_P) && o.press >= 6 && o.lane >= 3);
       if (safe.length) pool = safe;
-      else { const kicks = options.filter((o) => o.kind === 'pass' && o.d >= 30 && (o.tx - carrier.x) * team.attackDir > 20); if (kicks.length) pool = kicks; }
+      else { const kicks = options.filter((o) => o.kind === 'pass' && o.d >= 30 && (o.tx - carrier.x) * team.attackDir > 20); if (kicks.length) pool = kicks.sort((x, y) => y.p - x.p).slice(0, 2); }   // the two likeliest to find someone: he hits the best target, he does not gamble
     }
     if (FM.debugChoose) FM.debugChoose(carrier, options, pool, directness, risk, { through, ownDepth0, throughDef });
     const maxScore = Math.max.apply(null, pool.map((o) => o.score));
