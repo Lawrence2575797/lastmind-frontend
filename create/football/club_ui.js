@@ -9,7 +9,7 @@
 
   // ---------- how the club talks to its manager ----------
   // The manager is addressed in a few different ways, and it changes from day to day rather than repeating one word.
-  const ADDR = ['Gaffer', 'Manager', 'Chief'];
+  const ADDR = ['Gaffer', 'Boss', 'Manager'];
   const addr = (lg, salt) => ADDR[FM.hashString([lg.seed, lg.season || 1, lg.day || 0, salt].join(':')) % ADDR.length];
   // Four pages instead of seven: what is happening, tickets and the ground, finance and deals, and the books.
   const TAB_OF = { overview: 'home', report: 'home', home: 'home', matchday: 'ground', stadium: 'ground', ground: 'ground', finance: 'funding', commercial: 'funding', funding: 'funding', books: 'books' };
