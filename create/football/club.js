@@ -35,7 +35,7 @@
     ['Cobalt Cloud Services', 'software'], ['Greywell Brewery', 'brewing'], ['Ashmoor Plumbing', 'plumbing'],
   ];
   const BOARDS = 8;
-  const AWAY_SHARE = 0.15;   // the visiting club's share of the gate at the other ground
+  const AWAY_SHARE = 0.2;   // the visiting club's share of the gate at the other ground
   const LOAN_OPTIONS = [{ term: 14, rate: 0.06 }, { term: 28, rate: 0.075 }, { term: 42, rate: 0.09 }];   // terms in matchdays; rates are per season
   const OVERDRAFT = { limit: 500000, rate: 0.14, penalty: 0.3 };
   const TAX = 0.25;
@@ -45,7 +45,8 @@
   const MERCH_COST = 0.55, SPEND_PER_HEAD = 5.5, RUN_PER_HEAD = 2.4, RUN_FIXED = 14000, ADMIN = 100000, BROADCAST = { 1: 64000, 2: 38000 };
   const EXPECTED_DIVIDEND = 0.2;   // the share of profit the shareholders hope to see paid out
   // Prize money, paid at the end of the season by where the club finished: first place down to eighth, in the top division and the second.
-  const PRIZE = { 1: [1200000, 900000, 700000, 550000, 420000, 320000, 240000, 180000], 2: [480000, 360000, 280000, 220000, 170000, 130000, 100000, 75000] };
+  // Scaled to what good players cost: a star is £20m or more, so a title is worth about one top player, and finishing last still pays a squad player's fee.
+  const PRIZE = { 1: [8000000, 6000000, 4600000, 3600000, 2800000, 2100000, 1600000, 1200000], 2: [3200000, 2400000, 1900000, 1500000, 1150000, 850000, 650000, 500000] };
 
   // ---------- formatting ----------
   const gbp = (n) => { const v = Math.round(n); return v < 0 ? '(£' + Math.abs(v).toLocaleString('en-GB') + ')' : '£' + v.toLocaleString('en-GB'); };
