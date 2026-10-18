@@ -83,7 +83,9 @@
     } else if (rs.tab === 'shortlist') {
       body = shortlist.length ? `<div class="tablewrap rc-table"><table class="data">${head}<tbody>${shortlist.map((p) => rowHtml({ p, tm: FM.clubOf(league, p) })).join('')}</tbody></table></div>` : '<p class="note">Nobody on your shortlist yet. Declaring interest in a player, or approaching his club, adds him here.</p>';
     } else {
-      const offerHtml = openOffers.map((o) => {
+      // after a promotion or relegation some of the clubs named in old offers and moves are in the other division now: they are named all the same
+      const tname = (id) => { const x = FM.teamById(league, id) || (((league.otherLeague || {}).teams) || []).find((y) => y.id === id); return x ? x.name : 'another club'; };
+      const offerHtml = openOffers.filter((o) => FM.teamById(league, o.from)).map((o) => {
         const p = FM.findPlayer(league, o.pid), buyer = FM.teamById(league, o.from);
         return `<div class="rc-offer"><div><b>${esc(buyer.name)}</b> offer <b>${FM.money(o.fee)}</b> for <b>${esc(p.name)}</b> <small>(${p.natural}, ${FM.ageOf(p)}, ability ${FM.abilityOf(p)}, potential ${FM.potentialOf(p)}; worth about ${FM.money(FM.valueOf(p))})</small>${o.status === 'countered' ? ' ' + chip('They raised their offer', 'st-counter') : ''}</div>
           <div class="rc-offer-actions"><button type="button" class="primary" data-offer="accept" data-id="${o.id}">Accept ${FM.money(o.fee)}</button><button type="button" data-offer="reject" data-id="${o.id}">Reject</button>
@@ -94,7 +96,7 @@
       const moves = t.moves.slice(-12).reverse();
       body = `${rs.offerNote ? `<div class="rc-notice ${rs.offerNote.kind}" role="status">${esc(rs.offerNote.text)}</div>` : ''}<h3>Offers for your players</h3>${offerHtml || '<p class="note">No offers at the moment. Other clubs make their moves after each round.</p>'}
         <h3>Deals in progress</h3>${active.length ? active.map((d) => { const p = FM.findPlayer(league, d.pid); return p ? `<div class="rc-offer"><div><b>${esc(p.name)}</b> ${chip(STAGE_TEXT[d.stage], 'st-' + d.stage)}${d.fee ? ' fee ' + FM.money(d.fee) : ''}</div><div class="rc-offer-actions"><button type="button" data-open="${esc(p.id)}">Open</button></div></div>` : ''; }).join('') : '<p class="note">No deals in progress.</p>'}
-        <h3>Recent moves in the league</h3>${moves.length ? `<ul class="rc-moves">${moves.map((m) => `<li><b>${esc(m.name)}</b>: ${esc(FM.teamById(league, m.from).name)} to ${esc(FM.teamById(league, m.to).name)}, ${FM.money(m.fee)}</li>`).join('')}</ul>` : '<p class="note">No transfers yet.</p>'}`;
+        <h3>Recent moves in the league</h3>${moves.length ? `<ul class="rc-moves">${moves.map((m) => `<li><b>${esc(m.name)}</b>: ${esc(tname(m.from))} to ${esc(tname(m.to))}, ${FM.money(m.fee)}</li>`).join('')}</ul>` : '<p class="note">No transfers yet.</p>'}`;
     }
 
     host.innerHTML = `<div class="rc-wrap"><div class="card rc-main"><div class="row" style="justify-content:space-between;align-items:baseline"><h2>Recruitment</h2>

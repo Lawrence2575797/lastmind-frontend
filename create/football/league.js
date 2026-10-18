@@ -688,7 +688,7 @@
     league.boardApproval = Math.max(0, Math.min(100, (Number.isFinite(league.boardApproval) ? league.boardApproval : 50) + (promoted.indexOf(league.userId) >= 0 ? 6 : relegated.indexOf(league.userId) >= 0 ? -8 : 0)));
     const tr = FM.transfer ? FM.transfer(league) : league.transfer;
     if (tr) {
-      tr.deals = {}; tr.offers = []; tr.shortlist = []; tr.opening = false;
+      tr.deals = {}; tr.offers = []; tr.shortlist = []; tr.ai = {}; tr.listed = tr.listed || {}; tr.opening = false;
       const me = FM.teamById(league, league.userId), bill = me.squad.reduce((a, p) => a + (FM.wageOf ? FM.wageOf(p) : 0), 0);
       activeTeams.forEach((t) => {
         const wages = t.squad.reduce((a, p) => a + (FM.wageOf ? FM.wageOf(p) : 0), 0);

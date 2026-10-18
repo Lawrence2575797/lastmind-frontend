@@ -2402,6 +2402,20 @@
       <p class="note">This season: ${st.apps} appearance${st.apps === 1 ? '' : 's'}, ${st.goals} goal${st.goals === 1 ? '' : 's'}, ${st.shots} shot${st.shots === 1 ? '' : 's'}, ${st.yellows} yellow card${st.yellows === 1 ? '' : 's'}, ${st.reds} red.</p>`;
   }
 
+  // Put a player on the transfer list (or take him off): after the next game a club makes an offer for him, which turns up in Recruitment.
+  function transferListHtml(p) {
+    if (DEMO_MODE || !FM.isListed || (world.league && world.league.mp)) return '';
+    const on = FM.isListed(world.league, p);
+    return `<div class="row" style="flex-wrap:wrap;align-items:center;gap:8px"><button type="button" id="listBtn" class="${on ? '' : 'primary'}">${on ? 'Take him off the transfer list' : 'Add him to the transfer list'}</button><span class="note" id="listNote">${on ? 'He is on the transfer list. Clubs will make offers after your games; they appear under Offers and deals in Recruitment.' : 'A club will make an offer for him after your next game.'}</span></div>`;
+  }
+  function wireTransferList(host, p) {
+    const btn = host.querySelector('#listBtn'); if (!btn) return;
+    btn.addEventListener('click', () => {
+      const on = FM.isListed(world.league, p), r = FM.setListed(world.league, p, !on);
+      if (!r.ok) { host.querySelector('#listNote').textContent = r.text; return; }
+      saveSoon(); renderPlayerPanel(userTeam());
+    });
+  }
   function renderPlayerPanel(team) {
     const host = el('playerPanel');
     if (world.tab !== 'squad') { host.innerHTML = ''; return; }
@@ -2410,7 +2424,9 @@
       const b = world.selBench;
       host.innerHTML = `<h2 style="margin-bottom:8px">${esc(b.name)}, number ${b.number} (on the bench)</h2>
         <div style="display:grid;gap:10px">${profileHtml(b, null)}
+          ${transferListHtml(b)}
           <p class="note">${FM.isInjured(b) ? (b.injury && b.injury.suspended ? 'He is suspended and cannot be brought on.' : 'He is injured and cannot be brought on.') : 'To bring him on, click one of the shirts on the board, or drag him onto one. Click him again to deselect.'}</p></div>`;
+      wireTransferList(host, b);
       return;
     }
     const player = world.selSlot && team.players.includes(world.selSlot) ? world.selSlot : null;
@@ -2420,9 +2436,11 @@
       <div style="display:grid;gap:10px">
         ${profileHtml(player, player.slotKey)}
         <div class="row"><button id="resetPlayer">Reset his positions in every phase</button></div>
+        ${transferListHtml(player)}
         <label>Your notes on him (these do not change how he plays)<textarea id="playerNote" rows="2">${esc(player.note || '')}</textarea></label>
       </div>`;
     host.querySelector('#resetPlayer').addEventListener('click', () => { FM.clearPlayerPositions(team, player); saveSoon(); renderTactics(); });
+    wireTransferList(host, player);
     host.querySelector('#playerNote').addEventListener('input', (e) => { player.note = e.target.value; saveSoon(); });
   }
 

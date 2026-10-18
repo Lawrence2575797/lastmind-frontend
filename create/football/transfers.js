@@ -126,6 +126,15 @@
     return POS.filter((pos) => depth(team, pos) < needDepth(team, pos));
   };
   function isKeyPlayer(team, p) { const same = team.squad.filter((q) => q.natural === p.natural).sort((a, b) => FM.playerRating(b) - FM.playerRating(a)); return same[0] === p; }
+  // The transfer list: a player the manager has put up for sale. After the next game a club makes an offer for him, and after every later game there is a
+  // fair chance of another while he stays listed and has no offer open.
+  FM.isListed = (league, p) => !!(FM.transfer(league).listed && FM.transfer(league).listed[p.id]);
+  FM.setListed = function (league, p, on) {
+    const t = FM.transfer(league); t.listed = t.listed || {};
+    if (on) { if (!FM.canSell(FM.teamById(league, league.userId), p)) return { ok: false, text: 'The squad is too thin to let him go: there would not be enough players, or no other goalkeeper.' }; t.listed[p.id] = t.listed[p.id] || { round: userRounds(league), offered: false }; }
+    else delete t.listed[p.id];
+    return { ok: true };
+  };
   FM.canSell = function (team, p) {
     if (team.squad.length <= MIN_SQUAD) return false;
     if (p.natural === 'GK' && depth(team, 'GK') <= 1) return false;
@@ -226,7 +235,7 @@
     t.budget[to.id] = r1((t.budget[to.id] || 0) - fee); t.budget[from.id] = r1((t.budget[from.id] || 0) + fee);
     t.wageBudget[from.id] = r1((t.wageBudget[from.id] || 0) + 0); // wage room frees itself, as the bill drops
     delete t.hikes[p.id]; delete t.ai[p.id];
-    t.offers = t.offers.filter((o) => o.pid !== p.id);
+    t.offers = t.offers.filter((o) => o.pid !== p.id); if (t.listed) delete t.listed[p.id];
     t.moves.push({ pid: p.id, name: p.name, from: from.id, to: to.id, fee, day: league.day });
     if (FM.bizTransfer && (to.id === league.userId || from.id === league.userId)) FM.bizTransfer(league, p, from, to, fee, p.wage, years || 3);   // the club's books
     if (from.id !== league.userId) { topUp(league, from); autoPick(from); }
@@ -466,7 +475,7 @@
     // 1. talks that were open between other clubs end, one way or the other
     Object.keys(t.ai).forEach((pid) => {
       const d = t.ai[pid], p = FM.findPlayer(league, pid), buyer = FM.teamById(league, d.team), seller = p && FM.clubOf(league, p);
-      if (!p || !seller || seller.id !== d.from || buyer.id === seller.id) { delete t.ai[pid]; return; }
+      if (!p || !seller || !buyer || seller.id !== d.from || buyer.id === seller.id) { delete t.ai[pid]; return; }
       const price = r1(Math.max(d.fee, FM.askingPrice(league, p) * 0.97));
       const ok = (t.budget[buyer.id] || 0) >= price && FM.canSell(seller, p) && rng() > 0.2;
       if (ok) {
@@ -493,6 +502,26 @@
     // 3. offers for the manager's players only stay open for a couple of rounds
     t.offers.forEach((o) => { o.age = (o.age || 0) + 1; });
     t.offers = t.offers.filter((o) => (o.age || 0) <= 2);
+    // 3a. players on the transfer list: a club makes an offer for each after the next game
+    t.listed = t.listed || {};
+    Object.keys(t.listed).forEach((pid) => {
+      const p = FM.findPlayer(league, pid);
+      if (!p || FM.clubOf(league, p) !== me) { delete t.listed[pid]; return; }
+      if (t.offers.some((o) => o.pid === pid)) return;
+      const L = t.listed[pid];
+      if (L.offered && rng() > 0.5) return;
+      if (!FM.canSell(me, p)) return;
+      const price = FM.askingPrice(league, p);
+      const clubs = league.teams.filter((x) => x.id !== me.id).map((team) => ({ team, budget: t.budget[team.id] || 0, need: FM.clubNeeds(team).indexOf(p.natural) >= 0 })).filter((o) => o.budget >= price * 0.75);
+      if (!clubs.length) return;
+      let r = rng() * clubs.reduce((a, o) => a + (o.need ? 2 : 1) * (0.5 + rng()), 0);
+      let buyer = clubs[clubs.length - 1];
+      for (const o of clubs) { r -= (o.need ? 2 : 1) * (0.5 + rng()); if (r <= 0) { buyer = o; break; } }
+      const fee = r1(Math.max(0.2, Math.min(buyer.budget, price * (0.8 + rng() * 0.25))));
+      t.offers.push({ id: 'o' + (t.seq++), pid, from: buyer.team.id, fee, age: 0, status: 'open' });
+      offerStory(league, buyer.team, p, fee, false);
+      L.offered = true;
+    });
     // 3b. clubs keep coming for the manager's players all season, not only before the first game: most rounds bring a chance of a bid, from a
     // club and for a player drawn afresh each time
     if (round >= 1 && t.offers.length < 3 && rng() < (t.offers.length ? 0.4 : 0.65)) {
