@@ -4,7 +4,8 @@
 (function () {
   const FM = (window.FM = window.FM || {});
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  const st = { tab: 'overview', books: 'cash', neg: {}, trail: [] };
+  const st = { tab: 'overview', books: 'cash', neg: {}, trail: [], ok: null };
+  const okMsg = (title, text) => { st.ok = { title, text }; };
   const gbp = (n) => FM.gbp(n), num = (n) => Math.round(n).toLocaleString('en-GB');
   const cell = (n) => `<td class="n${n < 0 ? ' neg' : ''}">${n === 0 || n == null ? '–' : gbp(n)}</td>`;
   const pct = (a, b) => (b ? Math.round(1000 * a / b) / 10 + '%' : '–');
@@ -133,8 +134,9 @@
   FM.bizBindOffers = function (root, lg, after) {
     root.querySelectorAll('[data-oa]').forEach((btn) => btn.addEventListener('click', () => {
       const id = btn.dataset.id, act = btn.dataset.oa;
-      if (act === 'accept') { FM.bizOffer(lg, id, true); after(); }
-      else if (act === 'decline') { FM.bizOffer(lg, id, false); after(); }
+      const offer = FM.biz(lg).offers.find((x) => x.id === id);
+      if (act === 'accept') { FM.bizOffer(lg, id, true); if (offer) okMsg('Deal accepted.', `${offer.company} will pay ${gbp(offer.perRound)} every matchday for ${offer.rounds} matchdays, ${gbp(offer.perRound * offer.rounds)} in all, which is added to the club's income from the next matchday. The deal cannot be ended early, and the slot is no longer free for another company until it finishes.`); after(); }
+      else if (act === 'decline') { FM.bizOffer(lg, id, false); if (offer) okMsg('Offer turned down.', `${offer.company} has been told no. The slot stays free for another advertiser or sponsor, but the ${gbp(offer.perRound)} a matchday on offer is not coming in.`); after(); }
       else if (act === 'negotiate') { st.neg[id] = !st.neg[id]; const card = root.querySelector(`[data-offer-card="${id}"] .neg`); if (card) card.classList.toggle('open', !!st.neg[id]); }
       else if (act === 'counter') {
         const input = root.querySelector(`[data-ask="${id}"]`); st.neg[id] = true;
@@ -309,15 +311,15 @@
     const strip = `<div class="board-strip"><span>Cash<b${b0.cash < 0 ? ' class="neg"' : ''}>${gbp(b0.cash)}</b></span><span>Profit this season<b${yr0 < 0 ? ' class="neg"' : ''}>${gbp(yr0)}</b></span><span>Shareholder approval<b>${Math.round((ap0.financial + ap0.football) / 2)}%</b></span><span>Share price<b>£${ap0.share.toFixed(2)}</b></span></div>`;
     const back = st.trail.length ? `<button type="button" class="board-back" id="bzBack">← Back to ${esc(NAMES[st.trail[st.trail.length - 1].tab] || 'the board')}</button>` : '';
     const body = st.tab === 'report' ? report(lg) : st.tab === 'matchday' ? matchday(lg) : st.tab === 'stadium' ? stadium(lg) : st.tab === 'books' ? books(lg) : st.tab === 'finance' ? finance(lg) : st.tab === 'commercial' ? commercial(lg) : overview(lg);
-    host.innerHTML = `<div class="board-page">${strip}<div class="row board-tabs" role="tablist">${tabs.map(([k, l]) => `<button type="button" role="tab" data-tab="${k}" class="${st.tab === k ? 'on' : ''}">${l}</button>`).join('')}</div>${back}${body}</div>`;
+    host.innerHTML = `<div class="board-page">${strip}<div class="row board-tabs" role="tablist">${tabs.map(([k, l]) => `<button type="button" role="tab" data-tab="${k}" class="${st.tab === k ? 'on' : ''}">${l}</button>`).join('')}</div>${back}${st.ok ? `<p class="banner ok" role="status"><b>${esc(st.ok.title)}</b> ${esc(st.ok.text)}</p>` : ''}${body}</div>`;
     const redo = () => FM.renderBoard(host, lg, hooks);
-    host.querySelectorAll('[data-tab]').forEach((b) => b.addEventListener('click', () => { st.tab = b.dataset.tab; st.trail = []; st.msg = ''; redo(); }));
-    host.querySelectorAll('[data-btab]').forEach((b) => b.addEventListener('click', () => { st.tab = b.dataset.btab; st.trail = []; st.msg = ''; redo(); }));
+    host.querySelectorAll('[data-tab]').forEach((b) => b.addEventListener('click', () => { st.tab = b.dataset.tab; st.trail = []; st.msg = ''; st.ok = null; redo(); }));
+    host.querySelectorAll('[data-btab]').forEach((b) => b.addEventListener('click', () => { st.tab = b.dataset.btab; st.trail = []; st.msg = ''; st.ok = null; redo(); }));
     // shortcuts from the money report: they remember where they came from, so there is always a way back
     host.querySelectorAll('[data-short]').forEach((b) => b.addEventListener('click', () => {
       const [t, sub] = b.dataset.short.split(':');
       if (t === 'recruit') { go('recruit'); return; }
-      st.trail.push({ tab: st.tab, books: st.books }); st.tab = t; if (sub) st.books = sub; st.msg = ''; redo(); window.scrollTo(0, 0);
+      st.trail.push({ tab: st.tab, books: st.books }); st.tab = t; if (sub) st.books = sub; st.msg = ''; st.ok = null; redo(); window.scrollTo(0, 0);
     }));
     const bk = host.querySelector('#bzBack');
     if (bk) bk.addEventListener('click', () => { const prev = st.trail.pop(); if (prev) { st.tab = prev.tab; st.books = prev.books; } redo(); window.scrollTo(0, 0); });
@@ -329,8 +331,16 @@
       if (mk) mk.addEventListener('input', () => { FM.biz(lg).marketing = Math.max(0, Math.min(60000, Math.round(Number(mk.value) || 0))); save(); });
     }
     if (st.tab === 'stadium') {
-      host.querySelectorAll('[data-expand]').forEach((b) => b.addEventListener('click', () => { const r = FM.bizBuild.expand(lg, b.dataset.expand); st.msg = r.ok ? '' : r.text; save(); redo(); }));
-      host.querySelectorAll('[data-buy]').forEach((b) => b.addEventListener('click', () => { const r = FM.bizBuild.buy(lg, b.dataset.buy); st.msg = r.ok ? '' : r.text; save(); redo(); }));
+      host.querySelectorAll('[data-expand]').forEach((b) => b.addEventListener('click', () => {
+        const sg = FM.SEGMENTS.find((x) => x.id === b.dataset.expand), e = FM.EXPANSIONS[b.dataset.expand], cost = FM.bizBuild.standCost(b.dataset.expand), r = FM.bizBuild.expand(lg, b.dataset.expand);
+        st.msg = r.ok ? '' : r.text; st.ok = null;
+        if (r.ok) okMsg('Building started.', `${num(e.seats)} new seats are going up in the ${sg.name.toLowerCase()}. The ${gbp(cost)} has already left the bank, and the work takes ${FM.bizConst.BUILD_TIME} matchdays. When it opens the ground holds ${num(e.seats)} more, so there is more ticket income if the seats fill, and every extra seat adds a little to the upkeep each matchday. The cost sits on the balance sheet as part of the stadium and loses value over the years.`);
+        save(); redo(); }));
+      host.querySelectorAll('[data-buy]').forEach((b) => b.addEventListener('click', () => {
+        const f = FM.FACILITIES.find((x) => x.id === b.dataset.buy), r = FM.bizBuild.buy(lg, b.dataset.buy);
+        st.msg = r.ok ? '' : r.text; st.ok = null;
+        if (r.ok) okMsg(`${f.name} bought.`, `${gbp(f.cost)} has left the bank straight away, so there is less cash to spend on signings. It will cost ${gbp(f.upkeep)} every matchday to run. ${f.text} It is added to the stadium and facilities on the balance sheet, and loses some of its value each season.`);
+        save(); redo(); }));
     }
     if (st.tab === 'finance') {
       const info = () => {
@@ -342,10 +352,23 @@
         host.querySelector('#divInfo').textContent = yr > 0 ? `On this season's profit so far that would be ${gbp(yr * pol)}, ${(yr * pol / b2.shares.issued).toFixed(3)} pounds a share.` : 'There is no profit to share out yet.';
       };
       ['#loanAmt', '#loanTerm', '#shareAmt'].forEach((q) => host.querySelector(q).addEventListener('change', info));
-      host.querySelector('#divPolicy').addEventListener('change', () => { FM.bizSources.setDividend(lg, +host.querySelector('#divPolicy').value / 100); save(); info(); }); info();
-      host.querySelector('#loanGo').addEventListener('click', () => { FM.bizSources.takeLoan(lg, +host.querySelector('#loanAmt').value, +host.querySelector('#loanTerm').value); save(); redo(); });
-      host.querySelector('#shareGo').addEventListener('click', () => { FM.bizSources.issueShares(lg, +host.querySelector('#shareAmt').value); save(); redo(); });
-      host.querySelectorAll('[data-repay]').forEach((b) => b.addEventListener('click', () => { FM.bizSources.repayLoan(lg, b.dataset.repay); save(); redo(); }));
+      host.querySelector('#divPolicy').addEventListener('change', () => {
+        const v = +host.querySelector('#divPolicy').value; FM.bizSources.setDividend(lg, v / 100);
+        okMsg(`Dividend set to ${v}%.`, v === 0 ? 'No dividend will be paid, so every pound of profit stays in the club. The shareholders may be unhappy to get nothing, which lowers their approval of the finances.' : `At the end of the season ${v}% of the year's profit after tax will be paid to the shareholders, if the club has made a profit and has the cash. A bigger dividend pleases the shareholders and lifts their approval, but it leaves less money in the club for wages, signings and building.`);
+        save(); redo(); }); info();
+      host.querySelector('#loanGo').addEventListener('click', () => {
+        const a = +host.querySelector('#loanAmt').value, term = +host.querySelector('#loanTerm').value, o = FM.bizSources.loanOptions.find((x) => x.term === term);
+        FM.bizSources.takeLoan(lg, a, term);
+        okMsg('Loan taken.', `${gbp(a)} has been paid into the bank. The club must repay ${gbp(Math.round(a / term))} every matchday for ${term} matchdays, plus interest at ${Math.round(o.rate * 1000) / 10}% a year (about ${gbp(Math.round(a * o.rate * (term / 14) / 2))} in all), so the cash left after every matchday is lower until it is paid off. The loan is a liability on the balance sheet, and the shareholders watch how much the club owes.`);
+        save(); redo(); });
+      host.querySelector('#shareGo').addEventListener('click', () => {
+        const amt = +host.querySelector('#shareAmt').value, r = FM.bizSources.issueShares(lg, amt);
+        if (r && r.ok) okMsg('Shares issued.', `${gbp(amt)} has been raised from ${num(r.add)} new shares at £${r.price.toFixed(2)} each, and it is in the bank now. It never has to be repaid and carries no interest. But the club is now shared between more owners: the existing shareholders together own ${(100 * r.dilution).toFixed(1)}% less than before, each share is entitled to a smaller part of any dividend, and the shareholders' approval of the finances has fallen a little because they were diluted.`);
+        save(); redo(); });
+      host.querySelectorAll('[data-repay]').forEach((b) => b.addEventListener('click', () => {
+        const ln = FM.biz(lg).loans.find((x) => x.id === b.dataset.repay), owed = ln ? ln.balance : 0, r = FM.bizSources.repayLoan(lg, b.dataset.repay);
+        if (r && r.ok) okMsg('Loan repaid.', `${gbp(owed)} has gone from the bank and the loan is cleared. The interest on it stops and the matchday repayments end, so the club's costs fall, but there is less cash in hand than before.`);
+        save(); redo(); }));
     }
     if (st.tab === 'commercial') FM.bizBindOffers(host, lg, () => { save(); redo(); });
   };
