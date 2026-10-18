@@ -1398,6 +1398,21 @@
     .km-lesson-fullpage-body .km-note-visual-label { font-size: 11px; }
     .km-lesson-fullpage-body .km-note-example-text { font-size: 14px; line-height: 1.7; }
     .km-lesson-fullpage-body .km-note-comparison-col-label { font-size: 12.5px; }
+    /* On a phone the note's text and its diagram stack, one under the other, each the full width of the screen: the two-column layout (and the
+       sticky diagram) only suits a wide screen. The diagram scales to the width it is given, and a wide worked example scrolls inside its own box
+       instead of widening the page. */
+    @media (max-width: 760px) {
+        .km-note-columns, .km-lesson-fullpage-body .km-note-columns { grid-template-columns: minmax(0, 1fr); gap: 14px; }
+        .km-note-columns:not(.km-note-no-visual) .km-note-text, .km-lesson-fullpage-body .km-note-columns:not(.km-note-no-visual) .km-note-text {
+            border-right: 0; padding-right: 0; padding-bottom: 12px; border-bottom: 1px solid rgba(230, 215, 176, 0.16);
+        }
+        .km-note-text, .km-note-visual { min-width: 0; max-width: 100%; box-sizing: border-box; overflow-wrap: anywhere; }
+        .km-note-visual, .km-lesson-fullpage-body .km-note-visual { position: static; padding: 10px; overflow-x: auto; }
+        .km-note-diagram-svg, .km-note-visual svg, .km-note-visual img { width: 100%; max-width: 100%; height: auto; }
+        .km-note-comparison-grid { grid-template-columns: minmax(0, 1fr); }
+        .km-lesson-fullpage-body .km-note-text p { font-size: 15px; line-height: 1.75; }
+        .km-lesson-fullpage-body .km-note-question { font-size: 17px; }
+    }
     .km-lesson-fullpage-body .km-note-comparison-col li { font-size: 13px; line-height: 1.6; }
     .km-lesson-fullpage-body .km-note-worked-example-line { font-size: 14.5px; }
     .km-lesson-fullpage-body .km-inline-lesson-question { font-size: 15px; line-height: 1.8; padding: 18px 20px; margin-top: 10px; }
