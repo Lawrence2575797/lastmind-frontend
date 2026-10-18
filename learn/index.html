@@ -22879,7 +22879,8 @@ SQIDAQAB
                     }
                 }
             }
-            if (e.key === 'Enter' && e.shiftKey && !mod && !e.altKey) {
+            // Ctrl+I (or Cmd+I) draws the same implication arrow as Shift+Enter
+            if ((e.key === 'Enter' && e.shiftKey && !mod && !e.altKey) || ((e.key === 'i' || e.key === 'I') && mod && !e.shiftKey && !e.altKey)) {
                 const sel = window.getSelection();
                 if (!sel.rangeCount) return;
                 const range = sel.getRangeAt(0);
@@ -23545,7 +23546,7 @@ SQIDAQAB
             [K('1.') + ' then ' + K('Space'), 'At the start of a line, starts a numbered list.'],
             [K('Ctrl') + ' + ' + K('Shift') + ' + ' + K('8') + ' / ' + K('7'), 'Turns the selected lines into bullet points or a numbered list.'],
             [K('-') + K('-'), 'Types a large long dash — in the same weight as a bullet point.'],
-            [K('Shift') + ' + ' + K('Enter'), 'Adds an indented follow-on line that starts with an arrow. Press it twice in a row after writing your first point and the arrow grows a longer vertical line with a second arrow below, so two points can come from the same place.'],
+            [K('Ctrl') + ' + ' + K('I') + ' (or ' + K('Shift') + ' + ' + K('Enter') + ')', 'Draws an implication arrow: an indented follow-on line that starts with an arrow. Press it twice in a row after writing your first point and the arrow grows a longer vertical line with a second arrow below, so two points can come from the same place.'],
         ]],
         ['Moving things around the page', [
             ['Drag ' + K('⠿'), 'Picks up a text box or an economics diagram and moves it.'],
