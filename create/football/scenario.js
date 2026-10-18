@@ -260,6 +260,24 @@
       eng.o.players.forEach((p) => { const q = FM.targetFor(eng.o, p, eng.m.ball, false); p.x = q.x; p.y = q.y; p.vx = 0; p.vy = 0; });
     }
     readOpp(S);
+    // Through midfield and in the final third a striker starts on the shoulder of their back line, next to a defender, unless the manager has
+    // placed him somewhere in an earlier game (a placed shirt is left exactly where it is).
+    if (phase !== 'build') {
+      const key = phaseKey(phase), defs = S.opp.filter((q) => ['CB', 'FB'].indexOf(q.p.group) >= 0).sort((x, y) => x.x - y.x);
+      if (defs.length) {
+        const lineY = Math.max.apply(null, defs.map((q) => q.y)), taken = new Set();
+        own.forEach((o, i) => {
+          if (o.p.group !== 'ST' || FM.isManual(team, o.p, key) || (team.scenarioEnd && team.scenarioEnd[key] && team.scenarioEnd[key][o.p.index])) return;
+          let best = null, bd = Infinity;
+          defs.forEach((q, k) => { if (taken.has(k)) return; const dd = Math.abs(q.x - o.x); if (dd < bd) { bd = dd; best = k; } });
+          if (best == null) return;
+          taken.add(best);
+          const q = defs[best];
+          o.x = clamp(q.x + (q.x < W / 2 ? 3.5 : -3.5), 2, W - 2); o.y = clamp(Math.min(lineY, q.y) - 1.2, 2, L - 2);
+          if (S.holder === i) S.ball = { x: o.x + 0.8, y: o.y + 0.6 };
+        });
+      }
+    }
     keepOutOfBox(S);
     S.tackled = null;
     S.start = own.map((o) => ({ x: o.x, y: o.y }));
