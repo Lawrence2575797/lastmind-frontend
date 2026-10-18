@@ -1224,6 +1224,8 @@
     const capBtnHook = () => { const b = host.querySelector('.cap-make'); if (b) b.addEventListener('click', () => { world.league.captains = world.league.captains || {}; world.league.captains[team.id] = b.dataset.cap; saveSoon(); renderSquad(); }); };
     host.innerHTML = `<article class="player-profile card"><div id="profilePortrait">${image ? `<img class="player-portrait" src="${image}" alt="Portrait of ${esc(p.name)}">` : portraitFallback(p)}</div><div><span class="eyebrow">${esc(team.name)} · #${p.number}</span><h2 class="profile-name">${esc(p.name)}</h2><p class="desc">${esc(p.nation)} · ${p.natural} · ${p.height || '—'} cm · ${p.foot || '—'} foot</p>${FM.captainOf(world.league, team) && FM.captainOf(world.league, team).id === p.id ? '<p class="cap-line"><span class="cap-badge">C</span> Club captain</p>' : (team.id === world.league.userId ? '<p class="cap-line"><button type="button" class="cap-make" data-cap="' + p.id + '">Make captain</button></p>' : '')}<div class="profile-stats"><b>${FM.playerRating(p).toFixed(1)}<small>Overall</small></b><b>${Math.round(100 * FM.conditionOf(p))}%<small>Condition</small></b><b>${p.stats.apps}<small>Apps</small></b><b>${p.stats.goals}<small>Goals</small></b></div></div><div class="attribute-grid">${ratings.map(([n,v]) => `<div><span>${n}</span><b>${FM.shown(v)}</b><i style="--v:${v}%"></i></div>`).join('')}</div></article><div id="pfHost"></div>`;
     capBtnHook();
+    // the transfer list: on the squad page too, straight from the player's profile
+    if (team.id === world.league.userId) { const art = host.querySelector('article'); if (art) { art.insertAdjacentHTML('beforeend', '<div class="pf-list" style="grid-column:1/-1;margin-top:10px">' + transferListHtml(p) + '</div>'); wireTransferList(host, p, () => renderSquad()); } }
     if (FM.renderForm) FM.renderForm(host.querySelector('#pfHost'), world.league, p, team);
   }
 
@@ -2423,13 +2425,13 @@
     const on = FM.isListed(world.league, p);
     return `<div class="row" style="flex-wrap:wrap;align-items:center;gap:8px"><button type="button" id="listBtn" class="${on ? '' : 'primary'}">${on ? 'Take him off the transfer list' : 'Add him to the transfer list'}</button><span class="note" id="listNote">${on ? esc(world.listMsg && world.listMsg.id === p.id ? world.listMsg.text : 'He is on the transfer list. More offers may come after your games; they appear under Offers and deals in Recruitment.') : 'Clubs will make offers for him straight away, and again after your games while he stays listed.'}</span></div>`;
   }
-  function wireTransferList(host, p) {
+  function wireTransferList(host, p, after) {
     const btn = host.querySelector('#listBtn'); if (!btn) return;
     btn.addEventListener('click', () => {
       const on = FM.isListed(world.league, p), r = FM.setListed(world.league, p, !on);
       if (!r.ok) { host.querySelector('#listNote').textContent = r.text; return; }
       world.listMsg = !on ? { id: p.id, text: r.made && r.made.length ? `${p.name} is on the transfer list and ${r.made.length === 1 ? 'an offer has' : r.made.length + ' offers have'} come in already, from ${r.made.join(' and ')}. Open Recruitment, then Offers and deals, to accept, reject or counter.` : `${p.name} is on the transfer list, but no club can afford him at the moment.` } : null;
-      saveSoon(); renderPlayerPanel(userTeam());
+      saveSoon(); if (after) after(); else renderPlayerPanel(userTeam());
     });
   }
   function renderPlayerPanel(team) {
