@@ -129,11 +129,39 @@
   // The transfer list: a player the manager has put up for sale. After the next game a club makes an offer for him, and after every later game there is a
   // fair chance of another while he stays listed and has no offer open.
   FM.isListed = (league, p) => !!(FM.transfer(league).listed && FM.transfer(league).listed[p.id]);
+  // Offers for a listed player, from clubs that can afford him: one at least, and sometimes two or three.
+  function listedOffers(league, p, count) {
+    const t = FM.transfer(league), me = FM.teamById(league, league.userId), rng = FM.mulberry32(league.seed + (league.runSeed || 0) + t.seq * 7919 + userRounds(league) * 131 + 11);
+    const price = FM.askingPrice(league, p), made = [];
+    let clubs = league.teams.filter((x) => x.id !== me.id && !t.offers.some((o) => o.pid === p.id && o.from === x.id)).map((team) => ({ team, budget: t.budget[team.id] || 0, need: FM.clubNeeds(team).indexOf(p.natural) >= 0 }));
+    let able = clubs.filter((o) => o.budget >= price * 0.75);
+    if (!able.length) { able = clubs.sort((a, b) => b.budget - a.budget).slice(0, 1).filter((o) => o.budget >= 0.2); }   // nobody can pay the full price: the richest club bids what it can
+    for (let k = 0; k < count && able.length; k++) {
+      const w = able.map((o) => (o.need ? 2 : 1) * (0.5 + rng()));
+      let r = rng() * w.reduce((a, x) => a + x, 0), i = 0;
+      for (; i < w.length - 1; i++) { r -= w[i]; if (r <= 0) break; }
+      const buyer = able.splice(i, 1)[0];
+      const fee = r1(Math.max(0.2, Math.min(buyer.budget, price * (0.8 + rng() * 0.25))));
+      t.offers.push({ id: 'o' + (t.seq++), pid: p.id, from: buyer.team.id, fee, age: 0, status: 'open' });
+      offerStory(league, buyer.team, p, fee, false);
+      made.push(buyer.team.name);
+    }
+    return made;
+  }
   FM.setListed = function (league, p, on) {
     const t = FM.transfer(league); t.listed = t.listed || {};
-    if (on) { if (!FM.canSell(FM.teamById(league, league.userId), p)) return { ok: false, text: 'The squad is too thin to let him go: there would not be enough players, or no other goalkeeper.' }; t.listed[p.id] = t.listed[p.id] || { round: userRounds(league), offered: false }; }
-    else delete t.listed[p.id];
-    return { ok: true };
+    if (on) {
+      if (!FM.canSell(FM.teamById(league, league.userId), p)) return { ok: false, text: 'The squad is too thin to let him go: there would not be enough players, or no other goalkeeper.' };
+      const first = !t.listed[p.id]; t.listed[p.id] = t.listed[p.id] || { round: userRounds(league), offered: false };
+      // the offers come in straight away: at least one, and possibly two or three
+      const open = t.offers.filter((o) => o.pid === p.id).length;
+      let made = [];
+      if (first || !open) { const rr = FM.mulberry32(league.seed + (league.runSeed || 0) + t.seq * 31 + 5)(); made = listedOffers(league, p, rr < 0.2 ? 3 : rr < 0.55 ? 2 : 1); }
+      t.listed[p.id].offered = true;
+      return { ok: true, made };
+    }
+    delete t.listed[p.id];
+    return { ok: true, made: [] };
   };
   FM.canSell = function (team, p) {
     if (team.squad.length <= MIN_SQUAD) return false;

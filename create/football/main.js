@@ -2421,13 +2421,14 @@
   function transferListHtml(p) {
     if (DEMO_MODE || !FM.isListed || (world.league && world.league.mp)) return '';
     const on = FM.isListed(world.league, p);
-    return `<div class="row" style="flex-wrap:wrap;align-items:center;gap:8px"><button type="button" id="listBtn" class="${on ? '' : 'primary'}">${on ? 'Take him off the transfer list' : 'Add him to the transfer list'}</button><span class="note" id="listNote">${on ? 'He is on the transfer list. Clubs will make offers after your games; they appear under Offers and deals in Recruitment.' : 'A club will make an offer for him after your next game.'}</span></div>`;
+    return `<div class="row" style="flex-wrap:wrap;align-items:center;gap:8px"><button type="button" id="listBtn" class="${on ? '' : 'primary'}">${on ? 'Take him off the transfer list' : 'Add him to the transfer list'}</button><span class="note" id="listNote">${on ? esc(world.listMsg && world.listMsg.id === p.id ? world.listMsg.text : 'He is on the transfer list. More offers may come after your games; they appear under Offers and deals in Recruitment.') : 'Clubs will make offers for him straight away, and again after your games while he stays listed.'}</span></div>`;
   }
   function wireTransferList(host, p) {
     const btn = host.querySelector('#listBtn'); if (!btn) return;
     btn.addEventListener('click', () => {
       const on = FM.isListed(world.league, p), r = FM.setListed(world.league, p, !on);
       if (!r.ok) { host.querySelector('#listNote').textContent = r.text; return; }
+      world.listMsg = !on ? { id: p.id, text: r.made && r.made.length ? `${p.name} is on the transfer list and ${r.made.length === 1 ? 'an offer has' : r.made.length + ' offers have'} come in already, from ${r.made.join(' and ')}. Open Recruitment, then Offers and deals, to accept, reject or counter.` : `${p.name} is on the transfer list, but no club can afford him at the moment.` } : null;
       saveSoon(); renderPlayerPanel(userTeam());
     });
   }
