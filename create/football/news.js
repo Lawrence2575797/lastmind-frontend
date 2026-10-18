@@ -23,11 +23,12 @@
       const team = teamOf(e.team);
       if (!team) return;
       const p = e.player != null ? byNum(team, e.player) : null;
-      if (e.type === 'goal' && p) { sum.goals.push({ t: Math.round(e.t / 60), team: team.id, n: p.number, name: p.name }); add(team, p.number, 4); goalsBy[team.id + ':' + p.number] = (goalsBy[team.id + ':' + p.number] || 0) + 1; }
-      else if (e.type === 'shot' && p) add(team, p.number, e.outcome === 'goal' || e.outcome === 'saved' ? 0.4 : 0.15);
-      else if (e.type === 'pass') { const q = byNum(team, e.from); if (q) add(team, q.number, e.ok ? 0.015 : -0.02); }
-      else if (e.type === 'tackle' && p) add(team, p.number, e.ok ? 0.3 : -0.05);
-      else if (e.type === 'dribble' && p) add(team, p.number, e.ok ? 0.3 : -0.05);
+      if (e.type === 'goal' && p) { sum.goals.push({ t: Math.round(e.t / 60), team: team.id, n: p.number, name: p.name }); add(team, p.number, 4.5); goalsBy[team.id + ':' + p.number] = (goalsBy[team.id + ':' + p.number] || 0) + 1; }
+      else if (e.type === 'shot' && p) add(team, p.number, e.outcome === 'goal' || e.outcome === 'saved' ? 0.3 : 0.1);
+      // the volume of passing barely counts: it is the decisive moments that make a man of the match
+      else if (e.type === 'pass') { const q = byNum(team, e.from); if (q) add(team, q.number, e.ok ? 0.004 : -0.02); }
+      else if (e.type === 'tackle' && p) add(team, p.number, e.ok ? 0.15 : -0.05);
+      else if (e.type === 'dribble' && p) add(team, p.number, e.ok ? 0.2 : -0.05);
       else if (e.type === 'foul' && p) {
         add(team, p.number, -0.25);
         if (e.card === 'yellow') add(team, p.number, -0.3);
@@ -44,7 +45,7 @@
         const k = team.id + ':' + p.number;
         if (score[k] == null) return;
         if (conceded === 0 && ['GK', 'CB', 'FB'].indexOf(p.natural) >= 0) score[k] += 1;
-        if (won) score[k] += 0.5;
+        if (won) score[k] += 1; else if ((team === home ? ag - hg : hg - ag) >= 2) score[k] -= 0.8;   // the side that was well beaten rarely has the best player on the pitch
       });
     });
     let best = null;
