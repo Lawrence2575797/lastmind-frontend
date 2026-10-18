@@ -22879,8 +22879,19 @@ SQIDAQAB
                     }
                 }
             }
-            // Ctrl+I (or Cmd+I) draws the same implication arrow as Shift+Enter
-            if ((e.key === 'Enter' && e.shiftKey && !mod && !e.altKey) || ((e.key === 'i' || e.key === 'I') && mod && !e.shiftKey && !e.altKey)) {
+            // Ctrl+I (or Cmd+I) types the implication sign, as in A ⇒ B (and not italics)
+            if ((e.key === 'i' || e.key === 'I') && mod && !e.shiftKey && !e.altKey) {
+                const selI = window.getSelection();
+                if (selI.rangeCount && selI.anchorNode && editable.contains(selI.anchorNode)) {
+                    e.preventDefault();
+                    const rI = selI.getRangeAt(0), nI = rI.startContainer, before = nI.nodeType === 3 ? nI.textContent.slice(0, rI.startOffset) : '', after = nI.nodeType === 3 ? nI.textContent.slice(rI.endOffset) : '';
+                    const spB = !before || /[\s​]$/.test(before) ? '' : ' ', spA = /^\s/.test(after) ? '' : ' ';
+                    document.execCommand('insertText', false, spB + '⇒' + spA);
+                    editable.dispatchEvent(new Event('input', { bubbles: true }));
+                    return;
+                }
+            }
+            if (e.key === 'Enter' && e.shiftKey && !mod && !e.altKey) {
                 const sel = window.getSelection();
                 if (!sel.rangeCount) return;
                 const range = sel.getRangeAt(0);
@@ -23546,7 +23557,8 @@ SQIDAQAB
             [K('1.') + ' then ' + K('Space'), 'At the start of a line, starts a numbered list.'],
             [K('Ctrl') + ' + ' + K('Shift') + ' + ' + K('8') + ' / ' + K('7'), 'Turns the selected lines into bullet points or a numbered list.'],
             [K('-') + K('-'), 'Types a large long dash — in the same weight as a bullet point.'],
-            [K('Ctrl') + ' + ' + K('I') + ' (or ' + K('Shift') + ' + ' + K('Enter') + ')', 'Draws an implication arrow: an indented follow-on line that starts with an arrow. Press it twice in a row after writing your first point and the arrow grows a longer vertical line with a second arrow below, so two points can come from the same place.'],
+            [K('Ctrl') + ' + ' + K('I'), 'Types the implication sign ⇒, as in A ⇒ B, with a space either side.'],
+            [K('Shift') + ' + ' + K('Enter'), 'Adds an indented follow-on line that starts with a drawn arrow. Press it twice in a row after writing your first point and the arrow grows a longer vertical line with a second arrow below, so two points can come from the same place.'],
         ]],
         ['Moving things around the page', [
             ['Drag ' + K('⠿'), 'Picks up a text box or an economics diagram and moves it.'],
