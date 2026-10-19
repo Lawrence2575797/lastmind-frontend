@@ -214,12 +214,116 @@
     'Past the limit the bank charges an even higher rate and refuses to let the club spend. That is why the Board warns you when the [[cashflow|cash flow forecast]] shows the balance heading below zero.',
   ]);
 
-  add('shares', 'Shares, dilution and dividends', ['profit', 'balancesheet'], [
-    'The club is a <b>public limited company (PLC)</b>: it is owned by <b>shareholders</b>, each holding a number of <b>shares</b>. A share is a small slice of ownership. If there are 1,000,000 shares and you own 10,000, you own 1%.',
+  add('shares', 'Shares, dilution and dividends', ['ownership', 'profit', 'balancesheet'], [
+    'The club is a [[ownership|public limited company (PLC)]]: it is owned by <b>shareholders</b>, each holding a number of <b>shares</b>. A share is a small slice of ownership. If there are 1,000,000 shares and you own 10,000, you own 1%.',
     '<b>Issuing new shares</b> raises money without borrowing. The club sells new slices to new owners, gets the cash straight away, and never has to pay it back or pay interest on it.',
     'The price of that is <b>dilution</b>. There are now more slices, so each slice is a smaller piece of the club. If 1,000,000 shares become 1,250,000, your 10,000 shares are now 0.8%, not 1%. Existing shareholders therefore dislike it.',
     'A <b>dividend</b> is a share of the year\'s [[profit|profit]] paid out to the shareholders. If the club pays out 25% of a £400,000 profit, that is £100,000 shared between all the shares. With more shares in issue, each share gets less.',
     'This is a trade-off: a bigger dividend pleases the owners, but the money leaves the club and cannot be spent on players or building. A smaller dividend keeps the money in the club as <b>retained earnings</b> on the [[balancesheet|balance sheet]].',
+  ]);
+
+  add('ownership', 'Who owns a business: sole traders, partnerships and companies', [], [
+    'Every business is owned by someone. The <b>type of ownership</b> decides who is in charge, who gets the profit, and what happens if it all goes wrong.',
+    'A <b>sole trader</b> is one person running a business as themselves, such as a market stall. They keep all the profit, but they have <b>unlimited liability</b>: if the business owes money it cannot pay, the owner must pay it from their own pocket, even selling their home.',
+    'A <b>partnership</b> is two or more people who share the business, the profit and the risk. They too usually have unlimited liability.',
+    'A <b>limited company</b> is a business that the law treats as separate from its owners. Its owners are called <b>shareholders</b>, and they have <b>limited liability</b>: the most they can lose is the money they paid for their shares. That makes people willing to invest.',
+    'A <b>private limited company (Ltd)</b> sells shares only to people the owners choose. A <b>public limited company (PLC)</b> can sell its shares to anyone, on a stock exchange. That lets it raise very large amounts, but it must publish its accounts and answer to its shareholders.',
+    'Football clubs are often PLCs because running a club costs a great deal and thousands of fans want a stake. The price of that is accountability: the shareholders expect a return, and they can vote the manager out (see [[stakeholders|stakeholders]]).',
+  ]);
+
+  add('stakeholders', 'Stakeholders: who cares what the club does', ['ownership'], [
+    'A <b>stakeholder</b> is anyone who is affected by, or has an interest in, what a business does. A business has many, and they want different things.',
+    '<b>Shareholders</b> (the owners) want profit, dividends and a club that is doing well. <b>Fans</b> want winning football and affordable tickets. <b>Players</b> want good wages and a place in the team. <b>Sponsors</b> want attention for their brand. <b>The bank</b> wants its loan repaid with interest. <b>The local community</b> wants jobs and a good neighbour.',
+    'Their wishes <b>conflict</b>. Raising ticket prices earns more [[revenue|revenue]] for the shareholders but costs the fans. A big dividend pleases the owners but leaves less to spend on players. Cutting wages saves money but upsets the squad. A manager has to balance them, not please all of them.',
+    'In a [[ownership|PLC]], the shareholders have the most power because they own the club and can vote. The two approval bars on the Board show how happy they are with the accounts and with the football.',
+    'If they stay unhappy for several matchdays in a row, the shareholders can call a <b>vote of no confidence</b>. If the manager loses it, they are dismissed. That is the shareholders using their power.',
+    'The useful question to ask of any decision is: <b>who gains, who loses, and can I live with the people who lose?</b>',
+  ]);
+
+  add('aims', 'Aims and objectives', ['stakeholders'], [
+    'An <b>aim</b> is a broad, long-term goal that says what a business is for. For the club: "to be a successful, well-run club".',
+    'An <b>objective</b> is a specific, measurable target that helps to reach the aim. For example: "finish in the top four this season", "make a profit of £500,000", "fill 90% of the seats at home matches".',
+    'Why have them? They give everyone the same direction, they let decisions be judged ("does this help us reach the target?"), and they let the owners tell at the end whether it worked.',
+    'Good objectives are <b>SMART</b>: <b>S</b>pecific (exactly what: "top four", not "do well"), <b>M</b>easurable (a number, so you can tell if you got there), <b>A</b>chievable (realistic for this squad and budget), <b>R</b>elevant (it helps the aim) and <b>T</b>ime-bound (by when: this season).',
+    'Test it. "Improve attendance" fails nearly every letter. "Raise the average home crowd from 8,000 to 9,000 by the end of the season" passes all five.',
+    'On the Board the shareholders set objectives for the league position, the finances and more. Each shows whether it is <i>on track</i>, <i>behind</i>, <i>met</i> or <i>missed</i>. Missing them lowers the shareholders\' confidence, which is one of the [[stakeholders|stakeholder]] pressures on the manager.',
+    'Objectives change with the situation. A club just promoted may only need to survive; a club that won the title is expected to repeat it. Setting them too low wastes potential; too high guarantees failure.',
+  ]);
+
+  add('costs', 'Fixed and variable costs', ['revenue'], [
+    'A <b>cost</b> is money the business spends. Costs behave in two different ways when the amount of business changes.',
+    '<b>Fixed costs</b> stay the same whether 5,000 or 10,000 fans come: the players\' wages, the basic running of the ground, administration. <b>Variable costs</b> rise with each extra fan or sale: extra stewarding and cleaning, food supplies, the cost of making the shirts that are sold.',
+    '<b>Total cost = fixed costs + variable costs.</b> Suppose fixed costs are £14,000 and each fan adds £2.40. With 5,000 fans: 14,000 + 5,000 × 2.40 = £26,000. With 10,000 fans: 14,000 + 10,000 × 2.40 = £38,000.',
+    'Look at the cost <b>per fan</b>. For 5,000 fans: 26,000 ÷ 5,000 = £5.20. For 10,000: 38,000 ÷ 10,000 = £3.80. The cost per fan fell because the fixed cost was shared between more fans. This is the idea of <b>economies of scale</b>.',
+    'That is why a full ground is so valuable: each extra fan pays the ticket price but adds only a little to the costs. And it is why empty seats hurt: the wages are due however few people come.',
+    'Knowing the two kinds lets you work out how many fans you need to cover your costs. That is [[breakeven|break-even]].',
+  ]);
+
+  add('breakeven', 'Break-even', ['costs', 'revenue'], [
+    '<b>Break-even</b> is the level of sales at which [[revenue|revenue]] exactly equals total cost: no profit and no loss. Above it the business makes a profit; below it, a loss.',
+    'Each sale helps to pay the fixed costs. The amount it contributes is the <b>contribution per unit = price − variable cost per unit</b>. For a ticket at £28 with a variable cost of £2.40 a fan: 28 − 2.40 = <b>£25.60</b>.',
+    'The fixed costs are paid off a little with each fan. So <b>break-even number = fixed costs ÷ contribution per unit</b>. With fixed costs of £14,000: 14,000 ÷ 25.60 = <b>547 fans</b>.',
+    'Check it. 547 fans pay 547 × 28 = £15,316. The costs are 14,000 + 547 × 2.40 = £15,313. They match (apart from rounding), so 547 fans is the break-even point.',
+    'The <b>margin of safety</b> is how far actual sales are above break-even. With 8,000 fans, that is 8,000 − 547 = 7,453 fans of cushion. A small margin means a bad week could turn a profit into a loss.',
+    'The same sum shows what a higher price does. At £34 the contribution is 34 − 2.40 = £31.60, so break-even falls to 14,000 ÷ 31.60 = 443 fans. (Of course a higher price also changes how many fans come: see [[elasticity|price elasticity]].) This only covers the ticket side of the club: the wage bill is a much larger fixed cost, so the whole club needs far more income than 547 fans to break even.',
+  ]);
+
+  add('marketing', 'Marketing and the marketing mix', ['segments'], [
+    '<b>Marketing</b> is everything a business does to find out what customers want and to persuade them to buy.',
+    'It is often broken into four parts, the <b>marketing mix</b>: <b>Product</b> (what is sold: the matchday experience and the quality of the team), <b>Price</b> (what is charged; see [[elasticity|price elasticity]]), <b>Promotion</b> (how people are told: advertising, social media, special offers) and <b>Place</b> (where and how the tickets are sold, and where the ground is).',
+    'The club\'s marketing budget is spent on <b>promotion</b>. More promotion brings a bigger crowd, but with <b>diminishing returns</b>: the first £5,000 brings far more extra fans than the next £5,000, because the people easiest to persuade come first.',
+    'Is it worth it? Compare the cost with the extra revenue. If a £5,000 budget brings 300 extra fans paying £25 each, that is £7,500 of extra revenue for a £5,000 cost: worth doing. If it brings 100 extra fans, it is £2,500 for £5,000: not worth it.',
+    'The parts of the mix must fit together. A premium price with no promotion, or a cheap price for a product people see as poor, will not work. And they should be aimed at the right [[segments|segment]].',
+  ]);
+
+  add('pricing', 'Pricing strategies', ['elasticity', 'segments'], [
+    'A business has to decide <i>how</i> to choose a price, not only how much. There are several common strategies.',
+    '<b>Cost-plus pricing</b> adds a fixed percentage to the cost. It is simple, but ignores what customers will pay. <b>Competitive pricing</b> copies what rivals charge. <b>Penetration pricing</b> starts low to win customers and build a habit, then rises. <b>Price skimming</b> starts high to take the most from keen customers before lowering. <b>Psychological pricing</b> uses numbers like £19.99 that feel cheaper than £20.',
+    '<b>Price discrimination</b> means charging different groups different prices for the same thing, which works when the groups react differently to price (see [[elasticity|elasticity]] and [[segments|segments]]). The four stands at the ground are exactly this.',
+    'In football: a half-empty family stand may justify a lower price to fill it and build the habit (penetration). A derby that always sells out supports a higher price (skimming). Check the effect on [[revenue|revenue]], not only on the crowd.',
+  ]);
+
+  add('investment', 'Spending on the future: capital spending and payback', ['profit', 'loans'], [
+    '<b>Revenue expenditure</b> is everyday running cost: wages, matchday costs. <b>Capital expenditure</b> is spending on something that lasts and earns money for years: a new stand, big screens, a training centre.',
+    'Capital spending is paid <b>all at once</b> but benefits come <b>slowly</b>, so a club should check it is worth it before it spends.',
+    'The <b>payback period</b> is how long it takes the extra income to repay the cost: <b>cost ÷ extra income each year</b>. A stand block costing £1,050,000 that brings in an extra £140,000 a season pays back in 1,050,000 ÷ 140,000 = <b>7.5 seasons</b>. The shorter, the better, and the less exposed to things going wrong.',
+    '<b>Return on investment (ROI)</b> says what share of the cost comes back each year: <b>ROI = yearly gain ÷ cost × 100</b>. Here 140,000 ÷ 1,050,000 × 100 = <b>13.3% a year</b>.',
+    'Compare it with what the money costs. If the club borrows it at 7.5% a year (see [[loans|loans and interest]]) and the project returns 13.3%, it earns more than it costs. If the return were 5%, it would lose money on the deal.',
+    'Also ask: <b>will the seats fill?</b> If demand is weak (see [[elasticity|elasticity]]) the extra seats stay empty and the income never arrives. And remember the extra upkeep of every seat each matchday, which cuts the real gain.',
+  ]);
+
+  add('financesources', 'Sources of finance', ['loans', 'shares', 'cashflow'], [
+    '<b>Finance</b> is the money a business uses. It is needed for day-to-day bills (when the cash flow is tight) and for big, long-term spending.',
+    '<b>Internal sources</b> come from inside the business: <b>retained profit</b> (profit kept instead of paid out) and <b>selling assets</b> such as players. No one else is involved, but there is only as much as the club has made.',
+    '<b>External sources</b> come from outside: a <b>bank overdraft</b> (flexible, quick and short-term, but the most expensive interest), a <b>bank loan</b> (a set amount repaid with interest over years), and <b>issuing shares</b> (permanent money that never has to be repaid, but it dilutes the owners and shares future profit).',
+    'The rule of thumb is to <b>match the length of the finance to the life of what it pays for</b>: use an overdraft for a short gap in cash flow, and a loan, shares or kept profit for something that lasts like a stand (see [[investment|capital spending]]).',
+    'Each source has a different <b>cost</b>: a loan costs interest, shares cost a share of ownership and dividends, retained profit costs the dividend that is not paid, and selling a player costs his future contribution to the team.',
+    'Which to choose depends on how much is needed, how fast, how risky it is, and how much the club already owes. A club already heavy with debt may prefer shares; one with spare profits may use them first.',
+  ]);
+
+  add('sponsors', 'Sponsorship and advertising', ['revenue', 'marketing'], [
+    '<b>Sponsorship</b> is when a company pays to have its name on the shirts or the advertising boards. The company wants attention and goodwill; the club gets [[revenue|revenue]] without selling a ticket.',
+    'What a company will pay depends on <b>how many people see it</b> and <b>how positive the club\'s image is</b>: bigger crowds, a higher league position and big matches such as derbies all mean more eyes, so higher prices. That is why offers change from year to year.',
+    'There are different deals: the <b>shirt sponsor</b> is the largest, the <b>sleeve</b> smaller, and the <b>advertising boards</b> round the pitch are many small deals. A club tries to fill them all.',
+    '<b>Negotiating:</b> the company has a price it will not go above. Ask for too much and it can walk away and the club gets nothing; ask for too little and the club loses money for the length of the deal. Comparing offers helps.',
+    'Think about the <b>length</b> of a deal too. A long deal is secure income, but if the club does well it cannot ask for more. A short deal lets the club renegotiate upwards after a good season, but it is less certain.',
+    'Relying on one sponsor is risky: if they leave after a bad season, the income vanishes. Several different sources of income is safer.',
+  ]);
+
+  add('ratios', 'Profit margins and returns', ['profit'], [
+    'A profit figure alone does not say how good a business is: £100,000 is wonderful for a small club and poor for a huge one. <b>Ratios</b> turn the figures into percentages that can be compared.',
+    '<b>Gross profit margin = gross profit ÷ revenue × 100.</b> It says how much of each £1 of sales is left after the direct costs. £60,000 of gross profit on £200,000 of revenue is 30%.',
+    '<b>Net profit margin = profit for the year ÷ revenue × 100.</b> It says how much of each £1 of sales survives after <i>all</i> costs, interest and tax. £15,000 on £200,000 is 7.5%.',
+    '<b>Return on investment = profit ÷ money put in × 100</b> (see [[investment|capital spending]]).',
+    'How to use them: compare this season with last (is the margin rising?), and one club with another. A falling margin with rising revenue means costs are growing faster than sales, which is a warning even while profit looks fine.',
+  ]);
+
+  add('liquidity', 'Liquidity: can the club pay its bills?', ['cashflow', 'balancesheet'], [
+    '<b>Liquidity</b> means being able to pay what you owe <i>soon</i>. A business can own a lot (a big stadium) and still be short of cash this month. See [[cashflow|cash flow]].',
+    '<b>Current assets</b> are things that are cash, or will turn into cash within a year. <b>Current liabilities</b> are what must be paid within a year, such as the overdraft.',
+    'The <b>current ratio = current assets ÷ current liabilities</b>. With £600,000 of cash and £300,000 due within the year, the ratio is 600,000 ÷ 300,000 = <b>2</b>: twice as much available as is owed. A ratio below 1 means the club cannot cover what is due without borrowing more.',
+    'Too high is not ideal either: a lot of idle cash could be working harder (for example paying off expensive debt or being invested).',
+    'If liquidity is poor, the fixes are to bring cash in faster (sell a player, raise income) or to put off spending, or to borrow with a [[financesources|source of finance]] that suits the gap.',
   ]);
 
   const esc = (s) => String(s);
