@@ -847,14 +847,14 @@
         <img src="/assets/create/football-manager.jpg" alt="A football manager on the touchline under stadium floodlights">
         <div><span class="eyebrow">Your season starts here</span><h2 id="demoCompleteTitle">LastMind Football</h2><p>You have played the free match. Take Ashford Rovers through the full season, with every opponent, report and tactical test.</p></div>
       </article>
-      <button class="demo-purchase" type="button">Purchase LastMind Football · £4.99/month</button>
+      <button class="demo-purchase" type="button">${FM.FREE_FOR_NOW ? 'Play the full season · free for a limited time' : 'Purchase LastMind Football · £4.99/month'}</button>
     </div>`;
     document.body.appendChild(modal);
     modal.querySelector('.demo-purchase').addEventListener('click', async (event) => {
       const button = event.currentTarget;
-      button.disabled = true; button.textContent = 'Opening secure checkout…';
+      button.disabled = true; button.textContent = FM.FREE_FOR_NOW ? 'Opening the game…' : 'Opening secure checkout…';
       try { await FM.purchaseFootball(); }
-      catch (err) { button.disabled = false; button.textContent = 'Purchase LastMind Football · £4.99/month'; alert(err.message || 'Could not open the secure checkout.'); }
+      catch (err) { button.disabled = false; button.textContent = FM.FREE_FOR_NOW ? 'Play the full season · free for a limited time' : 'Purchase LastMind Football · £4.99/month'; alert(err.message || 'Could not open the secure checkout.'); }
     });
     modal.querySelector('.demo-return').focus();
   }

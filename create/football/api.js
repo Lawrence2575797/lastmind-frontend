@@ -34,11 +34,15 @@
       return { ok: resp.ok, status: resp.status, json, uid };
     } catch (e) { return null; }
   };
+  // The football manager is free for a limited time (the backend's FOOTBALL_FREE switch). While this is true the purchase button just takes the person into the game;
+  // the checkout code below is untouched. Set it to false, with FOOTBALL_FREE=false on the backend, to bring the paywall back.
+  FM.FREE_FOR_NOW = true;
   FM.purchaseFootball = async function () {
     if (!window.supabase || !window.supabase.createClient) throw new Error('The sign-in could not load. Check your connection and try again.');
     if (!client) client = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     const { data } = await client.auth.getSession();
     if (!data || !data.session || data.session.user && data.session.user.is_anonymous) { location.href = '/account/?mode=signup&returnTo=' + encodeURIComponent('/learn/?needs=football'); return; }
+    if (FM.FREE_FOR_NOW) { location.href = '/create/football/?new=1'; return; }
     const resp = await fetch(BILLING_BACKEND + '/checkout/project', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + data.session.access_token }, body: JSON.stringify({ project: 'football' }) });
     const json = await resp.json().catch(() => ({}));
     if (resp.ok && json.url) { location.href = json.url; return; }
