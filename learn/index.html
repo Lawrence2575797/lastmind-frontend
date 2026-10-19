@@ -4193,9 +4193,10 @@
     .nb-canvas.ps-sheet { cursor: default; } .nb-canvas.ps-sheet .nb-hint { display: none; }
     .nt-name { flex: 1; min-width: 0; text-align: left; background: none; border: 0; color: var(--text); font-family: 'Arial', sans-serif; font-size: 0.84rem; padding: 7px 4px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .nt-name.nt-folder { font-weight: 700; }
-    .nt-more { flex: none; width: 28px; height: 28px; background: none; border: 0; color: var(--text); opacity: 0.55; cursor: pointer; font-size: 1rem; border-radius: 4px; }
+    .nt-more { flex: none; width: 20px; height: 24px; background: none; border: 0; color: var(--text); opacity: 0.55; cursor: pointer; font-size: 0.9rem; border-radius: 4px; padding: 0; }
     .nt-more:hover, .nt-more[aria-expanded="true"] { opacity: 1; background: rgba(230, 215, 176, 0.12); }
-    .nt-add { flex: none; width: 28px; height: 28px; background: none; border: 0; color: var(--text); opacity: 0.7; cursor: pointer; font-size: 1.2rem; line-height: 1; border-radius: 4px; }
+    .nt-add { flex: none; width: 20px; height: 24px; background: none; border: 0; color: var(--text); opacity: 0.7; cursor: pointer; font-size: 1.05rem; line-height: 1; border-radius: 4px; padding: 0; }
+    .nt-copy { flex: none; width: 20px; height: 24px; background: none; border: 0; color: var(--text); opacity: 0.55; cursor: pointer; font-size: 0.82rem; line-height: 1; border-radius: 4px; padding: 0; } .nt-copy:hover { opacity: 1; background: rgba(230, 215, 176, 0.12); } .nt-copy.done { opacity: 1; color: #7FD49A; }
     .nt-add:hover { opacity: 1; background: rgba(230, 215, 176, 0.12); }
     .nt-input { flex: 1; min-width: 0; font: inherit; font-size: 0.84rem; color: var(--text); background: rgba(230, 215, 176, 0.1); border: 1px solid var(--accent); border-radius: 4px; padding: 5px 7px; margin: 2px 4px 2px 0; outline: none; }
     .nt-sure { flex-basis: 100%; font-size: 0.78rem; opacity: 0.9; }
@@ -21923,7 +21924,7 @@ SQIDAQAB
                 ${isFolder ? `<button type="button" class="nt-caret" data-act="toggle" aria-label="${open ? 'Close' : 'Open'} folder" aria-expanded="${open}">${open ? '▾' : '▸'}</button>` : '<span class="nt-caret nt-caret-page"></span>'}
                 ${editing ? `<input type="text" class="nt-input" maxlength="80" value="${escapeHtml(n.name || '')}" placeholder="${isFolder ? (depth > 1 ? 'Subfolder name' : 'Folder name') : isSet ? 'Problem set name' : 'Page name'}" aria-label="Name">`
                     : `<button type="button" class="nt-name ${isFolder ? 'nt-folder' : ''}" data-act="${isFolder ? 'toggle' : 'open'}">${label}</button>`}
-                ${editing ? '' : `${addKind ? `<button type="button" class="nt-add" data-act="add" title="${addKind === 'folder' ? 'Add a subfolder' : addKind === 'pset' ? 'Add a problem set' : 'Add a page'}" aria-label="${addKind === 'folder' ? 'Add a subfolder to' : addKind === 'pset' ? 'Add a problem set to' : 'Add a page to'} ${label}">+</button>` : ''}<button type="button" class="nt-more" data-act="more" aria-label="Rename or delete ${label}" aria-expanded="${notesMenuId === n.id}">⋯</button>`}
+                ${editing ? '' : `${isFolder ? `<button type="button" class="nt-copy" data-act="copy" title="Copy this ${depth > 0 ? 'subfolder' : 'folder'} and the pages in it" aria-label="Copy ${label} and the pages in it">⧉</button>` : ''}${addKind ? `<button type="button" class="nt-add" data-act="add" title="${addKind === 'folder' ? 'Add a subfolder' : addKind === 'pset' ? 'Add a problem set' : 'Add a page'}" aria-label="${addKind === 'folder' ? 'Add a subfolder to' : addKind === 'pset' ? 'Add a problem set to' : 'Add a page to'} ${label}">+</button>` : ''}<button type="button" class="nt-more" data-act="more" aria-label="Rename or delete ${label}" aria-expanded="${notesMenuId === n.id}">⋯</button>`}
             </div>`);
             if (notesMenuId === n.id && !editing) rows.push(`<div class="nt-actions" data-for="${escapeHtml(n.id)}" style="padding-left:${pad}px">
                 ${notesConfirmId === n.id
@@ -37234,6 +37235,44 @@ SQIDAQAB
             setTimeout(() => { btn.textContent = old; btn.classList.remove('done'); btn.title = 'Copy this whole page'; }, 1600);
         }
         document.addEventListener('click', (e) => { const b = e.target.closest && e.target.closest('#nbCopyBtn'); if (b) copyPage(b); });
+
+        // ----- a folder or subfolder, with every page inside it -----
+        // Each folder, subfolder and page gets a heading (the folder first, its pages and subfolders under it) so the titles keep the pages apart, and each page keeps
+        // its text formatting, tables and pictures. Graphs and diagrams are marked, since they are drawn live and have no picture to copy.
+        const escH = (x) => String(x == null ? '' : x).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+        const htmlToText = (h) => { const d = document.createElement('div'); d.innerHTML = String(h).replace(/<\/(p|div|h[1-6]|li|tr)>|<br\s*\/?>/gi, '\n').replace(/<\/(td|th)>/gi, '\t').replace(/<hr\s*\/?>/gi, '\n----\n'); return (d.textContent || '').replace(/\u200b/g, '').replace(/\n{3,}/g, '\n\n'); };
+        async function pageBody(n) {
+            const blocks = ((n.doc && n.doc.blocks) || []).filter((b) => b && b.type !== 'arrow').slice().sort((a, b) => ((a.y || 0) - (b.y || 0)) || ((a.x || 0) - (b.x || 0)));
+            let out = '';
+            for (const b of blocks) {
+                if (b.type === 'text' || !b.type) out += '<div>' + String(b.html || '').replace(/\u200b/g, '') + '</div>';
+                else if (b.type === 'table') out += '<table border="1" cellspacing="0" cellpadding="4">' + (b.cells || []).map((row) => '<tr>' + row.map((c) => '<td>' + String(c || '') + '</td>').join('') + '</tr>').join('') + '</table>';
+                else if (b.type === 'image') { let url = null; try { url = await nbImgLoad(b.img, b.src); } catch (_) { url = null; } out += url ? '<p><img src="' + url + '" style="max-width:100%"></p>' : '<p>[picture]</p>'; }
+                else if (b.type === 'graph') out += '<p>[graph]</p>';
+                else if (b.type === 'diagram') out += '<p>[diagram]</p>';
+            }
+            return out || '<p><i>(empty page)</i></p>';
+        }
+        async function nodeHtml(n, rel, space) {
+            const lvl = Math.min(6, rel + 1), name = n.name || (n.type === 'folder' ? 'New folder' : 'Untitled page');
+            if (n.type !== 'folder') return '<h' + lvl + '>' + escH(name) + '</h' + lvl + '>' + (await pageBody(n)) + '<hr>';
+            let out = '<h' + lvl + '>' + escH(name) + '</h' + lvl + '>';
+            for (const k of notesChildren(n.id, space)) out += await nodeHtml(k, rel + 1, space);
+            return out;
+        }
+        async function copyFolder(btn) {
+            const row = btn.closest('[data-id]'); const n = row && notesNode(row.dataset.id); if (!n) return;
+            const old = btn.textContent; btn.textContent = '…';
+            let ok = false;
+            try {
+                const html = await nodeHtml(n, 0, notesSpaceOf(notesRootOf(n))), text = htmlToText(html);
+                if (navigator.clipboard && window.ClipboardItem) { await navigator.clipboard.write([new ClipboardItem({ 'text/html': new Blob([html], { type: 'text/html' }), 'text/plain': new Blob([text], { type: 'text/plain' }) })]); ok = true; }
+                else if (navigator.clipboard) { await navigator.clipboard.writeText(text); ok = true; }
+            } catch (_) { ok = false; }
+            btn.textContent = ok ? '\u2713' : '!'; btn.classList.toggle('done', ok); btn.title = ok ? 'Copied' : 'Could not copy';
+            setTimeout(() => { btn.textContent = old; btn.classList.remove('done'); btn.title = 'Copy this folder and the pages in it'; }, 1600);
+        }
+        document.addEventListener('click', (e) => { const b = e.target.closest && e.target.closest('.nt-copy'); if (b) { e.stopPropagation(); copyFolder(b); } }, true);
     })();
     </script>
     <script src="/create/law-career/career-base.js?v=20261006a"></script>
