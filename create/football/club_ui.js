@@ -356,7 +356,7 @@
     if (empty >= 4) w.push({ sev: 'info', title: `Boss, ${empty} of the 8 advertising boards are empty`, why: 'An empty board earns nothing. Companies get in touch after matches, and you can negotiate their price.', fix: [S('Commercial offers', 'commercial')] });
     if ((b.dividend.policy || 0) > 0.3 && end < 150000) w.push({ sev: 'warn', title: 'Boss, the dividend may be too generous for a club this short of cash', why: `The policy pays ${Math.round(b.dividend.policy * 100)}% of the year's [[profit|profit]] to [[shares|shareholders]], but the forecast leaves only ${gbp(end)} in the bank at the end of the season.`, fix: [S('Change the dividend', 'finance')] });
     if (!w.length) w.push({ sev: 'good', title: 'Boss, nothing in the accounts is worrying me', why: `The forecast ends the season with ${gbp(end)} in the bank${rows.length ? ` after a profit of ${gbp(rows.reduce((a, e) => a + e.pl.net, 0))} so far` : ''}. Keep an eye on it after each match.`, fix: [] });
-    const all = ticketInsights(lg).concat(w).map((x, i) => Object.assign({}, x, { title: x.title.replace(/\bBoss\b/g, addr(lg, 'w' + i)) }));
+    const all = ticketInsights(lg).concat(w).map((x, i) => Object.assign({}, x, { title: x.title.replace(/^Boss,\s*/, '').replace(/^./, (c) => c.toUpperCase()) }));
     return { w: all, cols, end, low, neg, over, limit, last, rows, repay, owed };
   }
   function report(lg) {
