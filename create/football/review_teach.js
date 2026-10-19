@@ -108,6 +108,120 @@
     'And "significant" is not the same as "important" or "the cause". It tells us the change was probably real, not how much it matters, and not why it happened. Those are separate questions, and the review handles them separately.',
   ]);
 
+  add('unusual', 'Is it just luck? The 1-in-20 rule', ['average', 'chance'], [
+    'Every match is a bit different from the average. Some weeks we lose the ball more than usual, some weeks less. Most of that is just <b>luck</b>: the way the game happened to fall. The problem is telling luck apart from a <b>real change</b> in how we play.',
+    'We measure it with a probability (see the lesson on chances): <i>how often would luck alone give a gap as big as this one?</i> If the answer is "quite often", the gap is nothing to worry about. If the answer is "hardly ever", luck is a weak explanation and a real change becomes more likely.',
+    'To have a rule for "hardly ever", people use <b>1 in 20</b>, which is 5% or 0.05. Test it with a dice: the chance of rolling a six is 1 in 6 (about 17%), which happens all the time, so a six is not unusual. The chance of rolling two sixes in a row is 1 in 36 (about 2.8%), which is less than 1 in 20, so you would say "that is unusual, are these dice fair?".',
+    'So: if luck alone would give a result like ours <b>less than 1 time in 20</b>, we call it <b>unusual enough to take seriously</b>. If luck alone would give it <b>more than 1 time in 20</b>, we call it <b>not unusual</b>: it could easily just be luck.',
+    '"Not unusual" does <b>not</b> mean nothing changed. One match is very little evidence, so a small real change can hide inside the luck. That is why the review looks again after the next match.',
+  ]);
+
+  add('interval', 'A range instead of a single number: confidence intervals', ['average', 'chance', 'poisson'], [
+    'One match gives one number, such as 38 turnovers. But if we could replay the same match many times we would not get 38 every time: we would get a spread of numbers. So 38 is a single draw from that spread, not the truth about how many turnovers we "really" have.',
+    'A <b>confidence interval</b> is a range built from the match that is designed to catch the true underlying value most of the time. A 95% interval is made by a method that, used again and again on matches, would contain the true value 95 times out of 100.',
+    'For counts we use the spread from the Poisson lesson: the typical wobble of a count is about the square root of the count. For 38 that is about √38 = 6.2. About 95% of a bell-shaped spread lies within 1.96 of these units either side, so the interval is 38 ± 1.96 × 6.2, about 26 to 50.',
+    'For a success rate (such as passes completed out of attempts) the same idea gives a range for the true share; it is calculated slightly differently so that it never goes below 0% or above 100%.',
+    'How to read it: if our usual value is <b>outside</b> the interval, that agrees with a real change, and the gap between them shows how large. If it is <b>inside</b>, then a change cannot be ruled out, but neither is it shown. A wide interval means we have not got much evidence yet; the next matches narrow it.',
+  ]);
+
+  add('multiple', 'Looking in many places at once', ['independent', 'significance'], [
+    'The 5% line means: if nothing changed, a test would still give a "significant" answer by luck about 1 time in 20. For one test that risk is small.',
+    'Now suppose we test 12 different areas of the match (finishing, passing, crossing, fouls and so on) and, in truth, nothing has changed anywhere. The chance that one particular test stays quiet is 0.95. Treating the tests as independent (see that lesson), the chance that <b>all 12</b> stay quiet is 0.95 × 0.95 × … 12 times = 0.95<sup>12</sup> = 0.54.',
+    'So the chance that <b>at least one</b> test shouts "significant" by pure luck is 1 − 0.54 = 0.46, nearly a coin flip. Looking in many places makes false alarms likely.',
+    'Two sensible responses. First, treat a single significant result among many as a <b>lead</b>, and check it in the next match: a real effect keeps showing up, a fluke does not. Second, if you want to be strict, <b>divide the 5% line by the number of tests</b> (5% ÷ 12 is about 0.4%), so that the chance of any false alarm stays near 5%. This is called a Bonferroni correction.',
+  ]);
+
+  // ---------- the business behind the Board: the same kind of lesson, with the same buttons ----------
+  add('pctchange', 'Percentage change', [], [
+    'Prices and crowds change by different amounts, so to compare them fairly we turn each change into a <b>percentage of where it started</b>.',
+    'Step 1: find the change: <b>new number − old number</b>. If a ticket goes from £28 to £36, the change is 36 − 28 = +8 (up £8).',
+    'Step 2: divide by the <b>old</b> number, because we want the change as a share of where we started: 8 ÷ 28 = 0.2857.',
+    'Step 3: multiply by 100 to make it a percentage: 0.2857 × 100 = <b>+28.6%</b>.',
+    'A fall works the same way. If takings go from £140,000 to £129,600, the change is 129,600 − 140,000 = −10,400, and −10,400 ÷ 140,000 = −0.074, which is <b>−7.4%</b>. The minus sign means "down".',
+    'Always divide by the starting number. A price that goes up 50% and then down 50% does not get back to where it started: £10 → £15 → £7.50.',
+  ]);
+
+  add('revenue', 'Revenue (takings)', [], [
+    '<b>Revenue</b> is all the money coming in from selling something, before any costs are taken off. People also call it <b>takings</b> or <b>income</b>.',
+    'For one product it is <b>price × quantity sold</b>. If 1,000 people each pay £20, the revenue is 1,000 × £20 = £20,000.',
+    'The club earns revenue from several places: tickets, food and drink and programmes, broadcasting rights, sponsors, advertising boards, merchandise and (at the end of the season) prize money. Total revenue is all of these added together.',
+    'Revenue is <b>not</b> profit. The club still has to pay the players, run the ground and so on. Taking those costs away is what the lesson on [[profit|profit]] is about.',
+    'Notice that revenue depends on <i>two</i> things at once, the price and how many people buy. Raise the price and fewer may buy, so revenue can go up or down. Working out which is the job of [[elasticity|price elasticity of demand]].',
+  ]);
+
+  add('elasticity', 'Price elasticity of demand (PED)', ['pctchange', 'revenue'], [
+    '<b>Demand</b> means how many people want to buy at a given price. Usually when the price rises, fewer people buy. The question for a club is: <i>how many fewer?</i>',
+    '<b>Price elasticity of demand</b> measures that. Using [[pctchange|percentage changes]]: <b>PED = % change in quantity demanded ÷ % change in price</b>. We ignore the minus sign, so PED is a plain positive number.',
+    '<b>Example A.</b> A ticket price rises 10% and the crowd falls 20%. PED = 20 ÷ 10 = <b>2</b>. The crowd reacted more than the price changed. We call that <b>elastic</b> (PED above 1).',
+    '<b>Example B.</b> A ticket price rises 10% and the crowd falls only 4%. PED = 4 ÷ 10 = <b>0.4</b>. The crowd hardly reacted. We call that <b>inelastic</b> (PED below 1). If PED is exactly 1 it is <b>unit elastic</b>.',
+    '<b>What it does to revenue</b> (take 1,000 fans at £20, so revenue £20,000). Elastic, price up 10% to £22, crowd down 20% to 800: revenue is 800 × £22 = £17,600, which is <i>lower</i>. Inelastic, price up 10% to £22, crowd down 4% to 960: revenue is 960 × £22 = £21,120, which is <i>higher</i>.',
+    '<b>The rule:</b> where demand is inelastic, raising the price raises [[revenue|revenue]]; where it is elastic, raising the price lowers it, and <b>cutting</b> the price raises it (you gain more fans than you lose in price).',
+    '<b>Why some fans are more sensitive than others:</b> a loyal supporter has no real substitute and will pay, so demand is inelastic. Someone with a small budget, such as a student, can easily choose not to go, so demand is elastic. This is why a club splits its ground into [[segments|segments]] and sets each price separately.',
+    '<b>One more thing:</b> if a stand is already completely full and fans are turned away, there is more demand than seats, so the club can raise the price until the stand stops filling without losing any revenue from the empty seats.',
+  ]);
+
+  add('segments', 'Market segments', ['revenue'], [
+    'A <b>market</b> is all the people who might buy from you. A <b>segment</b> is a group within it who want similar things and can afford similar prices.',
+    'At a football ground the segments are easy to see: families with children, regular supporters, students and under-25s, and companies buying hospitality. Each group wants a different experience and has a different budget.',
+    'Because the groups differ, one price for everyone is a bad idea. A price low enough for students gives away money from companies who would happily pay more. A price high enough for companies leaves students outside.',
+    'So the club sets <b>a separate price for each segment</b>. This is called charging different prices to different groups, and it works best when the groups react differently to price (see [[elasticity|price elasticity]]).',
+  ]);
+
+  add('profit', 'Profit: gross, operating and net', ['revenue'], [
+    '<b>Profit</b> is what is left of the [[revenue|revenue]] after the costs of earning it have been taken away. There are several kinds, because costs come in layers.',
+    '<b>Cost of sales</b> (also called direct costs) are costs that go up with each match or sale, such as the cost of running a matchday and the cost of the shirts and scarves the club sells. <b>Gross profit = revenue − cost of sales.</b>',
+    '<b>Expenses</b> (overheads) are the costs of keeping the club going whether or not a particular match is played well: wages, marketing, running the stadium, and the [[depreciation|depreciation]] of the ground and players. <b>Operating profit = gross profit − expenses.</b>',
+    'The club then pays <b>interest</b> on what it has borrowed (see [[loans|loans and interest]]). <b>Profit before tax = operating profit − interest.</b>',
+    'At the end of the season the club pays <b>corporation tax</b> on its profit before tax. <b>Profit for the year (net profit) = profit before tax − tax.</b> This is what belongs to the owners.',
+    '<b>Margins</b> turn a profit into a percentage of revenue so that clubs of different sizes can be compared: <b>profit margin = profit ÷ revenue × 100</b>. A gross profit of £60,000 on revenue of £200,000 is a 30% gross margin.',
+    'Profit tells you whether the club is making more than it spends over the year. It does <b>not</b> tell you whether there is money in the bank today. That is a different question, answered by [[cashflow|cash flow]].',
+  ]);
+
+  add('depreciation', 'Depreciation', ['profit'], [
+    'A stand, or a player who is signed on a three-year contract, is used up slowly over years. It would be unfair to say the whole cost belonged to the one year it was paid for.',
+    '<b>Depreciation</b> spreads the cost over the useful life. A player bought for £6m on a 3-year contract is treated as costing £6m ÷ 3 = <b>£2m a year</b>. A stadium stand costing £10m that lasts 25 years costs £10m ÷ 25 = £0.4m a year.',
+    'Each year\'s share is counted as an <b>expense</b> in the [[profit|profit]] statement, even though no cash leaves the club that year. The cash left when the player was bought.',
+    'What is left to be written off is the <b>book value</b> (cost minus the depreciation so far), and that is the number that appears on the [[balancesheet|balance sheet]]. After one year the £6m player has a book value of £4m.',
+  ]);
+
+  add('cashflow', 'Cash flow: money moving in and out', ['profit'], [
+    '<b>Cash flow</b> is the real money entering and leaving the bank account, and when it happens. <b>Closing balance = opening balance + cash in − cash out.</b>',
+    'It is different from [[profit|profit]]. Buying a £6m player takes £6m of cash out <i>today</i>, but only about £2m a year is counted as a cost in the profit (see [[depreciation|depreciation]]). Taking out a loan brings cash in, but it is not income, so it is not profit at all.',
+    'That is why a club can make a profit and still run out of money: the cash goes out before the profit comes in. And it can have cash but make a loss. Both matter.',
+    'A <b>cash flow forecast</b> adds up what is expected to come in and go out on each matchday to show the future balance. It warns the club <i>before</i> the bank balance goes below zero, which would mean using an [[overdraft|overdraft]].',
+  ]);
+
+  add('balancesheet', 'The balance sheet: assets, liabilities and equity', ['depreciation'], [
+    'The balance sheet is a photograph of the club on one day: what it owns, what it owes, and what is left for its owners.',
+    '<b>Assets</b> are things the club owns that have value: the stadium and facilities, the players\' contracts, and cash in the bank. (Stadium and players are shown after [[depreciation|depreciation]].)',
+    '<b>Liabilities</b> are what the club owes to other people: the bank overdraft and the [[loans|loans]].',
+    '<b>Equity</b> is what is left for the owners once everything owed has been paid: <b>equity = assets − liabilities</b>. It is made of the money the owners paid in for shares (share capital and share premium) plus the profits the club has kept (retained earnings).',
+    'That gives the balance sheet its name: <b>assets = liabilities + equity</b>. Both sides must always be equal. If a club borrows £1m, cash (an asset) goes up £1m and loans (a liability) go up £1m, so it still balances.',
+    'A healthy balance sheet has plenty of assets compared with what is owed. If liabilities grow bigger than assets, equity is negative and the club owes more than it owns.',
+  ]);
+
+  add('loans', 'Loans and interest', ['pctchange'], [
+    'A <b>loan</b> is money borrowed from a bank. The club gets the cash now, and promises to pay it back over time <i>plus a fee for borrowing</i>, called <b>interest</b>.',
+    'Interest is a percentage of what is still owed, shown as a rate per year. At 6% a year, owing £1,000,000 costs £60,000 a year in interest, or about £4,300 a matchday if there are 14 matchdays.',
+    'The club repays the loan in equal parts. A £500,000 loan over 14 matchdays means £500,000 ÷ 14 = about £35,700 repaid every matchday, and the interest gets smaller as the amount still owed falls.',
+    'Borrowing helps when the cash makes more money than the interest costs, for example a new stand that brings in more ticket revenue. It hurts when the club is already short of cash, because the repayments make every future matchday\'s [[cashflow|cash flow]] worse.',
+    'The loan is a <b>liability</b> on the [[balancesheet|balance sheet]] until it is repaid, and the interest is an expense in the [[profit|profit]].',
+  ]);
+
+  add('overdraft', 'An overdraft', ['loans'], [
+    'An <b>overdraft</b> is a loan that happens automatically: when the bank balance goes below zero, the bank lets the club carry on spending up to a <b>limit</b>.',
+    'It is convenient because it is there when the club needs it, but it is expensive: the interest rate is higher than on a normal [[loans|loan]], and it is charged every day the balance is below zero.',
+    'Past the limit the bank charges an even higher rate and refuses to let the club spend. That is why the Board warns you when the [[cashflow|cash flow forecast]] shows the balance heading below zero.',
+  ]);
+
+  add('shares', 'Shares, dilution and dividends', ['profit', 'balancesheet'], [
+    'The club is a <b>public limited company (PLC)</b>: it is owned by <b>shareholders</b>, each holding a number of <b>shares</b>. A share is a small slice of ownership. If there are 1,000,000 shares and you own 10,000, you own 1%.',
+    '<b>Issuing new shares</b> raises money without borrowing. The club sells new slices to new owners, gets the cash straight away, and never has to pay it back or pay interest on it.',
+    'The price of that is <b>dilution</b>. There are now more slices, so each slice is a smaller piece of the club. If 1,000,000 shares become 1,250,000, your 10,000 shares are now 0.8%, not 1%. Existing shareholders therefore dislike it.',
+    'A <b>dividend</b> is a share of the year\'s [[profit|profit]] paid out to the shareholders. If the club pays out 25% of a £400,000 profit, that is £100,000 shared between all the shares. With more shares in issue, each share gets less.',
+    'This is a trade-off: a bigger dividend pleases the owners, but the money leaves the club and cannot be spent on players or building. A smaller dividend keeps the money in the club as <b>retained earnings</b> on the [[balancesheet|balance sheet]].',
+  ]);
+
   const esc = (s) => String(s);
   // [[id|words]] -> button
   const fmt = (html) => html.replace(/\[\[([a-z]+)\|([^\]]+)\]\]/g, (m, id, w) => (L[id] ? `<button type="button" class="rv-term" data-lesson="${id}">${w}</button>` : w));
@@ -142,5 +256,5 @@
   // buttons in a review open a lesson
   document.addEventListener('click', (e) => { const t = e.target.closest && e.target.closest('.rv-term'); if (t && !t.closest('.rv-lesson')) open(t.dataset.lesson); });
 
-  FM.teach = { lessons: L, link, open, close };
+  FM.teach = { lessons: L, link, open, close, fmt };
 })();

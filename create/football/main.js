@@ -2478,11 +2478,13 @@
     }
   }
   const openMp = (first) => FM.mpMenu({ start: (league) => { world.league = league; world.match = null; FM.saveLeague(league); if (FM.ensurePreseasonNews) FM.ensurePreseasonNews(league); try { history.replaceState(null, '', cleanUrl()); } catch (e) { /* fine */ } setView('mp'); } }, first);
+  try { const lv = localStorage.getItem('lm_football_level'), rb = lv && document.querySelector('input[name="ngLevel"][value="' + lv + '"]'); if (rb) rb.checked = true; } catch (e) { /* the default stands */ }
   el('ngLeague').addEventListener('click', () => openMp('league'));
   el('ngMatch').addEventListener('click', () => openMp('match'));
   el('ngJoin').addEventListener('click', () => openMp('join'));
   el('ngStart').addEventListener('click', async () => {
-    const btn = el('ngStart'), tier = 'gcse';
+    const btn = el('ngStart'), picked = document.querySelector('input[name="ngLevel"]:checked'), tier = picked ? picked.value : 'gcse';
+    try { localStorage.setItem('lm_football_level', tier); } catch (e) { /* the choice is also in the game */ }
     btn.disabled = true; btn.textContent = 'Setting up the clubs...';
     await new Promise((r) => setTimeout(r, 30));
     // The league is the same each time (clubs, squads, fixtures, last season), but each new game rolls its own dice: injuries and results differ.

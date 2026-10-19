@@ -243,7 +243,7 @@
   }
   // a tiny chance is said as "less than 0.1%" rather than shown as 0.0%
   const pcs = (x) => (x < 0.001 ? 'less than 0.1%' : pc(x));
-  function testBlock(t) {
+  function alevelWork(t) {
     const verdict = t.p < SIG
       ? `<b>${pcs(t.p)}</b> is below 5%, so the result is <b>statistically significant</b>: ${t.sig}`
       : `<b>${pcs(t.p)}</b> is 5% or more, so the result is <b>not statistically significant</b>: ${t.notSig}`;
@@ -272,6 +272,36 @@
         ${decide}</ol></div>`;
     }
     return `${aim}<div class="rv-test"><h4>The test</h4><p>${verdict}</p></div>`;
+  }
+  // GCSE: the same question, asked with ideas from GCSE maths (averages, expected counts, probability as a chance, 1 in 20). The calculation behind the
+  // number is done for the reader and pointed to, not required.
+  function gcseWork(t) {
+    const E = t.kind === 'poisson' ? t.lam : t.n * t.p0, d = t.k - E, oneIn = Math.max(2, Math.round(1 / Math.max(t.p, 0.0005)));
+    const aim = t.aim ? `<p class="rv-aim">${t.aim}</p>` : '';
+    const unit = t.kind === 'poisson' ? t.thing : t.what;
+    const verdict = t.p < SIG
+      ? `That is less than 5%, so a gap this big would be <b>unusual</b> if nothing had changed: ${t.sig}`
+      : `That is more than 5%, so a gap like this is <b>not unusual</b>: ${t.notSig}`;
+    return `${aim}<div class="rv-work"><h4>What I did</h4><ol class="rv-do">
+      <li><b>I started with what is normal for us.</b> Our record so far: ${t.baseline}. ${t.kind === 'poisson' ? `That means in a normal match we get about ${f1(t.lam)}.` : `That means about ${Math.round(t.p0 * 100)} in every 100 ${t.what} ${t.yes.replace(/^to be /, 'are ').replace(/^to /, '')}.`} This is the ${TL('average', 'average')}, and it is what I compared this match with.</li>
+      <li><b>I worked out what I would expect.</b> ${t.kind === 'poisson' ? `At our usual average, a match gives about ${f1(E)}.` : `With ${t.n} ${t.what}, at our usual rate I would expect ${t.n} × ${f2(t.p0)} = ${f1(E)} of them ${t.yes.replace(/^to be /, 'to be ').replace(/^to /, 'to ')}.`} This match we got ${t.k}. That is ${d === 0 ? 'exactly what I expected' : `${f1(Math.abs(d))} ${d > 0 ? 'more' : 'fewer'} than expected`}.</li>
+      <li><b>I asked whether that gap is a lot or just luck.</b> No two matches are the same, so there is always some gap, even when nothing has changed. What matters is how often luck <i>alone</i> would give a gap as big as this one. That is a ${TL('chance', 'probability')} (a chance written as a percentage). A computer worked it out from how counts like ${unit} normally scatter around an average (if you are curious how, the ${TL('poisson', 'Poisson')} lesson builds it from scratch, but you do not need it to use the answer). The answer is <b>${pcs(t.p)}</b>, which is about 1 match in ${oneIn}.</li>
+      <li><b>I read the number.</b> A common rule of thumb is the ${TL('unusual', '1-in-20 rule')}: if luck alone would do it less than 1 time in 20 (5%), it is unusual enough to take seriously. ${verdict} One match is a small amount of evidence, so the next review will look again.</li></ol></div>`;
+  }
+  // Beyond A-level: the A-level test, then how big the change is, with an interval, and the problem of looking in many places at once.
+  function aboveWork(t) {
+    const base = alevelWork(t);
+    let lo, hi, what;
+    if (t.kind === 'poisson') { const w = 1.96 * Math.sqrt(Math.max(t.k, 1)); lo = Math.max(0, t.k - w); hi = t.k + w; what = `the underlying number for a match like this one is between ${f1(lo)} and ${f1(hi)}, against our usual ${f1(t.lam)}`; }
+    else { const [a, b] = wilson(t.k, t.n); lo = a; hi = b; what = `the underlying success rate in a match like this one is between ${pc(a)} and ${pc(b)}, against our usual ${pc(t.p0)}`; }
+    const usual = t.kind === 'poisson' ? t.lam : t.p0, inside = usual >= lo && usual <= hi;
+    const extra = `<li><b>I measured how big the change is, not only whether it exists.</b> A significant result only says "probably not luck"; it does not say how large the change is. So I put a ${TL('interval', '95% confidence interval')} on this match: ${what}. ${inside ? 'Our usual figure sits inside that range, which fits with the result being luck or only a small change.' + (t.p < SIG ? ' (The test above only asked about "more than usual" in one direction, so it can call the result significant while a two-sided 95% range still just reaches our usual figure: they are answering slightly different questions.)' : '') : 'Our usual figure sits outside that range, which agrees with there having been a real change, and the distance between them shows how big.'}</li>
+      <li><b>I allowed for how many places I looked.</b> I checked ${reviewAreas} different areas of this match, not one. Each test has a 1-in-20 chance of a false alarm, so even if nothing at all had changed I would expect about ${f1(reviewAreas * 0.05)} of them to look significant by luck alone. That is the ${TL('multiple', 'problem of testing many things at once')}. So treat a result like this as a lead to check in the next match, not a conclusion.</li>`;
+    return base.replace('</ol></div>', extra + '</ol></div>');
+  }
+  function testBlock(t) {
+    if (!t.kind) return alevelWork(t);
+    return reviewTier === 'gcse' ? gcseWork(t) : reviewTier === 'above' ? aboveWork(t) : alevelWork(t);
   }
   // The improvement: written out for the manager to carry into the tactics themselves. When the test says something is wrong (or close to it) it is a
   // full explanation: why, where to change it, what to expect, and how to check it worked. Otherwise it says to leave it alone and what to watch.
@@ -605,6 +635,8 @@
 
   // ---------- the page ----------
   FM._testBlock = testBlock;
+  let reviewTier = 'alevel', reviewAreas = 12;   // the level being studied (gcse, alevel or above), and how many areas this review looked at
+  FM._setTier = (x) => { reviewTier = x; };
   FM.matchReview = function (league) {
     const c = context(league); if (!c) return null;
     const mid = (d) => d >= 1 / 3 && d < 2 / 3, back = (d) => d < 1 / 3, final = (d) => d >= 2 / 3;
@@ -613,19 +645,34 @@
     // the two where things went most wrong: the smallest chance of being just a bad day, at most one from each family (finishing, passing...)
     cands.sort((a, b) => (a.p - b.p) || (b.impact - a.impact));
     const picked = [], fams = new Set();
-    cands.forEach((x) => { const fam = x.family || x.kind; if (picked.length < 2 && !fams.has(fam)) { picked.push(x); fams.add(fam); } });
+    cands.forEach((x) => { const fam = x.family || x.kind; if (picked.length < 1 && !fams.has(fam)) { picked.push(x); fams.add(fam); } });
+    reviewTier = league.tier || 'gcse'; reviewAreas = cands.length;
     return { c, picked, all: cands };
   };
+  // The review is a LastMind analysis, so opening it costs Locks (a fixed amount for each match, charged once; see /football/review-charge). Guests with no
+  // account cannot be charged and see it free; if the server cannot be reached the review still opens.
   FM.renderMatchReview = function (host, league) {
     const r = FM.matchReview(league);
     if (!r) { host.innerHTML = '<div class="card rv-intro"><h2>Last match</h2><p class="desc">Hi boss. Once we have played a match I will go through it with you here: what went wrong, whether it was down to bad luck, and what to look at.</p></div>'; return; }
+    const real = league.fixtures.find((f) => f.id === r.c.fx.id);
+    const draw = () => paint(host, r);
+    if (!real || real.reviewPaid || !FM.apiCall) { draw(); return; }
+    host.innerHTML = '<div class="card rv-intro"><h2>Going through the match…</h2><p class="desc">Working through the match with you. This analysis costs a few Locks.</p></div>';
+    FM.apiCall('POST', '/football/review-charge', {}).then((res) => {
+      if (res && res.status === 402) { host.innerHTML = '<div class="card rv-intro"><h2>Out of Locks</h2><p class="desc">The analysis of the last match costs a few Locks, and you have used your allowance for now. Your game and everything saved in it carry on as normal.</p></div>'; return; }
+      if (res && res.ok) { real.reviewPaid = true; if (FM.requestSave) FM.requestSave(); }
+      draw();
+    }).catch(() => draw());
+  };
+  function paint(host, r) {
     const c = r.c, gd = c.gf - c.ga, hour = new Date().getHours(), tod = hour < 12 ? 'Morning' : hour < 18 ? 'Afternoon' : 'Evening';
     const A = ['Gaffer', 'Boss', 'Manager'][FM.hashString([c.league.seed, c.league.season || 1, c.league.day || 0, 'rv'].join(':')) % 3];
     const verdictWord = gd >= 3 ? 'a brilliant win, and congratulations' : gd >= 1 ? 'a good win, and well done' : gd === 0 ? 'a draw, so a point on the board' : gd <= -3 ? 'a heavy defeat, and I know that is hard to read' : 'a defeat, but there is plenty in it to learn from';
+    const lvl = { gcse: 'GCSE', alevel: 'A-level', above: 'beyond A-level' }[reviewTier] || 'GCSE';
     host.innerHTML = `<div class="card rv-intro"><div class="eyebrow">The last match: round ${c.fx.round + 1}</div><h2>${esc(c.team.name)} ${c.gf}-${c.ga} ${esc(c.opp.name)}</h2>
-      <p class="desc">${tod}, ${A}. I have been going through our latest game against ${esc(c.opp.name)}, ${verdictWord}. A few things stood out that were worth testing properly, and for each one I show exactly how I tested it, one step at a time, as if I were explaining it across the table. Any word that looks like <button type="button" class="rv-term" data-lesson="average">this</button> is something I will explain from the beginning if you press it, and every explanation has links of its own back to the basics.</p></div>
+      <p class="desc">${tod}, ${A}. I have been going through our latest game against ${esc(c.opp.name)}, ${verdictWord}. One thing stood out that was worth testing properly, and I show exactly how I tested it, one step at a time, as if I were explaining it across the table, at ${lvl} level. Any word that looks like <button type="button" class="rv-term" data-lesson="average">this</button> is something I will explain from the beginning if you press it, and every explanation has links of its own back to the basics.</p></div>
       ${r.picked.length ? r.picked.map((x) => box(x.title, x.html)).join('') : '<div class="card"><p class="desc">There was not enough in that match to build a proper test from. Play another and I will have more for you.</p></div>'}
-      <div class="card rv-outro"><p class="desc">If you want to explore any other points from the last game, just ask, and I can provide the data and assistance. Any techniques you need help with, I can explain too. I looked at ${r.all.length} different areas of the game to choose these two, including finishing, passing, crossing, tackling, dribbling, fouls and how quickly we win the ball back, so if you want any of the others, say which.</p><div class="row"><button type="button" class="primary" id="rvAsk">Ask the LastMind AI Agent</button></div></div>`;
+      <div class="card rv-outro"><p class="desc">If you want to explore any other points from the last game, just ask, and I can provide the data and assistance. Any techniques you need help with, I can explain too. I looked at ${r.all.length} different areas of the game to choose this one, including finishing, passing, crossing, tackling, dribbling, fouls and how quickly we win the ball back, so if you want any of the others, say which.</p><div class="row"><button type="button" class="primary" id="rvAsk">Ask the LastMind AI Agent</button></div></div>`;
     const b = host.querySelector('#rvAsk'); if (b) b.addEventListener('click', () => { if (FM.agentOpen) FM.agentOpen(); });
-  };
+  }
 })();
