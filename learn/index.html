@@ -4968,6 +4968,7 @@
     .create-card-link { cursor: pointer; }
     .create-card-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
     .create-card h3 { margin: 0; padding: 14px 16px 12px; font: 700 1.05rem 'Lora', Georgia, serif; }
+    .create-price.free-offer { background: rgba(127,212,154,.16); border-color: rgba(127,212,154,.6); } .create-price.free-offer s { opacity: .65; text-decoration-thickness: 2px; } .create-price.free-offer b { color: #7FD49A; margin-left: 2px; } .create-price.free-offer small { font-weight: 600; opacity: .85; }
     .create-price { display: inline-block; margin: 0 16px 8px; padding: 3px 10px; border-radius: 999px; font: 700 0.8rem Arial, sans-serif; background: rgba(241,192,79,.18); border: 1px solid rgba(241,192,79,.55); } .create-price.unlocked { background: rgba(80,200,120,.2); border-color: rgba(80,200,120,.6); } .create-price.free { background: rgba(80,200,120,.16); border-color: rgba(80,200,120,.5); }
     .create-card-image { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; }
     .create-card p { margin: 0; padding: 12px 16px 16px; font: 0.86rem/1.5 Arial, sans-serif; opacity: 0.85; }
@@ -10829,7 +10830,7 @@ SQIDAQAB
         const card = (t, attrs = '') => `
                         <article class="create-card${attrs ? ' create-card-link' : ''}" ${attrs}>
                             <h3>${escapeHtml(t.title)}</h3>
-                            ${CREATE_PRICES[t.key] ? `<span class="create-price${CREATE_PRICES[t.key] === 'Free' ? ' free' : ''}">${escapeHtml(CREATE_PRICES[t.key])}</span>` : ''}
+                            ${t.key === 'football-manager' && window.LM_FOOTBALL_FREE ? `<span class="create-price free-offer"><s>${escapeHtml(CREATE_PRICES[t.key])}</s> <b>Free!</b> <small>for a limited time</small></span>` : CREATE_PRICES[t.key] ? `<span class="create-price${CREATE_PRICES[t.key] === 'Free' ? ' free' : ''}">${escapeHtml(CREATE_PRICES[t.key])}</span>` : ''}
                             <img class="create-card-image" src="${t.image}" alt="${escapeHtml(t.alt)}" loading="lazy">
                             <p>${escapeHtml(t.description)}</p>
                         </article>`;
@@ -10915,6 +10916,9 @@ SQIDAQAB
 
     // ─── Paid projects ───
     // Asks the server whether this account has the project (the answer is never taken from the browser). If not, opens the Stripe checkout for it.
+    // The football manager is free for a limited time. The £4.99 price stays on its card (struck through) and the checkout code is untouched: the backend
+    // says yes to football for everyone signed in while its FOOTBALL_FREE switch is on. Set this to false, and FOOTBALL_FREE=false on the backend, to bring the paywall back.
+    window.LM_FOOTBALL_FREE = true;
     async function lmEnsureProject(project) {
         try {
             const client = window.supabaseClient;
@@ -10953,6 +10957,7 @@ SQIDAQAB
                 const r = await fetch(COMPILE_BACKEND_URL + '/projects/access', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token }, body: JSON.stringify({ project }) });
                 const j = await r.json().catch(() => ({}));
                 if (!r.ok || !j.allowed || !galleryEl.isConnected) continue;
+                if (project === 'football' && window.LM_FOOTBALL_FREE) continue;   // free for now: the card keeps saying so rather than "Unlocked"
                 Array.from(galleryEl.querySelectorAll('[data-simulation]')).filter((c) => of[c.dataset.simulation] === project).reverse().forEach((c) => {
                     const price = c.querySelector('.create-price');
                     if (price) { price.textContent = 'Unlocked'; price.className = 'create-price unlocked'; }
