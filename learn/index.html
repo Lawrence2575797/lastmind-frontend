@@ -4268,6 +4268,18 @@
     .nb-canvas { --nb-margin: 56px; position: relative; background-color: #1A232D; background-image: linear-gradient(to right, transparent calc(var(--nb-margin) - 2px), rgba(230, 215, 176, 0.5) calc(var(--nb-margin) - 2px), rgba(230, 215, 176, 0.5) var(--nb-margin), transparent var(--nb-margin)); color: #E6D7B0; border-radius: 10px; box-shadow: 0 2px 14px rgba(26, 35, 45, 0.35); cursor: text; overflow: hidden; --text: #E6D7B0; --accent: #F3E7BE; }
     .nb-hint { position: absolute; left: 0; right: 0; top: 40px; text-align: center; color: rgba(230, 215, 176, 0.5); font-size: 15px; pointer-events: none; }
     .nb-block { position: absolute; cursor: auto; }
+    /* On a phone the notes page is not a free canvas: the boxes and diagrams are stacked one under the other, in the order they were placed
+       down the page, each the full width of the screen. (On a wide screen they keep the places they were put.) */
+    .nb-home-btn { display: none; }
+    @media (max-width: 768px) {
+        .nb-home-btn { display: inline-flex; align-items: center; gap: 6px; margin: 0 0 10px; padding: 8px 14px; font-size: 14px; font-weight: 700; border-radius: 999px; border: 1px solid rgba(230, 215, 176, 0.4); background: rgba(230, 215, 176, 0.12); color: inherit; cursor: pointer; }
+        .nb-canvas { --nb-margin: 10px; display: flex !important; flex-direction: column; gap: 14px; height: auto !important; min-height: 0 !important; padding: 12px 12px 90px; box-sizing: border-box; overflow-x: hidden; }
+        .nb-canvas .nb-block { position: relative !important; left: auto !important; top: auto !important; width: 100% !important; max-width: 100% !important; height: auto !important; min-height: 0; box-sizing: border-box; }
+        .nb-canvas .nb-block.nb-arrow, .nb-canvas .nb-resize, .nb-canvas .nb-block .nb-grip { display: none !important; }
+        .nb-canvas .nb-graph { min-height: 280px; }
+        .nb-canvas .nb-block img, .nb-canvas .nb-block svg, .nb-canvas .nb-block canvas { max-width: 100%; height: auto; }
+        .nb-canvas .nb-block.ps-rule { height: 3px !important; }
+    }
     .nb-text { min-width: 140px; border-radius: 6px; outline: 1px dashed transparent; z-index: 1; }
     /* Controls sit above the box, so a nearby/later text block used to
        cover them and receive the click as editable text. Keep whichever
@@ -13732,6 +13744,8 @@ SQIDAQAB
     document.getElementById('createTopbarBtn').addEventListener('click', () => renderCreatePage(false));
     document.getElementById('rewardsTopbarBtn').addEventListener('click', renderRewardsPage);
     document.getElementById('dashboardTopbarBtn').addEventListener('click', goToMainFeed);
+    document.addEventListener('click', (e) => { if (e.target.closest && e.target.closest('.nb-home-btn')) goToMainFeed(); });
+    window.addEventListener('resize', () => { const cv = document.getElementById('nbCanvas'); if (cv && typeof nbFitCanvas === 'function') nbFitCanvas(cv); });
     // Real, reported bug this fixes: several topbar destinations (Your
     // Mind, Rewards, Create, Exam Preparation, Maths Tool, ...) navigate
     // by calling their own render function directly from their OWN click
@@ -21586,13 +21600,47 @@ SQIDAQAB
 
     function notesNewId() { return 'n' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
     function notesNode(id) { return notes.nodes.find((n) => n.id === id) || null; }
-    function notesPersistLocal() { try { localStorage.setItem(notesKey, JSON.stringify(notes)); return true; } catch (_) { return false; } }
+    // The copy kept on this device goes into localStorage while it fits and into IndexedDB (which has far more room) when it does not. Either way the
+    // notes are also kept with the account (notesSync), so a full browser never stops a page from saving.
+    let notesInIdb = false, notesIdbConn = null;
+    function notesIdb() {
+        return new Promise((resolve) => {
+            if (!window.indexedDB) return resolve(null);
+            if (notesIdbConn) return resolve(notesIdbConn);
+            try {
+                const rq = indexedDB.open('lastmind-notes-cache', 1);
+                rq.onupgradeneeded = () => { if (!rq.result.objectStoreNames.contains('kv')) rq.result.createObjectStore('kv'); };
+                rq.onsuccess = () => { notesIdbConn = rq.result; resolve(rq.result); };
+                rq.onerror = () => resolve(null);
+            } catch (_) { resolve(null); }
+        });
+    }
+    function notesIdbPut(key, val) {
+        return notesIdb().then((db) => (!db ? false : new Promise((resolve) => {
+            try { const tx = db.transaction('kv', 'readwrite'), st = tx.objectStore('kv'); if (val == null) st.delete(key); else st.put(val, key); tx.oncomplete = () => resolve(true); tx.onerror = () => resolve(false); tx.onabort = () => resolve(false); } catch (_) { resolve(false); }
+        })));
+    }
+    function notesIdbGet(key) {
+        return notesIdb().then((db) => (!db ? null : new Promise((resolve) => {
+            try { const rq = db.transaction('kv').objectStore('kv').get(key); rq.onsuccess = () => resolve(rq.result || null); rq.onerror = () => resolve(null); } catch (_) { resolve(null); }
+        })));
+    }
+    function notesPersistLocal() {
+        const json = JSON.stringify(notes);
+        try { localStorage.setItem(notesKey, json); if (notesInIdb) { notesInIdb = false; notesIdbPut(notesKey, null); } return true; } catch (_) { /* the browser's small allowance is full */ }
+        notesInIdb = true;
+        notesIdbPut(notesKey, json).then((ok) => {
+            if (ok) { try { localStorage.removeItem(notesKey); } catch (_) { /* fine */ } if (typeof notesStatus === 'function') notesStatus('Saved'); }
+            else if (typeof notesStatus === 'function') notesStatus(notesSyncUid ? 'Saved to your account' : 'Not saved on this device. Sign in to keep your notes with your account.');
+        });
+        return true;
+    }
     function notesPersist() { const ok = notesPersistLocal(); if (typeof notesSyncSchedule === 'function') notesSyncSchedule(); return ok; }
     function notesStatus(text) { const el = document.getElementById('nbStatus'); if (el) el.textContent = text; }
     function notesFlush() {
         if (notesSaveTimer) { clearTimeout(notesSaveTimer); notesSaveTimer = null; }
         try { if (typeof nbSrCapture === 'function' && document.getElementById('nbCanvas')) { const pg = notesNode(notes.activeId); nbHistoryCapture(pg); nbSrCapture(pg); } } catch (_) { /* revision bookkeeping never blocks a save */ }
-        notesStatus(notesPersist() ? 'Saved' : 'Could not save: this browser has no space left');
+        notesStatus(notesPersist() ? (notesInIdb ? 'Saving…' : 'Saved') : 'Could not save on this device' + (notesSyncUid ? ', but your account has it' : ''));
     }
     function notesScheduleSave() {
         notesStatus('Saving…');
@@ -21633,6 +21681,8 @@ SQIDAQAB
         notesKey = NOTES_KEY + suffix;
         let d = null;
         try { d = JSON.parse(localStorage.getItem(notesKey) || 'null'); } catch (_) { d = null; }
+        // a copy kept in IndexedDB is the newer one: it is only written when the browser's own storage was full
+        try { const raw = await notesIdbGet(notesKey); if (raw) { const di = JSON.parse(raw); if (di && Array.isArray(di.nodes)) { d = di; notesInIdb = true; } } } catch (_) { /* the localStorage copy stands */ }
         if (d && Array.isArray(d.nodes)) notes = { nodes: d.nodes.filter((n) => n && n.id && (n.type === 'folder' || n.type === 'page')), activeId: d.activeId || null, sectionOpen: (d.sectionOpen && typeof d.sectionOpen === 'object') ? d.sectionOpen : {} };
         else { notes = { nodes: [], activeId: null }; notesMigrateMathsNotes(suffix); notesPersist(); }
         notesLoaded = true;
@@ -22013,6 +22063,8 @@ SQIDAQAB
         document.getElementById('topbarTitle').textContent = title;
         const contentInner = document.getElementById('contentInner');
         contentInner.classList.add('content-inner-wide');
+        // the notes screen is drawn straight after this; the Home button (phones only) goes in at the top once it is
+        requestAnimationFrame(() => { if (contentInner.isConnected && !contentInner.querySelector('.nb-home-btn')) contentInner.insertAdjacentHTML('afterbegin', '<button type="button" class="nb-home-btn" aria-label="Back to Home">← Home</button>'); });
         if (notesResizeObs) { notesResizeObs.disconnect(); notesResizeObs = null; }
         notesActive = null; nbClearAlignment();
         return contentInner;
@@ -22070,6 +22122,8 @@ SQIDAQAB
     function nbFitCanvas(canvas) {
         nbClampBlocksToCanvas(canvas);
         if (canvas.querySelector('.nb-arrow') && typeof notesNode === 'function' && notes && notes.activeId) { const pg = notesNode(notes.activeId); if (pg) nbRenderArrows(canvas, pg); }
+        const stacked = window.matchMedia && window.matchMedia('(max-width: 768px)').matches;
+        canvas.querySelectorAll('.nb-block').forEach((b) => { b.style.order = stacked ? String(Math.round(parseFloat(b.style.top) || 0)) : ''; });
         let bottom = 0;
         canvas.querySelectorAll('.nb-block').forEach((b) => { bottom = Math.max(bottom, b.offsetTop + b.offsetHeight); });
         canvas.style.height = Math.max(Math.round(window.innerHeight * 0.68), 480, bottom + 160) + 'px';
