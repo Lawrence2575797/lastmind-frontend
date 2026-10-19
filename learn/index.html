@@ -4271,6 +4271,7 @@
     /* On a phone the notes page is not a free canvas: the boxes and diagrams are stacked one under the other, in the order they were placed
        down the page, each the full width of the screen. (On a wide screen they keep the places they were put.) */
     .nb-home-btn { display: none; }
+    .nb-copy-btn { flex: 0 0 auto; width: 30px; height: 30px; padding: 0; border-radius: 7px; border: 1px solid rgba(230, 215, 176, 0.35); background: rgba(230, 215, 176, 0.08); color: inherit; font-size: 16px; line-height: 1; cursor: pointer; } .nb-copy-btn:hover { background: rgba(230, 215, 176, 0.2); } .nb-copy-btn.done { color: #7FD49A; border-color: #7FD49A; }
     @media (max-width: 768px) {
         .nb-home-btn { display: inline-flex; align-items: center; gap: 6px; margin: 0 0 10px; padding: 8px 14px; font-size: 14px; font-weight: 700; border-radius: 999px; border: 1px solid rgba(230, 215, 176, 0.4); background: rgba(230, 215, 176, 0.12); color: inherit; cursor: pointer; }
         .nb-canvas { --nb-margin: 10px; display: flex !important; flex-direction: column; gap: 14px; height: auto !important; min-height: 0 !important; padding: 12px 12px 90px; box-sizing: border-box; overflow-x: hidden; }
@@ -24266,6 +24267,7 @@ SQIDAQAB
         contentInner.innerHTML = `
             <div class="nb-page-wrap">
                 <div class="nb-head">
+                    <button type="button" class="nb-copy-btn" id="nbCopyBtn" title="Copy this whole page" aria-label="Copy this whole page">⧉</button>
                     <input type="text" class="nb-title" id="nbTitle" placeholder="Untitled page" maxlength="120" aria-label="Page title">
                     <span class="nb-status" id="nbStatus" aria-live="polite"></span>
                     <button type="button" class="nb-tool nb-sr-btn" id="nbHistBtn" title="Earlier versions of this page, and a way to get lost writing back">History</button>
@@ -37192,6 +37194,46 @@ SQIDAQAB
             if (!v.querySelector('svg, img')) return;
             open(v);
         });
+    })();
+    </script>
+    <script>
+    // The copy symbol at the top of a notes page copies the whole page: the title, then every text box and diagram in the order they run down the page. Pasted into
+    // a document it keeps its formatting and pictures; pasted as plain text it is the words.
+    (function () {
+        function pageParts() {
+            const canvas = document.getElementById('nbCanvas'); if (!canvas) return null;
+            const title = (document.getElementById('nbTitle') || {}).value || 'Untitled page';
+            const blocks = Array.prototype.slice.call(canvas.querySelectorAll('.nb-block')).filter((b) => !b.classList.contains('nb-arrow'))
+                .sort((a, b) => (parseFloat(a.style.top) || 0) - (parseFloat(b.style.top) || 0) || (parseFloat(a.style.left) || 0) - (parseFloat(b.style.left) || 0));
+            let html = '<h1>' + title.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])) + '</h1>', text = title + '\n\n';
+            blocks.forEach((b) => {
+                const clone = b.cloneNode(true);
+                clone.querySelectorAll('.nb-grip, .nb-del, .nb-resize, .nb-corner, .nb-dbar, .nb-align-left, button, input, select, textarea').forEach((n) => n.remove());
+                clone.removeAttribute('style'); clone.querySelectorAll('[contenteditable]').forEach((n) => n.removeAttribute('contenteditable'));
+                const words = (b.innerText || '').replace(/​/g, '').trim();
+                html += '<div>' + clone.innerHTML + '</div>';
+                text += (words || (b.querySelector('svg, img') ? '[diagram]' : '')) + '\n\n';
+            });
+            return { html, text: text.trim() + '\n' };
+        }
+        async function copyPage(btn) {
+            const parts = pageParts(); if (!parts) return;
+            let ok = false;
+            try {
+                if (navigator.clipboard && window.ClipboardItem) { await navigator.clipboard.write([new ClipboardItem({ 'text/html': new Blob([parts.html], { type: 'text/html' }), 'text/plain': new Blob([parts.text], { type: 'text/plain' }) })]); ok = true; }
+                else if (navigator.clipboard) { await navigator.clipboard.writeText(parts.text); ok = true; }
+            } catch (_) { ok = false; }
+            if (!ok) {
+                const box = document.createElement('div'); box.contentEditable = 'true'; box.style.cssText = 'position:fixed;left:-9999px;top:0;white-space:pre-wrap'; box.innerHTML = parts.html; document.body.appendChild(box);
+                const r = document.createRange(); r.selectNodeContents(box); const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(r);
+                try { ok = document.execCommand('copy'); } catch (_) { ok = false; }
+                sel.removeAllRanges(); box.remove();
+            }
+            const old = btn.textContent;
+            btn.textContent = ok ? '✓' : '!'; btn.classList.toggle('done', ok); btn.title = ok ? 'Copied' : 'Could not copy';
+            setTimeout(() => { btn.textContent = old; btn.classList.remove('done'); btn.title = 'Copy this whole page'; }, 1600);
+        }
+        document.addEventListener('click', (e) => { const b = e.target.closest && e.target.closest('#nbCopyBtn'); if (b) copyPage(b); });
     })();
     </script>
     <script src="/create/law-career/career-base.js?v=20261006a"></script>
