@@ -505,6 +505,8 @@
   FM.renderScenario = function (host, team, opp, phase, hooks) {
     const ph = PHASES[phase];
     if (!host || !ph || !opp) return;
+    // On a phone the page scrolls when the finger is on the pitch but not on a shirt or the ball; only a touch that starts on one of those moves it.
+    if (!host._touchGuard) { host._touchGuard = true; host.addEventListener('touchstart', (e) => { if (e.target.closest && e.target.closest('#scnSvg [data-own], #scnSvg [data-ball]')) e.preventDefault(); }, { passive: false }); }
     const store = (hooks && hooks.store) || (host._scn = host._scn || {});
     let S = store[phase];
     // who is in the eleven and the shape they are in: if either has changed since the scenario was set up, it is set up again from the squad

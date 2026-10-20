@@ -426,6 +426,9 @@
   // Returns whether anything moved. A position that came from a scenario the manager showed counts like one placed by hand; a default one that is
   // out of reach is pulled back as well.
   FM.fixSlot = function (team, p, opp, lineFor) {
+    // The positions a manager draws are what he wants, not what is allowed: nothing is moved here any more. In the match each player goes as far towards his place as
+    // he can, and the offside line, his speed and the other rules decide the rest.
+    if (!FM.CLAMP_PLACED) return false;
     let moved = false;
     FM.allPhaseKeys(team).forEach((ph) => {
       const sc = team.scenarioEnd && team.scenarioEnd[FM.baseKey(ph)];

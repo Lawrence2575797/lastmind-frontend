@@ -1737,7 +1737,6 @@
     world.scn = world.scn || {};
     FM.renderScenario(host.querySelector('#scnHost'), team, nextOpponent(), sub, { store: world.scn, save: saveSoon, applied: (done) => {
       FM.inferShapeTactics(team); renderPrepFlow();
-      try { FM.fixTeam(team, nextOpponent(), (ph) => oppLine(ph)); } catch (e) { /* the warnings on the squad page still say what is wrong */ }
       // "Use this and go on to ..." takes you to that phase's page
       const nk = done && done.nextKey, nb = nk && el('tabs').querySelector('button[data-tab="' + nk + '"]');
       if (nk === 'organised' && tab === 'organised') { world.defSub = 'organised'; renderScenarioTab(team, tab); }
@@ -2187,13 +2186,14 @@
       svg.setPointerCapture(e.pointerId);
       e.preventDefault();
     });
+    // On a phone the page scrolls when the finger is on the pitch but not on a shirt or the ball; only a touch that starts on one of those moves it.
+    svg.addEventListener('touchstart', (e) => { if (e.target.closest && e.target.closest('.dot, .odot, .ball')) e.preventDefault(); }, { passive: false });
     svg.addEventListener('pointermove', (e) => {
       if (dragBall) { const pos = toPos(e); dragBall.pos = pos; const pt = bpt(pos); dragBall.g.setAttribute('transform', `translate(${pt.x.toFixed(1)},${pt.y.toFixed(1)})`); return; }
       if (!drag) return;
       if (!drag.moved && Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) < 5) return;
       drag.moved = true;
       let pos = toPos(e);
-      if (key !== 'shape' && !drag.opp) pos = FM.clampOffside(team, drag.p, key, FM.clampToReach(team, drag.p, key, pos), nextOpponent(), oppLine(key));
       drag.pos = pos;
       const pt = bpt(pos);
       drag.g.setAttribute('transform', `translate(${pt.x.toFixed(1)},${pt.y.toFixed(1)})`);
@@ -2258,7 +2258,7 @@
       const nm = esc((p.name || '').split(' ').slice(-1)[0]);
       return `<g data-live="${p.index}" style="cursor:grab"><circle cx="${c.x.toFixed(2)}" cy="${c.y.toFixed(2)}" r="3.6" fill="transparent"/><circle cx="${c.x.toFixed(2)}" cy="${c.y.toFixed(2)}" r="2.3" fill="${moved[p.index] ? '#f4edda' : '#fff'}" stroke="${moved[p.index] ? '#e0a82e' : '#1f8a4c'}" stroke-width=".5"/><text x="${c.x.toFixed(2)}" y="${(c.y + .9).toFixed(2)}" text-anchor="middle" font-size="2.5" font-weight="700" fill="#14653a" pointer-events="none">${p.number}</text><text x="${c.x.toFixed(2)}" y="${(c.y + 5).toFixed(2)}" text-anchor="middle" font-size="2.2" fill="#fff" stroke="#000" stroke-width=".5" style="paint-order:stroke" pointer-events="none">${nm}</text></g>`;
     }).join('');
-    return `<svg id="liveSvg" viewBox="-2 -2 ${W + 4} ${L + 4}" style="width:100%;max-width:560px;display:block;border-radius:10px;background:#2c7d40;touch-action:none">${lines}${theirs}${ours}</svg>`;
+    return `<svg id="liveSvg" viewBox="-2 -2 ${W + 4} ${L + 4}" style="width:100%;max-width:560px;display:block;border-radius:10px;background:#2c7d40;touch-action:pan-y">${lines}${theirs}${ours}</svg>`;
   }
   function renderLiveBoard(team, tab) {
     const host = el('tabBody'), m = world.match, opp = m ? (m.home === team ? m.away : m.home) : null;
@@ -2276,6 +2276,7 @@
     const draw = () => { lh.innerHTML = liveBoardSvg(team, opp, key); };
     draw();
     const toPos = (svg, ev) => { const r = svg.getBoundingClientRect(), W = 68, L = 105, vx = -2 + (ev.clientX - r.left) / r.width * (W + 4), vy = -2 + (ev.clientY - r.top) / r.height * (L + 4); return { d: clamp01(1 - vy / L, 0.02, 0.98), w: clamp01(vx / W, 0.03, 0.97) }; };
+    lh.addEventListener('touchstart', (ev) => { if (ev.target.closest && ev.target.closest('[data-live]')) ev.preventDefault(); }, { passive: false });
     lh.addEventListener('pointerdown', (ev) => {
       const g = ev.target.closest && ev.target.closest('[data-live]'); if (!g) return;
       const svg = lh.querySelector('svg'); try { svg.setPointerCapture(ev.pointerId); } catch (e) { /* fine */ }
@@ -2388,23 +2389,13 @@
     renderWarnPanel(team);
   }
 
+  // Only the injury note is left here. The positions the manager draws are what he *wants*: nothing is pulled back or refused, and in the match each player simply
+  // goes as far towards his place as he can (his speed, the offside line and the other rules of the game decide how far that is).
   function renderWarnPanel(team) {
     const host = el('warnPanel');
     if (!host) return;
-    // Positions that are out of reach between phases, or offside, are not allowed to stand: they are pulled back as soon as they are made.
-    if (!inLive()) { try { FM.fixTeam(team, nextOpponent(), (ph) => oppLine(ph)); saveSoon(); } catch (e) { /* the warnings below still say what is wrong */ } }
-    const all = FM.teamProblems(team, nextOpponent(), (ph) => oppLine(ph));
-    const sel = world.selSlot && team.players.includes(world.selSlot) ? world.selSlot : null;
     const hurt = team.players.filter(FM.isInjured);
-    let html = hurt.length && !inLive() ? `<p class="note warnnote">${hurt.map((p) => esc(p.name)).join(', ')} ${hurt.length > 1 ? 'are' : 'is'} injured. Substitute ${hurt.length > 1 ? 'them' : 'him'} here, or the best available replacement will start at kick-off.</p>` : '';
-    const hard = all;
-    if (hard.length) {
-      html += '<h2 style="margin-bottom:8px">These phases do not fit together yet</h2><div class="warns">' + hard.map(({ p, list }) => `<div class="warn${p === sel ? ' me' : ''}"><b>${esc(shortName(p))}</b> (${p.slotKey})<ul>${list.map((t) => `<li>${esc(t)}</li>`).join('')}</ul></div>`).join('') + '</div>';
-      html += '<div class="row" style="margin-top:8px"><button id="fixAll">Pull impossible and offside positions back</button></div>';
-    }
-    host.innerHTML = html;
-    const fix = host.querySelector('#fixAll');
-    if (fix) fix.addEventListener('click', () => { const op = nextOpponent(); team.players.forEach((p) => FM.fixSlot(team, p, op, (ph) => oppLine(ph))); saveSoon(); renderTactics(); });
+    host.innerHTML = hurt.length && !inLive() ? `<p class="note warnnote">${hurt.map((p) => esc(p.name)).join(', ')} ${hurt.length > 1 ? 'are' : 'is'} injured. Substitute ${hurt.length > 1 ? 'them' : 'him'} here, or the best available replacement will start at kick-off.</p>` : '';
   }
 
   // A player's profile: where he is from, his ratings as bars, his condition, and what he has done this season.
