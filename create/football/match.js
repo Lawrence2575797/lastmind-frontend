@@ -1629,7 +1629,8 @@
   // for computer-run clubs (and when there is no one to bring on) the replacement is made at once.
   function handleInjury(match, team, p) {
     const inj = FM.rollInjury(match.rng);
-    p.injury = { until: (match.day || 0) + inj.days, name: inj.name, matches: inj.matches };
+    const heal = team.id === match.userId && FM.userMod ? FM.userMod('injuryRecovery') : 1;   // custom spending can shorten a lay-off
+    p.injury = { until: (match.day || 0) + Math.max(1, Math.round(inj.days * heal)), name: inj.name, matches: Math.max(1, Math.round(inj.matches * heal)) };
     record(match, { type: 'injury', team: team.id, player: p.number, matches: inj.matches, name: inj.name });
     const manual = match.interactive && team.id === match.userId;
     const options = team.subsUsed < team.maxSubs && team.bench.some((b) => !FM.isInjured(b) && (p.group === 'GK' ? b.natural === 'GK' : b.natural !== 'GK'));

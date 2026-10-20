@@ -49,14 +49,17 @@
     });
   };
   FM.recoverDay = function (league) {
-    league.teams.forEach((t) => t.squad.forEach((p) => { if (p.condition != null && p.condition < 1) p.condition = Math.min(1, p.condition + 0.05); }));
+    FM.curLeague = league;
+    league.teams.forEach((t) => { const k = t.id === league.userId && FM.userMod ? FM.userMod('recovery') : 1; t.squad.forEach((p) => { if (p.condition != null && p.condition < 1) p.condition = Math.min(1, p.condition + 0.05 * k); }); });
   };
 
   // ---------- injuries ----------
   // Chance per second, about 0.15 injuries per team per match at normal intensity and energy, rising when tired.
   FM.injuryHazard = function (p, team) {
     const e = clamp(p.energy == null ? 1 : p.energy, 0, 1), t = team.tactics;
-    return 2.2e-6 * (1 + 3.5 * (1 - e) * (1 - e) + 1.2 * (1 - e)) * (0.7 + 0.6 * t.pressing + 0.2 * t.tackleAggression);
+    const mine = FM.curLeague && FM.curLeague.userId === team.id && FM.userMod ? FM.userMod('injuryRisk') : 1;   // custom spending on the medical side
+    const relapse = p.relapse && p.relapse.until > FM.today ? p.relapse.mult : 1;   // a player rushed back is likelier to be hurt again
+    return 2.2e-6 * (1 + 3.5 * (1 - e) * (1 - e) + 1.2 * (1 - e)) * (0.7 + 0.6 * t.pressing + 0.2 * t.tackleAggression) * mine * relapse;
   };
   // How long: mostly short knocks, sometimes a long lay-off.
   FM.rollInjury = function (rng) {

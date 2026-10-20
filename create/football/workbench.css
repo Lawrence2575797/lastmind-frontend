@@ -110,3 +110,15 @@
   .wb-agent { order: 2; } .wb-data { order: 3; } .wb-main { order: 1; } .wb { min-height: 0; }
   .wb-title { width: 100%; }
 }
+
+/* changes, and the links that lead to them from the Board */
+.wb-go { background: transparent; border: 1px solid var(--fm-gold, #d7b86b); color: var(--fm-gold, #d7b86b); padding: 6px 12px; font: 600 .8rem var(--sans); border-radius: 0; cursor: pointer; } .wb-go:hover { background: rgba(215,184,107,.12); }
+.board-ro { border: 1px solid var(--line); padding: 10px 14px; margin: 0; font-size: .88rem; opacity: .92; line-height: 1.5; } .board-ro .wb-go { margin: 0 2px; padding: 3px 10px; }
+.board-levers { border-top: 1px solid var(--line); margin-top: 10px; padding-top: 8px; }
+.wb-applied { border: 1px solid var(--wb-green); color: #bfe8cc; padding: 10px 12px; line-height: 1.5; } .wb-applied b { color: var(--wb-green); }
+.wb-prev { border: 1px solid var(--wb-line-2); padding: 8px 12px; font-size: .84rem; line-height: 1.5; color: var(--wb-mute); } .wb-prev b { color: var(--wb-ink); font-size: .68rem; letter-spacing: .12em; text-transform: uppercase; margin-right: 6px; } .wb-prev.bad { border-color: #e78078; } .wb-prev i { color: var(--wb-gold); font-style: normal; }
+.wb button.wb-alt { background: transparent; border: 1px solid var(--wb-line-2); color: var(--wb-ink); padding: 8px 14px; font: 600 .78rem var(--sans); } .wb button.wb-alt:hover { border-color: var(--wb-gold); }
+.wb-dtabs { display: inline-flex; gap: 2px; } .wb-dtabs button { background: transparent; border: 1px solid transparent; color: var(--wb-mute); padding: 3px 10px; font: 700 .7rem var(--sans); letter-spacing: .12em; text-transform: uppercase; cursor: pointer; } .wb-dtabs button.on { border-color: var(--wb-line-2); color: var(--wb-ink); background: rgba(255,255,255,.05); }
+.wb-state { padding: 10px 14px; border-bottom: 1px solid var(--wb-line); } .wb-state p { margin: 6px 0; font-size: .78rem; line-height: 1.45; color: var(--wb-ink); }
+.wb-th.static { cursor: default; } .wb-th.static:hover { background: transparent; }
+.wb-cell.control.applied, .wb-cell.control.dismissed { opacity: .92; }

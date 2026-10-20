@@ -73,6 +73,9 @@
   function ensure(b) {
     if (!b.seats) { b.seats = {}; FM.SEGMENTS.forEach((s) => { b.seats[s.id] = s.seats; }); }
     if (!b.facilities) b.facilities = [];
+    if (!b.levers) b.levers = [];   // custom spending set up in the Workbench (see controls.js)
+    if (!b.rules) b.rules = [];
+    if (!b.queued) b.queued = [];   // one-off costs (medical treatment) that go into the next matchday's books
     if (!b.projects) b.projects = [];
     if (!b.assets) b.assets = { cost: OPENING_STADIUM, dep: 0 };
     if (!b.dividend) b.dividend = { policy: 0.25 };
@@ -94,11 +97,16 @@
   };
   FM.bizCapacity = (lg) => { const b = FM.biz(lg); return FM.SEGMENTS.reduce((a, s) => a + (b.seats[s.id] || s.seats), 0); };
   const hasFacility = (b, id) => b.facilities.indexOf(id) >= 0;
+  // What custom spending is doing now: one multiplier for each thing the game reads (see controls.js for what can be bought and how it is capped).
+  const leverMod = (b, target) => { let m = 1; (b.levers || []).forEach((l) => { if (l.left > 0) (l.effects || []).forEach((e) => { if (e.target === target) m *= 1 + e.pct / 100; }); }); return clamp(m, 0.7, 1.4); };
+  FM.leverMod = leverMod;
+  FM.userMod = (target) => { const lg = FM.curLeague; return lg && lg.biz && lg.biz.v === 1 ? leverMod(lg.biz, target) : 1; };
+  const leverCost = (b) => (b.levers || []).reduce((a, l) => a + (l.left > 0 ? l.perRound : 0), 0) + (b.queued || []).reduce((a, q) => a + q.amount, 0);
   const effects = (b) => ({
-    appeal: hasFacility(b, 'lights') ? 1.025 : 1, merch: hasFacility(b, 'shop') ? 1.35 : 1, spend: hasFacility(b, 'fanzone') ? 1.6 : 0, ads: hasFacility(b, 'screens') ? 1.25 : 1,
+    appeal: (hasFacility(b, 'lights') ? 1.025 : 1) * leverMod(b, 'attendance'), merch: (hasFacility(b, 'shop') ? 1.35 : 1) * leverMod(b, 'merch'), spend: hasFacility(b, 'fanzone') ? 1.6 : 0, mspend: leverMod(b, 'matchdaySpend'), sponsor: leverMod(b, 'sponsorship'), run: leverMod(b, 'runningCosts'), ads: (hasFacility(b, 'screens') ? 1.25 : 1) * leverMod(b, 'sponsorship'),
     upkeep: FM.FACILITIES.filter((f) => hasFacility(b, f.id)).reduce((a, f) => a + f.upkeep, 0) + FM.SEGMENTS.reduce((a, s) => a + Math.max(0, (b.seats[s.id] || s.seats) - s.seats) * 8, 0),
   });
-  FM.bizDevBoost = (lg) => (lg.biz && hasFacility(FM.biz(lg), 'training') ? 1.12 : 1);
+  FM.bizDevBoost = (lg) => (lg.biz ? (hasFacility(FM.biz(lg), 'training') ? 1.12 : 1) * leverMod(FM.biz(lg), 'development') : 1);
 
   // ---------- the market for tickets ----------
   const userPos = (lg) => { try { return FM.tableRows(lg).findIndex((r) => r.id === lg.userId) + 1; } catch (e) { return 4; } };
@@ -157,7 +165,7 @@
   function lines(lg, fx, home, est) {
     const b = FM.biz(lg), eff = effects(b);
     let d = null, att = 0, tickets = 0, spend = 0;
-    if (home && !est) { d = FM.bizDemand(lg, fx); att = d.total; tickets = d.tickets; spend = att * (SPEND_PER_HEAD + eff.spend); }
+    if (home && !est) { d = FM.bizDemand(lg, fx); att = d.total; tickets = d.tickets; spend = att * (SPEND_PER_HEAD + eff.spend) * eff.mspend; }
     else if (home) {
       const past = b.ledger.filter((e) => e.home).slice(-4);
       if (past.length) { att = past.reduce((a, e) => a + e.attTotal, 0) / past.length; tickets = past.reduce((a, e) => a + e.inflow.tickets, 0) / past.length; spend = past.reduce((a, e) => a + e.inflow.matchday, 0) / past.length; }
@@ -176,14 +184,14 @@
     const inflow = {
       tickets, matchday: spend,
       broadcast: BROADCAST[lg.divisionLevel || 1] * (1 + 0.025 * Math.max(0, 8 - pos)),
-      sponsor: b.sponsors.filter((s) => s.left > 0).reduce((a, s) => a + s.perRound, 0),
+      sponsor: b.sponsors.filter((s) => s.left > 0).reduce((a, s) => a + s.perRound, 0) * eff.sponsor,
       advert: b.boards.filter((s) => s.left > 0).reduce((a, s) => a + s.perRound, 0) * eff.ads,
       merch,
     };
     const od = b.cash < 0 ? -b.cash : 0, odRate = od > OVERDRAFT.limit ? OVERDRAFT.penalty : OVERDRAFT.rate;
     const interestLoans = b.loans.reduce((a, l) => a + l.balance * l.rate / ROUNDS, 0), interestOd = od * odRate / ROUNDS;
     const outflow = {
-      wages: wageBill(lg), matchday: home ? RUN_FIXED + RUN_PER_HEAD * att : 0, marketing: b.marketing || 0, admin: ADMIN + eff.upkeep, merchCost: merch * MERCH_COST,
+      wages: wageBill(lg), matchday: home ? (RUN_FIXED + RUN_PER_HEAD * att) * eff.run : 0, marketing: b.marketing || 0, admin: ADMIN + eff.upkeep + leverCost(b), merchCost: merch * MERCH_COST,
       loanPay: b.loans.reduce((a, l) => a + Math.min(l.balance, l.perRound), 0), interest: interestLoans + interestOd,
     };
     return { att, d, inflow, outflow };
@@ -230,6 +238,7 @@
     b.loans = b.loans.filter((ln) => ln.balance > 0);
     b.sponsors.forEach((s) => { s.left -= 1; }); b.boards.forEach((s) => { s.left -= 1; });
     b.sponsors = b.sponsors.filter((s) => s.left > 0); b.boards = b.boards.filter((s) => s.left > 0);
+    b.levers.forEach((lv) => { lv.left -= 1; }); b.levers = b.levers.filter((lv) => lv.left > 0); b.queued = [];
     const entry = {
       season: lg.season, round: fx.round + 1, home, opp: opp ? opp.name : '', attTotal: l.att, att: l.d ? Object.keys(l.d.rows).reduce((o, k) => { o[k] = l.d.rows[k].sold; return o; }, {}) : null, away: l.d ? l.d.turnedAway : 0,
       prices: l.d ? Object.keys(l.d.rows).reduce((o, k) => { o[k] = l.d.rows[k].price; return o; }, {}) : null, capacity: l.d ? l.d.capacity : 0,
@@ -256,6 +265,7 @@
     FM.bizSyncBudget(lg);
     financeNews(lg, b, entry, dividend);
     confidenceCheck(lg, b, fx);
+    if (FM.controls && FM.controls.afterRound) FM.controls.afterRound(lg, fx);   // new injuries are logged and the manager's rules run
     if (FM.bizOnChange) FM.bizOnChange(lg);
   };
   function seasonSum(b, season, key) { return b.ledger.filter((e) => e.season === season).reduce((a, e) => a + e.pl[key], 0); }

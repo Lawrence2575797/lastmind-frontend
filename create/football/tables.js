@@ -69,7 +69,35 @@
       desc: 'Every squad player, with ratings and season totals.',
       cols: [cat('player', 'name'), cat('team', 'club'), num('you', '1 if in your squad'), num('number', 'shirt number'), cat('position', 'natural position'), cat('group', 'GK, DEF, MID or FWD'), num('height', 'cm'),
         num('pace', 'rating 0-100'), num('dribbling', 'rating'), num('passing', 'rating'), num('finishing', 'rating'), num('tackling', 'rating'), num('composure', 'rating'), num('heading', 'rating'), num('stamina', 'rating'),
-        num('keeping', 'goalkeeping rating'), num('age', 'age in years'), num('value', 'transfer value in £ million'), num('apps', 'appearances'), num('goals', 'goals'), num('shots', 'shots'), num('yellows', 'yellow cards'), num('reds', 'red cards')],
+        num('keeping', 'goalkeeping rating'), num('age', 'age in years'), num('value', 'transfer value in £ million'), num('apps', 'appearances'), num('goals', 'goals'), num('shots', 'shots'), num('yellows', 'yellow cards'), num('reds', 'red cards'), num('condition', 'condition now, % (100 = fully fresh)'), num('injury_risk', 'chance of an injury in a match at the club\'s current style and his condition, %')],
+    },
+    injuries: {
+      desc: 'Your own injured players right now: what is wrong, how long is left, and what each kind of treatment would cost and save. Without treatment every injury simply heals in its own time.',
+      cols: [cat('player', 'name'), cat('injury', 'what the injury is'), num('days_left', 'days until he is fit'), num('matches_out', 'matches he is expected to miss'), cat('treatment', 'treatment already paid for, if any'),
+        num('physio_cost', '£ for extra physiotherapy (about 15% quicker)'), num('physio_days', 'days left with physiotherapy'), num('specialist_cost', '£ for specialist treatment (about 30% quicker)'), num('specialist_days', 'days left with specialist treatment'),
+        num('accelerated_cost', '£ for an accelerated return (about half the time, but more chance of a relapse)'), num('accelerated_days', 'days left with an accelerated return'), num('condition', 'his condition now, % (100 = fully fresh)')],
+    },
+    injury_log: {
+      desc: 'Every injury your players have picked up, with the matchday, how long it was expected to last and whether it was treated.',
+      cols: [num('season', 'season'), num('round', 'matchday the injury was logged after'), cat('player', 'name'), cat('injury', 'what it was'), num('days', 'days expected out when it happened'), num('matches', 'matches expected to miss'), cat('treated', 'treatment, if any')],
+    },
+    finances: {
+      desc: 'The club\'s books, one row per matchday of yours (home and away): income and costs by category, profit and the bank balance afterwards.',
+      cols: [num('season', 'season'), num('round', 'matchday'), num('home', '1 if a home match'), cat('opponent', 'opponent'), num('attendance', 'crowd (home matches)'), num('capacity', 'ground capacity'), num('turned_away', 'fans who wanted to come but could not'),
+        num('tickets', 'ticket income £'), num('matchday_spend', 'food, drink and programmes income £'), num('broadcast', 'broadcasting income £'), num('sponsor', 'sponsorship income £'), num('advert', 'advertising board income £'), num('merch', 'merchandise income £'), num('prize', 'prize money £'),
+        num('revenue', 'total revenue £'), num('wages', 'wages £'), num('marketing', 'marketing £'), num('running', 'matchday running costs £'), num('admin', 'stadium, administration and custom spending £'), num('interest', 'interest £'), num('profit_before_tax', 'profit before tax £'), num('net_profit', 'profit after tax £'), num('cash', 'bank balance after the matchday £')],
+    },
+    stands: {
+      desc: 'Ticket sales by stand at each of your home matches: the price, the seats, how many sold and the income. Use it to see how each kind of fan reacts to price.',
+      cols: [num('season', 'season'), num('round', 'matchday'), cat('opponent', 'opponent'), cat('stand', 'stand'), num('price', 'ticket price £'), num('sold', 'tickets sold'), num('income', 'ticket income £')],
+    },
+    levers: {
+      desc: 'Custom spending you have set up (see Controls): what it costs and what it does.',
+      cols: [cat('name', 'what it is'), num('per_matchday', '£ spent a matchday'), num('matchdays_left', 'matchdays still to run'), cat('effects', 'what it changes'), cat('by', 'who set it up')],
+    },
+    rules: {
+      desc: 'Rules you have set up that run by themselves after each matchday.',
+      cols: [cat('name', 'name'), cat('when', 'the condition'), cat('then', 'what it does'), num('times_run', 'how many times it has run')],
     },
     league_table: {
       desc: 'The league table as it stands.',
@@ -150,14 +178,38 @@
       const r = p.ratings || {};
       out.players.push({ player: p.name, team: t.name, you: t.id === league.userId ? 1 : 0, number: p.number, position: p.natural, group: p.group, height: p.height, pace: r.pace, dribbling: r.dribbling, passing: r.passing,
         finishing: r.finishing, tackling: r.tackling, composure: r.composure, heading: r.heading, stamina: r.stamina, keeping: r.gk, age: FM.ageOf ? FM.ageOf(p) : null, value: FM.valueOf ? r2(FM.valueOf(p)) : null,
-        apps: (p.stats || {}).apps || 0, goals: (p.stats || {}).goals || 0, shots: (p.stats || {}).shots || 0, yellows: (p.stats || {}).yellows || 0, reds: (p.stats || {}).reds || 0 });
+        apps: (p.stats || {}).apps || 0, goals: (p.stats || {}).goals || 0, shots: (p.stats || {}).shots || 0, yellows: (p.stats || {}).yellows || 0, reds: (p.stats || {}).reds || 0,
+        condition: FM.conditionOf ? Math.round(100 * FM.conditionOf(p)) : null, injury_risk: FM.injuryHazard ? r2(100 * (1 - Math.exp(-FM.injuryHazard(Object.assign({}, p, { energy: FM.conditionOf(p) }), t) * 5400))) : null });
     }));
+    buildClub(league, out);
     FM.tableRows(league).forEach((r, i) => out.league_table.push({ position: i + 1, team: r.name, you: r.id === league.userId ? 1 : 0, played: r.p, won: r.w, drawn: r.d, lost: r.l, gf: r.gf, ga: r.ga, gd: r.gf - r.ga, points: r.pts }));
     return out;
   }
 
+  // The club's own books, medical room and custom spending.
+  function buildClub(league, out) {
+    const lg = league;
+    try {
+      const b = lg.biz && lg.biz.v === 1 ? lg.biz : null;
+      if (b) {
+        b.ledger.forEach((e) => {
+          const o = e.outflow || {}, i = e.inflow || {};
+          out.finances.push({ season: e.season, round: e.round, home: e.home ? 1 : 0, opponent: e.opp, attendance: e.home ? e.attTotal : null, capacity: e.home ? e.capacity : null, turned_away: e.home ? e.away : null,
+            tickets: Math.round(i.tickets || 0), matchday_spend: Math.round(i.matchday || 0), broadcast: Math.round(i.broadcast || 0), sponsor: Math.round(i.sponsor || 0), advert: Math.round(i.advert || 0), merch: Math.round(i.merch || 0), prize: Math.round(i.prize || 0),
+            revenue: Math.round(e.pl.revenue), wages: Math.round(o.wages || 0), marketing: Math.round(o.marketing || 0), running: Math.round(o.matchday || 0), admin: Math.round(o.admin || 0), interest: Math.round(o.interest || 0), profit_before_tax: Math.round(e.pl.pbt), net_profit: Math.round(e.pl.net), cash: Math.round(e.closing) });
+          if (e.home && e.att && e.prices) Object.keys(e.att).forEach((k) => { const sg = (FM.SEGMENTS || []).find((s) => s.id === k); out.stands.push({ season: e.season, round: e.round, opponent: e.opp, stand: sg ? sg.name : k, price: e.prices[k], sold: e.att[k], income: Math.round(e.att[k] * e.prices[k]) }); });
+        });
+        (b.levers || []).forEach((l) => { out.levers.push({ name: l.name, per_matchday: l.perRound, matchdays_left: Math.max(0, l.left), effects: (l.effects || []).map((x) => (x.pct > 0 ? '+' : '') + x.pct + '% ' + x.target).join(', '), by: l.by || 'manual' }); });
+        (b.rules || []).forEach((r) => { out.rules.push({ name: r.name, when: r.when.metric + ' ' + r.when.op + ' ' + r.when.value, then: r.do.action + ' ' + JSON.stringify(r.do.params || {}), times_run: r.fired || 0 }); });
+      }
+      if (FM.controls) FM.controls.injuries(lg).forEach((i) => { const t = lg.teams.find((x) => x.id === lg.userId), pl = t.squad.find((p) => p.id === i.id);
+        out.injuries.push({ player: i.name, injury: i.injury, days_left: i.days, matches_out: i.matches, treatment: i.treatment || '', physio_cost: i.plans.physio.cost, physio_days: i.plans.physio.daysAfter, specialist_cost: i.plans.specialist.cost, specialist_days: i.plans.specialist.daysAfter, accelerated_cost: i.plans.accelerated.cost, accelerated_days: i.plans.accelerated.daysAfter, condition: pl && FM.conditionOf ? Math.round(100 * FM.conditionOf(pl)) : null }); });
+      (lg.injuryLog || []).forEach((x) => out.injury_log.push(x));
+    } catch (e) { /* the rest of the data is still good */ }
+  }
+
   let cache = null;
-  const stamp = (league) => [league.seed, league.season, league.userId, league.fixtures.filter((f) => f.played).length, league.fixtures.filter((f) => f.played && f.log).length, league.teams.reduce((a, t) => a + t.squad.length, 0)].join('|');
+  const stamp = (league) => [league.seed, league.season, league.userId, league.fixtures.filter((f) => f.played).length, league.fixtures.filter((f) => f.played && f.log).length, league.teams.reduce((a, t) => a + t.squad.length, 0), league.day, league.biz && league.biz.ledger ? league.biz.ledger.length : 0, (league.biz && league.biz.levers ? league.biz.levers.length : 0) + ':' + (league.biz && league.biz.rules ? league.biz.rules.length : 0), (league.injuryLog || []).length, league.teams.reduce((a, t) => a + t.squad.reduce((s2, p) => s2 + (p.injury ? p.injury.until + (p.injury.treatment ? 1 : 0) : 0), 0), 0)].join('|');
   // Everything, built once and kept until another match has been played.
   T.all = function (league) {
     const st = stamp(league);

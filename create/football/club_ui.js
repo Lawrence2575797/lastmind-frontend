@@ -206,13 +206,14 @@
     }).join('')}<tr class="tot"><td class="l">All signings</td>${cell(rows.reduce((a, r) => a + r.s.fee, 0))}<td></td>${cell(rows.reduce((a, r) => a + r.wageCost, 0))}<td></td><td></td><td></td><td class="n">${rows.reduce((a, r) => a + r.apps, 0)}</td><td class="n">${rows.reduce((a, r) => a + r.goals, 0)}</td><td></td></tr></tbody></table></div>`;
   }
 
-  // ---------- offers from companies, with the talks ----------
+  // The Board only shows the club's figures. Everything that changes something is done in the Workbench (by hand, or by asking the agent).
+  const wbBtn = (action, label) => `<button type="button" class="wb-go" data-wb="${action}">${label || 'Change this in the Workbench'} ›</button>`;
+
+  // ---------- offers from companies ----------
   const offerCard = (lg, o, bind) => {
-    const open = st.neg[o.id] ? ' open' : '';
     const talk = (o.talk || []).slice(-2).map((t) => `<p class="neg-reply">${esc(t)}</p>`).join('');
     return `<div class="offer" data-offer-card="${o.id}"><div class="offer-top"><div><b>${esc(o.company)}</b><br><small>${esc(FM.bizOfferText(o))}</small></div>
-      <div class="row"><button type="button" class="primary" data-oa="accept" data-id="${o.id}">Accept</button><button type="button" data-oa="negotiate" data-id="${o.id}">Negotiate</button><button type="button" data-oa="decline" data-id="${o.id}">Decline</button></div></div>
-      ${talk}<div class="neg${open}"><label>Ask for <span class="pounds">£</span><input type="number" min="500" step="100" value="${Math.round(o.perRound * 1.15 / 100) * 100}" data-ask="${o.id}"> a matchday</label><button type="button" data-oa="counter" data-id="${o.id}">Make the counter-offer</button></div></div>`;
+      <div class="row">${wbBtn('answerOffer:' + o.id, 'Answer in the Workbench')}</div></div>${talk}</div>`;
   };
   // Buttons for offers anywhere (the Board page, and a story in the News).
   FM.bizBindOffers = function (root, lg, after) {
@@ -262,15 +263,16 @@
   function matchday(lg) {
     const b = FM.biz(lg), fx = nextHome(lg), last = b.ledger.filter((e) => e.home).slice(-1)[0];
     const inputs = FM.SEGMENTS.map((s) => `<tr><td class="l"><b>${esc(s.name)}</b><br><small>${esc(s.who)}</small></td><td class="n">${num(b.seats[s.id])}</td>
-        <td class="n"><span class="pounds">£</span><input type="number" min="3" max="400" step="1" value="${b.prices[s.id].price}" data-price="${s.id}" aria-label="Price, ${esc(s.name)}"></td>
+        <td class="n"><b>£${b.prices[s.id].price}</b></td>
         <td class="n">${last ? num(last.att[s.id]) + '<br><small>at £' + last.prices[s.id] + '</small>' : '–'}</td></tr>`).join('');
     const home = b.ledger.filter((e) => e.home).slice(-8).reverse();
     const away = b.ledger.filter((e) => !e.home).slice(-8).reverse();
     return `<div style="display:grid;gap:16px"><div class="card"><h2>Ticket prices</h2>
-      <p class="desc">${fx ? `Next home match: <b>${esc(FM.teamById(lg, fx.awayId).name)}</b> (round ${fx.round + 1}). Set the prices; the crowd is counted at the final whistle.` : 'No home matches left this season. The prices stay set for next season.'}</p>
+      <p class="desc">${fx ? `Next home match: <b>${esc(FM.teamById(lg, fx.awayId).name)}</b> (round ${fx.round + 1}). The crowd is counted at the final whistle.` : 'No home matches left this season. The prices stay set for next season.'}</p>
       <div class="books-wrap"><table class="books-table prices"><thead><tr><th class="l">Stand</th><th>Seats</th><th>Price</th><th>${last ? 'Sold at the last home match' : 'Last home match'}</th></tr></thead><tbody>${inputs}</tbody></table></div>
       <p class="note">${T('segments', 'Why each stand has its own price')} · ${T('elasticity', 'How fans react when a price changes')} · ${T('revenue', 'What revenue is')}</p>
-      <div class="row"><label>${T('marketing', 'Marketing budget a matchday')} <span class="pounds">£</span><input type="number" min="0" max="60000" step="500" value="${b.marketing || 0}" id="bzMarketing"></label></div></div>
+      <p class="desc">${T('marketing', 'Marketing budget a matchday')}: <b>${gbp(b.marketing || 0)}</b></p>${FM.bizLeverCard ? FM.bizLeverCard(lg) : ''}
+      <div class="row">${wbBtn('setTicketPrice', 'Change a ticket price')}${wbBtn('setMarketing', 'Change the marketing budget')}</div></div>
       <div class="card"><h2>Home matches so far</h2>${home.length ? `<div class="books-wrap"><table class="books-table"><thead><tr><th class="l">Opponent</th>${FM.SEGMENTS.map((s) => `<th>${esc(s.name)}</th>`).join('')}<th>Crowd</th><th>Full</th><th>Turned away</th><th>Ticket income</th></tr></thead><tbody>${home.map((e) => `<tr><td class="l">Round ${e.round}: ${esc(e.opp)}</td>${FM.SEGMENTS.map((s) => `<td class="n">${num(e.att[s.id])}<br><small>at £${e.prices[s.id]}</small></td>`).join('')}<td class="n">${num(e.attTotal)}</td><td class="n">${pct(e.attTotal, e.capacity || FM.bizCapacity(lg))}</td><td class="n">${num(e.away)}</td>${cell(e.inflow.tickets)}</tr>`).join('')}</tbody></table></div>` : '<p class="note">The first home match will show up here.</p>'}</div>
       <div class="card"><h2>Away matches so far</h2>${away.length ? `<div class="books-wrap"><table class="books-table"><thead><tr><th class="l">Opponent</th><th>Share of the gate</th></tr></thead><tbody>${away.map((e) => `<tr><td class="l">Round ${e.round}: ${esc(e.opp)}</td>${cell(e.inflow.tickets)}</tr>`).join('')}</tbody></table></div><p class="note">Away from home the club takes a share of the gate at the other ground. It is much less than a home match brings in, because the home club keep most of it.</p>` : '<p class="note">The first away match will show up here. The club takes a share of the gate at the other ground.</p>'}</div></div>`;
   }
@@ -280,11 +282,11 @@
     const stands = FM.SEGMENTS.map((s) => {
       const e = FM.EXPANSIONS[s.id], room = B.standRoom(lg, s.id), proj = b.projects.find((p) => p.kind === 'stand' && p.stand === s.id), cost = B.standCost(s.id);
       return `<tr><td class="l"><b>${esc(s.name)}</b><br><small>${esc(s.who)}</small></td><td class="n">${num(b.seats[s.id])}</td><td class="n">${proj ? '+' + num(proj.seats) + ' in ' + proj.left + ' matchday' + (proj.left === 1 ? '' : 's') : '–'}</td>
-        <td class="n">${room >= e.seats ? `<button type="button" data-expand="${s.id}"${proj ? ' disabled' : ''}>Add ${num(e.seats)} seats: ${gbp(cost)}</button>` : 'No more room'}</td></tr>`;
+        <td class="n">${room >= e.seats ? `${num(e.seats)} more seats: ${gbp(cost)}${proj ? '' : '<br>' + wbBtn('buildStand:' + s.id, 'Arrange in the Workbench')}` : 'No more room'}</td></tr>`;
     }).join('');
     const facs = FM.FACILITIES.map((f) => {
       const have = b.facilities.indexOf(f.id) >= 0;
-      return `<tr><td class="l"><b>${esc(f.name)}</b><br><small>${esc(f.text)}</small></td>${cell(f.cost)}${cell(f.upkeep)}<td class="n">${have ? 'Built' : `<button type="button" data-buy="${f.id}">Buy</button>`}</td></tr>`;
+      return `<tr><td class="l"><b>${esc(f.name)}</b><br><small>${esc(f.text)}</small></td>${cell(f.cost)}${cell(f.upkeep)}<td class="n">${have ? 'Built' : wbBtn('buyFacility:' + f.id, 'Buy in the Workbench')}</td></tr>`;
     }).join('');
     return `<div style="display:grid;gap:16px">${msg}<div class="card"><h2>The ground</h2><div class="board-money"><span>Capacity<b>${num(FM.bizCapacity(lg))}</b></span><span>Cash in the bank<b${b.cash < 0 ? ' class="neg"' : ''}>${gbp(b.cash)}</b></span><span>Stadium and facilities, at cost<b>${gbp(b.assets.cost)}</b></span></div>
       <div class="books-wrap"><table class="books-table"><thead><tr><th class="l">Stand</th><th>Seats</th><th>Being built</th><th></th></tr></thead><tbody>${stands}</tbody></table></div>
@@ -300,18 +302,13 @@
 
   function finance(lg) {
     const b = FM.biz(lg), S = FM.bizSources, od = b.cash < 0 ? -b.cash : 0, pol = Math.round((b.dividend.policy || 0) * 100);
-    const loans = b.loans.length ? `<div class="books-wrap"><table class="books-table"><thead><tr><th class="l">Loan</th><th>Borrowed</th><th>Still owed</th><th>Interest a year</th><th>Repaid each matchday</th><th></th></tr></thead><tbody>${b.loans.map((l) => `<tr><td class="l">${l.id}, taken in season ${l.season}</td>${cell(l.principal)}${cell(l.balance)}<td class="n">${Math.round(l.rate * 1000) / 10}%</td>${cell(l.perRound)}<td><button type="button" data-repay="${l.id}"${b.cash < l.balance ? ' disabled' : ''}>Repay now</button></td></tr>`).join('')}</tbody></table></div>` : '<p class="note">No loans.</p>';
+    const loans = b.loans.length ? `<div class="books-wrap"><table class="books-table"><thead><tr><th class="l">Loan</th><th>Borrowed</th><th>Still owed</th><th>Interest a year</th><th>Repaid each matchday</th><th></th></tr></thead><tbody>${b.loans.map((l) => `<tr><td class="l">${l.id}, taken in season ${l.season}</td>${cell(l.principal)}${cell(l.balance)}<td class="n">${Math.round(l.rate * 1000) / 10}%</td>${cell(l.perRound)}<td>${wbBtn('repayLoan:' + l.id, 'Repay in the Workbench')}</td></tr>`).join('')}</tbody></table></div>` : '<p class="note">No loans.</p>';
     return `<div style="display:grid;gap:16px"><div class="card"><h2>${T('overdraft', 'Cash and overdraft')}</h2>
       <div class="board-money"><span>Cash in the bank<b${b.cash < 0 ? ' class="neg"' : ''}>${gbp(b.cash)}</b></span><span>Overdraft limit<b>${gbp(S.overdraft.limit)}</b></span><span>Overdraft in use<b>${gbp(od)}</b></span><span>Overdraft interest<b>${Math.round(S.overdraft.rate * 100)}% a year</b></span></div>
       <p class="note">When the balance goes below zero the club is in its overdraft automatically, up to the limit. Past the limit the interest is ${Math.round(S.overdraft.penalty * 100)}% and the bank stops the club spending. ${T('financesources', 'Which source of finance suits what?')}</p></div>
-      <div class="card"><h2>${T('loans', 'Bank loan')}</h2><div class="row finrow"><label>Amount <select id="loanAmt">${[250000, 500000, 1000000, 2500000, 5000000].map((a) => `<option value="${a}">${gbp(a)}</option>`).join('')}</select></label>
-        <label>Repaid over <select id="loanTerm">${S.loanOptions.map((o) => `<option value="${o.term}">${o.term / 14} season${o.term > 14 ? 's' : ''} (${Math.round(o.rate * 1000) / 10}% a year)</option>`).join('')}</select></label>
-        <span class="note" id="loanInfo"></span><button type="button" class="primary" id="loanGo">Take the loan</button></div>${loans}</div>
-      <div class="card"><h2>${T('shares', 'Issue new shares')}</h2><div class="row finrow"><label>Raise <select id="shareAmt">${[500000, 1000000, 2500000, 5000000].map((a) => `<option value="${a}">${gbp(a)}</option>`).join('')}</select></label>
-        <span class="note" id="shareInfo"></span><button type="button" class="primary" id="shareGo">Issue the shares</button></div>
-        <p class="note">Shares in issue: ${num(b.shares.issued)} at £${b.shares.price.toFixed(2)} each.</p></div>
-      <div class="card"><h2>${T('shares', 'Dividend')}</h2><div class="row finrow"><label>Share of the year's profit after tax paid to shareholders <select id="divPolicy">${[0, 10, 20, 25, 30, 40, 50, 60].map((v) => `<option value="${v}"${v === pol ? ' selected' : ''}>${v}%</option>`).join('')}</select></label><span class="note" id="divInfo"></span></div>
-        <p class="note">Paid once, at the end of the season, if the club has made a profit and has the cash.${b.dividendsPaid ? ' Paid out so far: ' + gbp(b.dividendsPaid) + '.' : ''}</p></div>
+      <div class="card"><h2>${T('loans', 'Bank loan')}</h2><p class="desc">Loans are repaid in equal parts every matchday with interest. ${b.loans.length ? '' : 'The club has none at the moment.'}</p>${loans}<div class="row">${wbBtn('takeLoan', 'Take a loan in the Workbench')}</div></div>
+      <div class="card"><h2>${T('shares', 'Shares')}</h2><p class="note">Shares in issue: ${num(b.shares.issued)} at £${b.shares.price.toFixed(2)} each.</p><div class="row">${wbBtn('issueShares', 'Issue shares in the Workbench')}</div></div>
+      <div class="card"><h2>${T('shares', 'Dividend')}</h2><p class="desc">The share of the year's profit after tax paid to shareholders: <b>${pol}%</b>. Paid once, at the end of the season, if the club has made a profit and has the cash.${b.dividendsPaid ? ' Paid out so far: ' + gbp(b.dividendsPaid) + '.' : ''}</p><div class="row">${wbBtn('setDividend', 'Change the dividend')}</div></div>
       <div class="card"><h2>Selling players</h2><p class="desc">Offers for your players come in through Recruitment. The money from a sale goes straight into the bank.</p><div class="row"><button type="button" data-goto="recruit">Open Recruitment</button></div></div></div>`;
   }
   function commercial(lg) {
@@ -387,6 +384,12 @@
       <div class="card"><div class="eyebrow">${T('cashflow', 'Where the money is heading')}</div>${fc}<p class="note"><button type="button" data-short="books:cash">Full cash flow forecast →</button></p></div></div>`;
   }
 
+  // What custom spending (set up in the Workbench) is running now.
+  FM.bizLeverCard = function (lg) {
+    const b = FM.biz(lg), live = (b.levers || []).filter((l) => l.left > 0); if (!live.length && !(b.rules || []).length) return '';
+    const T2 = FM.controls ? FM.controls.TARGETS : {};
+    return `<div class="board-levers"><div class="eyebrow">Custom spending and rules</div>${live.map((l) => `<p class="desc"><b>${esc(l.name)}</b>: ${gbp(l.perRound)} a matchday, ${l.left} matchdays left. ${l.effects.map((e) => (e.pct > 0 ? '+' : '') + e.pct + '% ' + esc((T2[e.target] || {}).label || e.target)).join(', ')}.</p>`).join('')}${(b.rules || []).map((r) => `<p class="desc"><b>Rule: ${esc(r.name)}</b> (has run ${r.fired || 0} time${r.fired === 1 ? '' : 's'})</p>`).join('')}</div>`;
+  };
   FM.bizReportHtml = report;
   // ---------- the page ----------
   FM.renderBoard = function (host, lg, hooks) {
@@ -401,7 +404,8 @@
     const back = st.trail.length ? `<button type="button" class="board-back" id="bzBack">← Back to ${esc(NAMES[st.trail[st.trail.length - 1].tab] || 'the board')}</button>` : '';
     const sec = (id, html) => `<div id="sec-${id}" class="board-sec">${html}</div>`;
     const body = st.tab === 'home' ? report(lg) + overview(lg) : st.tab === 'ground' ? `<div style="display:grid;gap:22px">${sec('matchday', matchday(lg))}${sec('stadium', stadium(lg))}</div>` : st.tab === 'books' ? books(lg) : `<div style="display:grid;gap:22px">${sec('finance', finance(lg))}${sec('commercial', commercial(lg))}</div>`;
-    host.innerHTML = `<div class="board-page">${strip}<div class="row board-tabs" role="tablist">${tabs.map(([k, l]) => `<button type="button" role="tab" data-tab="${k}" class="${st.tab === k ? 'on' : ''}">${l}</button>`).join('')}</div>${back}${st.ok ? `<p class="banner ok" role="status"><b>${esc(st.ok.title)}</b> ${esc(st.ok.text)}</p>` : ''}${body}</div>`;
+    const ro = `<p class="board-ro">The Board shows the club's figures and results. To change anything (prices, spending, loans, sponsors, injuries), or to forecast what a change would do, use the <button type="button" class="wb-go" data-wb="open">Workbench</button>.</p>`;
+    host.innerHTML = `<div class="board-page">${strip}${ro}<div class="row board-tabs" role="tablist">${tabs.map(([k, l]) => `<button type="button" role="tab" data-tab="${k}" class="${st.tab === k ? 'on' : ''}">${l}</button>`).join('')}</div>${back}${st.ok ? `<p class="banner ok" role="status"><b>${esc(st.ok.title)}</b> ${esc(st.ok.text)}</p>` : ''}${body}</div>`;
     const redo = () => FM.renderBoard(host, lg, hooks);
     if (st.anchor) { const target = host.querySelector('#sec-' + st.anchor); st.anchor = null; if (target && target.scrollIntoView) target.scrollIntoView(); }
     host.querySelectorAll('[data-tab]').forEach((b) => b.addEventListener('click', () => { st.tab = TAB_OF[b.dataset.tab] || 'home'; st.trail = []; st.msg = ''; st.ok = null; redo(); }));
@@ -416,51 +420,5 @@
     if (bk) bk.addEventListener('click', () => { const prev = st.trail.pop(); if (prev) { st.tab = prev.tab; st.books = prev.books; } redo(); window.scrollTo(0, 0); });
     host.querySelectorAll('[data-books]').forEach((b) => b.addEventListener('click', () => { st.books = b.dataset.books; redo(); }));
     host.querySelectorAll('[data-goto]').forEach((b) => b.addEventListener('click', () => go(b.dataset.goto)));
-    if (st.tab === 'ground') {
-      host.querySelectorAll('[data-price]').forEach((i) => i.addEventListener('input', () => { FM.biz(lg).prices[i.dataset.price].price = Math.max(3, Math.min(400, Number(i.value) || 3)); save(); }));
-      const mk = host.querySelector('#bzMarketing');
-      if (mk) mk.addEventListener('input', () => { FM.biz(lg).marketing = Math.max(0, Math.min(60000, Math.round(Number(mk.value) || 0))); save(); });
-    }
-    if (st.tab === 'ground') {
-      host.querySelectorAll('[data-expand]').forEach((b) => b.addEventListener('click', () => {
-        const sg = FM.SEGMENTS.find((x) => x.id === b.dataset.expand), e = FM.EXPANSIONS[b.dataset.expand], cost = FM.bizBuild.standCost(b.dataset.expand), r = FM.bizBuild.expand(lg, b.dataset.expand);
-        st.msg = r.ok ? '' : r.text; st.ok = null;
-        if (r.ok) okMsg('Building started.', `${num(e.seats)} new seats are going up in the ${sg.name.toLowerCase()}. The ${gbp(cost)} has already left the bank, and the work takes ${FM.bizConst.BUILD_TIME} matchdays. When it opens the ground holds ${num(e.seats)} more, so there is more ticket income if the seats fill, and every extra seat adds a little to the upkeep each matchday. The cost sits on the balance sheet as part of the stadium and loses value over the years.`);
-        save(); redo(); }));
-      host.querySelectorAll('[data-buy]').forEach((b) => b.addEventListener('click', () => {
-        const f = FM.FACILITIES.find((x) => x.id === b.dataset.buy), r = FM.bizBuild.buy(lg, b.dataset.buy);
-        st.msg = r.ok ? '' : r.text; st.ok = null;
-        if (r.ok) okMsg(`${f.name} bought.`, `${gbp(f.cost)} has left the bank straight away, so there is less cash to spend on signings. It will cost ${gbp(f.upkeep)} every matchday to run. ${f.text} It is added to the stadium and facilities on the balance sheet, and loses some of its value each season.`);
-        save(); redo(); }));
-    }
-    if (st.tab === 'funding') {
-      const info = () => {
-        const a = +host.querySelector('#loanAmt').value, term = +host.querySelector('#loanTerm').value, o = FM.bizSources.loanOptions.find((x) => x.term === term);
-        host.querySelector('#loanInfo').textContent = `${gbp(Math.round(a / term))} a matchday in repayments, about ${gbp(Math.round(a * o.rate * (term / 14) / 2))} interest in all.`;
-        const s = +host.querySelector('#shareAmt').value, b = FM.biz(lg), add = Math.round(s / b.shares.price);
-        host.querySelector('#shareInfo').textContent = `${num(add)} new shares at £${b.shares.price.toFixed(2)}: ${(100 * add / (b.shares.issued + add)).toFixed(1)}% of the club goes to new owners.`;
-        const pol = +host.querySelector('#divPolicy').value / 100, yr = FM.bizSeasonSum(lg, 'net'), b2 = FM.biz(lg);
-        host.querySelector('#divInfo').textContent = yr > 0 ? `On this season's profit so far that would be ${gbp(yr * pol)}, ${(yr * pol / b2.shares.issued).toFixed(3)} pounds a share.` : 'There is no profit to share out yet.';
-      };
-      ['#loanAmt', '#loanTerm', '#shareAmt'].forEach((q) => host.querySelector(q).addEventListener('change', info));
-      host.querySelector('#divPolicy').addEventListener('change', () => {
-        const v = +host.querySelector('#divPolicy').value; FM.bizSources.setDividend(lg, v / 100);
-        okMsg(`Dividend set to ${v}%.`, v === 0 ? 'No dividend will be paid, so every pound of profit stays in the club. The shareholders may be unhappy to get nothing, which lowers their approval of the finances.' : `At the end of the season ${v}% of the year's profit after tax will be paid to the shareholders, if the club has made a profit and has the cash. A bigger dividend pleases the shareholders and lifts their approval, but it leaves less money in the club for wages, signings and building.`);
-        save(); redo(); }); info();
-      host.querySelector('#loanGo').addEventListener('click', () => {
-        const a = +host.querySelector('#loanAmt').value, term = +host.querySelector('#loanTerm').value, o = FM.bizSources.loanOptions.find((x) => x.term === term);
-        FM.bizSources.takeLoan(lg, a, term);
-        okMsg('Loan taken.', `${gbp(a)} has been paid into the bank. The club must repay ${gbp(Math.round(a / term))} every matchday for ${term} matchdays, plus interest at ${Math.round(o.rate * 1000) / 10}% a year (about ${gbp(Math.round(a * o.rate * (term / 14) / 2))} in all), so the cash left after every matchday is lower until it is paid off. The loan is a liability on the balance sheet, and the shareholders watch how much the club owes.`);
-        save(); redo(); });
-      host.querySelector('#shareGo').addEventListener('click', () => {
-        const amt = +host.querySelector('#shareAmt').value, r = FM.bizSources.issueShares(lg, amt);
-        if (r && r.ok) okMsg('Shares issued.', `${gbp(amt)} has been raised from ${num(r.add)} new shares at £${r.price.toFixed(2)} each, and it is in the bank now. It never has to be repaid and carries no interest. But the club is now shared between more owners: the existing shareholders together own ${(100 * r.dilution).toFixed(1)}% less than before, each share is entitled to a smaller part of any dividend, and the shareholders' approval of the finances has fallen a little because they were diluted.`);
-        save(); redo(); });
-      host.querySelectorAll('[data-repay]').forEach((b) => b.addEventListener('click', () => {
-        const ln = FM.biz(lg).loans.find((x) => x.id === b.dataset.repay), owed = ln ? ln.balance : 0, r = FM.bizSources.repayLoan(lg, b.dataset.repay);
-        if (r && r.ok) okMsg('Loan repaid.', `${gbp(owed)} has gone from the bank and the loan is cleared. The interest on it stops and the matchday repayments end, so the club's costs fall, but there is less cash in hand than before.`);
-        save(); redo(); }));
-    }
-    if (st.tab === 'funding') FM.bizBindOffers(host, lg, () => { save(); redo(); });
   };
 })();

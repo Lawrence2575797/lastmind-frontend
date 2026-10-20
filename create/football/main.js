@@ -880,7 +880,7 @@
   };
   // the side agent has become the Workbench's agent: anything that used to open it now opens the Workbench (with a first question, if it has one)
   let wbStarter = null;
-  FM.goWorkbench = (starter) => { wbStarter = starter || null; setView('workbench'); wbStarter = null; };
+  FM.goWorkbench = (arg) => { wbStarter = typeof arg === 'string' ? { starter: arg } : (arg || null); setView('workbench'); wbStarter = null; };
   function setView(v) {
     if (v !== 'tactics' && backBtn) dropBackBtn();
     world.view = v;
@@ -913,7 +913,7 @@
       // the analysis is of the match just played; who the next opponent are (and the history behind a derby) is on the match preview
       FM.renderAnalysis(av, world.league);
     }
-    else if (v === 'workbench') FM.renderWorkbench(el('view-workbench'), world.league, { save: saveSoon, starter: wbStarter });
+    else if (v === 'workbench') FM.renderWorkbench(el('view-workbench'), world.league, Object.assign({ save: saveSoon }, wbStarter || {}));
     else if (v === 'reports') FM.renderReports(el('view-reports'), world.league);
     else if (v === 'news') FM.renderNews(el('view-news'), world.league);
     else if (v === 'board') FM.renderBoard(el('view-board'), world.league, { save: saveSoon, goto: (to) => setView(to) });

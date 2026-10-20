@@ -158,16 +158,18 @@
     did: [['y', 'Outcome', 'num'], ['treatcol', 'Treated group: column', 'any'], ['treatval', '… equals', 'text'], ['aftercol', 'After the change: column', 'num'], ['afterval', '… is at least', 'text']],
     bootstrap: [['y', 'Measure', 'num'], ['statistic', 'Statistic', ['mean', 'median', 'sd']]],
     query: [['group', 'Group by (optional)', 'cat?'], ['fn', 'Summary', ['', 'count', 'mean', 'sum', 'median', 'min', 'max', 'sd']], ['col', 'of column', 'num?'], ['order', 'Order by (optional)', 'any?'], ['dir', 'Direction', ['desc', 'asc']], ['limit', 'Rows', 'text']],
+    forecast: [['kind', 'Forecast', ['season', 'price', 'trend']], ['stand', 'Stand (for a price forecast)', 'stand'], ['from', 'Lowest price £ (price)', 'text'], ['to', 'Highest price £ (price)', 'text'], ['y', 'Measure to carry forward (trend)', 'num?'], ['ahead', 'Matchdays ahead (trend)', 'text']],
     experiment: [['tactic', 'Tactic to change', 'tactic'], ['a', 'Setting A (0–1)', 'text'], ['b', 'Setting B (0–1)', 'text'], ['matches', 'Matched replays (4–24)', 'text'], ['minutes', 'Minutes of each (10–90)', 'text'], ['opponent', 'Opponent (optional)', 'opp']],
     simulate: [['tactic', 'Tactic to randomise', 'tactic'], ['lo', 'From (0–1)', 'text'], ['hi', 'To (0–1)', 'text'], ['matches', 'Matches (6–40)', 'text'], ['minutes', 'Minutes of each (10–90)', 'text'], ['opponent', 'Opponent (optional)', 'opp']],
   };
-  const METHOD_LABEL = { query: 'Table of figures', describe: 'Describe', compare: 'Compare two groups', correlation: 'Correlation', ols: 'Linear regression', logistic: 'Logistic regression', mle: 'Maximum likelihood model', did: 'Difference in differences', bootstrap: 'Bootstrap interval', experiment: 'Controlled experiment', simulate: 'Randomised trial' };
-  const LEVEL_METHODS = { gcse: ['query', 'describe', 'compare', 'correlation', 'experiment'], alevel: ['query', 'describe', 'compare', 'correlation', 'ols', 'logistic', 'bootstrap', 'experiment'], above: Object.keys(METHOD_LABEL) };
+  const METHOD_LABEL = { query: 'Table of figures', describe: 'Describe', compare: 'Compare two groups', correlation: 'Correlation', ols: 'Linear regression', logistic: 'Logistic regression', mle: 'Maximum likelihood model', did: 'Difference in differences', bootstrap: 'Bootstrap interval', experiment: 'Controlled experiment', simulate: 'Randomised trial', forecast: 'Forecast' };
+  const LEVEL_METHODS = { gcse: ['query', 'describe', 'compare', 'correlation', 'forecast', 'experiment'], alevel: ['query', 'describe', 'compare', 'correlation', 'ols', 'logistic', 'bootstrap', 'forecast', 'experiment'], above: Object.keys(METHOD_LABEL) };
   const num = (v) => { const n = Number(v); return v !== '' && v != null && Number.isFinite(n) ? n : v; };
   function specFromForm(f) {
     const m = f.method, g = (k) => f[k], out = { method: m, table: f.table };
     const where = (f.where || []).filter((w) => w.col && w.value !== '' && w.value != null).map((w) => ({ col: w.col, op: w.op || '=', value: w.op === 'contains' ? w.value : num(w.value) }));
     if (m === 'experiment' || m === 'simulate') { delete out.table; out.tactic = g('tactic'); ['a', 'b', 'lo', 'hi', 'matches', 'minutes'].forEach((k) => { if (g(k) !== '' && g(k) != null) out[k] = Number(g(k)); }); if (g('opponent')) out.opponent = g('opponent'); return out; }
+    if (m === 'forecast') { const o = { method: 'forecast', kind: g('kind') || 'season' }; if (o.kind === 'price') { o.stand = g('stand') || 'family'; if (g('from')) o.from = Number(g('from')); if (g('to')) o.to = Number(g('to')); } if (o.kind === 'trend') { o.table = f.table; if (g('y')) o.y = g('y'); if (g('ahead')) o.ahead = Number(g('ahead')); if (where.length) o.where = where; } return o; }
     if (where.length) out.where = where;
     if (m === 'query') { if (g('group')) out.group = [g('group')]; if (g('fn')) out.agg = [{ fn: g('fn'), col: g('fn') === 'count' ? undefined : g('col'), as: g('fn') + (g('col') ? '_' + g('col') : '') }]; else if (g('group')) out.agg = [{ fn: 'count', as: 'n' }]; if (g('order')) out.order = { col: g('order'), dir: g('dir') || 'desc' }; out.limit = Math.max(1, Math.min(500, Number(g('limit')) || 30)); return out; }
     if (m === 'did') { out.y = g('y'); out.treat = { col: g('treatcol'), op: '=', value: num(g('treatval')) }; out.after = { col: g('aftercol'), op: '>=', value: num(g('afterval')) }; return out; }
@@ -178,7 +180,7 @@
   }
   function formFromSpec(s) {
     const f = { method: s.method, table: s.table || 'team_matches', where: (s.where || []).map((w) => ({ col: w.col, op: w.op, value: Array.isArray(w.value) ? w.value.join(',') : w.value })) };
-    ['y', 'x', 'group', 'model', 'statistic', 'by', 'a', 'b', 'tactic', 'lo', 'hi', 'matches', 'minutes', 'opponent'].forEach((k) => { if (s[k] != null) f[k] = s[k]; });
+    ['y', 'x', 'group', 'model', 'statistic', 'by', 'a', 'b', 'tactic', 'lo', 'hi', 'matches', 'minutes', 'opponent', 'kind', 'stand', 'ahead', 'from', 'to'].forEach((k) => { if (s[k] != null) f[k] = s[k]; });
     if (s.method === 'query') { f.group = (s.group || [])[0] || ''; const a = (s.agg || [])[0]; if (a) { f.fn = a.fn; f.col = a.col || ''; } if (s.order) { f.order = s.order.col; f.dir = s.order.dir; } f.limit = s.limit || 30; }
     if (s.method === 'did' && s.treat) { f.treatcol = s.treat.col; f.treatval = s.treat.value; f.aftercol = s.after.col; f.afterval = s.after.value; }
     return f;
@@ -222,6 +224,7 @@
       if (Array.isArray(kind)) ctl = `<select data-f="${k}">${kind.map((o) => `<option value="${o}"${f[k] === o ? ' selected' : ''}>${o || 'none'}</option>`).join('')}</select>`;
       else if (kind === 'multi') ctl = `<div class="wb-chips">${sch ? sch.cols.map((c) => `<button type="button" class="wb-chip${(f[k] || []).indexOf(c.name) >= 0 ? ' on' : ''}" data-multi="${k}" data-col="${c.name}">${c.name}</button>`).join('') : ''}</div>`;
       else if (kind === 'tactic') ctl = `<select data-f="${k}">${Object.keys(WB.TACTICS).map((o) => `<option value="${o}"${f[k] === o ? ' selected' : ''}>${o} (${esc(WB.TACTICS[o])})</option>`).join('')}</select>`;
+      else if (kind === 'stand') ctl = `<select data-f="${k}">${(FM.SEGMENTS || []).map((o) => `<option value="${o.id}"${f[k] === o.id ? ' selected' : ''}>${esc(o.name)}</option>`).join('')}</select>`;
       else if (kind === 'opp') ctl = `<select data-f="${k}"><option value="">the next opponent</option>${state.league.teams.filter((t) => t.id !== state.league.userId).map((t) => `<option value="${esc(t.name)}"${f[k] === t.name ? ' selected' : ''}>${esc(t.name)}</option>`).join('')}</select>`;
       else if (kind === 'text') ctl = `<input type="text" data-f="${k}" value="${esc(f[k] == null ? '' : f[k])}" autocomplete="off">`;
       else ctl = `<select data-f="${k}">${colOptions(f.table, kind, f[k])}</select>`;
@@ -231,11 +234,65 @@
     const where = noTable ? '' : `<div class="wb-where"><span class="wb-fld-l">Only rows where</span>${[0, 1, 2].map((i) => { const w = (f.where || [])[i] || {}; return `<span class="wb-w"><select data-w="${i}" data-wk="col"><option value="">–</option>${sch ? sch.cols.map((c) => `<option value="${c.name}"${w.col === c.name ? ' selected' : ''}>${c.name}</option>`).join('') : ''}</select><select data-w="${i}" data-wk="op">${OPS.map((o) => `<option${(w.op || '=') === o ? ' selected' : ''}>${o}</option>`).join('')}</select><input type="text" data-w="${i}" data-wk="value" value="${esc(w.value == null ? '' : w.value)}" placeholder="value"></span>`; }).join('')}</div>`;
     return `<div class="wb-build"><div class="wb-grid"><label class="wb-fld"><span>Method</span><select data-f="method">${Object.keys(METHOD_LABEL).filter((k) => methods.indexOf(k) >= 0 || f.method === k).map((k) => `<option value="${k}"${f.method === k ? ' selected' : ''}>${METHOD_LABEL[k]}</option>`).join('')}</select></label>${noTable ? '' : `<label class="wb-fld"><span>Table</span><select data-f="table">${tableOptions(f.table)}</select></label>`}${fields.map(field).join('')}</div>${where}<div class="wb-row"><button class="wb-run" type="button" data-act="run">Run</button><span class="wb-hint">${esc(helpFor(f.method))}</span></div></div>`;
   }
-  const HELP = { query: 'Filters, groups and summarises a table.', describe: 'Mean, spread and shape of one measure.', compare: 'Are two groups different? Welch t-test, permutation test, bootstrap interval.', correlation: 'How strongly two measures move together, with a line of best fit.', ols: 'One outcome explained by several things at once.', logistic: 'Chance of a yes/no outcome from several things.', mle: 'Fit a probability model by maximum likelihood.', did: 'Compare the change in one group with the change in another.', bootstrap: 'How uncertain is a mean, median or spread? Resample the data.', experiment: 'Replay the same matches with one tactic changed: a true cause-and-effect test. Takes a minute or two.', simulate: 'Play many matches with a tactic set at random; the results become a new table you can analyse. Takes a minute or two.' };
+  const HELP = { forecast: 'Look ahead: where the club will finish, what a ticket price would bring in, or a measure carried forward. Fill in only what the kind of forecast needs.', query: 'Filters, groups and summarises a table.', describe: 'Mean, spread and shape of one measure.', compare: 'Are two groups different? Welch t-test, permutation test, bootstrap interval.', correlation: 'How strongly two measures move together, with a line of best fit.', ols: 'One outcome explained by several things at once.', logistic: 'Chance of a yes/no outcome from several things.', mle: 'Fit a probability model by maximum likelihood.', did: 'Compare the change in one group with the change in another.', bootstrap: 'How uncertain is a mean, median or spread? Resample the data.', experiment: 'Replay the same matches with one tactic changed: a true cause-and-effect test. Takes a minute or two.', simulate: 'Play many matches with a tactic set at random; the results become a new table you can analyse. Takes a minute or two.' };
   const helpFor = (m) => HELP[m] || '';
-  const newForm = (method) => ({ method: method || 'describe', table: 'team_matches', where: [], x: [], model: 'poisson', statistic: 'mean', tactic: 'pressing', a: 0.2, b: 0.9, lo: 0.2, hi: 0.9, matches: 10, minutes: 30, limit: 30, dir: 'desc' });
+  const newForm = (method) => ({ method: method || 'describe', table: 'team_matches', where: [], x: [], model: 'poisson', statistic: 'mean', kind: 'season', stand: 'family', ahead: 5, tactic: 'pressing', a: 0.2, b: 0.9, lo: 0.2, hi: 0.9, matches: 10, minutes: 30, limit: 30, dir: 'desc' });
 
+
+  // ---------- changes: anything the club can do, by hand or proposed by the agent ----------
+  const CTL = () => FM.controls;
+  // The form for a lever or rule is flat; the agent sends them nested, so they are flattened to the same form.
+  function flatten(action, p) {
+    const q = Object.assign({}, p);
+    if (action === 'addLever' && Array.isArray(q.effects)) { (q.effects || []).slice(0, 2).forEach((e, i) => { q['target' + (i + 1)] = e.target; q['pct' + (i + 1)] = e.pct; }); delete q.effects; }
+    if (action === 'addRule' && q.when && q.do) { q.metric = q.when.metric; q.op = q.when.op; q.value = q.when.value; q.action = q.do.action; const pp = q.do.params || {}; q.stand = pp.stand || ''; q.amount = pp.price != null ? pp.price : pp.perRound != null ? pp.perRound : pp.percent != null ? pp.percent : ''; q.once = q.once ? '1' : ''; delete q.when; delete q.do; }
+    return q;
+  }
+  function newControlCell(action, params, by) {
+    const a = CTL().ACTIONS[action], lg = state.league, p = flatten(action, params || {});
+    a.params.forEach((pr) => {
+      if (p[pr.k] != null && p[pr.k] !== '') return;
+      if (pr.kind === 'select') { const o = CTL().optionsFor(lg, pr); if (o.length) p[pr.k] = o[0].value; }
+      else if (pr.kind === 'num') { const b = lg.biz || {}; p[pr.k] = action === 'setMarketing' ? (b.marketing || 0) : action === 'setDividend' ? Math.round(((b.dividend || {}).policy || 0) * 100) : action === 'takeLoan' ? 1000000 : action === 'issueShares' ? 1000000 : pr.k === 'price' ? ((b.prices && b.prices[p.stand]) ? b.prices[p.stand].price : 20) : pr.k === 'perRound' ? 10000 : pr.k === 'rounds' ? 14 : pr.k === 'pct1' ? 5 : pr.k === 'ask' ? 5000 : pr.k === 'value' ? 0 : pr.k === 'amount' ? 0 : ''; }
+      else p[pr.k] = p[pr.k] == null ? '' : p[pr.k];
+    });
+    return { type: 'control', action, params: p, status: 'open', by: by || 'manual' };
+  }
+  function controlFieldHtml(pr, cell) {
+    const v = cell.params[pr.k], lg = state.league; let ctl;
+    if (pr.kind === 'select') ctl = `<select data-cp="${pr.k}">${CTL().optionsFor(lg, pr).map((o) => `<option value="${esc(o.value)}"${String(o.value) === String(v) ? ' selected' : ''}>${esc(o.label)}</option>`).join('') || '<option value="">(none available)</option>'}</select>`;
+    else if (pr.kind === 'num') ctl = `<input type="number" data-cp="${pr.k}" value="${esc(v == null ? '' : v)}"${pr.min != null ? ' min="' + pr.min + '"' : ''}${pr.max != null ? ' max="' + pr.max + '"' : ''} step="${pr.step || 1}">`;
+    else ctl = `<input type="text" data-cp="${pr.k}" value="${esc(v == null ? '' : v)}" autocomplete="off">`;
+    return `<label class="wb-fld"><span>${esc(pr.label)}</span>${ctl}</label>`;
+  }
+  function previewHtml(cell) {
+    const a = CTL().ACTIONS[cell.action]; if (!a.preview) return '';
+    const pv = CTL().preview(state.league, cell.action, cell.params); if (!pv) return '';
+    return `<div class="wb-prev${pv.bad ? ' bad' : ''}"><b>${pv.bad ? 'Not possible yet' : 'What the game will do'}</b> ${esc(pv.text)}${(pv.warnings || []).map((w) => `<br><i>${esc(w)}</i>`).join('')}</div>`;
+  }
+  function controlCellHtml(cell, i, n) {
+    const a = CTL().ACTIONS[cell.action], by = cell.by === 'agent' ? ' <i>proposed by the agent</i>' : '';
+    const bar = `<div class="wb-cbar"><span class="wb-ctype">Change: ${esc(a.title)}${by}</span><span class="wb-cact"><button type="button" data-act="up" ${i ? '' : 'disabled'} aria-label="Move up">↑</button><button type="button" data-act="down" ${i < n - 1 ? '' : 'disabled'} aria-label="Move down">↓</button><button type="button" data-act="del" aria-label="Delete">✕</button></span></div>`;
+    let body;
+    if (cell.status === 'applied') body = `<div class="wb-applied"><b>Done.</b> ${esc(cell.result && cell.result.text)}</div>`;
+    else if (cell.status === 'dismissed') body = '<p class="wb-hint">Dismissed. Nothing was changed.</p>';
+    else {
+      const stateNow = a.current ? `<p class="wb-hint">Now: ${esc(a.current(state.league))}</p>` : '';
+      body = `<p class="wb-hint">${esc(a.desc)}</p>${stateNow}${cell.result && !cell.result.ok ? `<div class="wb-err">${esc(cell.result.text)}</div>` : ''}<div class="wb-build"><div class="wb-grid">${a.params.map((pr) => controlFieldHtml(pr, cell)).join('')}</div><div id="prev-${cell.id}">${previewHtml(cell)}</div><div class="wb-row"><button class="wb-run" type="button" data-cact="apply">Apply</button><button type="button" class="wb-alt" data-cact="forecast">What would this do to the money?</button><button type="button" class="wb-alt" data-cact="dismiss">Dismiss</button></div></div>${cell.fc ? (cell.fc.working ? '<p class="wb-hint">Working it out on a copy of the club…</p>' : `<div class="wb-res">${resultHtml(cell.fc)}</div>`) : ''}`;
+    }
+    return `<article class="wb-cell control ${cell.status}" data-cell="${cell.id}">${bar}${body}</article>`;
+  }
+  function applyControl(cell) {
+    const r = CTL().run(state.league, cell.action, cell.params, cell.by === 'agent' ? 'agent' : 'manual');
+    cell.result = r; cell.status = r.ok ? 'applied' : 'open'; cell.fc = null; save(); refreshCell(cell); refreshData();
+    return r;
+  }
+  function forecastControl(cell) {
+    cell.fc = { working: true }; refreshCell(cell);
+    setTimeout(() => { cell.fc = WB.run(state.league, { method: 'forecast', kind: 'scenario', label: CTL().ACTIONS[cell.action].title.toLowerCase(), actions: [{ action: cell.action, params: cell.params }] }); refreshCell(cell); }, 30);
+  }
   function cellHtml(cell, i, n) {
+    if (cell.type === 'control') return controlCellHtml(cell, i, n);
     const bar = `<div class="wb-cbar"><span class="wb-ctype">${cell.type === 'text' ? 'Text' : cell.type === 'calc' ? 'Calculator' : cell.type === 'lesson' ? 'Note' : cell.res && cell.res.ok ? esc(cell.res.title) : cell.type === 'analysis' ? 'Analysis' : 'Cell'}${cell.by === 'agent' ? ' <i>added by the agent</i>' : ''}</span><span class="wb-cact">${cell.type === 'analysis' ? `<button type="button" data-act="edit" title="Change the settings">${cell.edit ? 'Hide settings' : 'Settings'}</button>` : ''}${cell.type === 'analysis' && cell.res ? '<button type="button" data-act="copy" title="Copy as text">Copy</button>' : ''}<button type="button" data-act="up" ${i ? '' : 'disabled'} aria-label="Move up">↑</button><button type="button" data-act="down" ${i < n - 1 ? '' : 'disabled'} aria-label="Move down">↓</button><button type="button" data-act="del" aria-label="Delete">✕</button></span></div>`;
     let body = '';
     if (cell.type === 'text' || cell.type === 'lesson') body = `<textarea class="wb-in wb-text" data-k="text" rows="${Math.max(3, Math.min(14, String(cell.text || '').split('\n').length + 1))}" placeholder="Write here. Use the maths keyboard for symbols.">${esc(cell.text || '')}</textarea>`;
@@ -262,9 +319,9 @@
     host.scrollTop = keep;
   }
   function emptyHtml() {
-    return `<div class="wb-empty"><h3>Start with a question</h3><p>Ask the agent on the right, or add a cell yourself from the toolbar. Anything you build here stays with your saved game.</p><div class="wb-ex">${EXAMPLES.map((q) => `<button type="button" data-ask="${esc(q)}">${esc(q)}</button>`).join('')}</div></div>`;
+    return `<div class="wb-empty"><h3>What do you want to find out, or do?</h3><p>Ask the agent on the right in your own words, or add a cell from the toolbar. You can investigate anything the game recorded, forecast what would happen, and change things: prices, spending, loans, injuries, or something the game has no button for. The Board only shows the figures; this is where you act on them.</p><div class="wb-ex">${EXAMPLES.map((q) => `<button type="button" data-ask="${esc(q)}">${esc(q)}</button>`).join('')}</div></div>`;
   }
-  const EXAMPLES = ['Does a higher press lead to more turnovers?', 'Run a controlled experiment on how high we press', 'What is each of my strikers’ xG per shot?', 'Fit a Poisson model to the goals scored this season', 'Is my passing getting better over the season?', 'Teach me what a p-value is, using my own data'];
+  const EXAMPLES = ['Change the family stand ticket price to £22, and tell me what it should do to the money', 'Spend £20,000 a matchday on a youth scouting network for the rest of the season', 'Look at our injuries and tell me whether paying for treatment is worth it', 'Forecast the bank balance to the end of the season if I stop all marketing', 'Where are we likely to finish this season?', 'Does a higher press lead to more turnovers?'];
 
   function addCell(cell, opts) {
     const wb = state.wb; cell.id = cell.id || uid();
@@ -296,11 +353,21 @@
       return `<div class="wb-t${open ? ' open' : ''}"><button type="button" class="wb-th" data-table="${t.table}"><span>${t.table}${T.SCHEMA[t.table].extra ? ' <i>new</i>' : ''}</span><span class="wb-rows">${t.rows}</span></button>${open ? `<div class="wb-td"><p>${esc(t.desc)}</p><div class="wb-cols">${t.columns.map((c) => `<button type="button" class="wb-col" data-insert="${t.table}.${c.name}" title="${esc(c.desc)}"><b>${c.name}</b>${c.type === 'cat' ? '<i>category</i>' : ''}<span>${esc(c.desc)}</span></button>`).join('')}</div>${all[t.table].length ? `<div class="wb-scroll prev"><table><thead><tr>${t.columns.slice(0, 9).map((c) => `<th>${c.name}</th>`).join('')}</tr></thead><tbody>${all[t.table].slice(0, 6).map((r) => `<tr>${t.columns.slice(0, 9).map((c) => `<td class="n">${esc(r[c.name] == null ? '–' : r[c.name])}</td>`).join('')}</tr>`).join('')}</tbody></table></div>` : '<p class="wb-hint">No rows yet: play a match first.</p>'}</div>` : ''}</div>`;
     }).join('');
   }
-  function refreshData() { const h = el('wbData'); if (h) { const sc = h.scrollTop; h.querySelector('.wb-dlist').innerHTML = dataHtml(); h.scrollTop = sc; } }
+  function controlsHtml() {
+    const C = CTL(), lg = state.league; if (!C) return '';
+    const st = C.state(lg).split('\n').map((l) => `<p>${esc(l)}</p>`).join('');
+    const groups = {}; Object.keys(C.ACTIONS).forEach((id) => { const a = C.ACTIONS[id]; (groups[a.group] = groups[a.group] || []).push(a); });
+    return `<div class="wb-state"><div class="wb-tbl-t">How things stand</div>${st}</div>` + Object.keys(groups).map((g) => `<div class="wb-t open"><div class="wb-th static"><span>${esc(g)}</span></div><div class="wb-td">${groups[g].map((a) => `<button type="button" class="wb-col" data-newctl="${a.id}"><b>${esc(a.title)}</b><span>${esc(a.desc)}</span></button>`).join('')}</div></div>`).join('');
+  }
+  function refreshData() {
+    const h = el('wbData'); if (!h) return; const sc = h.scrollTop, tab = state.wb.ui.dtab || 'data';
+    h.querySelector('.wb-dlist').innerHTML = tab === 'controls' ? controlsHtml() : dataHtml();
+    h.querySelectorAll('[data-dtab]').forEach((b) => b.classList.toggle('on', b.dataset.dtab === tab)); h.scrollTop = sc;
+  }
 
   // ---------- the agent ----------
   function lessonList() { try { return Object.keys(FM.teach.lessons).map((k) => k + ' = ' + FM.teach.lessons[k].title.replace(/[:?]/g, '')).join('; '); } catch (e) { return ''; } }
-  function docSummary() { return state.wb.cells.slice(-12).map((c, i) => (i + 1) + '. ' + (c.type === 'analysis' ? (c.res && c.res.ok ? c.res.title : 'analysis (not run)') : c.type + ': ' + String(c.text || '').slice(0, 60).replace(/\n/g, ' '))).join('\n'); }
+  function docSummary() { return state.wb.cells.slice(-12).map((c, i) => (i + 1) + '. ' + (c.type === 'control' ? 'change: ' + c.action + ' (' + c.status + ')' : c.type === 'analysis' ? (c.res && c.res.ok ? c.res.title : 'analysis (not run)') : c.type + ': ' + String(c.text || '').slice(0, 60).replace(/\n/g, ' '))).join('\n'); }
   function chatPush(m) { m.at = Date.now() + Math.random(); const wb = state.wb; wb.chat.push(m); if (wb.chat.length > 70) wb.chat = wb.chat.slice(-60); save(); return m; }
   function chatDraw() {
     const log = el('wbLog'); if (!log) return; const wb = state.wb;
@@ -318,13 +385,21 @@
     try {
       const summary = (FM.agentContext ? FM.agentContext(state.league, 'workbench') : '').slice(0, 2900);
       for (let round = 0; round < 3; round++) {
-        const out = await FM.api('/football/workbench', { messages: chatMessages(), schema: T.digest(state.league), methods: WB.METHOD_HELP.join('\n'), summary, doc: docSummary(), level: state.league.tier, detail: DETAIL[wb.settings.detail] || DETAIL.standard, lessons: lessonList() });
+        const out = await FM.api('/football/workbench', { messages: chatMessages(), schema: T.digest(state.league), methods: WB.METHOD_HELP.join('\n'), controls: (CTL() ? CTL().help(state.league) + '\n\nHow things stand now:\n' + CTL().state(state.league) : ''), summary, doc: docSummary(), level: state.league.tier, detail: DETAIL[wb.settings.detail] || DETAIL.standard, lessons: lessonList() });
         const msg = chatPush({ role: 'agent', text: out.reply || 'Tell me more about what you want to find out.', added: [] });
         const actions = Array.isArray(out.actions) ? out.actions : [];
         if (!actions.length || round === 2) { state.busy = ''; chatDraw(); break; }
         const texts = [];
         for (const a of actions) {
           if (a.type === 'note') { const c = addCell({ type: 'lesson', text: a.text, by: 'agent' }); msg.added.push({ id: c.id, title: 'Note' }); texts.push('Note added.'); continue; }
+          if (a.type === 'control') {
+            const act = a.action || (a.spec && a.spec.action), C = CTL();
+            if (!C || !C.ACTIONS[act]) { texts.push('There is no action called "' + act + '".'); continue; }
+            const cc = addCell(newControlCell(act, a.params || (a.spec && a.spec.params) || {}, 'agent'), { scroll: false }), title = C.ACTIONS[act].title;
+            if (wb.settings.auto) { const r = applyControl(cc); texts.push((r.ok ? 'APPLIED: ' : 'COULD NOT APPLY: ') + title + '. ' + r.text); msg.added.push({ id: cc.id, title: (r.ok ? 'Done: ' : 'Not done: ') + title }); }
+            else { texts.push('PROPOSED, waiting for the manager to press Apply: ' + title + ' ' + JSON.stringify(a.params || {})); msg.added.push({ id: cc.id, title: 'Proposed: ' + title }); }
+            continue;
+          }
           const spec = a.spec || {}; const form = formFromSpec(spec); if (!form.table && spec.method !== 'experiment' && spec.method !== 'simulate') form.table = 'team_matches';
           const cell = addCell({ type: 'analysis', form, by: 'agent', edit: false, running: true, progress: 'Working…' }, { scroll: false });
           state.busy = (spec.method === 'experiment' || spec.method === 'simulate') ? 'Running the simulation… (this takes a minute or two)' : 'Running the analysis…'; chatDraw();
@@ -378,22 +453,23 @@
         <input id="wbTitle" class="wb-title" value="${esc(wb.title)}" aria-label="Document title" maxlength="80">
         <span class="wb-sp"></span>
         <span class="wb-menu"><button type="button" data-tool="add">+ Add</button><div class="wb-pop" id="wbAdd" hidden>
-          <button type="button" data-add="analysis">Analysis or table</button><button type="button" data-add="calc">Calculator</button><button type="button" data-add="text">Text</button></div></span>
+          <button type="button" data-add="control">Change something</button><button type="button" data-add="forecast">Forecast</button><button type="button" data-add="analysis">Analysis or table</button><button type="button" data-add="calc">Calculator</button><button type="button" data-add="text">Text</button></div></span>
         <button type="button" data-tool="kb">Maths keyboard</button>
         <button type="button" data-tool="data">Data</button>
         <button type="button" data-tool="agent">AI Agent</button>
+        <select id="wbAuto" aria-label="Whether the agent applies changes"><option value="">Agent proposes, I apply</option><option value="1">Agent applies changes itself</option></select>
         <select id="wbDetail" aria-label="Level of detail in explanations"><option value="brief">Brief</option><option value="standard">Standard</option><option value="detailed">Detailed</option></select>
         <span class="wb-level" title="Set when the game was started">${TIERS[tier] || ''}</span>
         <button type="button" data-tool="copy">Copy</button>
       </div>
       <div class="wb-body">
-        <aside class="wb-data" id="wbData" aria-label="Data"><div class="wb-pane-h"><b>Data</b><span>${esc(FM.teamById(league, league.userId).name)} · season ${league.season}</span></div><div class="wb-dlist"></div></aside>
+        <aside class="wb-data" id="wbData" aria-label="Data and controls"><div class="wb-pane-h"><span class="wb-dtabs"><button type="button" data-dtab="data">Data</button><button type="button" data-dtab="controls">Controls</button></span><span>${esc(FM.teamById(league, league.userId).name)} · season ${league.season}</span></div><div class="wb-dlist"></div></aside>
         <section class="wb-main"><div class="wb-doc" id="wbDoc"></div><div class="wb-kb" id="wbKb" hidden></div></section>
         <aside class="wb-agent" id="wbAgent" aria-label="LastMind AI Agent"><div class="wb-pane-h"><b>LastMind AI Agent</b><button type="button" class="wb-clear" data-tool="clearchat">Clear chat</button></div><div class="wb-log" id="wbLog" role="log" aria-live="polite"></div>
           <form class="wb-form" id="wbForm"><textarea id="wbAsk" rows="2" placeholder="Ask a question, or say what you want to learn…" aria-label="Message to the agent"></textarea><button class="wb-send" id="wbSend" type="submit">Send</button></form></aside>
       </div><div class="wb-flash" id="wbFlash" role="status"></div></div>`;
-    el('wbDetail').value = wb.settings.detail || 'standard';
-    host.querySelector('.wb-dlist').innerHTML = dataHtml(); renderDoc(); chatDraw(); el('wbKb').innerHTML = kbHtml(); layout();
+    el('wbDetail').value = wb.settings.detail || 'standard'; el('wbAuto').value = wb.settings.auto ? '1' : '';
+    refreshData(); renderDoc(); chatDraw(); el('wbKb').innerHTML = kbHtml(); layout();
 
     if (host._wbAbort) host._wbAbort.abort();
     const ac = new AbortController(), SIG = { signal: ac.signal }; host._wbAbort = ac;
@@ -402,6 +478,7 @@
       const t = e.target, cell = t.closest && t.closest('[data-cell]') && findCell(t.closest('[data-cell]').dataset.cell);
       if (t.id === 'wbTitle') { wb.title = t.value; save(); return; }
       if (!cell) return;
+      if (t.dataset.cp && cell.type === 'control') { cell.params[t.dataset.cp] = t.value; const pv = document.getElementById('prev-' + cell.id); if (pv) pv.innerHTML = previewHtml(cell); save(); return; }
       if (t.dataset.k === 'text') { cell.text = t.value; if (cell.type === 'calc') { const o = t.closest('.wb-calc').querySelector('[data-out]'); o.innerHTML = calcOut(cell); } save(); }
       else if (t.dataset.w != null) { const i = Number(t.dataset.w); cell.form.where = cell.form.where || []; cell.form.where[i] = cell.form.where[i] || {}; cell.form.where[i][t.dataset.wk] = t.value; }
       else if (t.dataset.f && t.tagName === 'INPUT') cell.form[t.dataset.f] = t.value;
@@ -409,7 +486,10 @@
     host.addEventListener('change', (e) => {
       const t = e.target;
       if (t.id === 'wbDetail') { wb.settings.detail = t.value; save(); return; }
-      const cell = t.closest && t.closest('[data-cell]') && findCell(t.closest('[data-cell]').dataset.cell); if (!cell || !cell.form) return;
+      if (t.id === 'wbAuto') { wb.settings.auto = t.value === '1'; save(); return; }
+      const cell = t.closest && t.closest('[data-cell]') && findCell(t.closest('[data-cell]').dataset.cell);
+      if (cell && cell.type === 'control' && t.dataset.cp) { cell.params[t.dataset.cp] = t.value; const pv = document.getElementById('prev-' + cell.id); if (pv) pv.innerHTML = previewHtml(cell); save(); return; }
+      if (!cell || !cell.form) return;
       if (t.dataset.w != null) { const i = Number(t.dataset.w); cell.form.where = cell.form.where || []; cell.form.where[i] = cell.form.where[i] || {}; cell.form.where[i][t.dataset.wk] = t.value; return; }
       if (!t.dataset.f) return;
       cell.form[t.dataset.f] = t.value;
@@ -424,7 +504,7 @@
       const b = e.target.closest && e.target.closest('button'); if (!b) return;
       const tool = b.dataset.tool;
       if (tool === 'add') { el('wbAdd').hidden = !el('wbAdd').hidden; return; }
-      if (b.dataset.add) { el('wbAdd').hidden = true; if (b.dataset.add === 'analysis') addCell({ type: 'analysis', form: newForm('describe'), edit: true }); else addCell({ type: b.dataset.add, text: '' }); return; }
+      if (b.dataset.add) { el('wbAdd').hidden = true; if (b.dataset.add === 'analysis') addCell({ type: 'analysis', form: newForm('describe'), edit: true }); else if (b.dataset.add === 'forecast') addCell({ type: 'analysis', form: newForm('forecast'), edit: true }); else if (b.dataset.add === 'control') { wb.ui.data = true; wb.ui.dtab = 'controls'; layout(); refreshData(); flash('Choose what to change from the Controls list'); } else addCell({ type: b.dataset.add, text: '' }); return; }
       if (tool === 'kb' || tool === 'data' || tool === 'agent') { wb.ui[tool] = !wb.ui[tool]; layout(); save(); return; }
       if (tool === 'copy') { copyDoc(); return; }
       if (tool === 'clearchat') { if (confirm('Clear the whole conversation with the agent? Your document stays.')) { wb.chat = []; save(); chatDraw(); } return; }
@@ -432,11 +512,14 @@
       if (b.dataset.key != null) { insertText(b.dataset.key); return; }
       if (b.dataset.ask) { ask(b.dataset.ask); return; }
       if (b.dataset.goto) { const n = document.querySelector('[data-cell="' + b.dataset.goto + '"]'); if (n) n.scrollIntoView({ block: 'start', behavior: 'smooth' }); return; }
+      if (b.dataset.dtab) { wb.ui.dtab = b.dataset.dtab; refreshData(); save(); return; }
+      if (b.dataset.newctl) { addCell(newControlCell(b.dataset.newctl, {}, 'manual')); return; }
       if (b.dataset.table) { state.openTable = state.openTable === b.dataset.table ? '' : b.dataset.table; refreshData(); return; }
       if (b.dataset.insert) { insertText(b.dataset.insert); return; }
       const cellEl = b.closest('[data-cell]'), cell = cellEl && findCell(cellEl.dataset.cell);
       if (b.dataset.multi && cell) { const k = b.dataset.multi, arr = cell.form[k] = cell.form[k] || [], i = arr.indexOf(b.dataset.col); if (i >= 0) arr.splice(i, 1); else arr.push(b.dataset.col); b.classList.toggle('on'); save(); return; }
       if (!cell) return;
+      if (b.dataset.cact) { if (b.dataset.cact === 'apply') applyControl(cell); else if (b.dataset.cact === 'forecast') forecastControl(cell); else if (b.dataset.cact === 'dismiss') { cell.status = 'dismissed'; save(); refreshCell(cell); } return; }
       const act = b.dataset.act, wbc = state.wb.cells, idx = wbc.indexOf(cell);
       if (act === 'run') runCell(cell);
       else if (act === 'stop') { cell.stop = true; }
@@ -448,6 +531,7 @@
     }, SIG);
     // cells that were running when the page was left cannot be running now
     wb.cells.forEach((c) => { if (c.running) { c.running = false; } });
+    if (opts && opts.control && CTL() && CTL().ACTIONS[opts.control]) setTimeout(() => { addCell(newControlCell(opts.control, opts.params || {}, 'manual')); }, 40);
     if (opts && opts.starter) setTimeout(() => ask(opts.starter), 60);
   };
 
