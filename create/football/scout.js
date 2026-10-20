@@ -93,6 +93,7 @@
   // ---------- Layer 2: the manager, through LastMind ----------
   const squadOf = (t) => t.players.concat(t.bench || []).map((p) => ({ number: p.number, name: p.name, group: p.group || p.natural, role: (p.roleId || '').replace(/_/g, ' ') }));
   S.request = async function (league, aiTeam, userTeam, ctx) {
+    if (FM.locksOut && FM.locksOut()) { const e = new Error('out of Locks'); e.code = 'LOCK_LIMIT_REACHED'; throw e; }   // no request is made at all while the Locks are used up
     const profile = ctx.profile || S.profile(league);
     const body = { stage: ctx.stage || 'prematch', minute: ctx.minute || 0, score: ctx.score || { us: 0, them: 0 }, scout: profile, squad: squadOf(aiTeam), opponent: squadOf(userTeam).map((p) => ({ number: p.number, name: p.name })), recent: ctx.recent || [], current: S.describe(aiTeam.rules || [], aiTeam, userTeam) };
     const out = await FM.api('/football/opponent-plan', body);

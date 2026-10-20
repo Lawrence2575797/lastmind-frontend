@@ -7,6 +7,10 @@
   const SUPABASE_URL = 'https://evgdecewwmkupiadgfop.supabase.co';
   const SUPABASE_ANON_KEY = 'sb_publishable_Bb-f61P1zqy_xW63D26nUw_VTOVXaub';   // the public (publishable) key, the same one every LastMind page carries
   let client = null;
+  // When the server says the Locks are used up, the game remembers it for ten minutes and stops making the automatic AI requests (the analysis after a game, the
+  // opposition manager's plans) instead of asking again and again. "Check again" on the analysis clears it.
+  FM.locksOut = () => !!FM.locksOutAt && Date.now() - FM.locksOutAt < 10 * 60 * 1000;
+  FM.locksReset = () => { FM.locksOutAt = 0; };
   FM.api = async function (path, body) {
     if (!window.supabase || !window.supabase.createClient) throw new Error('The sign-in could not load. Check your connection and try again.');
     if (!client) client = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -16,7 +20,7 @@
     try { resp = await fetch(BACKEND + path, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + data.session.access_token }, body: JSON.stringify(body) }); }
     catch (err) { throw new Error('LastMind could not be reached. Check your connection, or build the instruction with the options.'); }
     const json = await resp.json().catch(() => ({}));
-    if (!resp.ok) { const e = new Error(json.detail || json.error || 'LastMind could not read that just now. Try again, or build it with the options.'); e.code = json.code || String(resp.status); throw e; }
+    if (!resp.ok) { const e = new Error(json.detail || json.error || 'LastMind could not read that just now. Try again, or build it with the options.'); e.code = json.code || String(resp.status); if (e.code === 'LOCK_LIMIT_REACHED') FM.locksOutAt = Date.now(); throw e; }
     return json;
   };
   // Any method, for saving the game to the account: resolves { ok, status, json, uid }, or null when nobody is signed in or the server is unreachable.
@@ -31,6 +35,7 @@
       try { resp = await fetch(BACKEND + path, { method, headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + data.session.access_token }, body: body ? JSON.stringify(body) : undefined }); }
       catch (err) { return { ok: false, status: 0, json: {}, uid, netError: true }; }   // signed in, but the server could not be reached
       const json = await resp.json().catch(() => ({}));
+      if (resp.status === 402 && json && json.code === 'LOCK_LIMIT_REACHED') FM.locksOutAt = Date.now();
       return { ok: resp.ok, status: resp.status, json, uid };
     } catch (e) { return null; }
   };

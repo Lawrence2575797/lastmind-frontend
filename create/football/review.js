@@ -663,10 +663,12 @@
     if (!r) { host.innerHTML = '<div class="card rv-intro"><h2>Last match</h2><p class="desc">Hi boss. Once we have played a match I will go through it with you here: what went wrong, whether it was down to bad luck, and what to look at.</p></div>'; return; }
     const real = league.fixtures.find((f) => f.id === r.c.fx.id);
     const draw = () => paint(host, r);
+    const outOfLocks = () => { host.innerHTML = '<div class="card rv-intro"><h2>The analysis is paused: your Locks are used up</h2><p class="desc">Every analysis after a game costs Locks, because it uses the LastMind servers and AI, and that costs real money. Locks are the limit on how much each account can use, so when they run out I stop producing new analyses rather than carry on regardless. Nothing is lost: the games you have already analysed stay open, the match, the table and everything saved in your game carry on as normal, and the analysis of this match will be here as soon as your Locks are topped up.</p><div class="row"><button type="button" id="rvRetry">Check again</button></div></div>'; const rb = host.querySelector('#rvRetry'); if (rb) rb.addEventListener('click', () => { if (FM.locksReset) FM.locksReset(); FM.renderMatchReview(host, league); }); };
     if (!real || real.reviewPaid || !FM.apiCall) { draw(); return; }
+    if (FM.locksOut && FM.locksOut()) { outOfLocks(); return; }
     host.innerHTML = '<div class="card rv-intro"><h2>Going through the match…</h2><p class="desc">Working through the match with you. This analysis costs a few Locks.</p></div>';
     FM.apiCall('POST', '/football/review-charge', {}).then((res) => {
-      if (res && res.status === 402) { host.innerHTML = '<div class="card rv-intro"><h2>Out of Locks</h2><p class="desc">The analysis of the last match costs a few Locks, and you have used your allowance for now. Your game and everything saved in it carry on as normal.</p></div>'; return; }
+      if (res && res.status === 402) { outOfLocks(); return; }
       if (res && res.ok) { real.reviewPaid = true; if (FM.requestSave) FM.requestSave(); }
       draw();
     }).catch(() => draw());
