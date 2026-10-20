@@ -821,6 +821,7 @@
   .rv-lesson-panel { box-sizing: border-box; width: min(96vw, 760px); max-height: 92vh; overflow: auto; background: var(--fm-card, #14201a); border: 1px solid rgba(255,255,255,.18); border-radius: 0; padding: 18px 22px 24px; box-shadow: 0 20px 60px rgba(0,0,0,.6); }
   .rv-lesson-panel h3 { margin: 6px 0 10px; font-size: 1.3rem; } .rv-lesson-bar { display: flex; justify-content: space-between; gap: 10px; } .rv-lesson-bar button { padding: 6px 12px; cursor: pointer; }
   .rv-needs { margin: 0 0 12px; font-size: .9rem; line-height: 1.7; } .rv-steps { margin: 0; padding-left: 24px; display: grid; gap: 14px; } .rv-steps li { line-height: 1.7; padding-left: 4px; }
+  .ng-skin select, .sk-card select { width: 100%; margin: 4px 0 6px; } .sk-l { font-size: .74rem; letter-spacing: .1em; text-transform: uppercase; opacity: .75; } .sk-row { display: flex; gap: 8px; } .sk-row input { flex: 1; min-width: 0; background: var(--navy-raise); color: var(--cream); border: 1px solid var(--line); border-radius: 0; padding: 8px 10px; font: inherit; font-family: var(--sans); } .sk-study { background: transparent; border: 1px solid var(--gold); color: var(--gold); padding: 7px 12px; }
   .ng-level { border: 1px solid rgba(255,255,255,.18); border-radius: 0; margin: 0 0 12px; padding: 8px 12px 10px; } .ng-level legend { padding: 0 6px; font-weight: 700; } .ng-level label { display: inline-flex; align-items: center; gap: 6px; margin: 4px 14px 4px 0; cursor: pointer; } .ng-level .note { margin: 6px 0 0; }
   #lmAgent[hidden] { display: none; }
   #lmAgent { position: fixed; right: 0; top: 0; bottom: 0; z-index: 60; pointer-events: none; }
@@ -951,6 +952,7 @@
           <label><input type="radio" name="ngLevel" value="above"> Beyond A-level</label>
           <p class="note">This sets how the analysis and the teaching explain things, so they fit what you are learning now.</p>
         </fieldset>
+        <fieldset class="ng-level ng-skin" id="ngSkinBox"><legend>League setting</legend><div id="ngSkinHost"></div></fieldset>
         <div class="row"><button class="primary" id="ngStart" style="flex:0 0 auto">Start the season</button></div>
       </div>
       <div class="ng-mode">
@@ -1049,13 +1051,14 @@
 <script src="/create/football/instructions.js?v=20261010c"></script>
 <script src="/create/football/fitness.js?v=20261010c"></script>
 <script src="/create/football/match.js?v=20261108d"></script>
-<script src="/create/football/league.js?v=20261120c"></script>
+<script src="/create/football/league.js?v=20261120e"></script>
 <script src="/create/football/preseason.js?v=20261010n"></script>
 <script src="/create/football/stats_math.js?v=20261010c"></script>
 <script src="/create/football/stats.js?v=20261013a"></script>
 <script src="/create/football/stats_top.js?v=20261010c"></script>
-<script src="/create/football/history.js?v=20261107g"></script>
-<script src="/create/football/news.js?v=20261108b"></script>
+<script src="/create/football/history.js?v=20261120e"></script>
+<script src="/create/football/skins.js?v=20261120e"></script>
+<script src="/create/football/news.js?v=20261120e"></script>
 <script src="/create/football/insights.js?v=20261010c"></script>
 <script src="/create/football/analysis.js?v=20261107h"></script>
 <script src="/create/football/clips.js?v=20261106g"></script>
@@ -1071,7 +1074,7 @@
 <script src="/create/football/recruit.js?v=20261108n"></script>
 <script src="/create/football/development.js?v=20261107l"></script>
 <script src="/create/football/club.js?v=20261108p"></script>
-<script src="/create/football/club_ui.js?v=20261110d"></script>
+<script src="/create/football/club_ui.js?v=20261120e"></script>
 <script src="/create/football/review_teach.js?v=20261110b"></script>
 <script src="/create/football/review.js?v=20261110c"></script>
 <script src="/create/football/dataset.js?v=20261107c"></script>
@@ -1084,6 +1087,6 @@
 <script src="/create/football/cases.js?v=20261028a"></script>
 <script src="/create/football/scenario.js?v=20261111a"></script>
 <script src="/create/football/multiplayer.js?v=20261107c"></script>
-<script src="/create/football/main.js?v=20261120b"></script>
+<script src="/create/football/main.js?v=20261120e"></script>
 </body>
 </html>

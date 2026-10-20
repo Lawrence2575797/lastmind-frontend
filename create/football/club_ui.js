@@ -247,7 +247,7 @@
     const news = (lg.news || []).filter((n) => n.kind === 'Board').slice(-3).reverse();
     const warn = b.conf.low ? `<p class="banner warn">The shareholders have lost faith for ${b.conf.low} matchday${b.conf.low === 1 ? '' : 's'} running. If it goes on, they will call a vote of no confidence.</p>` : '';
     return `<div class="two"><div style="display:grid;gap:16px">
-      <div class="card"><div class="eyebrow">${T('stakeholders', 'The shareholders')}</div><h2>Ashford Rovers PLC</h2><p class="desc">${esc(mood)} ${esc(finWords)} ${esc(footWords)}</p>${warn}
+      <div class="card"><div class="eyebrow">${T('stakeholders', 'The shareholders')}</div><h2>${esc(FM.teamById(lg, lg.userId).name)} PLC</h2><p class="desc">${esc(mood)} ${esc(finWords)} ${esc(footWords)}</p>${warn}
         <div class="home-approvals">${meter('Approval of the finances', ap.financial)}${meter('Approval of the football', ap.football)}</div>
         <div class="board-money"><span>Share price<b>£${ap.share.toFixed(2)}</b></span><span>Shares in issue<b>${num(b.shares.issued)}</b></span><span>Cash in the bank<b${b.cash < 0 ? ' class="neg"' : ''}>${gbp(b.cash)}</b></span></div></div>
       <div class="card"><div class="eyebrow">${T('aims', 'Their aims and objectives this season')}</div>

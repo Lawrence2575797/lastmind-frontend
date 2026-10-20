@@ -60,6 +60,7 @@
     item.id = 'N' + (league.news.length + 1);
     item.reporter = item.reporter || ({ Injury: 'Maya Cole', 'Player of the Match': 'Daniel Reed', Interview: 'Sofia Bennett', Preview: 'Owen Price' }[item.kind] || 'The LastMind Football desk');
     item.publication = item.publication || 'The Touchline';
+    if (league.skin && FM.skinText && !item.historyPack) ['headline', 'body'].forEach((k) => { if (item[k]) item[k] = FM.skinText(league, item[k]); });   // lines written for the original clubs name the setting's clubs instead
     league.news.push(item);
   };
 
@@ -96,6 +97,7 @@
   // short piece on each of the other clubs. (Newest is read first, so the derby is pushed last.)
   function ensureHistoryPack(league) {
     if (!FM.CLUB_HISTORY || league.news.some((n) => n.historyPack)) return;
+    if (league.skin) { if (FM.skinHistoryPack) FM.skinHistoryPack(league); return; }
     const me = FM.teamById(league, league.userId);
     const order = ['Harbour City', 'Kingsbridge Athletic', 'Westmoor Albion', 'Redcliffe Town', 'Stoneham Wanderers', 'Eastgate Rangers'];
     order.forEach((nm) => {

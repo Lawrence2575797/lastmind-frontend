@@ -1109,6 +1109,7 @@
       <div style="display:grid;gap:16px">${tableCard}</div></div>`;
     const leagueSelect = host.querySelector('#homeLeagueSelect'); if (leagueSelect) leagueSelect.addEventListener('change', () => { world.homeTableLevel = +leagueSelect.value; renderHome(); });
     const nb = host.querySelector('[data-nav-news]'); if (nb) nb.addEventListener('click', () => setView('news'));
+    if (!DEMO_MODE && !lg.mp && FM.skinCard) { const sh = document.createElement('div'); sh.id = 'homeSkin'; sh.style.marginTop = '16px'; host.appendChild(sh); FM.skinCard(sh, lg, { save: saveSoon, refresh: () => setView('home') }); }
     const ns = host.querySelector('#newSeasonBtn'); if (ns) ns.addEventListener('click', () => { ns.disabled = true; ns.textContent = 'Preparing the new season...'; if (FM.startNextSeason(lg)) { world.homeTableLevel = lg.divisionLevel; FM.saveLeague(lg); renderTop(); renderHome(); } });
   }
 
@@ -1224,7 +1225,7 @@
   function portraitFallback(p) { return `<div class="player-portrait fallback">${esc(p.name.split(/\s+/).map((x) => x[0]).slice(0, 2).join(''))}</div>`; }
   function renderPlayerProfile(team, p, host) {
     if (!p || !host) return;
-    const ashford = team.name === 'Ashford Rovers', image = ashford && portraitCache[p.id];
+    const ashford = (FM.originalClubName ? FM.originalClubName(team) : team.name) === 'Ashford Rovers', image = ashford && portraitCache[p.id];
     const ratings = [['Pace',p.ratings.pace],['Dribbling',p.ratings.dribbling],['Passing',p.ratings.passing],['Finishing',p.ratings.finishing],['Tackling',p.ratings.tackling],['Heading',p.ratings.heading],['Composure',p.ratings.composure],['Stamina',p.ratings.stamina],['Goalkeeping',p.ratings.gk]].filter((x) => x[1] != null);
     const capBtnHook = () => { const b = host.querySelector('.cap-make'); if (b) b.addEventListener('click', () => { world.league.captains = world.league.captains || {}; world.league.captains[team.id] = b.dataset.cap; saveSoon(); renderSquad(); }); };
     host.innerHTML = `<article class="player-profile card"><div id="profilePortrait">${image ? `<img class="player-portrait" src="${image}" alt="Portrait of ${esc(p.name)}">` : portraitFallback(p)}</div><div><span class="eyebrow">${esc(team.name)} · #${p.number}</span><h2 class="profile-name">${esc(p.name)}</h2><p class="desc">${esc(p.nation)} · ${p.natural} · ${p.height || '—'} cm · ${p.foot || '—'} foot</p>${FM.captainOf(world.league, team) && FM.captainOf(world.league, team).id === p.id ? '<p class="cap-line"><span class="cap-badge">C</span> Club captain</p>' : (team.id === world.league.userId ? '<p class="cap-line"><button type="button" class="cap-make" data-cap="' + p.id + '">Make captain</button></p>' : '')}<div class="profile-stats"><b>${FM.playerRating(p).toFixed(1)}<small>Overall</small></b><b>${Math.round(100 * FM.conditionOf(p))}%<small>Condition</small></b><b>${p.stats.apps}<small>Apps</small></b><b>${p.stats.goals}<small>Goals</small></b></div></div><div class="attribute-grid">${ratings.map(([n,v]) => `<div><span>${n}</span><b>${FM.shown(v)}</b><i style="--v:${v}%"></i></div>`).join('')}</div></article><div id="pfHost"></div>`;
@@ -2478,6 +2479,9 @@
   el('ngLeague').addEventListener('click', () => openMp('league'));
   el('ngMatch').addEventListener('click', () => openMp('match'));
   el('ngJoin').addEventListener('click', () => openMp('join'));
+  let ngSkin = null;
+  ngSkin = !DEMO_MODE && FM.skinPicker && el('ngSkinHost') ? FM.skinPicker(el('ngSkinHost'), { id: 'ngSk', level: () => { const r = document.querySelector('input[name="ngLevel"]:checked'); return r ? r.value : 'gcse'; }, onChange: () => { const b = el('ngStart'); if (b && ngSkin) b.disabled = !ngSkin.ready(); } }) : null;
+  if (DEMO_MODE && el('ngSkinBox')) el('ngSkinBox').hidden = true;
   el('ngStart').addEventListener('click', async () => {
     const btn = el('ngStart'), picked = document.querySelector('input[name="ngLevel"]:checked'), tier = picked ? picked.value : 'gcse';
     try { localStorage.setItem('lm_football_level', tier); } catch (e) { /* the choice is also in the game */ }
@@ -2486,6 +2490,7 @@
     // The league is the same each time (clubs, squads, fixtures, last season), but each new game rolls its own dice: injuries and results differ.
     world.league = FM.createLeague({ userIndex: 0, tier, runSeed: Math.floor(Math.random() * 1e9) });   // Ashford Rovers is the only club to take charge of
     if (FM.ensurePreseasonNews) FM.ensurePreseasonNews(world.league);
+    { const sk = ngSkin && ngSkin.value(); if (sk) FM.applySkin(world.league, sk); }   // a league setting from a period of history, if one was chosen (the stories already written are renamed)
     if (FM.transfer) FM.transfer(world.league);   // the opening offers are made now and saved with the game, not when a screen first asks
     if (FM.biz) { FM.biz(world.league); FM.bizSyncBudget(world.league); }
     await FM.playFriendlies(world.league, (i, n) => { btn.textContent = 'Playing pre-season friendlies (' + i + ' of ' + n + ')...'; });

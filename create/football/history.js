@@ -198,6 +198,7 @@
     const prev = fx ? league.fixtures.filter((f) => f.played && !f.friendly && f !== fx && ((f.homeId === me.id && f.awayId === opp.id) || (f.homeId === opp.id && f.awayId === me.id))).sort((a, b) => a.round - b.round) : [];
     if (prev.length) return returnCardHtml(league, me, opp, fx, prev[prev.length - 1], d, esc);
     const firstEver = (league.season || 1) === 1 && !league.fixtures.some((f) => f.played);
+    if (d && d.flagship && FM.skinFlagshipCard) return FM.skinFlagshipCard(league, d, me, opp, firstEver, esc);
     if (d && d.key === 'iron') {
       const rec = FM.derbyRecord(league, d), meIsA = me.name === d.a, played = rec.thisGame.a + rec.thisGame.b + rec.thisGame.d;
       const row = (y) => `<li><b>${y.year}: ${esc(y.title)}.</b> ${esc(y.text)}</li>`;
@@ -222,7 +223,8 @@
       <span class="eyebrow">${esc(opp.name)}${h.nickname ? ' · ' + esc(h.nickname) : ''}${h.ground ? ' · ' + esc(h.ground) : ''}</span>
       <h2>${esc(h.tagline)}</h2>
       ${d ? `<p class="hist-derby"><b>${esc(d.name)}.</b> ${esc(d.line)}</p>` : ''}
-      ${h.paras.map((p) => `<p>${esc(p)}</p>`).join('')}
+      ${h.paras.slice(0, league.skin ? 1 : 99).map((p) => `<p>${esc(p)}</p>`).join('')}
+      ${FM.skinCardExtras ? FM.skinCardExtras(league, h, d, esc) : ''}
       <p class="note">${esc(h.board)}</p>
     </div>`;
   };
