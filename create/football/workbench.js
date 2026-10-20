@@ -354,15 +354,37 @@
     if (Number.isInteger(v)) return String(v);
     const a = Math.abs(v); return String(Number(a >= 100 ? v.toFixed(0) : a >= 10 ? v.toFixed(1) : v.toFixed(2)));
   };
+
+  // ---------- a table over the whole page ----------
+  let expandedEl = null, expandedKey = null;
+  function expandedBody(table, n) {
+    const desc = T.describe(state.league).find((d) => d.table === table), rows = T.all(state.league)[table] || [], cols = desc.columns;
+    return `<table class="wb-dtable xp"><thead><tr>${cols.map((c, i) => `<th class="${i === 0 ? 'stick ' : ''}${c.type === 'cat' ? 'l' : ''}"><span class="wb-colh" title="${esc(c.name + ': ' + c.desc)}">${esc(c.name)}</span></th>`).join('')}</tr></thead><tbody>${rows.slice(0, n).map((r) => `<tr>${cols.map((c, i) => `<td class="${c.type === 'cat' ? 'l' : 'n'}${i === 0 ? ' stick' : ''}">${esc(cellText(r[c.name]))}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+  }
+  function closeExpanded() { if (expandedEl) { expandedEl.remove(); expandedEl = null; document.removeEventListener('keydown', expandedKey, true); document.body.classList.remove('wb-noscroll'); } }
+  function openExpanded(table) {
+    closeExpanded();
+    const rows = T.all(state.league)[table] || []; let n = 100;
+    const el2 = document.createElement('div'); el2.className = 'wb wb-xp'; el2.setAttribute('role', 'dialog'); el2.setAttribute('aria-label', 'Table ' + table);
+    const draw = () => {
+      el2.innerHTML = `<div class="wb-bar"><b class="wb-xp-t">${esc(table)}</b><span class="wb-xp-n">${Math.min(n, rows.length)} of ${rows.length} rows · ${T.describe(state.league).find((d) => d.table === table).columns.length} columns</span><span class="wb-sp"></span>${rows.length > n ? '<button type="button" data-xmore>Show 200 more</button>' : ''}<button type="button" data-xclose>Close ✕</button></div><div class="wb-xp-scroll">${rows.length ? expandedBody(table, n) : '<p class="wb-hint" style="padding:16px">No rows yet: play a match first.</p>'}</div>`;
+    };
+    draw();
+    el2.addEventListener('click', (e) => { const b = e.target.closest && e.target.closest('button'); if (!b) return; if (b.hasAttribute('data-xclose')) closeExpanded(); else if (b.hasAttribute('data-xmore')) { const sc = el2.querySelector('.wb-xp-scroll'), top = sc.scrollTop; n += 200; draw(); el2.querySelector('.wb-xp-scroll').scrollTop = top; } });
+    expandedKey = (e) => { if (e.key === 'Escape') { e.preventDefault(); closeExpanded(); } };
+    document.addEventListener('keydown', expandedKey, true);
+    document.body.appendChild(el2); document.body.classList.add('wb-noscroll'); expandedEl = el2;
+    const first = el2.querySelector('[data-xclose]'); if (first) first.focus();
+  }
   function dataHtml() {
     const all = T.all(state.league), desc = T.describe(state.league);
     state.shown = state.shown || {};
     return desc.map((t) => {
-      const open = state.openTable === t.table, rows = all[t.table], n = state.shown[t.table] || 10, extra = T.SCHEMA[t.table].extra;
+      const open = state.openTable === t.table, rows = all[t.table], n = state.shown[t.table] || 15, extra = T.SCHEMA[t.table].extra;
       let body = '';
       if (open) {
         body = rows.length
-          ? `<div class="wb-td"><div class="wb-scroll prev"><table class="wb-dtable"><thead><tr>${t.columns.map((c) => `<th><button type="button" class="wb-colh" data-insert="${t.table}.${c.name}" title="${esc(c.name + ': ' + c.desc + ' (click to use it in your cell)')}">${esc(c.name)}</button></th>`).join('')}</tr></thead><tbody>${rows.slice(0, n).map((r) => `<tr>${t.columns.map((c) => `<td class="${c.type === 'cat' ? 'l' : 'n'}">${esc(cellText(r[c.name]))}</td>`).join('')}</tr>`).join('')}</tbody></table></div><div class="wb-dfoot"><span>${Math.min(n, rows.length)} of ${rows.length} rows · ${t.columns.length} columns</span>${rows.length > n ? `<button type="button" data-more="${t.table}">Show ${Math.min(25, rows.length - n)} more</button>` : ''}</div></div>`
+          ? `<div class="wb-td"><div class="wb-scroll prev"><table class="wb-dtable"><thead><tr>${t.columns.map((c) => `<th class="${c.type === 'cat' ? 'l' : ''}"><button type="button" class="wb-colh" data-insert="${t.table}.${c.name}" title="${esc(c.name + ': ' + c.desc + ' (click to use it in your cell)')}">${esc(c.name)}</button></th>`).join('')}</tr></thead><tbody>${rows.slice(0, n).map((r) => `<tr>${t.columns.map((c) => `<td class="${c.type === 'cat' ? 'l' : 'n'}">${esc(cellText(r[c.name]))}</td>`).join('')}</tr>`).join('')}</tbody></table></div><div class="wb-dfoot"><span>${Math.min(n, rows.length)} of ${rows.length} rows · ${t.columns.length} columns</span><span class="wb-dbtns">${rows.length > n ? `<button type="button" data-more="${t.table}">Show ${Math.min(25, rows.length - n)} more</button>` : ''}<button type="button" data-expand="${t.table}" title="Open this table over the whole page">Expand ⤢</button></span></div></div>`
           : '<div class="wb-td"><p class="wb-hint">No rows yet: play a match first.</p></div>';
       }
       return `<div class="wb-t${open ? ' open' : ''}"><button type="button" class="wb-th" data-table="${t.table}" title="${esc(t.desc)}"><span>${t.table}${extra ? ' <i>new</i>' : ''}</span><span class="wb-rows">${t.rows}</span></button>${body}</div>`;
@@ -532,7 +554,8 @@
       if (b.dataset.newctl) { addCell(newControlCell(b.dataset.newctl, {}, 'manual')); return; }
       if (b.dataset.table) { state.openTable = state.openTable === b.dataset.table ? '' : b.dataset.table; refreshData(); return; }
       if (b.dataset.insert) { insertText(b.dataset.insert); return; }
-      if (b.dataset.more) { state.shown = state.shown || {}; state.shown[b.dataset.more] = (state.shown[b.dataset.more] || 10) + 25; refreshData(); return; }
+      if (b.dataset.expand) { openExpanded(b.dataset.expand); return; }
+      if (b.dataset.more) { state.shown = state.shown || {}; state.shown[b.dataset.more] = (state.shown[b.dataset.more] || 15) + 25; refreshData(); return; }
       const cellEl = b.closest('[data-cell]'), cell = cellEl && findCell(cellEl.dataset.cell);
       if (b.dataset.multi && cell) { const k = b.dataset.multi, arr = cell.form[k] = cell.form[k] || [], i = arr.indexOf(b.dataset.col); if (i >= 0) arr.splice(i, 1); else arr.push(b.dataset.col); b.classList.toggle('on'); save(); return; }
       if (!cell) return;

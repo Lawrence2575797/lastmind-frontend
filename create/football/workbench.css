@@ -132,3 +132,14 @@
 .wb-dfoot { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 6px 14px 0; font-size: .7rem; color: var(--wb-mute); } .wb-dfoot button { background: transparent; border: 1px solid var(--wb-line-2); color: var(--wb-ink); padding: 3px 10px; font: 600 .7rem var(--sans); } .wb-dfoot button:hover { border-color: var(--wb-gold); }
 
 .top-level { display: inline-flex; align-items: center; gap: 6px; font-family: var(--sans); font-size: .76rem; letter-spacing: .08em; text-transform: uppercase; opacity: .9; } .top-level select { width: auto; padding: 6px 8px; font-size: .8rem; letter-spacing: 0; text-transform: none; }
+
+/* a table over the whole page: scrolls down and across, with the headings and the first column kept in view */
+.wb.wb-xp { position: fixed; inset: 10px; z-index: 300; min-height: 0; max-height: none; } .wb-noscroll { overflow: hidden; }
+.wb-xp .wb-xp-t { font: 700 1rem var(--wb-mono); } .wb-xp .wb-xp-n { color: var(--wb-mute); font-size: .78rem; margin-left: 10px; }
+.wb-xp-scroll { flex: 1; min-height: 0; overflow: auto; background: var(--wb-bg); }
+.wb-dtable.xp { font-size: .84rem; width: max-content; min-width: 100%; } .wb-dtable.xp th { padding: 0; background: var(--wb-pane); } .wb-dtable.xp .wb-colh { display: block; padding: 9px 14px; cursor: default; color: var(--wb-ink); } .wb-dtable.xp td { padding: 6px 14px; }
+.wb-dtable.xp th.stick, .wb-dtable.xp td.stick { position: sticky; left: 0; background: var(--wb-pane); z-index: 2; text-align: left; border-right: 1px solid var(--wb-line-2); } .wb-dtable.xp th.stick { z-index: 3; }
+.wb-dtable.xp tbody tr:nth-child(even) td { background: rgba(255,255,255,.02); } .wb-dtable.xp tbody tr:nth-child(even) td.stick { background: #101d19; }
+.wb-dbtns { display: inline-flex; gap: 6px; }
+
+.wb-dtable th.l, .wb-dtable th.l .wb-colh { text-align: left; }
