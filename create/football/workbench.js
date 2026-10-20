@@ -346,11 +346,26 @@
   }
 
   // ---------- the data drawer ----------
+  // A table opens to its data: the columns as headings (hover for what each one means, click to put its name in the cell you are writing),
+  // the first rows, tidily rounded, and a button for more.
+  const cellText = (v) => {
+    if (v == null || v === '') return '–';
+    if (typeof v !== 'number') return String(v);
+    if (Number.isInteger(v)) return String(v);
+    const a = Math.abs(v); return String(Number(a >= 100 ? v.toFixed(0) : a >= 10 ? v.toFixed(1) : v.toFixed(2)));
+  };
   function dataHtml() {
     const all = T.all(state.league), desc = T.describe(state.league);
+    state.shown = state.shown || {};
     return desc.map((t) => {
-      const open = state.openTable === t.table;
-      return `<div class="wb-t${open ? ' open' : ''}"><button type="button" class="wb-th" data-table="${t.table}"><span>${t.table}${T.SCHEMA[t.table].extra ? ' <i>new</i>' : ''}</span><span class="wb-rows">${t.rows}</span></button>${open ? `<div class="wb-td"><p>${esc(t.desc)}</p><div class="wb-cols">${t.columns.map((c) => `<button type="button" class="wb-col" data-insert="${t.table}.${c.name}" title="${esc(c.desc)}"><b>${c.name}</b>${c.type === 'cat' ? '<i>category</i>' : ''}<span>${esc(c.desc)}</span></button>`).join('')}</div>${all[t.table].length ? `<div class="wb-scroll prev"><table><thead><tr>${t.columns.slice(0, 9).map((c) => `<th>${c.name}</th>`).join('')}</tr></thead><tbody>${all[t.table].slice(0, 6).map((r) => `<tr>${t.columns.slice(0, 9).map((c) => `<td class="n">${esc(r[c.name] == null ? '–' : r[c.name])}</td>`).join('')}</tr>`).join('')}</tbody></table></div>` : '<p class="wb-hint">No rows yet: play a match first.</p>'}</div>` : ''}</div>`;
+      const open = state.openTable === t.table, rows = all[t.table], n = state.shown[t.table] || 10, extra = T.SCHEMA[t.table].extra;
+      let body = '';
+      if (open) {
+        body = rows.length
+          ? `<div class="wb-td"><div class="wb-scroll prev"><table class="wb-dtable"><thead><tr>${t.columns.map((c) => `<th><button type="button" class="wb-colh" data-insert="${t.table}.${c.name}" title="${esc(c.name + ': ' + c.desc + ' (click to use it in your cell)')}">${esc(c.name)}</button></th>`).join('')}</tr></thead><tbody>${rows.slice(0, n).map((r) => `<tr>${t.columns.map((c) => `<td class="${c.type === 'cat' ? 'l' : 'n'}">${esc(cellText(r[c.name]))}</td>`).join('')}</tr>`).join('')}</tbody></table></div><div class="wb-dfoot"><span>${Math.min(n, rows.length)} of ${rows.length} rows · ${t.columns.length} columns</span>${rows.length > n ? `<button type="button" data-more="${t.table}">Show ${Math.min(25, rows.length - n)} more</button>` : ''}</div></div>`
+          : '<div class="wb-td"><p class="wb-hint">No rows yet: play a match first.</p></div>';
+      }
+      return `<div class="wb-t${open ? ' open' : ''}"><button type="button" class="wb-th" data-table="${t.table}" title="${esc(t.desc)}"><span>${t.table}${extra ? ' <i>new</i>' : ''}</span><span class="wb-rows">${t.rows}</span></button>${body}</div>`;
     }).join('');
   }
   function controlsHtml() {
@@ -516,6 +531,7 @@
       if (b.dataset.newctl) { addCell(newControlCell(b.dataset.newctl, {}, 'manual')); return; }
       if (b.dataset.table) { state.openTable = state.openTable === b.dataset.table ? '' : b.dataset.table; refreshData(); return; }
       if (b.dataset.insert) { insertText(b.dataset.insert); return; }
+      if (b.dataset.more) { state.shown = state.shown || {}; state.shown[b.dataset.more] = (state.shown[b.dataset.more] || 10) + 25; refreshData(); return; }
       const cellEl = b.closest('[data-cell]'), cell = cellEl && findCell(cellEl.dataset.cell);
       if (b.dataset.multi && cell) { const k = b.dataset.multi, arr = cell.form[k] = cell.form[k] || [], i = arr.indexOf(b.dataset.col); if (i >= 0) arr.splice(i, 1); else arr.push(b.dataset.col); b.classList.toggle('on'); save(); return; }
       if (!cell) return;

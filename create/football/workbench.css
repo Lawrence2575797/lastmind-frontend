@@ -122,3 +122,11 @@
 .wb-state { padding: 10px 14px; border-bottom: 1px solid var(--wb-line); } .wb-state p { margin: 6px 0; font-size: .78rem; line-height: 1.45; color: var(--wb-ink); }
 .wb-th.static { cursor: default; } .wb-th.static:hover { background: transparent; }
 .wb-cell.control.applied, .wb-cell.control.dismissed { opacity: .92; }
+
+/* the data drawer: a table opens to its rows */
+.wb-td { padding: 0 0 12px; } .wb-td .wb-hint { padding: 6px 14px; margin: 0; }
+.wb-scroll.prev { border-left: 0; border-right: 0; max-height: 340px; overflow: auto; }
+.wb-dtable { font-size: .74rem; } .wb-dtable th { position: sticky; top: 0; background: var(--wb-pane); padding: 0; z-index: 1; white-space: nowrap; }
+.wb-colh { display: block; width: 100%; background: transparent; border: 0; border-bottom: 1px solid var(--wb-line-2); color: var(--wb-mute); padding: 6px 9px; font: 700 .66rem var(--wb-mono); letter-spacing: .02em; text-align: right; cursor: pointer; } .wb-dtable th:first-child .wb-colh { text-align: left; } .wb-colh:hover { color: var(--wb-gold); }
+.wb-dtable td { padding: 4px 9px; font-size: .74rem; }
+.wb-dfoot { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 6px 14px 0; font-size: .7rem; color: var(--wb-mute); } .wb-dfoot button { background: transparent; border: 1px solid var(--wb-line-2); color: var(--wb-ink); padding: 3px 10px; font: 600 .7rem var(--sans); } .wb-dfoot button:hover { border-color: var(--wb-gold); }
