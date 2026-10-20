@@ -830,7 +830,7 @@
   el('injuryTen').addEventListener('click', () => { if (world.match) FM.resolveInjury(world.match); });
 
   // ---------- views and navigation ----------
-  const VIEWS = ['home', 'board', 'league', 'squad', 'recruit', 'develop', 'analysis', 'reports', 'news', 'preview', 'mp', 'match'];
+  const VIEWS = ['home', 'board', 'league', 'squad', 'recruit', 'develop', 'analysis', 'workbench', 'reports', 'news', 'preview', 'mp', 'match'];
   const NAV = [];
   const SCREEN_TITLES = { home: 'Club overview', board: 'The board', league: 'League centre', squad: 'First-team squad', recruit: 'Recruitment', develop: 'Player development', reports: 'Opposition intelligence', news: 'Football world', analysis: 'Performance analysis', preview: 'Match preview', mp: 'Playing with other managers' };
   function demoMatchPlayed() {
@@ -878,6 +878,9 @@
     });
     document.body.appendChild(backBtn);
   };
+  // the side agent has become the Workbench's agent: anything that used to open it now opens the Workbench (with a first question, if it has one)
+  let wbStarter = null;
+  FM.goWorkbench = (starter) => { wbStarter = starter || null; setView('workbench'); wbStarter = null; };
   function setView(v) {
     if (v !== 'tactics' && backBtn) dropBackBtn();
     world.view = v;
@@ -910,6 +913,7 @@
       // the analysis is of the match just played; who the next opponent are (and the history behind a derby) is on the match preview
       FM.renderAnalysis(av, world.league);
     }
+    else if (v === 'workbench') FM.renderWorkbench(el('view-workbench'), world.league, { save: saveSoon, starter: wbStarter });
     else if (v === 'reports') FM.renderReports(el('view-reports'), world.league);
     else if (v === 'news') FM.renderNews(el('view-news'), world.league);
     else if (v === 'board') FM.renderBoard(el('view-board'), world.league, { save: saveSoon, goto: (to) => setView(to) });
@@ -926,7 +930,7 @@
   }
   function renderPrepFlow() {
     const host = el('prepFlow');
-    if (!world.league || world.view === 'match') { host.hidden = true; return; }
+    if (!world.league || world.view === 'match' || world.view === 'workbench') { host.hidden = true; return; }
     const active = world.view === 'analysis' ? 'analysis' : world.view === 'tactics' ? (world.testing ? 'test' : 'prepare') : world.view === 'preview' ? 'preview' : '';
     const oneOff = world.league.mp && world.league.mp.kind === 'match';
     const steps = oneOff ? [['prepare', 'Prepare tactics'], ['preview', 'Match preview']] : [['analysis', 'Analysis'], ['prepare', 'Prepare tactics'], ['test', 'Test phases'], ['preview', 'Match preview']];
@@ -949,6 +953,7 @@
     el('subtitle').textContent = user.name + ' · Season ' + lg.season;
     host.innerHTML = `<span class="hint" style="color:inherit;opacity:0.8">${esc(FM.dayLabel(lg.day))}</span>
       <button data-top="home" class="${world.view === 'home' ? 'on' : ''}">Home</button>
+      ${DEMO_MODE ? '' : `<button data-top="workbench" class="tb-workbench ${world.view === 'workbench' ? 'on' : ''}">Workbench</button>`}
       ${lg.mp && lg.mp.kind === 'match' ? '' : `<button data-top="board" class="${world.view === 'board' ? 'on' : ''}">Board</button>`}
       <button data-top="squad" class="${world.view === 'squad' ? 'on' : ''}">Squad</button>
       ${lg.mp ? '' : `<button data-top="recruit" class="${world.view === 'recruit' ? 'on' : ''}">Recruitment</button>
@@ -2498,7 +2503,6 @@
       .catch((e) => { if (e && (e.code === 'NO_SESSION' || e.code === '401' || e.code === '402' || e.code === 'PROJECT_SUBSCRIPTION_REQUIRED')) location.replace('/learn/?needs=football'); });
   }
   window.FM_WORLD = world; // debug handle for the console
-  if (FM.mountAgent) { FM.mountAgent(() => FM.agentContext(world.league, world.view === 'tactics' ? 'tactics: ' + (world.tab || '') : world.view)); FM.agentHide(true); }
   window.addEventListener('resize', resize);
   // the account's saved game, when it is further on than this browser's. If the account cannot be reached, a new game is NOT offered: it
   // could replace a season that is saved there.

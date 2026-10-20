@@ -1,0 +1,457 @@
+// The Workbench: a page in the game for studying your own club's data with whatever method, at whatever depth, you want.
+//   centre  - a document of cells (text, a calculator with the maths keyboard, queries and analyses you build by hand, and whatever the agent adds)
+//   left    - the data drawer: every table and column the simulation recorded, with a preview (open and close it with the Data button)
+//   right   - the LastMind AI Agent. It plans: it picks queries and methods and explains the results, but every number comes from the Workbench's own code
+// The document, its chat and any tables made by experiments are kept inside the saved game (league.workbench).
+(function () {
+  const FM = (window.FM = window.FM || {});
+  const T = FM.tables, WB = FM.WB;
+  const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const el = (id) => document.getElementById(id);
+  const uid = () => 'c' + Math.random().toString(36).slice(2, 9);
+  const sig = (v, n) => (Number.isFinite(v) ? String(Number(v.toPrecision(n || 4))) : String(v));
+  const TIERS = { gcse: 'GCSE', alevel: 'A-level', above: 'Beyond A-level' };
+  const DETAIL = { brief: 'brief: keep it short and plain', standard: 'standard detail', detailed: 'detailed: show the workings and the reasoning step by step' };
+
+  // ---------- the calculator ----------
+  // A small evaluator (no eval): numbers, + - × ÷ ^, brackets, constants, functions, variables (x = 3 × 4) and columns of the tables (mean(team_matches.xg)).
+  function makeCalc(league, vars) {
+    const S = FM.STAT;
+    const fact = (n) => { n = Math.round(n); if (n < 0 || n > 170) return NaN; let r = 1; for (let i = 2; i <= n; i++) r *= i; return r; };
+    const choose = (n, k) => (k < 0 || k > n ? 0 : Math.round(Math.exp(S.lgamma(n + 1) - S.lgamma(k + 1) - S.lgamma(n - k + 1))));
+    const arr = (a) => (Array.isArray(a) ? a.filter((v) => typeof v === 'number' && Number.isFinite(v)) : [a]);
+    const F = {
+      sqrt: Math.sqrt, abs: Math.abs, ln: Math.log, log: Math.log10, exp: Math.exp, sin: Math.sin, cos: Math.cos, tan: Math.tan, asin: Math.asin, acos: Math.acos, atan: Math.atan, round: (x, d) => { const m = Math.pow(10, d || 0); return Math.round(x * m) / m; }, floor: Math.floor, ceil: Math.ceil,
+      fact, choose, nCr: choose, mean: (a) => S.mean(arr(a)), sum: (a) => S.sum(arr(a)), median: (a) => S.median(arr(a)), sd: (a) => S.sd(arr(a), true), var: (a) => S.variance(arr(a), true), min: (a, b) => (Array.isArray(a) ? Math.min.apply(null, arr(a)) : Math.min(a, b)), max: (a, b) => (Array.isArray(a) ? Math.max.apply(null, arr(a)) : Math.max(a, b)),
+      count: (a) => arr(a).length, n: (a) => arr(a).length, normcdf: (x, m, s) => S.normCdf((x - (m || 0)) / (s || 1)), normpdf: (x, m, s) => S.normPdf((x - (m || 0)) / (s || 1)) / (s || 1), norminv: (p, m, s) => (m || 0) + (s || 1) * S.normInv(p),
+      binompmf: (n, k, p) => S.binomPmf(k, n, p), binomcdf: (n, k, p) => S.binomCdf(k, n, p), poispmf: (k, l) => S.poisPmf(k, l), poiscdf: (k, l) => S.poisCdf(k, l), tcdf: (x, df) => S.tCdf(x, df), chi2sf: (x, df) => S.chi2Sf(x, df),
+    };
+    const C = { pi: Math.PI, e: Math.E };
+    function tokenize(src) {
+      const s = src.replace(/×|·/g, '*').replace(/÷/g, '/').replace(/[−–]/g, '-').replace(/π/g, ' pi ').replace(/√/g, ' sqrt ').replace(/²/g, '^2').replace(/³/g, '^3').replace(/x̄/g, 'xbar').replace(/,/g, ',');
+      const out = []; let i = 0;
+      while (i < s.length) {
+        const ch = s[i];
+        if (/\s/.test(ch)) { i++; continue; }
+        if (/[0-9.]/.test(ch)) { let j = i; while (j < s.length && /[0-9.]/.test(s[j])) j++; if (/[eE]/.test(s[j] || '') && /[0-9+-]/.test(s[j + 1] || '') && /[0-9]/.test(s[j + 1] === '+' || s[j + 1] === '-' ? s[j + 2] || '' : s[j + 1])) { j += 2; while (j < s.length && /[0-9]/.test(s[j])) j++; } out.push({ t: 'num', v: parseFloat(s.slice(i, j)) }); i = j; continue; }
+        if (/[A-Za-z_]/.test(ch)) { let j = i; while (j < s.length && /[A-Za-z0-9_.]/.test(s[j])) j++; out.push({ t: 'id', v: s.slice(i, j) }); i = j; continue; }
+        if ('+-*/^(),='.indexOf(ch) >= 0) { out.push({ t: 'op', v: ch }); i++; continue; }
+        throw new Error('I do not understand the symbol "' + ch + '"');
+      }
+      return out;
+    }
+    function evaluate(line) {
+      const tk = tokenize(line); let p = 0;
+      const peek = () => tk[p], next = () => tk[p++], isOp = (v) => tk[p] && tk[p].t === 'op' && tk[p].v === v;
+      function expr() { let v = term(); while (isOp('+') || isOp('-')) { const o = next().v, r = term(); v = o === '+' ? v + r : v - r; } return v; }
+      function term() { let v = unary(); while (isOp('*') || isOp('/')) { const o = next().v, r = unary(); v = o === '*' ? v * r : v / r; } return v; }
+      function unary() { if (isOp('-')) { next(); return -unary(); } if (isOp('+')) { next(); return unary(); } return power(); }
+      function power() { const b = atom(); if (isOp('^')) { next(); return Math.pow(b, unary()); } return b; }
+      function atom() {
+        const t = next(); if (!t) throw new Error('The line ends too soon');
+        if (t.t === 'num') return t.v;
+        if (t.t === 'op' && t.v === '(') { const v = expr(); if (!isOp(')')) throw new Error('A bracket is not closed'); next(); return v; }
+        if (t.t === 'id') {
+          const name = t.v;
+          if (isOp('(')) {
+            next(); const args = []; if (!isOp(')')) { args.push(expr()); while (isOp(',')) { next(); args.push(expr()); } } if (!isOp(')')) throw new Error('A bracket is not closed'); next();
+            const f = F[name]; if (!f) throw new Error('I do not know the function "' + name + '"'); const r = f.apply(null, args); return r;
+          }
+          if (name in vars) return vars[name];
+          if (name in C) return C[name];
+          const dot = name.indexOf('.');
+          if (dot > 0) { const tb = name.slice(0, dot), cl = name.slice(dot + 1); if (T.SCHEMA[tb]) { if (!T.SCHEMA[tb].cols.some((c) => c.name === cl)) throw new Error('The table ' + tb + ' has no column ' + cl); return T.column(league, tb, cl); } }
+          throw new Error('"' + name + '" is not defined');
+        }
+        throw new Error('Unexpected "' + t.v + '"');
+      }
+      let target = null;
+      if (tk.length > 2 && tk[0].t === 'id' && tk[1].t === 'op' && tk[1].v === '=') { target = tk[0].v; p = 2; }
+      const v = expr(); if (p < tk.length) throw new Error('I could not read the end of that line');
+      if (Array.isArray(v)) return { value: v, text: '[' + v.length + ' values]', target };
+      if (!Number.isFinite(v)) throw new Error('That does not give a number');
+      return { value: v, text: sig(v, 8), target };
+    }
+    return { evaluate };
+  }
+
+  // ---------- charts ----------
+  function nice(lo, hi, n) {
+    if (!Number.isFinite(lo) || !Number.isFinite(hi)) { lo = 0; hi = 1; }
+    if (lo === hi) { lo -= 1; hi += 1; }
+    const raw = (hi - lo) / (n || 5), mag = Math.pow(10, Math.floor(Math.log10(raw))), nm = raw / mag, step = (nm < 1.5 ? 1 : nm < 3 ? 2 : nm < 7 ? 5 : 10) * mag;
+    const a = Math.floor(lo / step + 1e-9) * step, b = Math.ceil(hi / step - 1e-9) * step, ticks = [];
+    for (let v = a; v <= b + step / 2; v += step) ticks.push(Number(v.toFixed(10)));
+    return { lo: a, hi: b, ticks };
+  }
+  const tl = (v) => { const a = Math.abs(v); return a >= 1000 ? String(Math.round(v)) : String(Number(v.toPrecision(3))); };
+  function chartSvg(c) {
+    if (!c) return '';
+    const W = 600, H = 300, m = { l: 54, r: 16, t: 14, b: 46 }, iw = W - m.l - m.r, ih = H - m.t - m.b;
+    const frame = (xs, ys, xlab, ylab) => {
+      const X = (v) => m.l + (v - xs.lo) / (xs.hi - xs.lo) * iw, Y = (v) => m.t + ih - (v - ys.lo) / (ys.hi - ys.lo) * ih;
+      let g = ys.ticks.map((v) => `<line class="wbc-grid" x1="${m.l}" x2="${W - m.r}" y1="${Y(v)}" y2="${Y(v)}"/><text class="wbc-tick" x="${m.l - 6}" y="${Y(v) + 4}" text-anchor="end">${tl(v)}</text>`).join('');
+      if (xs.ticks) g += xs.ticks.map((v) => `<line class="wbc-tickmark" x1="${X(v)}" x2="${X(v)}" y1="${m.t + ih}" y2="${m.t + ih + 4}"/><text class="wbc-tick" x="${X(v)}" y="${m.t + ih + 17}" text-anchor="middle">${tl(v)}</text>`).join('');
+      g += `<line class="wbc-axis" x1="${m.l}" x2="${W - m.r}" y1="${m.t + ih}" y2="${m.t + ih}"/><line class="wbc-axis" x1="${m.l}" x2="${m.l}" y1="${m.t}" y2="${m.t + ih}"/>`;
+      g += `<text class="wbc-lab" x="${m.l + iw / 2}" y="${H - 6}" text-anchor="middle">${esc(xlab)}</text><text class="wbc-lab" transform="translate(13 ${m.t + ih / 2}) rotate(-90)" text-anchor="middle">${esc(ylab)}</text>`;
+      return { g, X, Y };
+    };
+    let body = '';
+    if (c.type === 'scatter') {
+      const px = c.points.map((p) => p[0]), py = c.points.map((p) => p[1]), xs = nice(Math.min.apply(null, px), Math.max.apply(null, px)), ys = nice(Math.min.apply(null, py), Math.max.apply(null, py)), f = frame(xs, ys, c.x, c.y);
+      body = f.g + c.points.map((p) => `<rect class="wbc-pt" x="${f.X(p[0]) - 2.5}" y="${f.Y(p[1]) - 2.5}" width="5" height="5"/>`).join('');
+      if (c.fit) { const y0 = c.fit.a + c.fit.b * xs.lo, y1 = c.fit.a + c.fit.b * xs.hi; body += `<line class="wbc-fit" x1="${f.X(xs.lo)}" y1="${f.Y(Math.max(ys.lo, Math.min(ys.hi, y0)))}" x2="${f.X(xs.hi)}" y2="${f.Y(Math.max(ys.lo, Math.min(ys.hi, y1)))}"/>`; }
+    } else if (c.type === 'hist') {
+      const lo = c.bins[0].from, hi = c.bins[c.bins.length - 1].to, xs = nice(lo, hi), ys = nice(0, Math.max.apply(null, c.bins.map((b) => b.n))), f = frame(xs, ys, c.x || 'value', 'count');
+      body = f.g + c.bins.map((b) => `<rect class="wbc-bar" x="${f.X(b.from) + 0.5}" y="${f.Y(b.n)}" width="${Math.max(1, f.X(b.to) - f.X(b.from) - 1)}" height="${m.t + ih - f.Y(b.n)}"/>`).join('');
+    } else if (c.type === 'bars' || c.type === 'bars2') {
+      const labels = c.type === 'bars' ? c.bars.map((b) => b.label) : c.labels, series = c.type === 'bars' ? [{ name: c.y, values: c.bars.map((b) => b.value) }] : [c.a, c.b];
+      const vals = [].concat.apply([], series.map((s) => s.values)).concat(c.type === 'bars' ? c.bars.reduce((a, b) => a.concat(b.lo != null ? [b.lo, b.hi] : []), []) : []);
+      const ys = nice(Math.min(0, Math.min.apply(null, vals)), Math.max(0, Math.max.apply(null, vals))), f = frame({ lo: 0, hi: 1 }, ys, c.x, c.y), band = iw / labels.length, bw = Math.min(70, band * 0.7 / series.length);
+      body = f.g + labels.map((lb, i) => {
+        const cx = m.l + band * (i + 0.5);
+        let s = `<text class="wbc-tick" x="${cx}" y="${m.t + ih + 17}" text-anchor="middle">${esc(String(lb).length > 18 ? String(lb).slice(0, 17) + '…' : lb)}</text>`;
+        series.forEach((se, k) => {
+          const v = se.values[i], x0 = cx - bw * series.length / 2 + k * bw, y0 = f.Y(Math.max(0, ys.lo)), y1 = f.Y(v);
+          s += `<rect class="wbc-bar ${k ? 'b' : 'a'}" x="${x0 + 1}" y="${Math.min(y0, y1)}" width="${bw - 2}" height="${Math.abs(y0 - y1)}"/><text class="wbc-val" x="${x0 + bw / 2}" y="${(c.type === 'bars' && c.bars[i].hi != null ? Math.min(f.Y(c.bars[i].hi), y1) : Math.min(y0, y1)) - 5}" text-anchor="middle">${tl(v)}</text>`;
+          if (c.type === 'bars' && c.bars[i].lo != null) s += `<line class="wbc-err" x1="${x0 + bw / 2}" x2="${x0 + bw / 2}" y1="${f.Y(c.bars[i].lo)}" y2="${f.Y(c.bars[i].hi)}"/><line class="wbc-err" x1="${x0 + bw / 2 - 5}" x2="${x0 + bw / 2 + 5}" y1="${f.Y(c.bars[i].lo)}" y2="${f.Y(c.bars[i].lo)}"/><line class="wbc-err" x1="${x0 + bw / 2 - 5}" x2="${x0 + bw / 2 + 5}" y1="${f.Y(c.bars[i].hi)}" y2="${f.Y(c.bars[i].hi)}"/>`;
+        });
+        return s;
+      }).join('');
+      if (c.type === 'bars2') body += `<g class="wbc-key"><rect class="wbc-bar a" x="${W - m.r - 190}" y="${m.t}" width="10" height="10"/><text x="${W - m.r - 175}" y="${m.t + 9}">${esc(c.a.name)}</text><rect class="wbc-bar b" x="${W - m.r - 190}" y="${m.t + 16}" width="10" height="10"/><text x="${W - m.r - 175}" y="${m.t + 25}">${esc(c.b.name)}</text></g>`;
+    } else return '';
+    return `<figure class="wb-chart"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(c.y || '')} against ${esc(c.x || '')}">${body}</svg>${c.note ? `<figcaption>${esc(c.note)}</figcaption>` : ''}</figure>`;
+  }
+
+  // ---------- results ----------
+  function resultHtml(res) {
+    if (!res) return '';
+    if (!res.ok) return `<div class="wb-err">${esc(res.error)}</div>`;
+    const tables = (res.tables || []).map((t) => `<div class="wb-tbl"><div class="wb-tbl-t">${esc(t.title || '')}</div><div class="wb-scroll"><table><thead><tr>${t.cols.map((c) => `<th>${esc(c)}</th>`).join('')}</tr></thead><tbody>${t.rows.map((r) => `<tr>${r.map((v, i) => `<td class="${typeof v === 'number' ? 'n' : i ? 'n' : 'l'}">${esc(v == null ? '–' : v)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>${t.more ? `<div class="wb-more">${esc(t.more)}</div>` : ''}</div>`).join('');
+    return `${(res.summary || []).map((s) => `<p class="wb-sum">${esc(s)}</p>`).join('')}${chartSvg(res.chart)}${tables}${res.caveats && res.caveats.length ? `<div class="wb-care"><b>Take care</b><ul>${res.caveats.map((c) => `<li>${esc(c)}</li>`).join('')}</ul></div>` : ''}${res.n != null ? `<div class="wb-foot">${esc(res.n)} rows used</div>` : ''}`;
+  }
+  // the same result as plain text (for the agent, and for copying)
+  function resultText(res, cap) {
+    if (!res) return '';
+    if (!res.ok) return 'Could not run: ' + res.error;
+    let s = res.title + (res.n != null ? ' [' + res.n + ' rows]' : '') + '\n' + (res.summary || []).join('\n');
+    (res.tables || []).forEach((t) => { s += '\n' + (t.title || '') + ': ' + t.cols.join(' | ') + '\n' + t.rows.slice(0, 14).map((r) => r.map((v) => (v == null ? '–' : v)).join(' | ')).join('\n'); });
+    if (res.caveats && res.caveats.length) s += '\nCaveats: ' + res.caveats.join(' ');
+    return cap ? s.slice(0, cap) : s;
+  }
+  function queryResult(league, spec) {
+    const r = T.query(league, spec);
+    if (r.error) return { ok: false, error: r.error };
+    const desc = spec.group && spec.group.length ? 'by ' + spec.group.join(', ') : (spec.agg || []).length ? 'summary' : 'rows';
+    return { ok: true, method: 'query', title: spec.table + ': ' + desc, n: r.total, summary: [], caveats: [], tables: [{ title: spec.table + (spec.where && spec.where.length ? ' (filtered)' : ''), cols: r.columns, rows: r.rows, more: r.total > r.rows.length ? 'Showing the first ' + r.rows.length + ' of ' + r.total + ' rows.' : '' }], spec: Object.assign({ method: 'query' }, spec) };
+  }
+
+  // ---------- the analysis builder ----------
+  const OPS = ['=', '!=', '>', '>=', '<', '<=', 'contains'];
+  const FIELDS = {
+    describe: [['y', 'Measure', 'num'], ['group', 'Split by (optional)', 'cat?']],
+    compare: [['y', 'Measure', 'num'], ['by', 'Compare groups of', 'any'], ['a', 'Group A (value)', 'text'], ['b', 'Group B (value)', 'text']],
+    correlation: [['x', 'x (explains)', 'num'], ['y', 'y (outcome)', 'num']],
+    ols: [['y', 'Outcome', 'num'], ['x', 'Predictors', 'multi']],
+    logistic: [['y', 'Outcome (0 or 1)', 'num'], ['x', 'Predictors', 'multi']],
+    mle: [['model', 'Model', ['poisson', 'negbin', 'logit', 'probit', 'normal']], ['y', 'Outcome', 'num'], ['x', 'Predictors (none = fit the distribution)', 'multi']],
+    did: [['y', 'Outcome', 'num'], ['treatcol', 'Treated group: column', 'any'], ['treatval', '… equals', 'text'], ['aftercol', 'After the change: column', 'num'], ['afterval', '… is at least', 'text']],
+    bootstrap: [['y', 'Measure', 'num'], ['statistic', 'Statistic', ['mean', 'median', 'sd']]],
+    query: [['group', 'Group by (optional)', 'cat?'], ['fn', 'Summary', ['', 'count', 'mean', 'sum', 'median', 'min', 'max', 'sd']], ['col', 'of column', 'num?'], ['order', 'Order by (optional)', 'any?'], ['dir', 'Direction', ['desc', 'asc']], ['limit', 'Rows', 'text']],
+    experiment: [['tactic', 'Tactic to change', 'tactic'], ['a', 'Setting A (0–1)', 'text'], ['b', 'Setting B (0–1)', 'text'], ['matches', 'Matched replays (4–24)', 'text'], ['minutes', 'Minutes of each (10–90)', 'text'], ['opponent', 'Opponent (optional)', 'opp']],
+    simulate: [['tactic', 'Tactic to randomise', 'tactic'], ['lo', 'From (0–1)', 'text'], ['hi', 'To (0–1)', 'text'], ['matches', 'Matches (6–40)', 'text'], ['minutes', 'Minutes of each (10–90)', 'text'], ['opponent', 'Opponent (optional)', 'opp']],
+  };
+  const METHOD_LABEL = { query: 'Table of figures', describe: 'Describe', compare: 'Compare two groups', correlation: 'Correlation', ols: 'Linear regression', logistic: 'Logistic regression', mle: 'Maximum likelihood model', did: 'Difference in differences', bootstrap: 'Bootstrap interval', experiment: 'Controlled experiment', simulate: 'Randomised trial' };
+  const LEVEL_METHODS = { gcse: ['query', 'describe', 'compare', 'correlation', 'experiment'], alevel: ['query', 'describe', 'compare', 'correlation', 'ols', 'logistic', 'bootstrap', 'experiment'], above: Object.keys(METHOD_LABEL) };
+  const num = (v) => { const n = Number(v); return v !== '' && v != null && Number.isFinite(n) ? n : v; };
+  function specFromForm(f) {
+    const m = f.method, g = (k) => f[k], out = { method: m, table: f.table };
+    const where = (f.where || []).filter((w) => w.col && w.value !== '' && w.value != null).map((w) => ({ col: w.col, op: w.op || '=', value: w.op === 'contains' ? w.value : num(w.value) }));
+    if (m === 'experiment' || m === 'simulate') { delete out.table; out.tactic = g('tactic'); ['a', 'b', 'lo', 'hi', 'matches', 'minutes'].forEach((k) => { if (g(k) !== '' && g(k) != null) out[k] = Number(g(k)); }); if (g('opponent')) out.opponent = g('opponent'); return out; }
+    if (where.length) out.where = where;
+    if (m === 'query') { if (g('group')) out.group = [g('group')]; if (g('fn')) out.agg = [{ fn: g('fn'), col: g('fn') === 'count' ? undefined : g('col'), as: g('fn') + (g('col') ? '_' + g('col') : '') }]; else if (g('group')) out.agg = [{ fn: 'count', as: 'n' }]; if (g('order')) out.order = { col: g('order'), dir: g('dir') || 'desc' }; out.limit = Math.max(1, Math.min(500, Number(g('limit')) || 30)); return out; }
+    if (m === 'did') { out.y = g('y'); out.treat = { col: g('treatcol'), op: '=', value: num(g('treatval')) }; out.after = { col: g('aftercol'), op: '>=', value: num(g('afterval')) }; return out; }
+    if (m === 'compare') { out.y = g('y'); out.by = g('by'); if (g('a') !== '' && g('a') != null) out.a = num(g('a')); if (g('b') !== '' && g('b') != null) out.b = num(g('b')); return out; }
+    ['y', 'x', 'group', 'model', 'statistic'].forEach((k) => { const v = g(k); if (v != null && v !== '' && !(Array.isArray(v) && !v.length && k !== 'x')) out[k] = v; });
+    if (m === 'ols' || m === 'logistic' || m === 'mle') out.x = Array.isArray(g('x')) ? g('x') : [];
+    return out;
+  }
+  function formFromSpec(s) {
+    const f = { method: s.method, table: s.table || 'team_matches', where: (s.where || []).map((w) => ({ col: w.col, op: w.op, value: Array.isArray(w.value) ? w.value.join(',') : w.value })) };
+    ['y', 'x', 'group', 'model', 'statistic', 'by', 'a', 'b', 'tactic', 'lo', 'hi', 'matches', 'minutes', 'opponent'].forEach((k) => { if (s[k] != null) f[k] = s[k]; });
+    if (s.method === 'query') { f.group = (s.group || [])[0] || ''; const a = (s.agg || [])[0]; if (a) { f.fn = a.fn; f.col = a.col || ''; } if (s.order) { f.order = s.order.col; f.dir = s.order.dir; } f.limit = s.limit || 30; }
+    if (s.method === 'did' && s.treat) { f.treatcol = s.treat.col; f.treatval = s.treat.value; f.aftercol = s.after.col; f.afterval = s.after.value; }
+    return f;
+  }
+
+  // ---------- the maths keyboard ----------
+  const KEYS = {
+    Maths: [['7', '8', '9', '÷', '(', ')', '^'], ['4', '5', '6', '×', '√(', 'π', 'e'], ['1', '2', '3', '−', '+', '=', 'ans'], ['0', '.', ',', '/', '²', '³', '⌫'], ['ln(', 'log(', 'exp(', 'abs(', 'round(', 'fact(', 'choose(']],
+    Statistics: [['x̄', 'ȳ', 'p̂', 'μ', 'σ', 's²', 'Σ'], ['H₀', 'H₁', 'α', 'β', 'λ', 'ρ', 'χ²'], ['mean(', 'sd(', 'median(', 'sum(', 'n(', 'min(', 'max(']
+      , ['normcdf(', 'norminv(', 'binompmf(', 'binomcdf(', 'poispmf(', 'poiscdf(', 'tcdf(']],
+    Symbols: [['≤', '≥', '≠', '≈', '±', '∞', '∝'], ['⇒', '⇔', '∈', '∉', '∪', '∩', '∴'], ['Δ', 'Σ', 'Π', '∫', '∂', '∀', '∃'], ['α', 'β', 'γ', 'δ', 'θ', 'φ', 'ω']],
+  };
+
+  // ---------- the page ----------
+  const state = { league: null, opts: null, wb: null, focus: null, host: null };
+  const getWb = (league) => {
+    if (!league.workbench) league.workbench = { v: 1, title: 'Untitled analysis', cells: [], chat: [], settings: { detail: 'standard' }, ui: { data: window.innerWidth >= 1200, dataSet: 1, agent: true, kb: false, kbTab: 'Maths' }, extra: [], vars: {} };
+    const w = league.workbench; if (w.ui && w.ui.dataSet == null) { w.ui.dataSet = 1; if (window.innerWidth < 1200) w.ui.data = false; }
+    w.cells = w.cells || []; w.chat = w.chat || []; w.settings = w.settings || { detail: 'standard' }; w.ui = w.ui || { data: true, agent: true, kb: false, kbTab: 'Maths' }; w.extra = w.extra || []; w.vars = w.vars || {};
+    return w;
+  };
+  let saveT = 0;
+  function save() {
+    const wb = state.wb; if (!wb) return;
+    wb.extra = T.extraTables().map((x) => ({ name: x.name, desc: x.desc, cols: x.cols, rows: x.rows }));
+    clearTimeout(saveT); saveT = setTimeout(() => { if (state.opts && state.opts.save) state.opts.save(); }, 400);
+  }
+  const dataStamp = () => state.league.fixtures.filter((f) => f.played).length;
+
+  function tableOptions(sel) { return Object.keys(T.SCHEMA).map((k) => `<option value="${k}"${k === sel ? ' selected' : ''}>${k}</option>`).join(''); }
+  function colOptions(table, kind, sel) {
+    const sch = T.SCHEMA[table]; if (!sch) return '';
+    const opt = kind.endsWith('?'), k = kind.replace('?', '');
+    return (opt ? `<option value="">none</option>` : '') + sch.cols.filter((c) => k === 'any' || (k === 'num' && c.type === 'num') || (k === 'cat' && c.type === 'cat')).map((c) => `<option value="${c.name}"${c.name === sel ? ' selected' : ''}>${c.name}</option>`).join('');
+  }
+  function builderHtml(cell) {
+    const f = cell.form, fields = FIELDS[f.method] || [], sch = T.SCHEMA[f.table], tier = state.league.tier;
+    const methods = LEVEL_METHODS[tier] || LEVEL_METHODS.above;
+    const field = ([k, label, kind]) => {
+      let ctl;
+      if (Array.isArray(kind)) ctl = `<select data-f="${k}">${kind.map((o) => `<option value="${o}"${f[k] === o ? ' selected' : ''}>${o || 'none'}</option>`).join('')}</select>`;
+      else if (kind === 'multi') ctl = `<div class="wb-chips">${sch ? sch.cols.map((c) => `<button type="button" class="wb-chip${(f[k] || []).indexOf(c.name) >= 0 ? ' on' : ''}" data-multi="${k}" data-col="${c.name}">${c.name}</button>`).join('') : ''}</div>`;
+      else if (kind === 'tactic') ctl = `<select data-f="${k}">${Object.keys(WB.TACTICS).map((o) => `<option value="${o}"${f[k] === o ? ' selected' : ''}>${o} (${esc(WB.TACTICS[o])})</option>`).join('')}</select>`;
+      else if (kind === 'opp') ctl = `<select data-f="${k}"><option value="">the next opponent</option>${state.league.teams.filter((t) => t.id !== state.league.userId).map((t) => `<option value="${esc(t.name)}"${f[k] === t.name ? ' selected' : ''}>${esc(t.name)}</option>`).join('')}</select>`;
+      else if (kind === 'text') ctl = `<input type="text" data-f="${k}" value="${esc(f[k] == null ? '' : f[k])}" autocomplete="off">`;
+      else ctl = `<select data-f="${k}">${colOptions(f.table, kind, f[k])}</select>`;
+      return `<label class="wb-fld${kind === 'multi' ? ' wide' : ''}"><span>${label}</span>${ctl}</label>`;
+    };
+    const noTable = f.method === 'experiment' || f.method === 'simulate';
+    const where = noTable ? '' : `<div class="wb-where"><span class="wb-fld-l">Only rows where</span>${[0, 1, 2].map((i) => { const w = (f.where || [])[i] || {}; return `<span class="wb-w"><select data-w="${i}" data-wk="col"><option value="">–</option>${sch ? sch.cols.map((c) => `<option value="${c.name}"${w.col === c.name ? ' selected' : ''}>${c.name}</option>`).join('') : ''}</select><select data-w="${i}" data-wk="op">${OPS.map((o) => `<option${(w.op || '=') === o ? ' selected' : ''}>${o}</option>`).join('')}</select><input type="text" data-w="${i}" data-wk="value" value="${esc(w.value == null ? '' : w.value)}" placeholder="value"></span>`; }).join('')}</div>`;
+    return `<div class="wb-build"><div class="wb-grid"><label class="wb-fld"><span>Method</span><select data-f="method">${Object.keys(METHOD_LABEL).filter((k) => methods.indexOf(k) >= 0 || f.method === k).map((k) => `<option value="${k}"${f.method === k ? ' selected' : ''}>${METHOD_LABEL[k]}</option>`).join('')}</select></label>${noTable ? '' : `<label class="wb-fld"><span>Table</span><select data-f="table">${tableOptions(f.table)}</select></label>`}${fields.map(field).join('')}</div>${where}<div class="wb-row"><button class="wb-run" type="button" data-act="run">Run</button><span class="wb-hint">${esc(helpFor(f.method))}</span></div></div>`;
+  }
+  const HELP = { query: 'Filters, groups and summarises a table.', describe: 'Mean, spread and shape of one measure.', compare: 'Are two groups different? Welch t-test, permutation test, bootstrap interval.', correlation: 'How strongly two measures move together, with a line of best fit.', ols: 'One outcome explained by several things at once.', logistic: 'Chance of a yes/no outcome from several things.', mle: 'Fit a probability model by maximum likelihood.', did: 'Compare the change in one group with the change in another.', bootstrap: 'How uncertain is a mean, median or spread? Resample the data.', experiment: 'Replay the same matches with one tactic changed: a true cause-and-effect test. Takes a minute or two.', simulate: 'Play many matches with a tactic set at random; the results become a new table you can analyse. Takes a minute or two.' };
+  const helpFor = (m) => HELP[m] || '';
+  const newForm = (method) => ({ method: method || 'describe', table: 'team_matches', where: [], x: [], model: 'poisson', statistic: 'mean', tactic: 'pressing', a: 0.2, b: 0.9, lo: 0.2, hi: 0.9, matches: 10, minutes: 30, limit: 30, dir: 'desc' });
+
+  function cellHtml(cell, i, n) {
+    const bar = `<div class="wb-cbar"><span class="wb-ctype">${cell.type === 'text' ? 'Text' : cell.type === 'calc' ? 'Calculator' : cell.type === 'lesson' ? 'Note' : cell.res && cell.res.ok ? esc(cell.res.title) : cell.type === 'analysis' ? 'Analysis' : 'Cell'}${cell.by === 'agent' ? ' <i>added by the agent</i>' : ''}</span><span class="wb-cact">${cell.type === 'analysis' ? `<button type="button" data-act="edit" title="Change the settings">${cell.edit ? 'Hide settings' : 'Settings'}</button>` : ''}${cell.type === 'analysis' && cell.res ? '<button type="button" data-act="copy" title="Copy as text">Copy</button>' : ''}<button type="button" data-act="up" ${i ? '' : 'disabled'} aria-label="Move up">↑</button><button type="button" data-act="down" ${i < n - 1 ? '' : 'disabled'} aria-label="Move down">↓</button><button type="button" data-act="del" aria-label="Delete">✕</button></span></div>`;
+    let body = '';
+    if (cell.type === 'text' || cell.type === 'lesson') body = `<textarea class="wb-in wb-text" data-k="text" rows="${Math.max(3, Math.min(14, String(cell.text || '').split('\n').length + 1))}" placeholder="Write here. Use the maths keyboard for symbols.">${esc(cell.text || '')}</textarea>`;
+    else if (cell.type === 'calc') body = `<div class="wb-calc"><textarea class="wb-in wb-code" data-k="text" rows="${Math.max(3, String(cell.text || '').split('\n').length + 1)}" spellcheck="false" placeholder="One calculation per line, for example:&#10;12 × 3.5&#10;x = mean(team_matches.xg)&#10;binompmf(10, 3, 0.25)&#10;# a line starting with # is a comment">${esc(cell.text || '')}</textarea><div class="wb-calc-out" data-out>${calcOut(cell)}</div></div>`;
+    else if (cell.type === 'analysis') {
+      const stale = cell.res && cell.res.ok && cell.stamp != null && cell.stamp !== dataStamp() && cell.form && cell.form.method !== 'experiment' && cell.form.method !== 'simulate';
+      body = `${cell.edit || !cell.res ? builderHtml(cell) : ''}${cell.running ? `<div class="wb-run-s"><span>${esc(cell.progress || 'Working…')}</span><span class="wb-pbar"><i style="width:${Math.round((cell.pct || 0) * 100)}%"></i></span><button type="button" data-act="stop">Stop</button></div>` : ''}${stale ? '<div class="wb-stale">The data has changed since this was run. <button type="button" data-act="run">Run again</button></div>' : ''}<div class="wb-res">${resultHtml(cell.res)}</div>`;
+    }
+    return `<article class="wb-cell ${cell.type}" data-cell="${cell.id}">${bar}${body}</article>`;
+  }
+  function calcOut(cell) {
+    const vars = state.wb.vars; const calc = makeCalc(state.league, vars); let last = null;
+    return String(cell.text || '').split('\n').map((ln) => {
+      const t = ln.trim(); if (!t) return '<div>&nbsp;</div>'; if (t[0] === '#') return `<div class="wb-cm">${esc(t.replace(/^#\s*/, ''))}</div>`;
+      try { vars.ans = last == null ? 0 : last; const r = calc.evaluate(t); if (typeof r.value === 'number') { last = r.value; vars.ans = r.value; } if (r.target) vars[r.target] = r.value; return `<div>${r.target ? esc(r.target) + ' = ' : '= '}<b>${esc(r.text)}</b></div>`; } catch (e) { return `<div class="wb-bad">${esc(e.message)}</div>`; }
+    }).join('');
+  }
+
+  // ---------- the document ----------
+  function renderDoc() {
+    const wb = state.wb, host = el('wbDoc'); if (!host) return;
+    const keep = host.scrollTop;
+    host.innerHTML = wb.cells.length ? wb.cells.map((c, i) => cellHtml(c, i, wb.cells.length)).join('') : emptyHtml();
+    host.scrollTop = keep;
+  }
+  function emptyHtml() {
+    return `<div class="wb-empty"><h3>Start with a question</h3><p>Ask the agent on the right, or add a cell yourself from the toolbar. Anything you build here stays with your saved game.</p><div class="wb-ex">${EXAMPLES.map((q) => `<button type="button" data-ask="${esc(q)}">${esc(q)}</button>`).join('')}</div></div>`;
+  }
+  const EXAMPLES = ['Does a higher press lead to more turnovers?', 'Run a controlled experiment on how high we press', 'What is each of my strikers’ xG per shot?', 'Fit a Poisson model to the goals scored this season', 'Is my passing getting better over the season?', 'Teach me what a p-value is, using my own data'];
+
+  function addCell(cell, opts) {
+    const wb = state.wb; cell.id = cell.id || uid();
+    if (wb.cells.length >= 80) wb.cells.shift();
+    wb.cells.push(cell); save(); renderDoc();
+    if (!opts || opts.scroll !== false) setTimeout(() => { const n = document.querySelector('[data-cell="' + cell.id + '"]'); if (n) n.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }, 30);
+    return cell;
+  }
+  const findCell = (id) => state.wb.cells.find((c) => c.id === id);
+  const refreshCell = (cell) => { const n = document.querySelector('[data-cell="' + cell.id + '"]'); if (n) { const i = state.wb.cells.indexOf(cell); n.outerHTML = cellHtml(cell, i, state.wb.cells.length); } };
+
+  async function runCell(cell) {
+    if (cell.running) return;
+    cell.spec = specFromForm(cell.form); cell.running = true; cell.stop = false; cell.progress = 'Working…'; cell.pct = null; refreshCell(cell);
+    const res = await runSpec(cell.spec, (done, total, label) => { cell.progress = label; cell.pct = total ? done / total : null; const n = document.querySelector('[data-cell="' + cell.id + '"] .wb-run-s'); if (n) { n.querySelector('span').textContent = label; const b = n.querySelector('.wb-pbar i'); if (b && total) b.style.width = Math.round(100 * done / total) + '%'; } return !cell.stop; });
+    cell.running = false; cell.res = res; cell.stamp = dataStamp(); cell.edit = !res.ok; save(); refreshCell(cell); refreshData();
+  }
+  async function runSpec(spec, progress) {
+    if (spec.method === 'query') return queryResult(state.league, spec);
+    const r = await WB.runAsync(state.league, spec, progress);
+    if (r && r.ok) r.n = r.n; return r;
+  }
+
+  // ---------- the data drawer ----------
+  function dataHtml() {
+    const all = T.all(state.league), desc = T.describe(state.league);
+    return desc.map((t) => {
+      const open = state.openTable === t.table;
+      return `<div class="wb-t${open ? ' open' : ''}"><button type="button" class="wb-th" data-table="${t.table}"><span>${t.table}${T.SCHEMA[t.table].extra ? ' <i>new</i>' : ''}</span><span class="wb-rows">${t.rows}</span></button>${open ? `<div class="wb-td"><p>${esc(t.desc)}</p><div class="wb-cols">${t.columns.map((c) => `<button type="button" class="wb-col" data-insert="${t.table}.${c.name}" title="${esc(c.desc)}"><b>${c.name}</b>${c.type === 'cat' ? '<i>category</i>' : ''}<span>${esc(c.desc)}</span></button>`).join('')}</div>${all[t.table].length ? `<div class="wb-scroll prev"><table><thead><tr>${t.columns.slice(0, 9).map((c) => `<th>${c.name}</th>`).join('')}</tr></thead><tbody>${all[t.table].slice(0, 6).map((r) => `<tr>${t.columns.slice(0, 9).map((c) => `<td class="n">${esc(r[c.name] == null ? '–' : r[c.name])}</td>`).join('')}</tr>`).join('')}</tbody></table></div>` : '<p class="wb-hint">No rows yet: play a match first.</p>'}</div>` : ''}</div>`;
+    }).join('');
+  }
+  function refreshData() { const h = el('wbData'); if (h) { const sc = h.scrollTop; h.querySelector('.wb-dlist').innerHTML = dataHtml(); h.scrollTop = sc; } }
+
+  // ---------- the agent ----------
+  function lessonList() { try { return Object.keys(FM.teach.lessons).map((k) => k + ' = ' + FM.teach.lessons[k].title.replace(/[:?]/g, '')).join('; '); } catch (e) { return ''; } }
+  function docSummary() { return state.wb.cells.slice(-12).map((c, i) => (i + 1) + '. ' + (c.type === 'analysis' ? (c.res && c.res.ok ? c.res.title : 'analysis (not run)') : c.type + ': ' + String(c.text || '').slice(0, 60).replace(/\n/g, ' '))).join('\n'); }
+  function chatPush(m) { m.at = Date.now() + Math.random(); const wb = state.wb; wb.chat.push(m); if (wb.chat.length > 70) wb.chat = wb.chat.slice(-60); save(); return m; }
+  function chatDraw() {
+    const log = el('wbLog'); if (!log) return; const wb = state.wb;
+    const items = wb.chat.filter((m) => m.role !== 'results');
+    log.innerHTML = (items.length ? items : [{ role: 'agent', text: 'Ask me anything about your club’s data, or anything you want to learn. I choose the method and explain it; the Workbench does the calculating, so the numbers always come from your recorded matches.', intro: true }]).map((m) => `<div class="wb-msg ${m.role}">${m.role === 'agent' ? FM.teach.fmt(esc(m.text).replace(/\n/g, '<br>')) : esc(m.text).replace(/\n/g, '<br>')}${(m.added || []).length ? `<div class="wb-added">${m.added.map((a) => `<button type="button" data-goto="${a.id}">› ${esc(a.title)}</button>`).join('')}</div>` : ''}</div>`).join('') + (state.busy ? `<div class="wb-msg agent think">${esc(state.busy)}</div>` : '');
+    log.scrollTop = log.scrollHeight;
+    const send = el('wbSend'); if (send) send.disabled = !!state.busy;
+  }
+  function chatMessages() { return state.wb.chat.slice(-14).map((m) => ({ role: m.role === 'manager' ? 'manager' : m.role === 'results' ? 'results' : 'agent', text: m.text })); }
+  async function ask(text) {
+    text = String(text || '').trim(); if (!text || state.busy) return;
+    const wb = state.wb; chatPush({ role: 'manager', text });
+    if (FM.locksOut && FM.locksOut()) { chatPush({ role: 'agent', text: 'You have used all your Locks for now, so I cannot answer. The Workbench still works by hand: build any analysis from the toolbar, or use the calculator, and your Locks come back when they reset.' }); chatDraw(); return; }
+    state.busy = 'Thinking…'; chatDraw();
+    try {
+      const summary = (FM.agentContext ? FM.agentContext(state.league, 'workbench') : '').slice(0, 2900);
+      for (let round = 0; round < 3; round++) {
+        const out = await FM.api('/football/workbench', { messages: chatMessages(), schema: T.digest(state.league), methods: WB.METHOD_HELP.join('\n'), summary, doc: docSummary(), level: state.league.tier, detail: DETAIL[wb.settings.detail] || DETAIL.standard, lessons: lessonList() });
+        const msg = chatPush({ role: 'agent', text: out.reply || 'Tell me more about what you want to find out.', added: [] });
+        const actions = Array.isArray(out.actions) ? out.actions : [];
+        if (!actions.length || round === 2) { state.busy = ''; chatDraw(); break; }
+        const texts = [];
+        for (const a of actions) {
+          if (a.type === 'note') { const c = addCell({ type: 'lesson', text: a.text, by: 'agent' }); msg.added.push({ id: c.id, title: 'Note' }); texts.push('Note added.'); continue; }
+          const spec = a.spec || {}; const form = formFromSpec(spec); if (!form.table && spec.method !== 'experiment' && spec.method !== 'simulate') form.table = 'team_matches';
+          const cell = addCell({ type: 'analysis', form, by: 'agent', edit: false, running: true, progress: 'Working…' }, { scroll: false });
+          state.busy = (spec.method === 'experiment' || spec.method === 'simulate') ? 'Running the simulation… (this takes a minute or two)' : 'Running the analysis…'; chatDraw();
+          cell.spec = a.type === 'query' ? Object.assign({ method: 'query' }, spec) : spec;
+          cell.res = await runSpec(cell.spec, (d, t, label) => { cell.progress = label; cell.pct = t ? d / t : null; const n = document.querySelector('[data-cell="' + cell.id + '"] .wb-run-s span'); if (n) n.textContent = label; state.busy = label; chatDraw(); return !cell.stop; });
+          cell.running = false; cell.stamp = dataStamp(); cell.edit = !cell.res.ok; refreshCell(cell);
+          msg.added.push({ id: cell.id, title: cell.res.ok ? cell.res.title : 'Could not run' }); texts.push(resultText(cell.res, 1500));
+        }
+        save(); refreshData();
+        chatPush({ role: 'results', text: texts.join('\n\n').slice(0, 4800) });
+        state.busy = 'Writing it up…'; chatDraw();
+      }
+    } catch (e) {
+      const m = e && e.code === 'NO_SESSION' ? 'Sign in to LastMind and I can plan analyses for you. The Workbench works without me: use the toolbar to build one yourself.' : e && (e.code === 'LOCK_LIMIT_REACHED' || e.code === '402') ? 'You have used all your Locks for now, so I cannot answer any more questions. Everything else in the Workbench still works.' : (e && e.message) || 'I could not answer just now. Try again in a moment.';
+      chatPush({ role: 'agent', text: m });
+    }
+    state.busy = ''; chatDraw();
+  }
+
+  // ---------- layout ----------
+  function layout() {
+    const wb = state.wb, ui = wb.ui, host = state.host;
+    host.classList.toggle('no-data', !ui.data); host.classList.toggle('no-agent', !ui.agent);
+    host.querySelector('[data-tool="data"]').classList.toggle('on', !!ui.data); host.querySelector('[data-tool="agent"]').classList.toggle('on', !!ui.agent); host.querySelector('[data-tool="kb"]').classList.toggle('on', !!ui.kb);
+    el('wbKb').hidden = !ui.kb;
+  }
+  function kbHtml() {
+    const tab = state.wb.ui.kbTab || 'Maths';
+    return `<div class="wb-kb-tabs">${Object.keys(KEYS).map((k) => `<button type="button" class="${k === tab ? 'on' : ''}" data-kbtab="${k}">${k}</button>`).join('')}<span class="wb-kb-note">Click into a text or calculator cell, then press keys.</span></div><div class="wb-keys">${KEYS[tab].map((row) => `<div class="wb-krow">${row.map((k) => `<button type="button" class="wb-key" data-key="${esc(k)}">${esc(k)}</button>`).join('')}</div>`).join('')}</div>`;
+  }
+  function insertText(txt) {
+    let t = state.focus; if (!t || !document.body.contains(t)) { t = document.querySelector('#wbDoc .wb-in'); if (!t) return; }
+    t.focus();
+    if (txt === '⌫') { const s = t.selectionStart, e = t.selectionEnd; if (s === e && s > 0) t.setRangeText('', s - 1, e, 'end'); else t.setRangeText('', s, e, 'end'); }
+    else t.setRangeText(txt, t.selectionStart, t.selectionEnd, 'end');
+    t.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+  function copyDoc() {
+    const wb = state.wb; const txt = wb.title + '\n\n' + wb.cells.map((c) => (c.type === 'analysis' ? resultText(c.res) : (c.type === 'calc' ? c.text + '\n' + [].map.call(document.querySelectorAll('[data-cell="' + c.id + '"] .wb-calc-out > div'), (d) => d.textContent).join('\n') : c.text))).join('\n\n');
+    try { navigator.clipboard.writeText(txt); flash('Document copied as text'); } catch (e) { flash('Could not copy'); }
+  }
+  function flash(msg) { const n = el('wbFlash'); if (!n) return; n.textContent = msg; n.classList.add('on'); clearTimeout(flash.t); flash.t = setTimeout(() => n.classList.remove('on'), 1800); }
+
+  FM.renderWorkbench = function (host, league, opts) {
+    state.league = league; state.opts = opts || {}; state.host = host; state.wb = getWb(league); state.busy = '';
+    // tables made by earlier experiments come back with the document
+    state.wb.extra.forEach((x) => { try { T.register(x.name, x.desc, x.cols, x.rows); } catch (e) { /* fine */ } });
+    const wb = state.wb, tier = league.tier || 'gcse';
+    host.innerHTML = `<div class="wb">
+      <div class="wb-bar" role="toolbar" aria-label="Workbench tools">
+        <input id="wbTitle" class="wb-title" value="${esc(wb.title)}" aria-label="Document title" maxlength="80">
+        <span class="wb-sp"></span>
+        <span class="wb-menu"><button type="button" data-tool="add">+ Add</button><div class="wb-pop" id="wbAdd" hidden>
+          <button type="button" data-add="analysis">Analysis or table</button><button type="button" data-add="calc">Calculator</button><button type="button" data-add="text">Text</button></div></span>
+        <button type="button" data-tool="kb">Maths keyboard</button>
+        <button type="button" data-tool="data">Data</button>
+        <button type="button" data-tool="agent">AI Agent</button>
+        <select id="wbDetail" aria-label="Level of detail in explanations"><option value="brief">Brief</option><option value="standard">Standard</option><option value="detailed">Detailed</option></select>
+        <span class="wb-level" title="Set when the game was started">${TIERS[tier] || ''}</span>
+        <button type="button" data-tool="copy">Copy</button>
+      </div>
+      <div class="wb-body">
+        <aside class="wb-data" id="wbData" aria-label="Data"><div class="wb-pane-h"><b>Data</b><span>${esc(FM.teamById(league, league.userId).name)} · season ${league.season}</span></div><div class="wb-dlist"></div></aside>
+        <section class="wb-main"><div class="wb-doc" id="wbDoc"></div><div class="wb-kb" id="wbKb" hidden></div></section>
+        <aside class="wb-agent" id="wbAgent" aria-label="LastMind AI Agent"><div class="wb-pane-h"><b>LastMind AI Agent</b><button type="button" class="wb-clear" data-tool="clearchat">Clear chat</button></div><div class="wb-log" id="wbLog" role="log" aria-live="polite"></div>
+          <form class="wb-form" id="wbForm"><textarea id="wbAsk" rows="2" placeholder="Ask a question, or say what you want to learn…" aria-label="Message to the agent"></textarea><button class="wb-send" id="wbSend" type="submit">Send</button></form></aside>
+      </div><div class="wb-flash" id="wbFlash" role="status"></div></div>`;
+    el('wbDetail').value = wb.settings.detail || 'standard';
+    host.querySelector('.wb-dlist').innerHTML = dataHtml(); renderDoc(); chatDraw(); el('wbKb').innerHTML = kbHtml(); layout();
+
+    if (host._wbAbort) host._wbAbort.abort();
+    const ac = new AbortController(), SIG = { signal: ac.signal }; host._wbAbort = ac;
+    host.addEventListener('focusin', (e) => { if (e.target.classList && e.target.classList.contains('wb-in')) state.focus = e.target; }, SIG);
+    host.addEventListener('input', (e) => {
+      const t = e.target, cell = t.closest && t.closest('[data-cell]') && findCell(t.closest('[data-cell]').dataset.cell);
+      if (t.id === 'wbTitle') { wb.title = t.value; save(); return; }
+      if (!cell) return;
+      if (t.dataset.k === 'text') { cell.text = t.value; if (cell.type === 'calc') { const o = t.closest('.wb-calc').querySelector('[data-out]'); o.innerHTML = calcOut(cell); } save(); }
+      else if (t.dataset.w != null) { const i = Number(t.dataset.w); cell.form.where = cell.form.where || []; cell.form.where[i] = cell.form.where[i] || {}; cell.form.where[i][t.dataset.wk] = t.value; }
+      else if (t.dataset.f && t.tagName === 'INPUT') cell.form[t.dataset.f] = t.value;
+    }, SIG);
+    host.addEventListener('change', (e) => {
+      const t = e.target;
+      if (t.id === 'wbDetail') { wb.settings.detail = t.value; save(); return; }
+      const cell = t.closest && t.closest('[data-cell]') && findCell(t.closest('[data-cell]').dataset.cell); if (!cell || !cell.form) return;
+      if (t.dataset.w != null) { const i = Number(t.dataset.w); cell.form.where = cell.form.where || []; cell.form.where[i] = cell.form.where[i] || {}; cell.form.where[i][t.dataset.wk] = t.value; return; }
+      if (!t.dataset.f) return;
+      cell.form[t.dataset.f] = t.value;
+      if (t.dataset.f === 'method') { const keep = { table: cell.form.table, where: cell.form.where }; cell.form = Object.assign(newForm(t.value), keep); if (t.value === 'experiment' || t.value === 'simulate') cell.form.where = []; refreshCell(cell); }
+      else if (t.dataset.f === 'table') { cell.form.y = cell.form.x = cell.form.group = cell.form.by = cell.form.col = cell.form.order = undefined; cell.form.x = []; cell.form.where = []; refreshCell(cell); }
+      save();
+    }, SIG);
+    host.addEventListener('submit', (e) => { if (e.target.id === 'wbForm') { e.preventDefault(); const ta = el('wbAsk'), v = ta.value; ta.value = ''; ask(v); } }, SIG);
+    el('wbAsk').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); el('wbForm').requestSubmit(); } });
+    host.addEventListener('mousedown', (e) => { if (e.target.closest && e.target.closest('.wb-key')) e.preventDefault(); }, SIG);
+    host.addEventListener('click', (e) => {
+      const b = e.target.closest && e.target.closest('button'); if (!b) return;
+      const tool = b.dataset.tool;
+      if (tool === 'add') { el('wbAdd').hidden = !el('wbAdd').hidden; return; }
+      if (b.dataset.add) { el('wbAdd').hidden = true; if (b.dataset.add === 'analysis') addCell({ type: 'analysis', form: newForm('describe'), edit: true }); else addCell({ type: b.dataset.add, text: '' }); return; }
+      if (tool === 'kb' || tool === 'data' || tool === 'agent') { wb.ui[tool] = !wb.ui[tool]; layout(); save(); return; }
+      if (tool === 'copy') { copyDoc(); return; }
+      if (tool === 'clearchat') { if (confirm('Clear the whole conversation with the agent? Your document stays.')) { wb.chat = []; save(); chatDraw(); } return; }
+      if (b.dataset.kbtab) { wb.ui.kbTab = b.dataset.kbtab; el('wbKb').innerHTML = kbHtml(); save(); return; }
+      if (b.dataset.key != null) { insertText(b.dataset.key); return; }
+      if (b.dataset.ask) { ask(b.dataset.ask); return; }
+      if (b.dataset.goto) { const n = document.querySelector('[data-cell="' + b.dataset.goto + '"]'); if (n) n.scrollIntoView({ block: 'start', behavior: 'smooth' }); return; }
+      if (b.dataset.table) { state.openTable = state.openTable === b.dataset.table ? '' : b.dataset.table; refreshData(); return; }
+      if (b.dataset.insert) { insertText(b.dataset.insert); return; }
+      const cellEl = b.closest('[data-cell]'), cell = cellEl && findCell(cellEl.dataset.cell);
+      if (b.dataset.multi && cell) { const k = b.dataset.multi, arr = cell.form[k] = cell.form[k] || [], i = arr.indexOf(b.dataset.col); if (i >= 0) arr.splice(i, 1); else arr.push(b.dataset.col); b.classList.toggle('on'); save(); return; }
+      if (!cell) return;
+      const act = b.dataset.act, wbc = state.wb.cells, idx = wbc.indexOf(cell);
+      if (act === 'run') runCell(cell);
+      else if (act === 'stop') { cell.stop = true; }
+      else if (act === 'edit') { cell.edit = !cell.edit; refreshCell(cell); }
+      else if (act === 'copy') { try { navigator.clipboard.writeText(resultText(cell.res)); flash('Copied as text'); } catch (er) { flash('Could not copy'); } }
+      else if (act === 'del') { if (!cell.running) { wbc.splice(idx, 1); save(); renderDoc(); } }
+      else if (act === 'up' && idx > 0) { wbc.splice(idx - 1, 0, wbc.splice(idx, 1)[0]); save(); renderDoc(); }
+      else if (act === 'down' && idx < wbc.length - 1) { wbc.splice(idx + 1, 0, wbc.splice(idx, 1)[0]); save(); renderDoc(); }
+    }, SIG);
+    // cells that were running when the page was left cannot be running now
+    wb.cells.forEach((c) => { if (c.running) { c.running = false; } });
+    if (opts && opts.starter) setTimeout(() => ask(opts.starter), 60);
+  };
+
+  // anywhere in the game that used to open the side agent now opens the Workbench
+  FM.agentOpen = function (starter) { if (FM.goWorkbench) FM.goWorkbench(starter); };
+  FM.workbenchRunCalc = (league, line) => makeCalc(league, {}).evaluate(line);
+})();

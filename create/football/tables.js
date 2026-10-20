@@ -162,8 +162,14 @@
   T.all = function (league) {
     const st = stamp(league);
     if (!cache || cache.st !== st) cache = { st, data: build(league) };
+    Object.keys(extra).forEach((k) => { cache.data[k] = extra[k].rows; });   // tables made by experiments sit beside the recorded ones
     return cache.data;
   };
+  // Tables the Workbench makes itself (the rows of a simulated experiment). They are kept with the Workbench document and can be analysed like any other table.
+  const extra = {};
+  T.register = function (name, desc, cols, rows) { SCHEMA[name] = { desc, cols, extra: true }; extra[name] = { rows }; };
+  T.extraTables = () => Object.keys(extra).map((k) => ({ name: k, desc: SCHEMA[k].desc, cols: SCHEMA[k].cols, rows: extra[k].rows }));
+  T.num = num; T.cat = cat;
   T.get = function (league, name) { return T.all(league)[name] || null; };
 
   // What the agent and the data drawer are told: names, meanings and how many rows each table holds. No values.
