@@ -945,6 +945,15 @@
       else setView('preview');
     }));
   }
+  // The level (GCSE, A-level, beyond) can be changed at any time: it sets how the analysis, the lessons and the agent explain things. Nothing else changes.
+  const LEVELS = [['gcse', 'GCSE'], ['alevel', 'A-level'], ['above', 'Beyond A-level']];
+  FM.setLevel = (lg, v) => {
+    if (!lg || !LEVELS.some((l) => l[0] === v) || lg.tier === v) return;
+    lg.tier = v; try { localStorage.setItem('lm_football_level', v); } catch (e) { /* the choice is also in the game */ }
+    saveSoon();
+    document.querySelectorAll('#topLevel, #wbLevel').forEach((s) => { s.value = v; });
+    if (world.view && ['workbench', 'match', 'tactics'].indexOf(world.view) < 0) setView(world.view);   // the screens that explain things are drawn again at the new level
+  };
   function renderTop() {
     const lg = world.league;
     const host = el('topRight');
@@ -952,6 +961,7 @@
     const user = userTeam();
     el('subtitle').textContent = user.name + ' · Season ' + lg.season;
     host.innerHTML = `<span class="hint" style="color:inherit;opacity:0.8">${esc(FM.dayLabel(lg.day))}</span>
+      <label class="top-level" title="The level the analysis and the teaching explain things at. You can change it whenever you like."><span>Level</span><select id="topLevel" aria-label="Level you are studying at">${LEVELS.map(([k, n]) => `<option value="${k}"${lg.tier === k ? ' selected' : ''}>${n}</option>`).join('')}</select></label>
       <button data-top="home" class="${world.view === 'home' ? 'on' : ''}">Home</button>
       ${DEMO_MODE ? '' : `<button data-top="workbench" class="tb-workbench ${world.view === 'workbench' ? 'on' : ''}">Workbench</button>`}
       ${lg.mp && lg.mp.kind === 'match' ? '' : `<button data-top="board" class="${world.view === 'board' ? 'on' : ''}">Board</button>`}
@@ -961,6 +971,7 @@
       ${lg.mp && lg.mp.kind === 'match' ? '' : `<button data-top="news" class="${world.view === 'news' ? 'on' : ''}">News</button>`}
       ${lg.mp ? `<button data-top="mp" class="${world.view === 'mp' ? 'on' : ''}">Online</button>` : ''}`;
     host.querySelectorAll('[data-top]').forEach((b) => b.addEventListener('click', () => setView(b.dataset.top)));
+    const tl = host.querySelector('#topLevel'); if (tl) tl.addEventListener('change', () => FM.setLevel(lg, tl.value));
   }
 
   function renderPreview() {

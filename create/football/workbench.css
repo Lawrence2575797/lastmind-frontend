@@ -130,3 +130,5 @@
 .wb-colh { display: block; width: 100%; background: transparent; border: 0; border-bottom: 1px solid var(--wb-line-2); color: var(--wb-mute); padding: 6px 9px; font: 700 .66rem var(--wb-mono); letter-spacing: .02em; text-align: right; cursor: pointer; } .wb-dtable th:first-child .wb-colh { text-align: left; } .wb-colh:hover { color: var(--wb-gold); }
 .wb-dtable td { padding: 4px 9px; font-size: .74rem; }
 .wb-dfoot { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 6px 14px 0; font-size: .7rem; color: var(--wb-mute); } .wb-dfoot button { background: transparent; border: 1px solid var(--wb-line-2); color: var(--wb-ink); padding: 3px 10px; font: 600 .7rem var(--sans); } .wb-dfoot button:hover { border-color: var(--wb-gold); }
+
+.top-level { display: inline-flex; align-items: center; gap: 6px; font-family: var(--sans); font-size: .76rem; letter-spacing: .08em; text-transform: uppercase; opacity: .9; } .top-level select { width: auto; padding: 6px 8px; font-size: .8rem; letter-spacing: 0; text-transform: none; }

@@ -474,7 +474,7 @@
         <button type="button" data-tool="agent">AI Agent</button>
         <select id="wbAuto" aria-label="Whether the agent applies changes"><option value="">Agent proposes, I apply</option><option value="1">Agent applies changes itself</option></select>
         <select id="wbDetail" aria-label="Level of detail in explanations"><option value="brief">Brief</option><option value="standard">Standard</option><option value="detailed">Detailed</option></select>
-        <span class="wb-level" title="Set when the game was started">${TIERS[tier] || ''}</span>
+        <select id="wbLevel" aria-label="Level you are studying at" title="The level the agent and the lessons explain things at"><option value="gcse">GCSE</option><option value="alevel">A-level</option><option value="above">Beyond A-level</option></select>
         <button type="button" data-tool="copy">Copy</button>
       </div>
       <div class="wb-body">
@@ -483,7 +483,7 @@
         <aside class="wb-agent" id="wbAgent" aria-label="LastMind AI Agent"><div class="wb-pane-h"><b>LastMind AI Agent</b><button type="button" class="wb-clear" data-tool="clearchat">Clear chat</button></div><div class="wb-log" id="wbLog" role="log" aria-live="polite"></div>
           <form class="wb-form" id="wbForm"><textarea id="wbAsk" rows="2" placeholder="Ask a question, or say what you want to learn…" aria-label="Message to the agent"></textarea><button class="wb-send" id="wbSend" type="submit">Send</button></form></aside>
       </div><div class="wb-flash" id="wbFlash" role="status"></div></div>`;
-    el('wbDetail').value = wb.settings.detail || 'standard'; el('wbAuto').value = wb.settings.auto ? '1' : '';
+    el('wbDetail').value = wb.settings.detail || 'standard'; el('wbLevel').value = tier; el('wbAuto').value = wb.settings.auto ? '1' : '';
     refreshData(); renderDoc(); chatDraw(); el('wbKb').innerHTML = kbHtml(); layout();
 
     if (host._wbAbort) host._wbAbort.abort();
@@ -501,6 +501,7 @@
     host.addEventListener('change', (e) => {
       const t = e.target;
       if (t.id === 'wbDetail') { wb.settings.detail = t.value; save(); return; }
+      if (t.id === 'wbLevel') { if (FM.setLevel) FM.setLevel(state.league, t.value); else { state.league.tier = t.value; save(); } refreshData(); renderDoc(); return; }
       if (t.id === 'wbAuto') { wb.settings.auto = t.value === '1'; save(); return; }
       const cell = t.closest && t.closest('[data-cell]') && findCell(t.closest('[data-cell]').dataset.cell);
       if (cell && cell.type === 'control' && t.dataset.cp) { cell.params[t.dataset.cp] = t.value; const pv = document.getElementById('prev-' + cell.id); if (pv) pv.innerHTML = previewHtml(cell); save(); return; }
