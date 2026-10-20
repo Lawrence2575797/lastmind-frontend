@@ -878,7 +878,7 @@
     });
     document.body.appendChild(backBtn);
   };
-  // the side agent has become the Workbench's agent: anything that used to open it now opens the Workbench (with a first question, if it has one)
+  // the side agent has become the Workbook's agent: anything that used to open it now opens the Workbook (with a first question, if it has one)
   let wbStarter = null;
   FM.goWorkbench = (arg) => { wbStarter = typeof arg === 'string' ? { starter: arg } : (arg || null); setView('workbench'); wbStarter = null; };
   function setView(v) {
@@ -963,7 +963,7 @@
     host.innerHTML = `<span class="hint" style="color:inherit;opacity:0.8">${esc(FM.dayLabel(lg.day))}</span>
       <label class="top-level" title="The level the analysis and the teaching explain things at. You can change it whenever you like."><span>Level</span><select id="topLevel" aria-label="Level you are studying at">${LEVELS.map(([k, n]) => `<option value="${k}"${lg.tier === k ? ' selected' : ''}>${n}</option>`).join('')}</select></label>
       <button data-top="home" class="${world.view === 'home' ? 'on' : ''}">Home</button>
-      ${DEMO_MODE ? '' : `<button data-top="workbench" class="tb-workbench ${world.view === 'workbench' ? 'on' : ''}">Workbench</button>`}
+      ${DEMO_MODE ? '' : `<button data-top="workbench" class="tb-workbench ${world.view === 'workbench' ? 'on' : ''}">Workbook</button>`}
       ${lg.mp && lg.mp.kind === 'match' ? '' : `<button data-top="board" class="${world.view === 'board' ? 'on' : ''}">Board</button>`}
       <button data-top="squad" class="${world.view === 'squad' ? 'on' : ''}">Squad</button>
       ${lg.mp ? '' : `<button data-top="recruit" class="${world.view === 'recruit' ? 'on' : ''}">Recruitment</button>

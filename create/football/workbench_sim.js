@@ -1,4 +1,4 @@
-// Controlled experiments for the Workbench. A football season gives a handful of matches, and the clubs that press hard differ from the others in many
+// Controlled experiments for the Workbook. A football season gives a handful of matches, and the clubs that press hard differ from the others in many
 // other ways, so a regression on the season's data can only show association. The simulation can do better: it can replay the same match again and again
 // with exactly one thing changed. Two methods:
 //   experiment: the same matches (same seeds, same opponent) played twice, with a tactic set to a for one and to b for the other. The pairs give the

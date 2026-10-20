@@ -1,5 +1,5 @@
-// The data layer for the Workbench: everything the simulation recorded, laid out as plain tables (one row per thing, one column per fact),
-// each column described in words. The Workbench's data drawer shows these, the statistics toolkit fits models to them, and the LastMind AI
+// The data layer for the Workbook: everything the simulation recorded, laid out as plain tables (one row per thing, one column per fact),
+// each column described in words. The Workbook's data drawer shows these, the statistics toolkit fits models to them, and the LastMind AI
 // Agent is told only the schema (names, meanings, row counts) and asks for numbers by naming tables and columns, never by inventing them.
 //
 // Tables:  team_matches (every league match, both clubs), shots, passes, tackles, dribbles, possessions, recoveries (your own matches' detailed
@@ -217,7 +217,7 @@
     Object.keys(extra).forEach((k) => { cache.data[k] = extra[k].rows; });   // tables made by experiments sit beside the recorded ones
     return cache.data;
   };
-  // Tables the Workbench makes itself (the rows of a simulated experiment). They are kept with the Workbench document and can be analysed like any other table.
+  // Tables the Workbook makes itself (the rows of a simulated experiment). They are kept with the Workbook document and can be analysed like any other table.
   const extra = {};
   T.register = function (name, desc, cols, rows) { SCHEMA[name] = { desc, cols, extra: true }; extra[name] = { rows }; };
   T.extraTables = () => Object.keys(extra).map((k) => ({ name: k, desc: SCHEMA[k].desc, cols: SCHEMA[k].cols, rows: extra[k].rows }));

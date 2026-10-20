@@ -1,7 +1,7 @@
-// The Workbench: a page in the game for studying your own club's data with whatever method, at whatever depth, you want.
+// The Workbook: a page in the game for studying your own club's data with whatever method, at whatever depth, you want.
 //   centre  - a document of cells (text, a calculator with the maths keyboard, queries and analyses you build by hand, and whatever the agent adds)
 //   left    - the data drawer: every table and column the simulation recorded, with a preview (open and close it with the Data button)
-//   right   - the LastMind AI Agent. It plans: it picks queries and methods and explains the results, but every number comes from the Workbench's own code
+//   right   - the LastMind AI Agent. It plans: it picks queries and methods and explains the results, but every number comes from the Workbook's own code
 // The document, its chat and any tables made by experiments are kept inside the saved game (league.workbench).
 (function () {
   const FM = (window.FM = window.FM || {});
@@ -14,7 +14,7 @@
   const DETAIL = { brief: 'brief: keep it short and plain', standard: 'standard detail', detailed: 'detailed: show the workings and the reasoning step by step' };
 
 
-  // ---------- typing shortcuts (the Notes page's, for the Workbench's plain text boxes) ----------
+  // ---------- typing shortcuts (the Notes page's, for the Workbook's plain text boxes) ----------
   // ^ starts a power and _ a subscript (typed after a letter, number or bracket; digits and signs then come out as small characters until Space or →),
   // * gives ×, ~ gives √ and ~~ gives ≈, <= >= != give ≤ ≥ ≠, Shift + a letter gives the Greek letter (Caps Lock for the capital), Shift+E gives ∈ and Shift+I
   // gives ∫, Ctrl+- puts a bar over the letter before the cursor. In the calculator these always apply; in a text box Shift + a letter only becomes Greek when
@@ -258,12 +258,69 @@
 
   // ---------- the page ----------
   const state = { league: null, opts: null, wb: null, focus: null, host: null };
+  // The Workbook is a book: wb.pages, each page a title and a flow of blocks (wb.cells is always the blocks of the page that is open). It is part of the saved game,
+  // so it is saved to the account and follows the manager to any device.
   const getWb = (league) => {
-    if (!league.workbench) league.workbench = { v: 1, title: 'Untitled analysis', cells: [], chat: [], settings: { detail: 'standard' }, ui: { data: window.innerWidth >= 1280, dataSet: 1, agent: window.innerWidth >= 1280, kb: false, kbTab: 'Maths' }, extra: [], vars: {} };
-    const w = league.workbench; if (w.ui && w.ui.dataSet == null) { w.ui.dataSet = 1; if (window.innerWidth < 1280) { w.ui.data = false; w.ui.agent = false; } }
-    w.cells = w.cells || []; w.chat = w.chat || []; w.settings = w.settings || { detail: 'standard' }; w.ui = w.ui || { data: true, agent: true, kb: false, kbTab: 'Maths' }; w.extra = w.extra || []; w.vars = w.vars || {};
+    if (!league.workbench) league.workbench = { v: 2, pages: [], cur: 0, chat: [], settings: { detail: 'standard' }, ui: { data: window.innerWidth >= 1280, dataSet: 1, agent: window.innerWidth >= 1280, kb: false, kbTab: 'Maths' }, extra: [], vars: {} };
+    const w = league.workbench;
+    if (w.ui && w.ui.dataSet == null) { w.ui.dataSet = 1; if (window.innerWidth < 1280) { w.ui.data = false; w.ui.agent = false; } }
+    // a Workbook from before it was a book (one long document) becomes the first page
+    if (!Array.isArray(w.pages)) {
+      const old = Array.isArray(w.cells) ? w.cells : []; delete w.cells;
+      w.pages = [{ id: uid(), title: w.title && w.title !== 'Untitled analysis' ? w.title : 'Earlier work', at: Date.now(), cells: old }]; w.cur = 0; w.v = 2; delete w.title;
+    }
+    w.pages.forEach((pg) => { pg.cells = pg.cells || []; pg.cells = pg.cells.map((c) => (c.type === 'text' || c.type === 'lesson' ? { id: c.id || uid(), type: 'rich', html: plainToHtml(c.text), by: c.by } : c)); });
+    if (!w.pages.length) w.pages.push({ id: uid(), title: 'Start here', at: Date.now(), cells: [] });
+    w.cur = Math.max(0, Math.min(w.pages.length - 1, Number(w.cur) || 0));
+    w.chat = w.chat || []; w.settings = w.settings || { detail: 'standard' }; w.ui = w.ui || { data: true, agent: true, kb: false, kbTab: 'Maths' }; w.extra = w.extra || []; w.vars = w.vars || {};
+    const d = Object.getOwnPropertyDescriptor(w, 'cells');
+    if (!d || !d.get) { delete w.cells; Object.defineProperty(w, 'cells', { configurable: true, enumerable: false, get() { return w.pages[w.cur].cells; } }); }
     return w;
   };
+  // ----- pages
+  const plainToHtml = (txt) => String(txt || '').split('\n').map((l) => '<div>' + (esc(l) || '<br>') + '</div>').join('');
+  const blankRich = (c) => c.type === 'rich' && !String(c.html || '').replace(/<[^>]*>/g, '').replace(/&nbsp;|[\u200b\s]/g, '');
+  const pageBlank = (pg) => !pg.cells.length || pg.cells.every(blankRich);
+  const curPage = () => state.wb.pages[state.wb.cur];
+  const targetPage = () => state.pin || curPage();
+  function ensureTrailing(pg) { const last = pg.cells[pg.cells.length - 1]; if (!last || !blankRich(last)) pg.cells.push({ id: uid(), type: 'rich', html: '' }); }
+  function newPage(title, o) {
+    const wb = state.wb, cp = curPage();
+    if (o && o.reuseBlank && cp && pageBlank(cp)) { cp.title = title || cp.title; return cp; }   // an empty page is used before another is started
+    const pg = { id: uid(), title: title || '', at: Date.now(), cells: [] }; wb.pages.push(pg); wb.cur = wb.pages.length - 1; return pg;
+  }
+  function goPage(i, o) {
+    const wb = state.wb; i = Math.max(0, Math.min(wb.pages.length - 1, i)); const changed = i !== wb.cur; syncRich(); wb.cur = i; renderDoc();
+    const sc = el('wkScroll'); if (sc) { sc.scrollTop = 0; if (changed && !(o && o.turn === false)) { sc.classList.remove('turn'); void sc.offsetWidth; sc.classList.add('turn'); } }
+    save();
+  }
+  function deletePage(i) {
+    const wb = state.wb; syncRich();
+    if (wb.pages.length === 1) wb.pages[0] = { id: uid(), title: '', at: Date.now(), cells: [] }; else wb.pages.splice(i, 1);
+    wb.cur = Math.max(0, Math.min(wb.pages.length - 1, i > wb.cur ? wb.cur : wb.cur - (i <= wb.cur && wb.cur > 0 ? 1 : 0)));
+    renderDoc(); save();
+  }
+  const titleFromQuestion = (q) => { let x = String(q || '').replace(/\s+/g, ' ').trim().replace(/[.!]+$/, ''); if (!x) return 'Untitled page'; x = x.charAt(0).toUpperCase() + x.slice(1); if (/^(who|what|where|when|why|how|which|does|do|did|is|are|can|will|would|should)\b/i.test(x) && !/\?$/.test(x)) x += '?'; return x.length > 80 ? x.slice(0, 77) + '…' : x; };
+  // ----- the text on a page is the Notes editor (maths-editor.js, a copy of the one the Notes page runs), so it behaves exactly like a Notes page
+  const EDS = new Map();
+  function syncRich() { state.wb && state.wb.pages.forEach((pg) => pg.cells.forEach((c) => { if (c.type === 'rich') { const ed = EDS.get(c.id); if (ed) c.html = ed.getHtml(); } })); }
+  function mountRich(cell, slot) {
+    const LM = window.LMMath; if (!LM) { slot.textContent = 'The maths editor could not load. Refresh the page.'; return; }
+    const ed = LM.createEditor('Type here…', { hideShortcutHint: true, auto: true, autocorrect: () => true });
+    slot.appendChild(ed.container); ed.setHtml(cell.html || ''); EDS.set(cell.id, ed);
+    let timer = 0; ed.onChange(() => { clearTimeout(timer); timer = setTimeout(() => { cell.html = ed.getHtml(); save(); }, 250); });
+    const editable = ed.container.querySelector('.math-shortcut-editor'); editable.addEventListener('focus', () => { state.focus = editable; });
+    if (cell._focus) { delete cell._focus; setTimeout(() => ed.focus(), 30); }
+  }
+  // Reply text (with the agent's maths written out, and lesson links) as the same drawn maths the Notes page makes.
+  function richHtml(text) {
+    const links = []; let x = String(text || '').replace(/\[\[([a-z]+)\|([^\]]+)\]\]/g, (m, id, w) => { if (!(FM.teach && FM.teach.lessons[id])) return w; links.push([id, w]); return '\u0002' + (links.length - 1) + '\u0002'; });
+    const h = window.LMMath ? window.LMMath.rich(x) : plainToHtml(x);
+    return h.replace(/\u0002(\d+)\u0002/g, (m, n) => '<span class="rv-term" data-lesson="' + links[n][0] + '" contenteditable="false">' + esc(links[n][1]) + '</span>');
+  }
+  function richCellHtml(cell, i, n) {
+    return `<article class="wk-block wk-text rich" data-cell="${cell.id}"><div class="wk-bar2"><span class="wk-by">${cell.by === 'agent' ? 'added by the agent' : ''}</span><span class="wb-cact"><button type="button" data-act="up" ${i ? '' : 'disabled'} aria-label="Move up">↑</button><button type="button" data-act="down" ${i < n - 1 ? '' : 'disabled'} aria-label="Move down">↓</button><button type="button" data-act="del" aria-label="Delete">✕</button></span></div><div class="wk-host"></div></article>`;
+  }
   let saveT = 0;
   function save() {
     const wb = state.wb; if (!wb) return;
@@ -355,6 +412,7 @@
   }
   function cellHtml(cell, i, n) {
     if (cell.type === 'control') return controlCellHtml(cell, i, n);
+    if (cell.type === 'rich') return richCellHtml(cell, i, n);
     const bar = `<div class="wb-cbar"><span class="wb-ctype">${cell.type === 'text' ? 'Text' : cell.type === 'calc' ? 'Calculator' : cell.type === 'lesson' ? 'Note' : cell.res && cell.res.ok ? esc(cell.res.title) : cell.type === 'analysis' ? 'Analysis' : 'Cell'}${cell.by === 'agent' ? ' <i>added by the agent</i>' : ''}</span><span class="wb-cact">${cell.type === 'analysis' ? `<button type="button" data-act="edit" title="Change the settings">${cell.edit ? 'Hide settings' : 'Settings'}</button>` : ''}${cell.type === 'analysis' && cell.res && cell.res.ok ? '<button type="button" data-act="explain" title="Ask the agent to talk you through this result">Explain</button>' : ''}${cell.type === 'analysis' && cell.res ? '<button type="button" data-act="copy" title="Copy as text">Copy</button>' : ''}<button type="button" data-act="up" ${i ? '' : 'disabled'} aria-label="Move up">↑</button><button type="button" data-act="down" ${i < n - 1 ? '' : 'disabled'} aria-label="Move down">↓</button><button type="button" data-act="del" aria-label="Delete">✕</button></span></div>`;
     let body = '';
     if (cell.type === 'text' || cell.type === 'lesson') body = `<textarea class="wb-in wb-text" data-k="text" rows="${Math.max(3, Math.min(14, String(cell.text || '').split('\n').length + 1))}" placeholder="Write here. Use the maths keyboard for symbols.">${esc(cell.text || '')}</textarea>`;
@@ -373,27 +431,34 @@
     }).join('');
   }
 
-  // ---------- the document ----------
+  // ---------- the open page ----------
   function renderDoc() {
     const wb = state.wb, host = el('wbDoc'); if (!host) return;
-    const keep = host.scrollTop;
-    host.innerHTML = wb.cells.length ? wb.cells.map((c, i) => cellHtml(c, i, wb.cells.length)).join('') : emptyHtml();
-    host.scrollTop = keep;
+    syncRich(); const page = curPage(); ensureTrailing(page);
+    const sc = el('wkScroll'), keep = sc ? sc.scrollTop : 0;
+    host.innerHTML = (pageBlank(page) ? emptyHtml() : '') + page.cells.map((c, i) => cellHtml(c, i, page.cells.length)).join('');
+    page.cells.forEach((c) => { if (c.type === 'rich') { const slot = host.querySelector('[data-cell="' + c.id + '"] .wk-host'); if (slot) mountRich(c, slot); } });
+    const ti = el('wkTitle'); if (ti && document.activeElement !== ti) ti.value = page.title || '';
+    const pos = el('wkPos'); if (pos) pos.textContent = 'Page ' + (wb.cur + 1) + ' of ' + wb.pages.length;
+    const pv = el('wkPrev'), nx = el('wkNext'); if (pv) pv.disabled = wb.cur === 0; if (nx) { const last = wb.cur === wb.pages.length - 1; nx.textContent = last ? '＋' : '›'; nx.title = last ? 'Start a new page' : 'Next page'; nx.setAttribute('aria-label', last ? 'Start a new page' : 'Next page'); }
+    if (sc) sc.scrollTop = keep;
   }
   function emptyHtml() {
-    return `<div class="wb-empty"><h3>What do you want to find out, or do?</h3><p>Ask the agent on the right in your own words, or add a cell from the toolbar. You can investigate anything the game recorded, forecast what would happen, and change things: prices, spending, loans, injuries, or something the game has no button for. The Board only shows the figures; this is where you act on them.</p><div class="wb-ex">${EXAMPLES.map((q) => `<button type="button" data-ask="${esc(q)}">${esc(q)}</button>`).join('')}</div></div>`;
+    return `<div class="wb-empty"><h3>This is your Workbook</h3><p>Every question you put to the agent gets its own page, titled with the question. You can investigate anything the game recorded, forecast what would happen, and change things: prices, spending, loans, injuries, or something the game has no button for. Write on any page just as you would in Notes. Turn the page with the arrows at the bottom; everything is saved to your account.</p><div class="wb-ex">${EXAMPLES.map((q) => `<button type="button" data-ask="${esc(q)}">${esc(q)}</button>`).join('')}</div></div>`;
   }
   const EXAMPLES = ['Change the family stand ticket price to £22, and tell me what it should do to the money', 'Spend £20,000 a matchday on a youth scouting network for the rest of the season', 'Look at our injuries and tell me whether paying for treatment is worth it', 'Forecast the bank balance to the end of the season if I stop all marketing', 'Where are we likely to finish this season?', 'Does a higher press lead to more turnovers?'];
 
   function addCell(cell, opts) {
-    const wb = state.wb; cell.id = cell.id || uid();
-    if (wb.cells.length >= 80) wb.cells.shift();
-    wb.cells.push(cell); save(); renderDoc();
-    if (!opts || opts.scroll !== false) setTimeout(() => { const n = document.querySelector('[data-cell="' + cell.id + '"]'); if (n) n.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }, 30);
+    const page = targetPage(); cell.id = cell.id || uid(); syncRich();
+    if (page.cells.length >= 80) page.cells.shift();
+    const last = page.cells[page.cells.length - 1], at = opts && opts.at != null ? Math.min(opts.at, page.cells.length) : (last && blankRich(last) ? page.cells.length - 1 : page.cells.length);
+    page.cells.splice(at, 0, cell); save();
+    if (page === curPage()) { renderDoc(); if (!opts || opts.scroll !== false) setTimeout(() => { const n = document.querySelector('[data-cell="' + cell.id + '"]'); if (n) n.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }, 30); }
     return cell;
   }
-  const findCell = (id) => state.wb.cells.find((c) => c.id === id);
-  const refreshCell = (cell) => { const n = document.querySelector('[data-cell="' + cell.id + '"]'); if (n) { const i = state.wb.cells.indexOf(cell); n.outerHTML = cellHtml(cell, i, state.wb.cells.length); } };
+  const findCell = (id) => { const w = state.wb; for (const pg of w.pages) { const c = pg.cells.find((x) => x.id === id); if (c) return c; } return null; };
+  const refreshCell = (cell) => { if (cell.type === 'rich') return; const n = document.querySelector('[data-cell="' + cell.id + '"]'); if (n) { const i = state.wb.cells.indexOf(cell); n.outerHTML = cellHtml(cell, i, state.wb.cells.length); } };
+  const pageOfCell = (id) => state.wb.pages.findIndex((pg) => pg.cells.some((c) => c.id === id));
 
   async function runCell(cell) {
     if (cell.running) return;
@@ -467,51 +532,58 @@
 
   // ---------- the agent ----------
   function lessonList() { try { return Object.keys(FM.teach.lessons).map((k) => k + ' = ' + FM.teach.lessons[k].title.replace(/[:?]/g, '')).join('; '); } catch (e) { return ''; } }
-  function docSummary() { return state.wb.cells.slice(-12).map((c, i) => (i + 1) + '. ' + (c.type === 'control' ? 'change: ' + c.action + ' (' + c.status + ')' : c.type === 'analysis' ? (c.res && c.res.ok ? c.res.title : 'analysis (not run)') : c.type + ': ' + String(c.text || '').slice(0, 60).replace(/\n/g, ' '))).join('\n'); }
+  function docSummary() { return 'Open page: ' + (curPage().title || 'untitled') + ' (page ' + (state.wb.cur + 1) + ' of ' + state.wb.pages.length + ')\n' + state.wb.cells.slice(-12).map((c, i) => (i + 1) + '. ' + (c.type === 'control' ? 'change: ' + c.action + ' (' + c.status + ')' : c.type === 'analysis' ? (c.res && c.res.ok ? c.res.title : 'analysis (not run)') : c.type + ': ' + String(c.text || (c.html || '').replace(/<[^>]*>/g, ' ')).slice(0, 60).replace(/\n/g, ' '))).join('\n'); }
   function chatPush(m) { m.at = Date.now() + Math.random(); const wb = state.wb; wb.chat.push(m); if (wb.chat.length > 70) wb.chat = wb.chat.slice(-60); save(); return m; }
   function chatDraw() {
     const log = el('wbLog'); if (!log) return; const wb = state.wb;
     const items = wb.chat.filter((m) => m.role !== 'results');
-    log.innerHTML = (items.length ? items : [{ role: 'agent', text: 'Ask me anything about your club’s data, or anything you want to learn. I choose the method and explain it; the Workbench does the calculating, so the numbers always come from your recorded matches.', intro: true }]).map((m) => `<div class="wb-msg ${m.role}">${m.role === 'agent' ? FM.teach.fmt(esc(m.text).replace(/\n/g, '<br>')) : esc(m.text).replace(/\n/g, '<br>')}${(m.added || []).length ? `<div class="wb-added">${m.added.map((a) => `<button type="button" data-goto="${a.id}">› ${esc(a.title)}</button>`).join('')}</div>` : ''}</div>`).join('') + (state.busy ? `<div class="wb-msg agent think">${esc(state.busy)}</div>` : '');
+    log.innerHTML = (items.length ? items : [{ role: 'agent', text: 'Ask me anything about your club’s data, or anything you want to learn. I choose the method and explain it; the Workbook does the calculating, so the numbers always come from your recorded matches.', intro: true }]).map((m) => `<div class="wb-msg ${m.role}${m.role === 'agent' ? ' wk-rich' : ''}">${m.role === 'agent' ? richHtml(m.text) : esc(m.text).replace(/\n/g, '<br>')}${(m.added || []).length ? `<div class="wb-added">${m.added.map((a) => `<button type="button" ${a.page ? 'data-page="' + a.page + '"' : 'data-goto="' + a.id + '"'}>${a.page ? '📖 Open the page: ' : '› '}${esc(a.title)}</button>`).join('')}</div>` : ''}</div>`).join('') + (state.busy ? `<div class="wb-msg agent think">${esc(state.busy)}</div>` : '');
     log.scrollTop = log.scrollHeight;
     const send = el('wbSend'); if (send) send.disabled = !!state.busy;
   }
   function chatMessages() { return state.wb.chat.slice(-14).map((m) => ({ role: m.role === 'manager' ? 'manager' : m.role === 'results' ? 'results' : 'agent', text: m.text })); }
-  // Some questions are answered by the Workbench itself, in the browser, with no AI and so no Locks: where the club will finish, where the bank balance is heading, who is injured.
+  // Some questions are answered by the Workbook itself, in the browser, with no AI and so no Locks: where the club will finish, where the bank balance is heading, who is injured.
   const INTENTS = [
-    { re: /\b(where|what position|which place)\b.*\b(finish|end up|come|place)\b|\bchance\b.*\b(title|top (three|3)|relegat)|\bfinish(ing)?\b.*\b(league|season|position|table)\b/i, no: /\b(if|what if|would|should|stop|cut|change)\b/i, spec: { method: 'forecast', kind: 'season' }, say: 'Here is the forecast for where the club will finish. It was worked out in your browser, so it used no Locks. Press Explain on it if you want it talked through.' },
-    { re: /\b(bank|cash|money|balance)\b.*\b(end of the season|forecast|project|heading|going to be|will be|by the end)\b|\bforecast\b.*\b(bank|cash|money)\b/i, no: /\b(if|what if|would|should|stop|cut|raise|increase|change|set)\b/i, spec: { method: 'forecast', kind: 'cash' }, say: 'Here is where the bank balance is heading as things are, worked out in your browser (no Locks used). To see what a change would do to it, tell me the change.' },
-    { re: /^\s*(show|list|who|which)\b.*\binjur/i, no: /\b(treat|worth|should|pay)\b/i, spec: { method: 'query', table: 'injuries', limit: 30 }, say: 'These are your injured players, from the recorded data (no Locks used). Ask me whether treatment is worth paying for and I will look at the costs with you.' },
+    { title: 'Where are we likely to finish this season?', re: /\b(where|what position|which place)\b.*\b(finish|end up|come|place)\b|\bchance\b.*\b(title|top (three|3)|relegat)|\bfinish(ing)?\b.*\b(league|season|position|table)\b/i, no: /\b(if|what if|would|should|stop|cut|change)\b/i, spec: { method: 'forecast', kind: 'season' }, say: 'Here is the forecast for where the club will finish. It was worked out in your browser, so it used no Locks. Press Explain on it if you want it talked through.' },
+    { title: 'Where is the bank balance heading?', re: /\b(bank|cash|money|balance)\b.*\b(end of the season|forecast|project|heading|going to be|will be|by the end)\b|\bforecast\b.*\b(bank|cash|money)\b/i, no: /\b(if|what if|would|should|stop|cut|raise|increase|change|set)\b/i, spec: { method: 'forecast', kind: 'cash' }, say: 'Here is where the bank balance is heading as things are, worked out in your browser (no Locks used). To see what a change would do to it, tell me the change.' },
+    { title: 'Who is injured, and for how long?', re: /^\s*(show|list|who|which)\b.*\binjur/i, no: /\b(treat|worth|should|pay)\b/i, spec: { method: 'query', table: 'injuries', limit: 30 }, say: 'These are your injured players, from the recorded data (no Locks used). Ask me whether treatment is worth paying for and I will look at the costs with you.' },
   ];
   function localIntent(text) { return INTENTS.find((x) => x.re.test(text) && !(x.no && x.no.test(text))) || null; }
   async function runLocal(li) {
+    newPage(li.title, { reuseBlank: true }); renderDoc();
     const form = formFromSpec(li.spec); if (!form.table && li.spec.method !== 'query') form.table = 'team_matches';
     const cell = addCell({ type: 'analysis', form, by: 'agent', edit: false, spec: li.spec }, { scroll: false });
     cell.res = await runSpec(li.spec); cell.stamp = dataStamp(); cell.edit = !cell.res.ok; refreshCell(cell); save(); refreshData();
-    chatPush({ role: 'agent', text: li.say, added: [{ id: cell.id, title: cell.res.ok ? cell.res.title : 'Could not run' }] }); state.busy = ''; chatDraw();
+    chatPush({ role: 'agent', text: li.say, added: [{ page: curPage().id, title: curPage().title }] }); state.busy = ''; chatDraw();
   }
   const summaryText = (n) => (FM.agentContext ? FM.agentContext(state.league, 'workbench') : '').slice(0, n);
   const detailText = () => DETAIL[state.wb.settings.detail] || DETAIL.standard;
   // The second, short step: the results go back and the agent explains them. It carries no tables, methods or changes list, so it is cheap.
-  async function explainStep() {
+  async function explainStep(after) {
     const out = await FM.api('/football/workbench', { phase: 'explain', messages: chatMessages().slice(-5), level: state.league.tier, detail: detailText(), lessons: lessonList(), summary: summaryText(1000) });
-    chatPush({ role: 'agent', text: out.reply || 'That is the result. Ask me about any part of it.' });
+    const text = out.reply || 'That is the result. Ask me about any part of it.';
+    chatPush({ role: 'agent', text });
+    addExplanation(text, after);
+  }
+  function addExplanation(text, after) {
+    const page = targetPage(), idx = after ? Math.max(0, page.cells.indexOf(after) + 1) : 0;
+    return addCell({ type: 'rich', html: richHtml(text), by: 'agent' }, { at: idx, scroll: false });
   }
   async function explainCell(cell) {
     if (state.busy || !cell.res || !cell.res.ok) return;
-    if (FM.locksOut && FM.locksOut()) { chatPush({ role: 'agent', text: 'You have used all your Locks for now, so I cannot explain it. Everything else in the Workbench still works.' }); chatDraw(); return; }
+    if (FM.locksOut && FM.locksOut()) { chatPush({ role: 'agent', text: 'You have used all your Locks for now, so I cannot explain it. Everything else in the Workbook still works.' }); chatDraw(); return; }
     chatPush({ role: 'manager', text: 'Explain this result: ' + cell.res.title }); chatPush({ role: 'results', text: resultText(cell.res, 2200) });
     state.busy = 'Writing it up…'; chatDraw();
-    try { await explainStep(); } catch (e) { chatPush({ role: 'agent', text: aiError(e) }); }
+    try { await explainStep(cell); } catch (e) { chatPush({ role: 'agent', text: aiError(e) }); }
     state.busy = ''; chatDraw();
   }
-  const aiError = (e) => (e && e.code === 'NO_SESSION' ? 'Sign in to LastMind and I can plan analyses for you. The Workbench works without me: use the toolbar to build one yourself.' : e && (e.code === 'LOCK_LIMIT_REACHED' || e.code === '402') ? 'You have used all your Locks for now, so I cannot answer any more questions. Everything else in the Workbench still works.' : (e && e.message) || 'I could not answer just now. Try again in a moment.');
+  const aiError = (e) => (e && e.code === 'NO_SESSION' ? 'Sign in to LastMind and I can plan analyses for you. The Workbook works without me: use the toolbar to build one yourself.' : e && (e.code === 'LOCK_LIMIT_REACHED' || e.code === '402') ? 'You have used all your Locks for now, so I cannot answer any more questions. Everything else in the Workbook still works.' : (e && e.message) || 'I could not answer just now. Try again in a moment.');
   async function ask(text) {
     text = String(text || '').trim(); if (!text || state.busy) return;
     const wb = state.wb; chatPush({ role: 'manager', text });
     if (!wb.ui.agent) { wb.ui.agent = true; layout(); }
     const li = localIntent(text); if (li) { await runLocal(li); return; }
-    if (FM.locksOut && FM.locksOut()) { chatPush({ role: 'agent', text: 'You have used all your Locks for now, so I cannot answer. The Workbench still works by hand: build any analysis from the toolbar, or use the calculator, and your Locks come back when they reset.' }); chatDraw(); return; }
+    if (FM.locksOut && FM.locksOut()) { chatPush({ role: 'agent', text: 'You have used all your Locks for now, so I cannot answer. The Workbook still works by hand: build any analysis from the toolbar, or use the calculator, and your Locks come back when they reset.' }); chatDraw(); return; }
     state.busy = 'Thinking…'; chatDraw();
     try {
       const C = CTL();
@@ -519,15 +591,17 @@
       const msg = chatPush({ role: 'agent', text: out.reply || 'Tell me more about what you want to find out.', added: [] });
       const actions = Array.isArray(out.actions) ? out.actions : [];
       if (!actions.length) { state.busy = ''; chatDraw(); return; }
+      // a question that gets worked on starts a new page, titled with the question
+      const page = newPage(String(out.title || '').trim() || titleFromQuestion(text), { reuseBlank: true }); state.pin = page; renderDoc(); msg.added.push({ page: page.id, title: page.title });
       const texts = [];
       for (const a of actions) {
-        if (a.type === 'note') { const c = addCell({ type: 'lesson', text: a.text, by: 'agent' }); msg.added.push({ id: c.id, title: 'Note' }); texts.push('Note added.'); continue; }
+        if (a.type === 'note') { addCell({ type: 'rich', html: richHtml(a.text), by: 'agent' }, { scroll: false }); texts.push('Note added.'); continue; }
         if (a.type === 'control') {
           const act = a.action || (a.spec && a.spec.action);
           if (!C || !C.ACTIONS[act]) { texts.push('There is no action called "' + act + '".'); continue; }
           const cc = addCell(newControlCell(act, a.params || (a.spec && a.spec.params) || {}, 'agent'), { scroll: false }), title = C.ACTIONS[act].title;
-          if (wb.settings.auto) { const r = applyControl(cc); texts.push((r.ok ? 'APPLIED: ' : 'COULD NOT APPLY: ') + title + '. ' + r.text); msg.added.push({ id: cc.id, title: (r.ok ? 'Done: ' : 'Not done: ') + title }); }
-          else { texts.push('PROPOSED, waiting for the manager to press Apply: ' + title + ' ' + JSON.stringify(a.params || {})); msg.added.push({ id: cc.id, title: 'Proposed: ' + title }); }
+          if (wb.settings.auto) { const r = applyControl(cc); texts.push((r.ok ? 'APPLIED: ' : 'COULD NOT APPLY: ') + title + '. ' + r.text); }
+          else { texts.push('PROPOSED, waiting for the manager to press Apply: ' + title + ' ' + JSON.stringify(a.params || {})); }
           continue;
         }
         const spec = a.spec || {}; const form = formFromSpec(spec); if (!form.table && spec.method !== 'experiment' && spec.method !== 'simulate' && spec.method !== 'forecast') form.table = 'team_matches';
@@ -536,14 +610,14 @@
         cell.spec = a.type === 'query' ? Object.assign({ method: 'query' }, spec) : spec;
         cell.res = await runSpec(cell.spec, (d, t, label) => { cell.progress = label; cell.pct = t ? d / t : null; const n = document.querySelector('[data-cell="' + cell.id + '"] .wb-run-s span'); if (n) n.textContent = label; state.busy = label; chatDraw(); return !cell.stop; });
         cell.running = false; cell.stamp = dataStamp(); cell.edit = !cell.res.ok; refreshCell(cell);
-        msg.added.push({ id: cell.id, title: cell.res.ok ? cell.res.title : 'Could not run' }); texts.push(resultText(cell.res, 1400));
+        texts.push(resultText(cell.res, 1400));
       }
       save(); refreshData();
       chatPush({ role: 'results', text: texts.join('\n\n').slice(0, 4800) });
       state.busy = 'Writing it up…'; chatDraw();
       await explainStep();
     } catch (e) { chatPush({ role: 'agent', text: aiError(e) }); }
-    state.busy = ''; chatDraw();
+    state.pin = null; state.busy = ''; chatDraw();
   }
 
   // ---------- layout ----------
@@ -558,15 +632,17 @@
     return `<div class="wb-kb-tabs">${Object.keys(KEYS).map((k) => `<button type="button" class="${k === tab ? 'on' : ''}" data-kbtab="${k}">${k}</button>`).join('')}<span class="wb-kb-note">Click into a text or calculator cell, then press keys or type the shortcuts.</span></div><div class="wb-keys">${KEYS[tab].map((row) => `<div class="wb-krow">${row.map((k) => `<button type="button" class="wb-key" data-key="${esc(k)}">${esc(k)}</button>`).join('')}</div>`).join('')}</div><p class="wb-kb-help"><b>Typing shortcuts</b> &nbsp; <kbd>^</kbd> power · <kbd>_</kbd> subscript (then <kbd>Space</kbd> or <kbd>→</kbd> to carry on) · <kbd>Shift</kbd>+letter Greek (<kbd>Shift</kbd>+<kbd>A</kbd> α, <kbd>P</kbd> π; Caps Lock for capitals) · <kbd>*</kbd> × · <kbd>~</kbd> √ · <kbd>~~</kbd> ≈ · <kbd>&lt;=</kbd> ≤ · <kbd>&gt;=</kbd> ≥ · <kbd>!=</kbd> ≠ · <kbd>Shift</kbd>+<kbd>E</kbd> ∈ · <kbd>Shift</kbd>+<kbd>I</kbd> ∫ · <kbd>Ctrl</kbd>+<kbd>-</kbd> bar</p>`;
   }
   function insertText(txt) {
-    let t = state.focus; if (!t || !document.body.contains(t)) { t = document.querySelector('#wbDoc .wb-in'); if (!t) return; }
+    let t = state.focus; if (!t || !document.body.contains(t)) { t = document.querySelector('#wbDoc .math-shortcut-editor, #wbDoc .wb-in'); if (!t) return; }
     t.focus();
+    if (t.isContentEditable) { if (txt === '⌫') document.execCommand('delete'); else document.execCommand('insertText', false, txt); return; }   // a page of the Workbook: the Notes editor
     if (txt === '⌫') { const s = t.selectionStart, e = t.selectionEnd; if (s === e && s > 0) t.setRangeText('', s - 1, e, 'end'); else t.setRangeText('', s, e, 'end'); }
     else t.setRangeText(txt, t.selectionStart, t.selectionEnd, 'end');
     t.dispatchEvent(new Event('input', { bubbles: true }));
   }
   function copyDoc() {
-    const wb = state.wb; const txt = wb.title + '\n\n' + wb.cells.map((c) => (c.type === 'analysis' ? resultText(c.res) : (c.type === 'calc' ? c.text + '\n' + [].map.call(document.querySelectorAll('[data-cell="' + c.id + '"] .wb-calc-out > div'), (d) => d.textContent).join('\n') : c.text))).join('\n\n');
-    try { navigator.clipboard.writeText(txt); flash('Document copied as text'); } catch (e) { flash('Could not copy'); }
+    const pg = curPage(); syncRich(); const LM = window.LMMath;
+    const txt = (pg.title || 'Untitled page') + '\n\n' + pg.cells.filter((c) => !blankRich(c)).map((c) => (c.type === 'analysis' ? resultText(c.res) : c.type === 'rich' ? (LM ? LM.plainText(c.html) : String(c.html).replace(/<[^>]*>/g, ' ')) : c.type === 'calc' ? c.text + '\n' + [].map.call(document.querySelectorAll('[data-cell="' + c.id + '"] .wb-calc-out > div'), (d) => d.textContent).join('\n') : c.type === 'control' ? 'Change: ' + c.action + ' (' + c.status + ')' + (c.result ? ' ' + c.result.text : '') : '')).join('\n\n');
+    try { navigator.clipboard.writeText(txt); flash('This page copied as text'); } catch (e) { flash('Could not copy'); }
   }
   function flash(msg) { const n = el('wbFlash'); if (!n) return; n.textContent = msg; n.classList.add('on'); clearTimeout(flash.t); flash.t = setTimeout(() => n.classList.remove('on'), 1800); }
 
@@ -576,10 +652,12 @@
     state.wb.extra.forEach((x) => { try { T.register(x.name, x.desc, x.cols, x.rows); } catch (e) { /* fine */ } });
     const wb = state.wb, tier = league.tier || 'gcse';
     host.innerHTML = `<div class="wb">
-      <div class="wb-bar" role="toolbar" aria-label="Workbench tools">
-        <input id="wbTitle" class="wb-title" value="${esc(wb.title)}" aria-label="Document title" maxlength="80">
+      <div class="wb-bar" role="toolbar" aria-label="Workbook tools">
+        <span class="wk-brand">Workbook</span>
+        <span class="wb-menu"><button type="button" data-tool="toc">Contents ▾</button><div class="wb-pop wk-toc" id="wkToc" hidden></div></span>
+        <button type="button" data-tool="newpage">+ New page</button>
         <span class="wb-sp"></span>
-        <span class="wb-menu"><button type="button" data-tool="add">+ Add</button><div class="wb-pop" id="wbAdd" hidden>
+        <span class="wb-menu"><button type="button" data-tool="add">+ Add to this page</button><div class="wb-pop" id="wbAdd" hidden>
           <button type="button" data-add="control">Change something</button><button type="button" data-add="forecast">Forecast</button><button type="button" data-add="analysis">Analysis or table</button><button type="button" data-add="calc">Calculator</button><button type="button" data-add="text">Text</button></div></span>
         <button type="button" data-tool="kb">Maths keyboard</button>
         <button type="button" data-tool="data">Data</button>
@@ -591,7 +669,7 @@
       </div>
       <div class="wb-body">
         <aside class="wb-data" id="wbData" aria-label="Data and controls"><div class="wb-pane-h"><span class="wb-dtabs"><button type="button" data-dtab="data">Data</button><button type="button" data-dtab="controls">Controls</button></span><span>${esc(FM.teamById(league, league.userId).name)} · season ${league.season}</span><button type="button" class="wb-x" data-tool="data" aria-label="Close the data panel">✕</button></div><div class="wb-dlist"></div></aside>
-        <section class="wb-main"><div class="wb-doc" id="wbDoc"></div><div class="wb-kb" id="wbKb" hidden></div></section>
+        <section class="wb-main wk-main"><div class="wk-book"><div class="wk-sheet"><div class="wk-scroll" id="wkScroll"><div class="wk-titlebar"><input id="wkTitle" class="wk-title" placeholder="Name this page" aria-label="Page title" maxlength="90"></div><div class="wk-rule"></div><div class="wk-flow" id="wbDoc"></div></div><div class="wk-foot"><button type="button" class="wk-arrow" id="wkPrev" aria-label="Previous page" title="Previous page">‹</button><span class="wk-pos" id="wkPos"></span><button type="button" class="wk-arrow" id="wkNext" aria-label="Next page" title="Next page">›</button></div></div></div><div class="wb-kb" id="wbKb" hidden></div></section>
         <aside class="wb-agent" id="wbAgent" aria-label="LastMind AI Agent"><div class="wb-pane-h"><b>LastMind AI Agent</b><span class="wb-agent-btns"><button type="button" class="wb-clear" data-tool="clearchat">Clear chat</button><button type="button" class="wb-x" data-tool="agent" aria-label="Close the agent">✕</button></span></div><div class="wb-log" id="wbLog" role="log" aria-live="polite"></div>
           <form class="wb-form" id="wbForm"><textarea id="wbAsk" rows="2" placeholder="Ask a question, or say what you want to learn…" aria-label="Message to the agent"></textarea><button class="wb-send" id="wbSend" type="submit">Send</button></form></aside>
       </div><div class="wb-flash" id="wbFlash" role="status"></div></div>`;
@@ -601,10 +679,11 @@
     if (host._wbAbort) host._wbAbort.abort();
     const ac = new AbortController(), SIG = { signal: ac.signal }; host._wbAbort = ac;
     host.addEventListener('keydown', wbShortcut, SIG);
+    host.addEventListener('keydown', (e) => { if (e.altKey && !e.ctrlKey && !e.metaKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight') && !(e.target.closest && e.target.closest('.wb-form'))) { e.preventDefault(); goPage(wb.cur + (e.key === 'ArrowRight' ? 1 : -1)); } }, SIG);
     host.addEventListener('focusin', (e) => { if (e.target.classList && e.target.classList.contains('wb-in')) state.focus = e.target; }, SIG);
     host.addEventListener('input', (e) => {
       const t = e.target, cell = t.closest && t.closest('[data-cell]') && findCell(t.closest('[data-cell]').dataset.cell);
-      if (t.id === 'wbTitle') { wb.title = t.value; save(); return; }
+      if (t.id === 'wkTitle') { curPage().title = t.value; save(); return; }
       if (!cell) return;
       if (t.dataset.cp && cell.type === 'control') { cell.params[t.dataset.cp] = t.value; const pv = document.getElementById('prev-' + cell.id); if (pv) pv.innerHTML = previewHtml(cell); save(); return; }
       if (t.dataset.k === 'text') { cell.text = t.value; if (cell.type === 'calc') { const o = t.closest('.wb-calc').querySelector('[data-out]'); o.innerHTML = calcOut(cell); } save(); }
@@ -632,15 +711,22 @@
     host.addEventListener('click', (e) => {
       const b = e.target.closest && e.target.closest('button'); if (!b) return;
       const tool = b.dataset.tool;
+      if (tool === 'toc') { const tc = el('wkToc'); tc.hidden = !tc.hidden; if (!tc.hidden) tc.innerHTML = wb.pages.map((pg, i) => `<div class="wk-toc-row${i === wb.cur ? ' on' : ''}"><button type="button" data-pageidx="${i}"><span>${i + 1}</span> ${esc(pg.title || 'Untitled page')}</button><button type="button" class="wk-toc-x" data-delpage="${i}" aria-label="Delete this page" title="Delete this page">✕</button></div>`).join(''); return; }
+      if (tool === 'newpage') { syncRich(); const pg = { id: uid(), title: '', at: Date.now(), cells: [] }; wb.pages.push(pg); goPage(wb.pages.length - 1); setTimeout(() => { const ti = el('wkTitle'); if (ti) ti.focus(); }, 60); return; }
+      if (b.dataset.pageidx != null) { el('wkToc').hidden = true; goPage(Number(b.dataset.pageidx)); return; }
+      if (b.dataset.delpage != null) { const i = Number(b.dataset.delpage); if (confirm('Delete the page "' + (wb.pages[i].title || 'Untitled page') + '"? This cannot be undone.')) { deletePage(i); el('wkToc').hidden = true; } return; }
+      if (b.dataset.page) { const i = wb.pages.findIndex((pg) => pg.id === b.dataset.page); if (i >= 0) goPage(i); return; }
+      if (b.id === 'wkPrev') { goPage(wb.cur - 1); return; }
+      if (b.id === 'wkNext') { if (wb.cur >= wb.pages.length - 1) { syncRich(); wb.pages.push({ id: uid(), title: '', at: Date.now(), cells: [] }); goPage(wb.pages.length - 1); setTimeout(() => { const ti = el('wkTitle'); if (ti) ti.focus(); }, 60); } else goPage(wb.cur + 1); return; }
       if (tool === 'add') { el('wbAdd').hidden = !el('wbAdd').hidden; return; }
-      if (b.dataset.add) { el('wbAdd').hidden = true; if (b.dataset.add === 'analysis') addCell({ type: 'analysis', form: newForm('describe'), edit: true }); else if (b.dataset.add === 'forecast') addCell({ type: 'analysis', form: newForm('forecast'), edit: true }); else if (b.dataset.add === 'control') { wb.ui.data = true; wb.ui.dtab = 'controls'; layout(); refreshData(); flash('Choose what to change from the Controls list'); } else addCell({ type: b.dataset.add, text: '' }); return; }
+      if (b.dataset.add) { el('wbAdd').hidden = true; if (b.dataset.add === 'analysis') addCell({ type: 'analysis', form: newForm('describe'), edit: true }); else if (b.dataset.add === 'forecast') addCell({ type: 'analysis', form: newForm('forecast'), edit: true }); else if (b.dataset.add === 'control') { wb.ui.data = true; wb.ui.dtab = 'controls'; layout(); refreshData(); flash('Choose what to change from the Controls list'); } else if (b.dataset.add === 'text') { const lastC = curPage().cells[curPage().cells.length - 1]; const ed = lastC && EDS.get(lastC.id); if (ed) ed.focus(); else addCell({ type: 'rich', html: '', _focus: true }); } else addCell({ type: b.dataset.add, text: '' }); return; }
       if (tool === 'kb' || tool === 'data' || tool === 'agent') { wb.ui[tool] = !wb.ui[tool]; layout(); save(); return; }
       if (tool === 'copy') { copyDoc(); return; }
-      if (tool === 'clearchat') { if (confirm('Clear the whole conversation with the agent? Your document stays.')) { wb.chat = []; save(); chatDraw(); } return; }
+      if (tool === 'clearchat') { if (confirm('Clear the whole conversation with the agent? Your pages stay.')) { wb.chat = []; save(); chatDraw(); } return; }
       if (b.dataset.kbtab) { wb.ui.kbTab = b.dataset.kbtab; el('wbKb').innerHTML = kbHtml(); save(); return; }
       if (b.dataset.key != null) { insertText(b.dataset.key); return; }
       if (b.dataset.ask) { ask(b.dataset.ask); return; }
-      if (b.dataset.goto) { const n = document.querySelector('[data-cell="' + b.dataset.goto + '"]'); if (n) n.scrollIntoView({ block: 'start', behavior: 'smooth' }); return; }
+      if (b.dataset.goto) { const pi = pageOfCell(b.dataset.goto); if (pi >= 0 && pi !== wb.cur) goPage(pi); const n = document.querySelector('[data-cell="' + b.dataset.goto + '"]'); if (n) n.scrollIntoView({ block: 'start', behavior: 'smooth' }); return; }
       if (b.dataset.dtab) { wb.ui.dtab = b.dataset.dtab; refreshData(); save(); return; }
       if (b.dataset.newctl) { addCell(newControlCell(b.dataset.newctl, {}, 'manual')); return; }
       if (b.dataset.table) { state.openTable = state.openTable === b.dataset.table ? '' : b.dataset.table; refreshData(); return; }
@@ -663,11 +749,11 @@
     }, SIG);
     // cells that were running when the page was left cannot be running now
     wb.cells.forEach((c) => { if (c.running) { c.running = false; } });
-    if (opts && opts.control && CTL() && CTL().ACTIONS[opts.control]) setTimeout(() => { addCell(newControlCell(opts.control, opts.params || {}, 'manual')); }, 40);
+    if (opts && opts.control && CTL() && CTL().ACTIONS[opts.control]) setTimeout(() => { newPage(CTL().ACTIONS[opts.control].title, { reuseBlank: true }); renderDoc(); addCell(newControlCell(opts.control, opts.params || {}, 'manual')); }, 40);
     if (opts && opts.starter) setTimeout(() => ask(opts.starter), 60);
   };
 
-  // anywhere in the game that used to open the side agent now opens the Workbench
+  // anywhere in the game that used to open the side agent now opens the Workbook
   FM.agentOpen = function (starter) { if (FM.goWorkbench) FM.goWorkbench(starter); };
   FM.workbenchRunCalc = (league, line) => makeCalc(league, {}).evaluate(line);
 })();

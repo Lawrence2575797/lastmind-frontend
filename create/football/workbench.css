@@ -1,4 +1,4 @@
-/* The Workbench: square, hairline, dense. Built on the game's own colour tokens. */
+/* The Workbook: square, hairline, dense. Built on the game's own colour tokens. */
 .wb { --wb-line: rgba(244,237,218,.14); --wb-line-2: rgba(244,237,218,.26); --wb-bg: #0a1512; --wb-pane: #0e1b17; --wb-cell: #0d1916; --wb-mono: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace; --wb-gold: #d7b86b; --wb-green: #52bd7b; --wb-ink: #f4edda; --wb-mute: #a8b4ae; display: flex; flex-direction: column; border: 1px solid var(--wb-line-2); background: var(--wb-bg); color: var(--wb-ink); font-family: var(--sans); font-size: .9rem; min-height: calc(100vh - 150px); position: relative; }
 .wb button { border-radius: 0; box-shadow: none; }
 .wb-bar { display: flex; align-items: center; gap: 6px; padding: 8px 10px; border-bottom: 1px solid var(--wb-line-2); background: var(--wb-pane); flex-wrap: wrap; }
@@ -162,3 +162,34 @@ body[data-view="workbench"] #view-workbench { animation: none !important; transf
   .wb-x { display: inline-block; }
   .wb-main { max-height: none; }
 }
+
+/* ---- the Workbook: a book of pages. Each page is a Notes sheet: the same dark paper, margin line and serif type, and the same maths editor. ---- */
+.wk-brand { font: 700 .8rem var(--sans); letter-spacing: .16em; text-transform: uppercase; color: var(--wb-gold); padding: 0 6px 0 2px; }
+.wk-main { display: flex; flex-direction: column; min-width: 0; max-height: none; }
+.wk-book { flex: 1; min-height: 0; display: flex; justify-content: center; padding: 18px 22px 18px 18px; background: var(--wb-bg); }
+.wk-sheet { position: relative; width: min(1000px, 100%); height: clamp(380px, calc(100vh - 260px), 1200px); display: flex; flex-direction: column; min-height: 0;
+  background-color: #1A232D; background-image: linear-gradient(to right, transparent 54px, rgba(230, 215, 176, .5) 54px, rgba(230, 215, 176, .5) 56px, transparent 56px);
+  color: #E6D7B0; font-family: Georgia, 'Lora', 'Times New Roman', serif; border: 1px solid rgba(230, 215, 176, .28); box-shadow: 5px 5px 0 -1px #131d25, 10px 10px 0 -2px #0d151b; }
+.wk-scroll { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 24px 30px 30px 78px; }
+.wk-scroll.turn { animation: wkTurn .24s ease both; } @keyframes wkTurn { from { opacity: 0; transform: translateX(16px); } to { opacity: 1; transform: none; } } @media (prefers-reduced-motion: reduce) { .wk-scroll.turn { animation: none; } }
+.wk-titlebar { display: flex; align-items: baseline; gap: 12px; }
+.wk-title { flex: 1; min-width: 0; background: transparent; border: 0; color: #F3E7BE; font: 700 clamp(1.5rem, 3.2vw, 2.4rem)/1.2 'Cormorant Garamond', 'Lora', Georgia, serif; letter-spacing: .01em; padding: 2px 0; } .wk-title::placeholder { color: rgba(230, 215, 176, .38); } .wk-title:focus { outline: none; }
+.wk-rule { width: min(72%, 560px); height: 4px; border-top: 1px solid rgba(230, 215, 176, .55); border-bottom: 1px solid rgba(230, 215, 176, .55); margin: 8px 0 20px; }
+.wk-flow { display: grid; gap: 14px; min-width: 0; }
+.wk-foot { display: flex; align-items: center; justify-content: center; gap: 26px; padding: 10px 14px; border-top: 1px solid rgba(230, 215, 176, .3); background: rgba(0, 0, 0, .22); }
+.wk-arrow { width: 62px; height: 40px; padding: 0; font: 400 1.7rem/1 Georgia, serif; background: transparent; border: 1px solid rgba(230, 215, 176, .5); color: #E6D7B0; cursor: pointer; } .wk-arrow:hover:not(:disabled) { background: rgba(230, 215, 176, .16); } .wk-arrow:disabled { opacity: .28; cursor: default; }
+.wk-pos { min-width: 8.5em; text-align: center; font: 700 .76rem var(--sans); letter-spacing: .14em; text-transform: uppercase; color: rgba(230, 215, 176, .78); }
+/* blocks on a page */
+.wk-block { min-width: 0; } .wk-block.rich { position: relative; }
+.wk-bar2 { display: flex; justify-content: flex-end; align-items: center; gap: 8px; min-height: 0; height: 0; overflow: visible; opacity: 0; transition: opacity .12s; position: relative; z-index: 2; }
+.wk-block:hover .wk-bar2, .wk-block:focus-within .wk-bar2 { opacity: 1; } .wk-bar2 .wk-by { font: 500 .68rem var(--sans); letter-spacing: .04em; color: var(--wb-gold); } .wk-bar2 .wb-cact { transform: translateY(-4px); background: #1A232D; }
+.wk-host { min-width: 0; }
+.wk-text .math-shortcut-editor { min-height: 1.6em; font-family: Georgia, 'Lora', serif; font-size: 16px; line-height: 1.7; color: #E6D7B0; caret-color: #E6D7B0; }
+.wk-text .math-shortcut-editor p { margin: 0 0 .7em; } .wk-text .math-shortcut-editor ul, .wk-text .math-shortcut-editor ol { margin: .3em 0 .7em; }
+.wk-text .rv-term { border-bottom: 1px dotted var(--wb-gold); color: var(--wb-gold); cursor: pointer; }
+.wk-sheet .wb-cell { border-top: 1px solid rgba(230, 215, 176, .22); } .wk-sheet .wb-cell.rich { border-top: 0; }
+.wk-sheet .wb-empty { padding: 4px 0 20px; max-width: 64ch; } .wk-sheet .wb-empty h3 { font-family: 'Cormorant Garamond', 'Lora', Georgia, serif; font-size: 1.5rem; }
+.wk-toc { min-width: 300px; max-width: 80vw; max-height: 60vh; overflow: auto; } .wk-toc-row { display: flex; border-bottom: 1px solid var(--wb-line); } .wk-toc-row.on { background: rgba(215, 184, 107, .12); } .wk-toc-row button { border: 0; background: transparent; text-align: left; padding: 9px 12px; color: var(--wb-ink); font-weight: 500; } .wk-toc-row > button:first-child { flex: 1; } .wk-toc-row span { color: var(--wb-gold); font-family: var(--wb-mono); margin-right: 6px; } .wk-toc-x { color: var(--wb-mute); padding: 9px 14px !important; } .wk-toc-x:hover { color: #e78078; }
+@media (max-width: 760px) { .wk-book { padding: 8px; } .wk-sheet { height: clamp(420px, calc(100vh - 220px), 1200px); background-image: linear-gradient(to right, transparent 18px, rgba(230, 215, 176, .5) 18px, rgba(230, 215, 176, .5) 20px, transparent 20px); } .wk-scroll { padding: 18px 14px 24px 30px; } }
+
+.wb-msg p { margin: 0 0 .6em; } .wb-msg p:last-of-type { margin-bottom: 0; }

@@ -23752,7 +23752,7 @@ SQIDAQAB
         t = t.replace(/(?<![\/\w.])(\d+(?:\.\d+)?)\/(\d+(?:\.\d+)?|[a-z])(?![\/\w])/g, (m, a, b) => fr(a, b));
         t = t.replace(/(?<![\/\w.])([a-z])\/(\d+(?:\.\d+)?)(?![\/\w])/g, (m, a, b) => fr(a, b));
         t = t.replace(/\^\(([^()]*)\)/g, '<sup>$1</sup>').replace(/\^\{([^{}]*)\}/g, '<sup>$1</sup>').replace(/\^(-?[A-Za-z0-9.]+)/g, '<sup>$1</sup>');
-        t = t.replace(/_\(([^()]*)\)/g, '<sub>$1</sub>').replace(/_\{([^{}]*)\}/g, '<sub>$1</sub>').replace(/(?<=[A-Za-z0-9)])_([A-Za-z0-9]{1,3})(?![A-Za-z0-9])/g, '<sub>$1</sub>');
+        t = t.replace(/_\(([^()]*)\)/g, '<sub>$1</sub>').replace(/_\{([^{}]*)\}/g, '<sub>$1</sub>').replace(/(?<=[A-Za-z0-9)Ͱ-Ͽ])_([A-Za-z0-9]{1,3})(?![A-Za-z0-9])/g, '<sub>$1</sub>');
         t = t.replace(/(\d)\s*\*\s*(\d)/g, '$1 × $2').replace(/&lt;=/g, '≤').replace(/&gt;=/g, '≥').replace(/!=/g, '≠').replace(/-&gt;/g, '→');
         return t.replace(/\u0000(\d+)\u0000/g, (m, n) => keep[+n]);
     }

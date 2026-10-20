@@ -1,0 +1,87 @@
+/* The Notes page editor's styles, for the Workbook (see maths-editor.js). A Workbook page uses the Notes sheet colours. */
+.wk-sheet { --text: #E6D7B0; --accent: #F3E7BE; --panel: #1A232D; }
+    .math-shortcut-wrap { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
+    .math-shortcut-editor { white-space: pre-wrap;
+        font-family: 'Courier New', monospace;
+        font-size: 15px; line-height: 1.7; color: var(--text);
+        background: var(--panel); border: 1.5px solid rgba(230, 215, 176, 0.2); border-radius: 6px;
+        padding: 10px 12px; min-height: 70px; outline: none; caret-color: var(--accent);
+        width: 100%; box-sizing: border-box; resize: vertical;
+    }
+    .math-shortcut-editor:focus { border-color: var(--accent); }
+    .math-shortcut-editor:empty::before { content: attr(data-placeholder); color: var(--text); opacity: 0.4; font-style: normal; }
+    .math-shortcut-editor sup, .math-shortcut-editor sub { color: var(--accent); font-weight: 500; }
+    .math-shortcut-editor .math-symbol { font-family: "Cambria Math", "STIX Two Math", "Times New Roman", serif; font-size: 1em; line-height: inherit; font-style: italic; color: var(--accent); }
+    .math-shortcut-editor .math-symbol.math-greek-upper { font-style: normal; font-size: 1em; }
+    .math-shortcut-editor .math-bracket, .math-shortcut-editor .math-function-argument { font-family: "Cambria Math", "STIX Two Math", "Times New Roman", serif; font-size: 1em; line-height: inherit; font-style: normal; vertical-align: baseline; }
+    .math-shortcut-editor .frac { display: inline-flex; flex-direction: column; align-items: center; vertical-align: middle; margin: 0 0.2em; font-size: 0.82em; line-height: 1.15; }
+    .math-shortcut-editor .frac-num { align-self: stretch; text-align: center; padding: 0 0.2em 0.12em; border-bottom: 1.5px solid var(--text); }
+    .math-shortcut-editor .frac-den { align-self: stretch; text-align: center; padding: 0.12em 0.2em 0; }
+    .math-shortcut-editor .root { display: inline-flex; align-items: flex-start; vertical-align: baseline; white-space: nowrap; }
+    .math-shortcut-editor .root-symbol { flex: none; font-family: "Cambria Math", "STIX Two Math", "Times New Roman", serif; font-style: normal; color: var(--accent); line-height: 1.15; }
+    .math-shortcut-editor .root-radicand { display: inline-block; min-width: 0.45em; min-height: 1em; margin-left: -0.04em; padding: 0.02em 0.1em 0; border-top: 1.5px solid var(--text); font-family: inherit; font-size: 1em; font-style: normal; line-height: inherit; color: inherit; }
+    /* The prime sits clear of the slanted f: upright, a little to the right, at the height of an exponent */
+    .func-primes, .math-shortcut-editor .func-primes { color: var(--text); font-family: "Cambria Math", "STIX Two Math", "Times New Roman", serif; font-style: normal; font-size: 1.1em; margin-left: 0.14em; letter-spacing: 0.04em; }
+    .math-shortcut-editor .int-limits { display: inline-flex; flex-direction: column; align-items: flex-start; vertical-align: middle; margin-left: 0.1em; font-size: 0.65em; line-height: 1.1; }
+    .math-shortcut-editor .int-upper, .math-shortcut-editor .int-lower { padding: 0 0.15em; min-width: 0.6em; color: var(--accent); }
+    .math-shortcut-hint { font-size: 11.5px; color: var(--text); margin-top: 8px; padding: 10px 12px; border: 1px solid rgba(230, 215, 176, 0.22); border-radius: 8px; background: rgba(230, 215, 176, 0.05); }
+    .math-shortcut-toggle { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; background: none; border: 0; padding: 0; color: inherit; cursor: pointer; font: 800 11px Arial, sans-serif; letter-spacing: 0.08em; text-transform: uppercase; }
+    .math-shortcut-toggle:hover { opacity: 0.8; }
+    .math-shortcut-toggle[aria-expanded="true"] { margin-bottom: 8px; }
+    .math-shortcut-hint-title { font-weight: 800; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 6px; opacity: 0.85; }
+    .math-shortcut-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 5px; }
+    /* This author rule's own `display: grid` otherwise beats the browser's
+       default `[hidden] { display: none }` UA rule outright (author origin
+       always wins a tie with user-agent origin, regardless of matching
+       specificity) - the toggle button above was flipping the `hidden`
+       attribute correctly the whole time, the list itself just never
+       actually disappeared. */
+    .math-shortcut-list[hidden] { display: none; }
+    .math-shortcut-list li { display: grid; grid-template-columns: 12em 1fr; column-gap: 12px; align-items: baseline; line-height: 1.4; }
+    .math-shortcut-list li > span:last-child { opacity: 0.8; }
+    .sc-table { width: 100%; border-collapse: separate; border-spacing: 0; margin: 0 0 16px; font-size: 13px; line-height: 1.5; border: 1px solid rgba(230, 215, 176, 0.28); border-radius: 8px; overflow: hidden; }
+    .sc-table caption { caption-side: top; text-align: left; font-weight: 800; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; padding: 0 2px 6px; opacity: 0.9; }
+    .sc-table thead th { text-align: left; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; padding: 6px 10px; background: rgba(230, 215, 176, 0.14); opacity: 0.85; }
+    .sc-table tbody th { width: 34%; text-align: left; vertical-align: top; font-weight: 600; padding: 8px 10px; border-top: 1px solid rgba(230, 215, 176, 0.18); }
+    .sc-table tbody td { vertical-align: top; padding: 8px 10px; border-top: 1px solid rgba(230, 215, 176, 0.18); border-left: 1px solid rgba(230, 215, 176, 0.18); }
+    .sc-table tbody tr:nth-child(even) > * { background: rgba(230, 215, 176, 0.05); }
+    .sc-table kbd { margin: 0 1px; }
+    .math-shortcut-list kbd, .sc-table kbd { display: inline-block; min-width: 1.6em; text-align: center; padding: 2px 7px; border: 1px solid rgba(230, 215, 176, 0.4); border-bottom-width: 2px; border-radius: 4px; background: rgba(230, 215, 176, 0.1); font: 700 12px Arial, sans-serif; }
+    /* nth-root with an index box, and matrices (Maths Tool editor) */
+    .math-shortcut-editor .root-n { display: inline-flex; align-items: flex-start; }
+    .math-shortcut-editor .root-index { font-size: 0.6em; min-width: 0.8em; padding: 0 0.15em; margin-right: -0.1em; line-height: 1.15; border: 1px dashed var(--accent); border-radius: 3px; color: var(--accent); }
+    .math-shortcut-editor .matrix-spec { color: var(--accent); font-weight: 700; }
+    .math-shortcut-editor .mx { display: inline-flex; align-items: center; vertical-align: middle; margin: 0 0.2em; padding: 0 0.4em; border-left: 2px solid var(--text); border-right: 2px solid var(--text); border-radius: 8px; }
+    .math-shortcut-editor .mx-grid { display: inline-grid; gap: 0.25em 1em; padding: 0.15em 0; }
+    .math-shortcut-editor .mx-cell { min-width: 1.2em; min-height: 1.25em; text-align: center; border-bottom: 1px dashed rgba(230, 215, 176, 0.3); }
+    .math-shortcut-mode-badge {
+        display: inline-block;
+        margin-top: 4px;
+        padding: 2px 8px;
+        border-radius: 10px;
+        font-size: 10.5px;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+        background: rgba(230, 215, 176, 0.12);
+        color: var(--accent);
+        border: 1px solid rgba(230, 215, 176, 0.25);
+        width: fit-content;
+    }
+    .math-shortcut-mode-badge.writing { opacity: 0.7; }
+    .wk-text .math-shortcut-wrap { margin: 0; }
+    .wk-text .math-shortcut-mode-badge { display: none; }
+    .wk-text .math-shortcut-editor { min-height: 0; padding: 6px 8px; background: transparent; border: 0; border-radius: 6px; color: #E6D7B0; caret-color: #E6D7B0; font-family: inherit; font-size: 16px; line-height: 1.6; box-shadow: none; }
+    .wk-text .math-shortcut-editor .math-symbol, .wk-text .math-shortcut-editor .math-bracket, .wk-text .math-shortcut-editor .math-function-argument,
+    .wk-text .math-shortcut-editor .func-primes, .wk-text .math-shortcut-editor .root-symbol, .wk-text .math-shortcut-editor sup, .wk-text .math-shortcut-editor sub,
+    .wk-text .math-shortcut-editor .frac, .wk-text .math-shortcut-editor .mx { font-family: inherit !important; }
+    .wk-text .math-shortcut-editor h1 { font-family: 'Cormorant Garamond', 'Lora', Georgia, serif; font-size: 2.5em; font-weight: 700; letter-spacing: .015em; color: #F6E9C0; margin: 0.15em 0 0.25em; padding-bottom: 0.08em; border-bottom: 3px double rgba(230, 215, 176, 0.55); line-height: 1.1; }
+    .wk-text .math-shortcut-editor h2 { font-size: 1.35em; font-weight: 700; margin: 0.1em 0; line-height: 1.25; }
+    /* Shift+Enter adds a connected, indented follow-on line. The arrow is
+    .math-bar { text-decoration: overline; text-decoration-thickness: 0.09em; }
+    .wk-rich .frac, .wk-rich-x1 .frac, .wk-rich-x3 .frac, .wk-rich-x2 .frac { display: inline-flex; flex-direction: column; align-items: center; vertical-align: middle; margin: 0 0.2em; font-size: 0.9em; line-height: 1.15; }
+    .wk-rich .frac-num, .wk-rich-x1 .frac-num, .wk-rich-x2 .frac-num { align-self: stretch; text-align: center; padding: 0 0.2em 0.12em; border-bottom: 1.5px solid currentColor; }
+    .wk-rich .frac-den, .wk-rich-x1 .frac-den, .wk-rich-x2 .frac-den { align-self: stretch; text-align: center; padding: 0.12em 0.2em 0; }
+    .wk-rich .root, .wk-rich-x1 .root, .wk-rich-x2 .root { display: inline-flex; align-items: flex-start; white-space: nowrap; }
+    .wk-rich .root-radicand, .wk-rich-x1 .root-radicand, .wk-rich-x2 .root-radicand { border-top: 1.5px solid currentColor; padding: 0 0.15em; }
+    .wk-rich p, .wk-rich-x1 p { margin: 0 0 .6em; } .wk-rich ul, .wk-rich ol { margin: .2em 0 .6em; padding-left: 1.4em; } .wk-rich code { padding: 0 .25em; border-radius: 4px; background: rgba(255,255,255,.1); }
+.wk-rich .nb-tex .frac, .wk-text .nb-tex .frac { display: inline-flex; flex-direction: column; align-items: center; vertical-align: middle; margin: 0 .2em; font-size: .82em; } .wk-rich .nb-tex .frac-num, .wk-text .nb-tex .frac-num { align-self: stretch; text-align: center; padding: 0 .2em .12em; border-bottom: 1.5px solid currentColor; } .wk-rich .nb-tex .frac-den, .wk-text .nb-tex .frac-den { align-self: stretch; text-align: center; padding: .12em .2em 0; }

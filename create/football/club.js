@@ -73,7 +73,7 @@
   function ensure(b) {
     if (!b.seats) { b.seats = {}; FM.SEGMENTS.forEach((s) => { b.seats[s.id] = s.seats; }); }
     if (!b.facilities) b.facilities = [];
-    if (!b.levers) b.levers = [];   // custom spending set up in the Workbench (see controls.js)
+    if (!b.levers) b.levers = [];   // custom spending set up in the Workbook (see controls.js)
     if (!b.rules) b.rules = [];
     if (!b.queued) b.queued = [];   // one-off costs (medical treatment) that go into the next matchday's books
     if (!b.projects) b.projects = [];

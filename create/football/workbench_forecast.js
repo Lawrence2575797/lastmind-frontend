@@ -1,4 +1,4 @@
-// Forecasts for the Workbench. Every forecast says what it assumes, and none of them changes your game: they work on the current state, or on a copy of it.
+// Forecasts for the Workbook. Every forecast says what it assumes, and none of them changes your game: they work on the current state, or on a copy of it.
 //   price     - what a ticket price would bring in over the home matches still to come (using the game's own model of the crowd)
 //   scenario  - the rest of the season's money with some changes made (actions from Controls) against without them, worked out on a copy of the club
 //   season    - where the club is likely to finish, from many simulated runs of the matches still to play

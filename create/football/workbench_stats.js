@@ -1,4 +1,4 @@
-// The Workbench's method runner. One call, FM.WB.run(league, spec), takes a plain description of an analysis (which table, which columns, which method) and
+// The Workbook's method runner. One call, FM.WB.run(league, spec), takes a plain description of an analysis (which table, which columns, which method) and
 // returns the numbers, a short list of plain facts, tables and a chart description. The LastMind AI Agent never calculates anything itself: it only writes
 // the spec, and this file does the arithmetic (with the same routines as the Analysis Centre's statistics workshop, plus maximum likelihood fitting,
 // difference-in-differences and resampling tests). Everything here is deterministic: resampling uses a seeded generator, so a result is the same every time.

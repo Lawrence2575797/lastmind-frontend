@@ -1,4 +1,4 @@
-// Controls: everything the manager can change about the club, as one list of named actions that the Workbench (and nothing else) offers. The Board only
+// Controls: everything the manager can change about the club, as one list of named actions that the Workbook (and nothing else) offers. The Board only
 // shows the club's figures now. To change a price, take a loan, treat an injury or spend money on something the game has no button for, you do it here, by
 // hand from a form, or by asking the LastMind AI Agent, which proposes the action for you to apply.
 //
@@ -227,12 +227,12 @@
         const v = C.METRICS[r.when.metric].get(lg); if (!OPS[r.when.op](v, r.when.value)) return;
         const res = r.do.action === 'treatInjury' && !r.do.params.player ? (() => { const worst = C.injuries(lg).sort((x, y) => y.days - x.days)[0]; return worst ? C.run(lg, 'treatInjury', Object.assign({}, r.do.params, { player: worst.id }), 'rule') : no('nobody injured'); })() : C.run(lg, r.do.action, r.do.params, 'rule');
         r.fired = (r.fired || 0) + 1;
-        if (res.ok && FM.pushNews) FM.pushNews(lg, { round: fx ? fx.round : 0, day: lg.day, kind: 'Workbench', headline: 'Your rule "' + r.name + '" ran', body: ruleText(r) + '. ' + res.text, club: lg.userId, mine: true });
+        if (res.ok && FM.pushNews) FM.pushNews(lg, { round: fx ? fx.round : 0, day: lg.day, kind: 'Workbook', headline: 'Your rule "' + r.name + '" ran', body: ruleText(r) + '. ' + res.text, club: lg.userId, mine: true });
       } catch (e) { /* a rule that fails is skipped */ }
     });
   };
 
-  // links anywhere in the game ("Change this in the Workbench") open the Workbench with the right form
+  // links anywhere in the game ("Change this in the Workbook") open the Workbook with the right form
   document.addEventListener('click', (e) => {
     const b = e.target.closest && e.target.closest('[data-wb]'); if (!b) return;
     e.preventDefault();

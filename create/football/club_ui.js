@@ -206,14 +206,14 @@
     }).join('')}<tr class="tot"><td class="l">All signings</td>${cell(rows.reduce((a, r) => a + r.s.fee, 0))}<td></td>${cell(rows.reduce((a, r) => a + r.wageCost, 0))}<td></td><td></td><td></td><td class="n">${rows.reduce((a, r) => a + r.apps, 0)}</td><td class="n">${rows.reduce((a, r) => a + r.goals, 0)}</td><td></td></tr></tbody></table></div>`;
   }
 
-  // The Board only shows the club's figures. Everything that changes something is done in the Workbench (by hand, or by asking the agent).
-  const wbBtn = (action, label) => `<button type="button" class="wb-go" data-wb="${action}">${label || 'Change this in the Workbench'} ›</button>`;
+  // The Board only shows the club's figures. Everything that changes something is done in the Workbook (by hand, or by asking the agent).
+  const wbBtn = (action, label) => `<button type="button" class="wb-go" data-wb="${action}">${label || 'Change this in the Workbook'} ›</button>`;
 
   // ---------- offers from companies ----------
   const offerCard = (lg, o, bind) => {
     const talk = (o.talk || []).slice(-2).map((t) => `<p class="neg-reply">${esc(t)}</p>`).join('');
     return `<div class="offer" data-offer-card="${o.id}"><div class="offer-top"><div><b>${esc(o.company)}</b><br><small>${esc(FM.bizOfferText(o))}</small></div>
-      <div class="row">${wbBtn('answerOffer:' + o.id, 'Answer in the Workbench')}</div></div>${talk}</div>`;
+      <div class="row">${wbBtn('answerOffer:' + o.id, 'Answer in the Workbook')}</div></div>${talk}</div>`;
   };
   // Buttons for offers anywhere (the Board page, and a story in the News).
   FM.bizBindOffers = function (root, lg, after) {
@@ -282,11 +282,11 @@
     const stands = FM.SEGMENTS.map((s) => {
       const e = FM.EXPANSIONS[s.id], room = B.standRoom(lg, s.id), proj = b.projects.find((p) => p.kind === 'stand' && p.stand === s.id), cost = B.standCost(s.id);
       return `<tr><td class="l"><b>${esc(s.name)}</b><br><small>${esc(s.who)}</small></td><td class="n">${num(b.seats[s.id])}</td><td class="n">${proj ? '+' + num(proj.seats) + ' in ' + proj.left + ' matchday' + (proj.left === 1 ? '' : 's') : '–'}</td>
-        <td class="n">${room >= e.seats ? `${num(e.seats)} more seats: ${gbp(cost)}${proj ? '' : '<br>' + wbBtn('buildStand:' + s.id, 'Arrange in the Workbench')}` : 'No more room'}</td></tr>`;
+        <td class="n">${room >= e.seats ? `${num(e.seats)} more seats: ${gbp(cost)}${proj ? '' : '<br>' + wbBtn('buildStand:' + s.id, 'Arrange in the Workbook')}` : 'No more room'}</td></tr>`;
     }).join('');
     const facs = FM.FACILITIES.map((f) => {
       const have = b.facilities.indexOf(f.id) >= 0;
-      return `<tr><td class="l"><b>${esc(f.name)}</b><br><small>${esc(f.text)}</small></td>${cell(f.cost)}${cell(f.upkeep)}<td class="n">${have ? 'Built' : wbBtn('buyFacility:' + f.id, 'Buy in the Workbench')}</td></tr>`;
+      return `<tr><td class="l"><b>${esc(f.name)}</b><br><small>${esc(f.text)}</small></td>${cell(f.cost)}${cell(f.upkeep)}<td class="n">${have ? 'Built' : wbBtn('buyFacility:' + f.id, 'Buy in the Workbook')}</td></tr>`;
     }).join('');
     return `<div style="display:grid;gap:16px">${msg}<div class="card"><h2>The ground</h2><div class="board-money"><span>Capacity<b>${num(FM.bizCapacity(lg))}</b></span><span>Cash in the bank<b${b.cash < 0 ? ' class="neg"' : ''}>${gbp(b.cash)}</b></span><span>Stadium and facilities, at cost<b>${gbp(b.assets.cost)}</b></span></div>
       <div class="books-wrap"><table class="books-table"><thead><tr><th class="l">Stand</th><th>Seats</th><th>Being built</th><th></th></tr></thead><tbody>${stands}</tbody></table></div>
@@ -302,12 +302,12 @@
 
   function finance(lg) {
     const b = FM.biz(lg), S = FM.bizSources, od = b.cash < 0 ? -b.cash : 0, pol = Math.round((b.dividend.policy || 0) * 100);
-    const loans = b.loans.length ? `<div class="books-wrap"><table class="books-table"><thead><tr><th class="l">Loan</th><th>Borrowed</th><th>Still owed</th><th>Interest a year</th><th>Repaid each matchday</th><th></th></tr></thead><tbody>${b.loans.map((l) => `<tr><td class="l">${l.id}, taken in season ${l.season}</td>${cell(l.principal)}${cell(l.balance)}<td class="n">${Math.round(l.rate * 1000) / 10}%</td>${cell(l.perRound)}<td>${wbBtn('repayLoan:' + l.id, 'Repay in the Workbench')}</td></tr>`).join('')}</tbody></table></div>` : '<p class="note">No loans.</p>';
+    const loans = b.loans.length ? `<div class="books-wrap"><table class="books-table"><thead><tr><th class="l">Loan</th><th>Borrowed</th><th>Still owed</th><th>Interest a year</th><th>Repaid each matchday</th><th></th></tr></thead><tbody>${b.loans.map((l) => `<tr><td class="l">${l.id}, taken in season ${l.season}</td>${cell(l.principal)}${cell(l.balance)}<td class="n">${Math.round(l.rate * 1000) / 10}%</td>${cell(l.perRound)}<td>${wbBtn('repayLoan:' + l.id, 'Repay in the Workbook')}</td></tr>`).join('')}</tbody></table></div>` : '<p class="note">No loans.</p>';
     return `<div style="display:grid;gap:16px"><div class="card"><h2>${T('overdraft', 'Cash and overdraft')}</h2>
       <div class="board-money"><span>Cash in the bank<b${b.cash < 0 ? ' class="neg"' : ''}>${gbp(b.cash)}</b></span><span>Overdraft limit<b>${gbp(S.overdraft.limit)}</b></span><span>Overdraft in use<b>${gbp(od)}</b></span><span>Overdraft interest<b>${Math.round(S.overdraft.rate * 100)}% a year</b></span></div>
       <p class="note">When the balance goes below zero the club is in its overdraft automatically, up to the limit. Past the limit the interest is ${Math.round(S.overdraft.penalty * 100)}% and the bank stops the club spending. ${T('financesources', 'Which source of finance suits what?')}</p></div>
-      <div class="card"><h2>${T('loans', 'Bank loan')}</h2><p class="desc">Loans are repaid in equal parts every matchday with interest. ${b.loans.length ? '' : 'The club has none at the moment.'}</p>${loans}<div class="row">${wbBtn('takeLoan', 'Take a loan in the Workbench')}</div></div>
-      <div class="card"><h2>${T('shares', 'Shares')}</h2><p class="note">Shares in issue: ${num(b.shares.issued)} at £${b.shares.price.toFixed(2)} each.</p><div class="row">${wbBtn('issueShares', 'Issue shares in the Workbench')}</div></div>
+      <div class="card"><h2>${T('loans', 'Bank loan')}</h2><p class="desc">Loans are repaid in equal parts every matchday with interest. ${b.loans.length ? '' : 'The club has none at the moment.'}</p>${loans}<div class="row">${wbBtn('takeLoan', 'Take a loan in the Workbook')}</div></div>
+      <div class="card"><h2>${T('shares', 'Shares')}</h2><p class="note">Shares in issue: ${num(b.shares.issued)} at £${b.shares.price.toFixed(2)} each.</p><div class="row">${wbBtn('issueShares', 'Issue shares in the Workbook')}</div></div>
       <div class="card"><h2>${T('shares', 'Dividend')}</h2><p class="desc">The share of the year's profit after tax paid to shareholders: <b>${pol}%</b>. Paid once, at the end of the season, if the club has made a profit and has the cash.${b.dividendsPaid ? ' Paid out so far: ' + gbp(b.dividendsPaid) + '.' : ''}</p><div class="row">${wbBtn('setDividend', 'Change the dividend')}</div></div>
       <div class="card"><h2>Selling players</h2><p class="desc">Offers for your players come in through Recruitment. The money from a sale goes straight into the bank.</p><div class="row"><button type="button" data-goto="recruit">Open Recruitment</button></div></div></div>`;
   }
@@ -384,7 +384,7 @@
       <div class="card"><div class="eyebrow">${T('cashflow', 'Where the money is heading')}</div>${fc}<p class="note"><button type="button" data-short="books:cash">Full cash flow forecast →</button></p></div></div>`;
   }
 
-  // What custom spending (set up in the Workbench) is running now.
+  // What custom spending (set up in the Workbook) is running now.
   FM.bizLeverCard = function (lg) {
     const b = FM.biz(lg), live = (b.levers || []).filter((l) => l.left > 0); if (!live.length && !(b.rules || []).length) return '';
     const T2 = FM.controls ? FM.controls.TARGETS : {};
@@ -404,7 +404,7 @@
     const back = st.trail.length ? `<button type="button" class="board-back" id="bzBack">← Back to ${esc(NAMES[st.trail[st.trail.length - 1].tab] || 'the board')}</button>` : '';
     const sec = (id, html) => `<div id="sec-${id}" class="board-sec">${html}</div>`;
     const body = st.tab === 'home' ? report(lg) + overview(lg) : st.tab === 'ground' ? `<div style="display:grid;gap:22px">${sec('matchday', matchday(lg))}${sec('stadium', stadium(lg))}</div>` : st.tab === 'books' ? books(lg) : `<div style="display:grid;gap:22px">${sec('finance', finance(lg))}${sec('commercial', commercial(lg))}</div>`;
-    const ro = `<p class="board-ro">The Board shows the club's figures and results. To change anything (prices, spending, loans, sponsors, injuries), or to forecast what a change would do, use the <button type="button" class="wb-go" data-wb="open">Workbench</button>.</p>`;
+    const ro = `<p class="board-ro">The Board shows the club's figures and results. To change anything (prices, spending, loans, sponsors, injuries), or to forecast what a change would do, use the <button type="button" class="wb-go" data-wb="open">Workbook</button>.</p>`;
     host.innerHTML = `<div class="board-page">${strip}${ro}<div class="row board-tabs" role="tablist">${tabs.map(([k, l]) => `<button type="button" role="tab" data-tab="${k}" class="${st.tab === k ? 'on' : ''}">${l}</button>`).join('')}</div>${back}${st.ok ? `<p class="banner ok" role="status"><b>${esc(st.ok.title)}</b> ${esc(st.ok.text)}</p>` : ''}${body}</div>`;
     const redo = () => FM.renderBoard(host, lg, hooks);
     if (st.anchor) { const target = host.querySelector('#sec-' + st.anchor); st.anchor = null; if (target && target.scrollIntoView) target.scrollIntoView(); }
