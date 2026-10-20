@@ -2258,7 +2258,7 @@
       const nm = esc((p.name || '').split(' ').slice(-1)[0]);
       return `<g data-live="${p.index}" style="cursor:grab"><circle cx="${c.x.toFixed(2)}" cy="${c.y.toFixed(2)}" r="3.6" fill="transparent"/><circle cx="${c.x.toFixed(2)}" cy="${c.y.toFixed(2)}" r="2.3" fill="${moved[p.index] ? '#f4edda' : '#fff'}" stroke="${moved[p.index] ? '#e0a82e' : '#1f8a4c'}" stroke-width=".5"/><text x="${c.x.toFixed(2)}" y="${(c.y + .9).toFixed(2)}" text-anchor="middle" font-size="2.5" font-weight="700" fill="#14653a" pointer-events="none">${p.number}</text><text x="${c.x.toFixed(2)}" y="${(c.y + 5).toFixed(2)}" text-anchor="middle" font-size="2.2" fill="#fff" stroke="#000" stroke-width=".5" style="paint-order:stroke" pointer-events="none">${nm}</text></g>`;
     }).join('');
-    return `<svg id="liveSvg" viewBox="-2 -2 ${W + 4} ${L + 4}" style="width:100%;max-width:560px;display:block;border-radius:10px;background:#2c7d40;touch-action:pan-y">${lines}${theirs}${ours}</svg>`;
+    return `<svg id="liveSvg" viewBox="-2 -2 ${W + 4} ${L + 4}" style="width:100%;max-width:560px;display:block;border-radius: 0;background:#2c7d40;touch-action:pan-y">${lines}${theirs}${ours}</svg>`;
   }
   function renderLiveBoard(team, tab) {
     const host = el('tabBody'), m = world.match, opp = m ? (m.home === team ? m.away : m.home) : null;

@@ -152,7 +152,7 @@
       const c = cells[slot], x = c.w * PW, y = (1 - c.d) * PH;
       s += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="9.5" fill="${kit.shirt}" stroke="${kit.number}" stroke-width="1.4"/><text x="${x.toFixed(1)}" y="${(y + 3).toFixed(1)}" text-anchor="middle" font-size="7.5" font-weight="700" fill="${kit.number}" font-family="sans-serif">${slot}</text>`;
     });
-    return `<svg viewBox="0 0 ${PW} ${PH}" style="width:100%;height:auto;display:block;border-radius:6px" role="img">${s}</svg>`;
+    return `<svg viewBox="0 0 ${PW} ${PH}" style="width:100%;height:auto;display:block;border-radius: 0" role="img">${s}</svg>`;
   }
   function shapeCard(league, teamId) {
     const sh = FM.scoutedShape(league, teamId);
