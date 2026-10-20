@@ -836,7 +836,7 @@
   const progressOfLeague = (lg) => (lg.season || 1) * 1000 + lg.fixtures.filter((f) => f.played && (f.homeId === lg.userId || f.awayId === lg.userId)).length;
   const progressOfText = (text) => { try { const d = JSON.parse(text); return (d.season || 1) * 1000 + (d.fixtures || []).filter((f) => f.played && (f.homeId === d.userId || f.awayId === d.userId)).length; } catch (e) { return -1; } };
   FM.leagueProgress = progressOfLeague;
-  FM.markReplaceNext = () => { replaceNext = true; };
+  FM.markReplaceNext = () => { replaceNext = true; lsSet(accountKey(SAVE_KEY + '_prefer'), null); };
   async function cloudWrite() {
     const league = cloudLeague; if (!league || DEMO_MODE || !accountUid) return false;
     if (cloudBusy) { cloudAgain = true; return false; }
@@ -904,10 +904,11 @@
       }
       const localText = storeGet(currentSaveKey());
       // the season furthest on is the one to carry on with (then the most recently saved)
-      const row = (list.json.projects || []).filter((p) => p.kind === 'football-manager').sort((a, b) => ((b.progress || 0) - (a.progress || 0)) || String(b.updatedAt).localeCompare(String(a.updatedAt)))[0];
+      const rows = (list.json.projects || []).filter((p) => p.kind === 'football-manager').sort((a, b) => ((b.progress || 0) - (a.progress || 0)) || String(b.updatedAt).localeCompare(String(a.updatedAt)));
+      const chosen = lsGet(accountKey(SAVE_KEY + '_prefer')), row = (chosen && rows.find((p) => p.id === chosen)) || rows[0];   // a season the manager restored on purpose is kept even when another copy is further on
       if (!row) return 'ok';
       const at = lsGet(currentAtKey());
-      const localProg = localText ? progressOfText(localText) : -1;
+      const localProg = localText ? progressOfText(localText) : -1; knownProgress = Math.max(0, localProg);
       const cloudNewer = !localText || !at || String(row.updatedAt) > at || (row.progress || 0) > localProg;
       if (!cloudNewer) { lsSet(currentCloudIdKey(), row.id); return 'ok'; }
       const got = await FM.apiCall('GET', '/create/projects/' + encodeURIComponent(row.id));
@@ -921,6 +922,60 @@
       return 'ok';
     } catch (e) { return 'error'; }
   };
+
+  // ---- finding an earlier season, and bringing it back ----
+  // Every season this device or the account still holds: the saves kept in this browser (under any account, and the archive of seasons that a new game
+  // replaced), the account's saved game, and the backups the server keeps of every season that was replaced. Nothing is ever deleted by looking.
+  const peekSave = (text) => {
+    try {
+      const d = JSON.parse(text), me = (d.teams || []).find((t) => t.id === d.userId), played = (d.fixtures || []).filter((f) => f.played && (f.homeId === d.userId || f.awayId === d.userId)).length;
+      return { club: me ? me.name : 'a club', season: d.season || 1, played, tier: d.tier, bytes: text.length, skin: d.skin ? d.skin.title : '' };
+    } catch (e) { return null; }
+  };
+  const idbKeys = async () => { const d = await idb(); if (!d) return []; return new Promise((res) => { try { const r = d.transaction('saves').objectStore('saves').getAllKeys(); r.onsuccess = () => res(r.result || []); r.onerror = () => res([]); } catch (e) { res([]); } }); };
+  FM.listSavedSeasons = async function () {
+    const out = [], keys = new Set((await idbKeys()).map(String));
+    try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.indexOf(SAVE_KEY) === 0 && !/_(owner|at|cloud_id|prefer)(:|$)/.test(k)) keys.add(k); } } catch (e) { /* fine */ }
+    for (const k of keys) {
+      if (k.indexOf(SAVE_KEY) !== 0 || /_(owner|at|cloud_id|prefer)(:|$)/.test(k)) continue;
+      let text = await idbGet(k); if (text == null) text = lsGet(k); if (!text) continue;
+      const pk = peekSave(text); if (!pk) continue;
+      out.push(Object.assign({ source: 'device', key: k, current: k === currentSaveKey(), archive: k.indexOf(':archive:') >= 0, otherAccount: k !== currentSaveKey() && k.indexOf(':archive:') < 0, progress: pk.season * 1000 + pk.played, at: (k.split(':archive:')[1] || '').split(':')[1] || null }, pk));
+    }
+    let cloud = null;
+    if (!DEMO_MODE) {
+      const list = await FM.apiCall('GET', '/create/projects');
+      if (list && list.ok && list.json && Array.isArray(list.json.projects)) cloud = list.json.projects.filter((p) => p.kind === 'football-manager' || p.kind === 'football-backup').map((p) => ({ source: 'account', id: p.id, backup: p.kind === 'football-backup', title: p.title, updatedAt: p.updatedAt, progress: p.progress || 0, season: Math.floor((p.progress || 0) / 1000), played: (p.progress || 0) % 1000 }));
+    }
+    return { device: out.sort((a, b) => b.progress - a.progress), account: cloud, signedIn: !!(cloud || accountUid) };
+  };
+  // What is saved here now is kept before anything replaces it with a season that is further back (a new game, or a restore).
+  let knownProgress = null;
+  const KEEP_ARCHIVES = 8;
+  function archiveCurrent() {
+    const key = currentSaveKey(), cur = storeGet(key); if (!cur) return;
+    const pk = peekSave(cur); if (!pk || pk.season * 1000 + pk.played < 1001) return;   // nothing was played: nothing to keep
+    const mine = SAVE_KEY + ':archive:' + (accountUid || 'x') + ':';
+    storeSet(mine + Date.now(), cur);
+    idbKeys().then((all) => all.map(String).filter((k) => k.indexOf(mine) === 0).sort().slice(0, -KEEP_ARCHIVES).forEach((k) => storeDrop(k)));
+  }
+  FM.restoreSavedSeason = async function (entry) {
+    if (DEMO_MODE || !accountUid) return { ok: false, error: 'Sign in to LastMind first.' };
+    let text = null;
+    if (entry.source === 'device') { text = await idbGet(entry.key); if (text == null) text = lsGet(entry.key); }
+    else { const got = await FM.apiCall('GET', '/create/projects/' + encodeURIComponent(entry.id)); text = got && got.ok && got.json && got.json.data && got.json.data.football && got.json.data.football.save; }
+    if (!text) return { ok: false, error: 'That save could not be read.' };
+    let lg; try { lg = FM.deserializeLeague(text); } catch (e) { return { ok: false, error: 'That save is damaged and cannot be opened.' }; }
+    archiveCurrent();
+    storeSet(currentSaveKey(), text); knownProgress = progressOfLeague(lg);
+    const wrote = await FM.flushStore();
+    clearTimeout(cloudTimer); cloudTimer = 0; cloudLeague = lg; replaceNext = true;
+    for (let i = 0; cloudBusy && i < 80; i++) await new Promise((r) => setTimeout(r, 250));
+    const synced = await cloudWrite();
+    lsSet(accountKey(SAVE_KEY + '_prefer'), lsGet(currentCloudIdKey()) || null);   // this season stays the account's, even though another copy may be further on
+    FM.syncProject(lg);
+    return { ok: !!wrote, device: !!wrote, account: synced };
+  };
   FM.saveLeague = function (league) {
     const done = FM.saveLeagueRaw(league);
     if (done) { FM.syncProject(league); FM.cloudSaveSoon(league); }
@@ -930,7 +985,13 @@
     // Paid saves are account-scoped. If identity has not been established,
     // refuse to write into a device-wide slot that another account could see.
     if (!DEMO_MODE && !accountUid) return false;
-    try { return storeSet(currentSaveKey(), FM.serializeLeague(league)); } catch (e) { return false; }
+    try {
+      const now = progressOfLeague(league);
+      if (knownProgress == null) { const cur = storeGet(currentSaveKey()); knownProgress = cur ? progressOfText(cur) : 0; }
+      if (knownProgress > now && !DEMO_MODE) archiveCurrent();   // a season further on is about to be replaced: it is kept first
+      knownProgress = now;
+      return storeSet(currentSaveKey(), FM.serializeLeague(league));
+    } catch (e) { return false; }
   };
   // A game saved before pre-season friendlies existed has none: if no match has been played yet, add them so the reports have data.
   FM.ensureFriendlies = function (league) {

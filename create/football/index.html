@@ -822,6 +822,7 @@
   .rv-lesson-panel h3 { margin: 6px 0 10px; font-size: 1.3rem; } .rv-lesson-bar { display: flex; justify-content: space-between; gap: 10px; } .rv-lesson-bar button { padding: 6px 12px; cursor: pointer; }
   .rv-needs { margin: 0 0 12px; font-size: .9rem; line-height: 1.7; } .rv-steps { margin: 0; padding-left: 24px; display: grid; gap: 14px; } .rv-steps li { line-height: 1.7; padding-left: 4px; }
   .ng-skin select, .sk-card select { width: 100%; margin: 4px 0 6px; } .sk-l { font-size: .74rem; letter-spacing: .1em; text-transform: uppercase; opacity: .75; } .sk-row { display: flex; gap: 8px; } .sk-row input { flex: 1; min-width: 0; background: var(--navy-raise); color: var(--cream); border: 1px solid var(--line); border-radius: 0; padding: 8px 10px; font: inherit; font-family: var(--sans); } .sk-study { background: transparent; border: 1px solid var(--gold); color: var(--gold); padding: 7px 12px; }
+  .ng-recover { margin: 10px 0; border: 1px solid var(--line); padding: 8px 12px; } .ng-recover summary { cursor: pointer; font-family: var(--sans); font-weight: 700; } .rec-card td small { opacity: .8; }
   .ng-level { border: 1px solid rgba(255,255,255,.18); border-radius: 0; margin: 0 0 12px; padding: 8px 12px 10px; } .ng-level legend { padding: 0 6px; font-weight: 700; } .ng-level label { display: inline-flex; align-items: center; gap: 6px; margin: 4px 14px 4px 0; cursor: pointer; } .ng-level .note { margin: 6px 0 0; }
   #lmAgent[hidden] { display: none; }
   #lmAgent { position: fixed; right: 0; top: 0; bottom: 0; z-index: 60; pointer-events: none; }
@@ -941,6 +942,7 @@
 
   <section id="newGame" class="card" hidden>
     <h2>How do you want to play?</h2>
+    <details class="ng-recover" id="ngRecoverBox"><summary>Lost a season? Recover an earlier one</summary><div id="ngRecover"></div></details>
     <p class="note" id="ngResume" hidden>You already have a game going. <a href="/create/football/">Resume it</a>, or start something new below (a new game replaces the saved one).</p>
     <div class="ng-modes">
       <div class="ng-mode">
@@ -1051,7 +1053,7 @@
 <script src="/create/football/instructions.js?v=20261010c"></script>
 <script src="/create/football/fitness.js?v=20261121a"></script>
 <script src="/create/football/match.js?v=20261121a"></script>
-<script src="/create/football/league.js?v=20261121a"></script>
+<script src="/create/football/league.js?v=20261122a"></script>
 <script src="/create/football/preseason.js?v=20261010n"></script>
 <script src="/create/football/stats_math.js?v=20261010c"></script>
 <script src="/create/football/stats.js?v=20261013a"></script>
@@ -1076,6 +1078,7 @@
 <script src="/create/football/club.js?v=20261121a"></script>
 <script src="/create/football/club_ui.js?v=20261121a"></script>
 <script src="/create/football/controls.js?v=20261121a"></script>
+<script src="/create/football/recovery.js?v=20261122a"></script>
 <script src="/create/football/review_teach.js?v=20261110b"></script>
 <script src="/create/football/review.js?v=20261110c"></script>
 <script src="/create/football/dataset.js?v=20261107c"></script>
@@ -1089,6 +1092,6 @@
 <script src="/create/football/cases.js?v=20261028a"></script>
 <script src="/create/football/scenario.js?v=20261111a"></script>
 <script src="/create/football/multiplayer.js?v=20261107c"></script>
-<script src="/create/football/main.js?v=20261121a"></script>
+<script src="/create/football/main.js?v=20261122a"></script>
 </body>
 </html>
