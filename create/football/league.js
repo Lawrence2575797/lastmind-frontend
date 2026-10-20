@@ -232,13 +232,35 @@
     return FM.tableRows({ teams: division.teams, fixtures: division.fixtures });
   };
 
-  FM.setBoardExpectation = function (league) {
-    const sorted = league.teams.slice().sort((a, b) => (b.strength || 0) - (a.strength || 0));
-    const expected = Math.max(1, sorted.findIndex((t) => t.id === league.userId) + 1);
+  // What the board expect of the club this season. It is worked out once at the start of every season and then held for that season (the board's mood is judged
+  // against it every matchday, so it must not move under the manager's feet). It depends on how strong the squad is now against the rest of the division, on
+  // how last season ended (a good finish raises expectations, a poor one lowers them; promotion and relegation reset them) and, a little, on the board's own
+  // temperament that year. A game saved before this existed gets its expectation worked out the first time it is opened.
+  const ordinal = (n) => n + (['th', 'st', 'nd', 'rd'][(n % 100 > 10 && n % 100 < 14) || n % 10 > 3 ? 0 : n % 10]);
+  FM.setBoardExpectation = function (league, force) {
     league.board = league.board || {};
-    league.board.expectedPosition = expected;
-    league.board.expectation = expected <= 2 ? 'Challenge for the title' : expected <= 4 ? 'Finish in the top half' : expected <= 6 ? 'Stay clear of relegation' : 'Fight to stay up';
-    league.board.division = league.divisionName;
+    const b = league.board, n = league.teams.length;
+    const words = (e) => (e <= 2 ? 'Challenge for the title' : e <= 4 ? 'Finish in the top half' : e <= 6 ? 'Stay clear of relegation' : 'Fight to stay up');
+    if (!force && b.expectedPosition && b.expectSeason === league.season && b.expectDivision === league.divisionName) { b.expectation = words(b.expectedPosition); b.division = league.divisionName; return; }
+    const teamRating = (t) => {
+      try { const r = t.squad.map((p) => FM.playerRating(p)).filter(Number.isFinite).sort((x, y) => y - x).slice(0, 14); return r.length ? r.reduce((x, y) => x + y, 0) / r.length : (t.strength || 0); } catch (e) { return t.strength || 0; }
+    };
+    const rankBy = (f) => league.teams.slice().sort((x, y) => f(y) - f(x)).findIndex((t) => t.id === league.userId) + 1;
+    const rankNow = Math.max(1, rankBy(teamRating)), rankBase = Math.max(1, rankBy((t) => t.strength || 0));
+    const me = league.teams.find((t) => t.id === league.userId);
+    const hist = (league.seasonHistory || [])[(league.seasonHistory || []).length - 1];
+    const lastPos = league.biz && league.biz.seasons && league.biz.seasons.length ? league.biz.seasons[league.biz.seasons.length - 1].pos : null;
+    let exp = Math.round(0.65 * rankNow + 0.35 * rankBase), reason;
+    const squadText = 'the squad ranks ' + ordinal(rankNow) + ' of ' + n + ' on ability';
+    if (hist && me && (hist.promoted || []).indexOf(me.name) >= 0) { exp = Math.max(exp, Math.min(n, 5)); reason = 'The club has just been promoted, so the board want to establish themselves in the ' + league.divisionName + ': ' + squadText + '.'; }
+    else if (hist && me && (hist.relegated || []).indexOf(me.name) >= 0) { exp = Math.min(exp, 2); reason = 'The club has just been relegated, so the board expect an immediate return: ' + squadText + '.'; }
+    else if (lastPos) { exp = Math.round(0.5 * exp + 0.5 * lastPos); reason = 'Last season ended ' + ordinal(lastPos) + ' and ' + squadText + ', so the board expect ' + ordinal(Math.max(1, Math.min(n, exp))) + ' or better.'; }
+    else reason = 'The board judge the club by its squad, which ranks ' + ordinal(rankNow) + ' of ' + n + ' on ability (the table has not told them anything else yet).';
+    // the board's temperament that year: some seasons they are more ambitious, some more cautious (the same every time the season is opened)
+    const r = FM.mulberry32((league.seed || 1) + (league.runSeed || 0) + league.season * 977 + 61)();
+    if (r < 0.2) { exp -= 1; reason += ' They are in an ambitious mood this year.'; } else if (r > 0.8) { exp += 1; reason += ' They are feeling cautious this year.'; }
+    exp = Math.max(1, Math.min(n, exp));
+    b.expectedPosition = exp; b.expectation = words(exp); b.division = league.divisionName; b.expectSeason = league.season; b.expectDivision = league.divisionName; b.expectReason = reason;
   };
 
   FM.approvalBand = function (n) {
