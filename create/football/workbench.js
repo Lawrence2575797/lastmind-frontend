@@ -293,7 +293,7 @@
   }
   function cellHtml(cell, i, n) {
     if (cell.type === 'control') return controlCellHtml(cell, i, n);
-    const bar = `<div class="wb-cbar"><span class="wb-ctype">${cell.type === 'text' ? 'Text' : cell.type === 'calc' ? 'Calculator' : cell.type === 'lesson' ? 'Note' : cell.res && cell.res.ok ? esc(cell.res.title) : cell.type === 'analysis' ? 'Analysis' : 'Cell'}${cell.by === 'agent' ? ' <i>added by the agent</i>' : ''}</span><span class="wb-cact">${cell.type === 'analysis' ? `<button type="button" data-act="edit" title="Change the settings">${cell.edit ? 'Hide settings' : 'Settings'}</button>` : ''}${cell.type === 'analysis' && cell.res ? '<button type="button" data-act="copy" title="Copy as text">Copy</button>' : ''}<button type="button" data-act="up" ${i ? '' : 'disabled'} aria-label="Move up">↑</button><button type="button" data-act="down" ${i < n - 1 ? '' : 'disabled'} aria-label="Move down">↓</button><button type="button" data-act="del" aria-label="Delete">✕</button></span></div>`;
+    const bar = `<div class="wb-cbar"><span class="wb-ctype">${cell.type === 'text' ? 'Text' : cell.type === 'calc' ? 'Calculator' : cell.type === 'lesson' ? 'Note' : cell.res && cell.res.ok ? esc(cell.res.title) : cell.type === 'analysis' ? 'Analysis' : 'Cell'}${cell.by === 'agent' ? ' <i>added by the agent</i>' : ''}</span><span class="wb-cact">${cell.type === 'analysis' ? `<button type="button" data-act="edit" title="Change the settings">${cell.edit ? 'Hide settings' : 'Settings'}</button>` : ''}${cell.type === 'analysis' && cell.res && cell.res.ok ? '<button type="button" data-act="explain" title="Ask the agent to talk you through this result">Explain</button>' : ''}${cell.type === 'analysis' && cell.res ? '<button type="button" data-act="copy" title="Copy as text">Copy</button>' : ''}<button type="button" data-act="up" ${i ? '' : 'disabled'} aria-label="Move up">↑</button><button type="button" data-act="down" ${i < n - 1 ? '' : 'disabled'} aria-label="Move down">↓</button><button type="button" data-act="del" aria-label="Delete">✕</button></span></div>`;
     let body = '';
     if (cell.type === 'text' || cell.type === 'lesson') body = `<textarea class="wb-in wb-text" data-k="text" rows="${Math.max(3, Math.min(14, String(cell.text || '').split('\n').length + 1))}" placeholder="Write here. Use the maths keyboard for symbols.">${esc(cell.text || '')}</textarea>`;
     else if (cell.type === 'calc') body = `<div class="wb-calc"><textarea class="wb-in wb-code" data-k="text" rows="${Math.max(3, String(cell.text || '').split('\n').length + 1)}" spellcheck="false" placeholder="One calculation per line, for example:&#10;12 × 3.5&#10;x = mean(team_matches.xg)&#10;binompmf(10, 3, 0.25)&#10;# a line starting with # is a comment">${esc(cell.text || '')}</textarea><div class="wb-calc-out" data-out>${calcOut(cell)}</div></div>`;
@@ -414,45 +414,71 @@
     const send = el('wbSend'); if (send) send.disabled = !!state.busy;
   }
   function chatMessages() { return state.wb.chat.slice(-14).map((m) => ({ role: m.role === 'manager' ? 'manager' : m.role === 'results' ? 'results' : 'agent', text: m.text })); }
+  // Some questions are answered by the Workbench itself, in the browser, with no AI and so no Locks: where the club will finish, where the bank balance is heading, who is injured.
+  const INTENTS = [
+    { re: /\b(where|what position|which place)\b.*\b(finish|end up|come|place)\b|\bchance\b.*\b(title|top (three|3)|relegat)|\bfinish(ing)?\b.*\b(league|season|position|table)\b/i, no: /\b(if|what if|would|should|stop|cut|change)\b/i, spec: { method: 'forecast', kind: 'season' }, say: 'Here is the forecast for where the club will finish. It was worked out in your browser, so it used no Locks. Press Explain on it if you want it talked through.' },
+    { re: /\b(bank|cash|money|balance)\b.*\b(end of the season|forecast|project|heading|going to be|will be|by the end)\b|\bforecast\b.*\b(bank|cash|money)\b/i, no: /\b(if|what if|would|should|stop|cut|raise|increase|change|set)\b/i, spec: { method: 'forecast', kind: 'cash' }, say: 'Here is where the bank balance is heading as things are, worked out in your browser (no Locks used). To see what a change would do to it, tell me the change.' },
+    { re: /^\s*(show|list|who|which)\b.*\binjur/i, no: /\b(treat|worth|should|pay)\b/i, spec: { method: 'query', table: 'injuries', limit: 30 }, say: 'These are your injured players, from the recorded data (no Locks used). Ask me whether treatment is worth paying for and I will look at the costs with you.' },
+  ];
+  function localIntent(text) { return INTENTS.find((x) => x.re.test(text) && !(x.no && x.no.test(text))) || null; }
+  async function runLocal(li) {
+    const form = formFromSpec(li.spec); if (!form.table && li.spec.method !== 'query') form.table = 'team_matches';
+    const cell = addCell({ type: 'analysis', form, by: 'agent', edit: false, spec: li.spec }, { scroll: false });
+    cell.res = await runSpec(li.spec); cell.stamp = dataStamp(); cell.edit = !cell.res.ok; refreshCell(cell); save(); refreshData();
+    chatPush({ role: 'agent', text: li.say, added: [{ id: cell.id, title: cell.res.ok ? cell.res.title : 'Could not run' }] }); state.busy = ''; chatDraw();
+  }
+  const summaryText = (n) => (FM.agentContext ? FM.agentContext(state.league, 'workbench') : '').slice(0, n);
+  const detailText = () => DETAIL[state.wb.settings.detail] || DETAIL.standard;
+  // The second, short step: the results go back and the agent explains them. It carries no tables, methods or changes list, so it is cheap.
+  async function explainStep() {
+    const out = await FM.api('/football/workbench', { phase: 'explain', messages: chatMessages().slice(-5), level: state.league.tier, detail: detailText(), lessons: lessonList(), summary: summaryText(1000) });
+    chatPush({ role: 'agent', text: out.reply || 'That is the result. Ask me about any part of it.' });
+  }
+  async function explainCell(cell) {
+    if (state.busy || !cell.res || !cell.res.ok) return;
+    if (FM.locksOut && FM.locksOut()) { chatPush({ role: 'agent', text: 'You have used all your Locks for now, so I cannot explain it. Everything else in the Workbench still works.' }); chatDraw(); return; }
+    chatPush({ role: 'manager', text: 'Explain this result: ' + cell.res.title }); chatPush({ role: 'results', text: resultText(cell.res, 2200) });
+    state.busy = 'Writing it up…'; chatDraw();
+    try { await explainStep(); } catch (e) { chatPush({ role: 'agent', text: aiError(e) }); }
+    state.busy = ''; chatDraw();
+  }
+  const aiError = (e) => (e && e.code === 'NO_SESSION' ? 'Sign in to LastMind and I can plan analyses for you. The Workbench works without me: use the toolbar to build one yourself.' : e && (e.code === 'LOCK_LIMIT_REACHED' || e.code === '402') ? 'You have used all your Locks for now, so I cannot answer any more questions. Everything else in the Workbench still works.' : (e && e.message) || 'I could not answer just now. Try again in a moment.');
   async function ask(text) {
     text = String(text || '').trim(); if (!text || state.busy) return;
     const wb = state.wb; chatPush({ role: 'manager', text });
+    const li = localIntent(text); if (li) { await runLocal(li); return; }
     if (FM.locksOut && FM.locksOut()) { chatPush({ role: 'agent', text: 'You have used all your Locks for now, so I cannot answer. The Workbench still works by hand: build any analysis from the toolbar, or use the calculator, and your Locks come back when they reset.' }); chatDraw(); return; }
     state.busy = 'Thinking…'; chatDraw();
     try {
-      const summary = (FM.agentContext ? FM.agentContext(state.league, 'workbench') : '').slice(0, 2900);
-      for (let round = 0; round < 3; round++) {
-        const out = await FM.api('/football/workbench', { messages: chatMessages(), schema: T.digest(state.league), methods: WB.METHOD_HELP.join('\n'), controls: (CTL() ? CTL().help(state.league) + '\n\nHow things stand now:\n' + CTL().state(state.league) : ''), summary, doc: docSummary(), level: state.league.tier, detail: DETAIL[wb.settings.detail] || DETAIL.standard, lessons: lessonList() });
-        const msg = chatPush({ role: 'agent', text: out.reply || 'Tell me more about what you want to find out.', added: [] });
-        const actions = Array.isArray(out.actions) ? out.actions : [];
-        if (!actions.length || round === 2) { state.busy = ''; chatDraw(); break; }
-        const texts = [];
-        for (const a of actions) {
-          if (a.type === 'note') { const c = addCell({ type: 'lesson', text: a.text, by: 'agent' }); msg.added.push({ id: c.id, title: 'Note' }); texts.push('Note added.'); continue; }
-          if (a.type === 'control') {
-            const act = a.action || (a.spec && a.spec.action), C = CTL();
-            if (!C || !C.ACTIONS[act]) { texts.push('There is no action called "' + act + '".'); continue; }
-            const cc = addCell(newControlCell(act, a.params || (a.spec && a.spec.params) || {}, 'agent'), { scroll: false }), title = C.ACTIONS[act].title;
-            if (wb.settings.auto) { const r = applyControl(cc); texts.push((r.ok ? 'APPLIED: ' : 'COULD NOT APPLY: ') + title + '. ' + r.text); msg.added.push({ id: cc.id, title: (r.ok ? 'Done: ' : 'Not done: ') + title }); }
-            else { texts.push('PROPOSED, waiting for the manager to press Apply: ' + title + ' ' + JSON.stringify(a.params || {})); msg.added.push({ id: cc.id, title: 'Proposed: ' + title }); }
-            continue;
-          }
-          const spec = a.spec || {}; const form = formFromSpec(spec); if (!form.table && spec.method !== 'experiment' && spec.method !== 'simulate') form.table = 'team_matches';
-          const cell = addCell({ type: 'analysis', form, by: 'agent', edit: false, running: true, progress: 'Working…' }, { scroll: false });
-          state.busy = (spec.method === 'experiment' || spec.method === 'simulate') ? 'Running the simulation… (this takes a minute or two)' : 'Running the analysis…'; chatDraw();
-          cell.spec = a.type === 'query' ? Object.assign({ method: 'query' }, spec) : spec;
-          cell.res = await runSpec(cell.spec, (d, t, label) => { cell.progress = label; cell.pct = t ? d / t : null; const n = document.querySelector('[data-cell="' + cell.id + '"] .wb-run-s span'); if (n) n.textContent = label; state.busy = label; chatDraw(); return !cell.stop; });
-          cell.running = false; cell.stamp = dataStamp(); cell.edit = !cell.res.ok; refreshCell(cell);
-          msg.added.push({ id: cell.id, title: cell.res.ok ? cell.res.title : 'Could not run' }); texts.push(resultText(cell.res, 1500));
+      const C = CTL();
+      const out = await FM.api('/football/workbench', { phase: 'plan', messages: chatMessages().slice(-10), schema: T.digestCompact(), schemaExtra: T.digestExtra(), methods: WB.METHOD_HELP.join('\n'), controls: C ? C.helpStatic() : '', state: C ? C.state(state.league) : '', summary: summaryText(1800), doc: docSummary(), level: state.league.tier, detail: detailText(), lessons: lessonList() });
+      const msg = chatPush({ role: 'agent', text: out.reply || 'Tell me more about what you want to find out.', added: [] });
+      const actions = Array.isArray(out.actions) ? out.actions : [];
+      if (!actions.length) { state.busy = ''; chatDraw(); return; }
+      const texts = [];
+      for (const a of actions) {
+        if (a.type === 'note') { const c = addCell({ type: 'lesson', text: a.text, by: 'agent' }); msg.added.push({ id: c.id, title: 'Note' }); texts.push('Note added.'); continue; }
+        if (a.type === 'control') {
+          const act = a.action || (a.spec && a.spec.action);
+          if (!C || !C.ACTIONS[act]) { texts.push('There is no action called "' + act + '".'); continue; }
+          const cc = addCell(newControlCell(act, a.params || (a.spec && a.spec.params) || {}, 'agent'), { scroll: false }), title = C.ACTIONS[act].title;
+          if (wb.settings.auto) { const r = applyControl(cc); texts.push((r.ok ? 'APPLIED: ' : 'COULD NOT APPLY: ') + title + '. ' + r.text); msg.added.push({ id: cc.id, title: (r.ok ? 'Done: ' : 'Not done: ') + title }); }
+          else { texts.push('PROPOSED, waiting for the manager to press Apply: ' + title + ' ' + JSON.stringify(a.params || {})); msg.added.push({ id: cc.id, title: 'Proposed: ' + title }); }
+          continue;
         }
-        save(); refreshData();
-        chatPush({ role: 'results', text: texts.join('\n\n').slice(0, 4800) });
-        state.busy = 'Writing it up…'; chatDraw();
+        const spec = a.spec || {}; const form = formFromSpec(spec); if (!form.table && spec.method !== 'experiment' && spec.method !== 'simulate' && spec.method !== 'forecast') form.table = 'team_matches';
+        const cell = addCell({ type: 'analysis', form, by: 'agent', edit: false, running: true, progress: 'Working…' }, { scroll: false });
+        state.busy = (spec.method === 'experiment' || spec.method === 'simulate') ? 'Running the simulation… (this takes a minute or two)' : 'Running the analysis…'; chatDraw();
+        cell.spec = a.type === 'query' ? Object.assign({ method: 'query' }, spec) : spec;
+        cell.res = await runSpec(cell.spec, (d, t, label) => { cell.progress = label; cell.pct = t ? d / t : null; const n = document.querySelector('[data-cell="' + cell.id + '"] .wb-run-s span'); if (n) n.textContent = label; state.busy = label; chatDraw(); return !cell.stop; });
+        cell.running = false; cell.stamp = dataStamp(); cell.edit = !cell.res.ok; refreshCell(cell);
+        msg.added.push({ id: cell.id, title: cell.res.ok ? cell.res.title : 'Could not run' }); texts.push(resultText(cell.res, 1400));
       }
-    } catch (e) {
-      const m = e && e.code === 'NO_SESSION' ? 'Sign in to LastMind and I can plan analyses for you. The Workbench works without me: use the toolbar to build one yourself.' : e && (e.code === 'LOCK_LIMIT_REACHED' || e.code === '402') ? 'You have used all your Locks for now, so I cannot answer any more questions. Everything else in the Workbench still works.' : (e && e.message) || 'I could not answer just now. Try again in a moment.';
-      chatPush({ role: 'agent', text: m });
-    }
+      save(); refreshData();
+      chatPush({ role: 'results', text: texts.join('\n\n').slice(0, 4800) });
+      state.busy = 'Writing it up…'; chatDraw();
+      await explainStep();
+    } catch (e) { chatPush({ role: 'agent', text: aiError(e) }); }
     state.busy = ''; chatDraw();
   }
 
@@ -563,6 +589,7 @@
       const act = b.dataset.act, wbc = state.wb.cells, idx = wbc.indexOf(cell);
       if (act === 'run') runCell(cell);
       else if (act === 'stop') { cell.stop = true; }
+      else if (act === 'explain') { explainCell(cell); }
       else if (act === 'edit') { cell.edit = !cell.edit; refreshCell(cell); }
       else if (act === 'copy') { try { navigator.clipboard.writeText(resultText(cell.res)); flash('Copied as text'); } catch (er) { flash('Could not copy'); } }
       else if (act === 'del') { if (!cell.running) { wbc.splice(idx, 1); save(); renderDoc(); } }

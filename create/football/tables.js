@@ -229,6 +229,15 @@
     const all = T.all(league);
     return Object.keys(SCHEMA).map((k) => ({ table: k, rows: all[k].length, desc: SCHEMA[k].desc, columns: SCHEMA[k].cols.map((c) => ({ name: c.name, type: c.type, desc: c.desc })) }));
   };
+  // The short, fixed version the agent is given (no row counts, so the same text serves everyone and can be cached): table, what it holds, column names (starred = categories).
+  const firstSentence = (d) => { const m = String(d).match(/^[^.]*\./); return (m ? m[0] : d).slice(0, 140); };
+  T.digestCompact = function () {
+    return 'Positions: depth 0 is the acting team\'s own goal line, 1 the goal it attacks; width is 0 to 1 across the pitch. you = 1 means the manager\'s own club. Percent columns run 0 to 100. round is the matchday (1 to 14).\n'
+      + Object.keys(SCHEMA).filter((k) => !SCHEMA[k].extra).map((k) => k + ' (' + firstSentence(SCHEMA[k].desc) + '): ' + SCHEMA[k].cols.map((c) => c.name + (c.type === 'cat' ? '*' : '')).join(', ')).join('\n');
+  };
+  T.digestExtra = function () {
+    return Object.keys(SCHEMA).filter((k) => SCHEMA[k].extra).map((k) => k + ' (' + firstSentence(SCHEMA[k].desc) + '): ' + SCHEMA[k].cols.map((c) => c.name + (c.type === 'cat' ? '*' : '')).join(', ')).join('\n');
+  };
   T.digest = function (league) {
     return T.describe(league).map((t) => t.table + ' (' + t.rows + ' rows): ' + t.desc + '\n  ' + t.columns.map((c) => c.name + (c.type === 'cat' ? ' [category]' : '') + ' = ' + c.desc).join('\n  ')).join('\n\n');
   };

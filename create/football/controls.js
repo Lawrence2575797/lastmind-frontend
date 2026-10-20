@@ -96,7 +96,7 @@
   def('takeLoan', { group: 'Money', title: 'Take a bank loan', desc: 'Borrow from the bank (£100,000 to £5,000,000), repaid in equal parts every matchday with interest.',
     params: [{ k: 'amount', label: 'Amount (£)', kind: 'num', min: 100000, max: 5000000, step: 50000 }, { k: 'term', label: 'Repaid over', kind: 'select', options: () => FM.bizSources.loanOptions.map((o) => ({ value: o.term, label: o.term / 14 + ' season' + (o.term > 14 ? 's' : '') + ' (' + Math.round(o.rate * 1000) / 10 + '% a year)' })) }], risk: 'high',
     run(lg, p) { const amt = clamp(Math.round(Number(p.amount) / 10000) * 10000, 100000, 5000000), term = Number(p.term) || 28, o = FM.bizSources.loanOptions.find((x) => x.term === term); if (!o) return no('Choose how long to repay over: ' + FM.bizSources.loanOptions.map((x) => x.term + ' matchdays').join(', ') + '.'); FM.bizSources.takeLoan(lg, amt, term); return ok(gbp(amt) + ' has been paid into the bank. The club repays ' + gbp(Math.round(amt / term)) + ' every matchday for ' + term + ' matchdays, plus interest at ' + Math.round(o.rate * 1000) / 10 + '% a year.'); } });
-  def('repayLoan', { group: 'Money', title: 'Repay a loan early', desc: 'Pays off one loan in full from the bank.', params: [{ k: 'id', label: 'Loan', kind: 'select', options: (lg) => biz(lg).loans.map((l) => ({ value: l.id, label: l.id + ': ' + gbp(l.balance) + ' owed' })) }],
+  def('repayLoan', { group: 'Money', title: 'Repay a loan early', desc: 'Pays off one loan in full from the bank.', params: [{ k: 'id', label: 'Loan', kind: 'select', dyn: true, options: (lg) => biz(lg).loans.map((l) => ({ value: l.id, label: l.id + ': ' + gbp(l.balance) + ' owed' })) }],
     run(lg, p) { const l = biz(lg).loans.find((x) => x.id === p.id); if (!l) return no('There is no loan ' + p.id + '.'); const owed = l.balance, r = FM.bizSources.repayLoan(lg, p.id); return r.ok ? ok('Loan ' + p.id + ' repaid: ' + gbp(owed) + ' has gone from the bank. The interest and the matchday repayments stop.') : no('The club has ' + gbp(Math.max(0, biz(lg).cash)) + ' in the bank, and the loan is ' + gbp(owed) + '.'); } });
   def('issueShares', { group: 'Money', title: 'Issue new shares', desc: 'Raises money from new shareholders (£100,000 to £5,000,000). It never has to be repaid, but existing shareholders own less of the club and approval falls.',
     params: [{ k: 'amount', label: 'Amount to raise (£)', kind: 'num', min: 100000, max: 5000000, step: 50000 }], risk: 'high',
@@ -105,7 +105,7 @@
     params: [{ k: 'percent', label: 'Share of profit (%)', kind: 'num', min: 0, max: 80, step: 5 }], current: (lg) => Math.round((biz(lg).dividend.policy || 0) * 100) + '%',
     run(lg, p) { const v = clamp(Number(p.percent), 0, 80); if (!Number.isFinite(v)) return no('Give a percentage.'); FM.bizSources.setDividend(lg, v / 100); return ok('The dividend policy is now ' + Math.round(v) + '% of the year\'s profit after tax.'); } });
   def('answerOffer', { group: 'Deals', title: 'Answer a sponsor or advertiser', desc: 'Accept, decline or negotiate an offer that is waiting. When negotiating, name the price you want a matchday.',
-    params: [{ k: 'id', label: 'Offer', kind: 'select', options: (lg) => biz(lg).offers.filter((o) => o.status === 'open').map((o) => ({ value: o.id, label: o.company + ': ' + FM.bizOfferText(o) })) }, { k: 'decision', label: 'Decision', kind: 'select', options: () => [{ value: 'accept', label: 'Accept' }, { value: 'decline', label: 'Decline' }, { value: 'negotiate', label: 'Negotiate' }] }, { k: 'ask', label: 'Price to ask for (£ a matchday, when negotiating)', kind: 'num', min: 500, max: 100000, step: 100 }],
+    params: [{ k: 'id', label: 'Offer', kind: 'select', dyn: true, options: (lg) => biz(lg).offers.filter((o) => o.status === 'open').map((o) => ({ value: o.id, label: o.company + ': ' + FM.bizOfferText(o) })) }, { k: 'decision', label: 'Decision', kind: 'select', options: () => [{ value: 'accept', label: 'Accept' }, { value: 'decline', label: 'Decline' }, { value: 'negotiate', label: 'Negotiate' }] }, { k: 'ask', label: 'Price to ask for (£ a matchday, when negotiating)', kind: 'num', min: 500, max: 100000, step: 100 }],
     run(lg, p) {
       const o = biz(lg).offers.find((x) => x.id === p.id && x.status === 'open'); if (!o) return no('That offer is no longer open.');
       if (p.decision === 'accept') { FM.bizOffer(lg, p.id, true); return ok(o.company + ' will pay ' + gbp(o.perRound) + ' every matchday for ' + o.rounds + ' matchdays.'); }
@@ -113,7 +113,7 @@
       const r = FM.bizNegotiate(lg, p.id, p.ask); return r.ok ? ok(r.text, { status: r.status }) : no(r.text);
     } });
   def('treatInjury', { group: 'Medical', title: 'Treat an injury', desc: 'Pays for treatment for an injured player. Without it every injury heals in its own time at no cost. Extra physiotherapy and specialist treatment shorten the lay-off; an accelerated return is quickest but risks another injury.',
-    params: [{ k: 'player', label: 'Player', kind: 'select', options: (lg) => injuredList(lg).map((p) => ({ value: p.id, label: p.name + ': ' + p.injury.name })) }, { k: 'plan', label: 'Treatment', kind: 'select', options: () => Object.keys(C.PLANS).map((k) => ({ value: k, label: C.PLANS[k].label + ' (' + C.PLANS[k].text + ')' })) }], risk: 'medium',
+    params: [{ k: 'player', label: 'Player', kind: 'select', dyn: true, options: (lg) => injuredList(lg).map((p) => ({ value: p.id, label: p.name + ': ' + p.injury.name })) }, { k: 'plan', label: 'Treatment', kind: 'select', options: () => Object.keys(C.PLANS).map((k) => ({ value: k, label: C.PLANS[k].label + ' (' + C.PLANS[k].text + ')' })) }], risk: 'medium',
     run(lg, p) {
       const pl = findInjured(lg, p.player), plan = C.PLANS[p.plan]; if (!pl) return no('No injured player of yours matches "' + p.player + '".'); if (!plan) return no('Choose a treatment: ' + Object.keys(C.PLANS).join(', ') + '.');
       if (pl.injury.treatment) return no(pl.name + ' is already having treatment (' + pl.injury.treatment + ').');
@@ -136,7 +136,7 @@
       const lever = Object.assign({ id: 'V' + (b.seq++), left: r.lever.rounds, round: played(lg), by: p.by || 'manual' }, r.lever); b.levers = (b.levers || []).concat([lever]);
       return ok('Started: ' + leverText(lever) + '. The cost goes into the books from the next matchday.' + (r.adjustments.length ? ' ' + r.adjustments.join(' ') : ''), { lever: lever.id });
     } });
-  def('removeLever', { group: 'Anything else', title: 'Stop some custom spending', desc: 'Ends a piece of custom spending early. The money already spent is not returned.', params: [{ k: 'id', label: 'Spending', kind: 'select', options: (lg) => (biz(lg).levers || []).filter((l) => l.left > 0).map((l) => ({ value: l.id, label: l.name })) }],
+  def('removeLever', { group: 'Anything else', title: 'Stop some custom spending', desc: 'Ends a piece of custom spending early. The money already spent is not returned.', params: [{ k: 'id', label: 'Spending', kind: 'select', dyn: true, options: (lg) => (biz(lg).levers || []).filter((l) => l.left > 0).map((l) => ({ value: l.id, label: l.name })) }],
     run(lg, p) { const b = biz(lg), l = (b.levers || []).find((x) => x.id === p.id); if (!l) return no('There is no custom spending with that id.'); b.levers = b.levers.filter((x) => x !== l); return ok('Stopped: ' + l.name + '.'); } });
 
   // ---------- rules ----------
@@ -166,7 +166,7 @@
       const rule = { id: 'R' + (b.seq++), name: String(r.name || '').slice(0, 40) || 'Rule', when: { metric: r.when.metric, op: r.when.op, value: Number(r.when.value) }, do: { action: r.do.action, params: r.do.params || {} }, once: !!r.once, fired: 0, by: p.by || 'manual' };
       b.rules.push(rule); return ok('Rule set: ' + ruleText(rule) + (rule.once ? ', once.' : ', every time it is true after a matchday.'), { rule: rule.id });
     } });
-  def('removeRule', { group: 'Anything else', title: 'Remove a rule', desc: 'Deletes a rule so it stops running.', params: [{ k: 'id', label: 'Rule', kind: 'select', options: (lg) => (biz(lg).rules || []).map((r) => ({ value: r.id, label: r.name })) }],
+  def('removeRule', { group: 'Anything else', title: 'Remove a rule', desc: 'Deletes a rule so it stops running.', params: [{ k: 'id', label: 'Rule', kind: 'select', dyn: true, options: (lg) => (biz(lg).rules || []).map((r) => ({ value: r.id, label: r.name })) }],
     run(lg, p) { const b = biz(lg), r = (b.rules || []).find((x) => x.id === p.id); if (!r) return no('There is no rule with that id.'); b.rules = b.rules.filter((x) => x !== r); return ok('Rule removed: ' + r.name + '.'); } });
   C.ACTIONS = A;
 
@@ -191,6 +191,16 @@
       return '{"type":"control","action":"' + id + '","params":{' + ps.map((s) => '"' + s.split(' ')[0] + '":...').join(',') + '}}  ' + a.title + '. ' + a.desc + (a.current ? ' Now: ' + a.current(lg) + '.' : '') + ' Params: ' + ps.join(', ') + '.';
     });
     return lines.join('\n');
+  };
+  // The fixed list the agent is given (no current values, so the same text serves everyone and can be cached; the live ids come from C.state).
+  C.helpStatic = function () {
+    return Object.keys(A).map((id) => {
+      const a = A[id];
+      if (id === 'addLever') return '{"type":"control","action":"addLever","params":{"name":"...","desc":"...","perRound":POUNDS 500-150000,"rounds":1-28,"effects":[{"target":T,"pct":PERCENT}]}}  Spend every matchday for an effect. Targets: ' + Object.keys(TARGETS).map((k) => k + ' (' + TARGETS[k].label + ')').join('; ') + '.';
+      if (id === 'addRule') return '{"type":"control","action":"addRule","params":{"name":"...","when":{"metric":M,"op":"<|<=|>|>=|=","value":N},"do":{"action":' + RULE_ACTIONS.join('|') + ',"params":{...}},"once":false}}  Runs by itself after each matchday. Metrics: ' + Object.keys(C.METRICS).map((k) => k + ' (' + C.METRICS[k].label + ')').join('; ') + '.';
+      const ps = a.params.map((p) => p.k + (p.kind === 'select' ? (p.dyn ? ' (id from the state)' : ' (' + (p.options ? p.options(null) : []).map((o) => o.value).join('|') + ')') : p.kind === 'num' ? ' (number' + (p.min != null ? ' ' + p.min + '-' + p.max : '') + ')' : ''));
+      return '{"type":"control","action":"' + id + '","params":{' + a.params.map((p) => '"' + p.k + '":...').join(',') + '}}  ' + a.title + '. ' + a.desc + ' Params: ' + ps.join(', ') + '.';
+    }).join('\n');
   };
   C.state = function (lg) {
     const b = biz(lg), out = [];

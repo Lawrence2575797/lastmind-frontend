@@ -131,11 +131,23 @@
     return out;
   }
 
-  const KINDS = { price, scenario, season, trend };
+  // ---------- cash: where the bank balance is heading as things are ----------
+  function cash(lg) {
+    const p = project(lg); if (!p.matches) return fail('There are no matches left this season to forecast.');
+    const out = { ok: true, method: 'forecast', title: 'Forecast: the bank balance for the rest of the season, as things are', n: p.matches, summary: [], tables: [], caveats: [] };
+    out.tables.push({ title: 'Matchday by matchday', cols: ['Matchday', 'Home', 'Revenue', 'Costs', 'Bank balance after'], rows: p.rounds.map((r) => [r.round, r.home ? 'home' : 'away', gbp(r.revenue), gbp(r.costs), gbp(r.cash)]) });
+    out.summary.push('At the current prices, wages, deals and loans the club would finish the season with about ' + gbp(p.cashEnd) + ' in the bank, having brought in ' + gbp(p.revenue) + ' and spent ' + gbp(p.costs) + ' over the ' + p.matches + ' matches left. The lowest the balance gets is ' + gbp(p.minCash) + (p.minCash < 0 ? ', which means using the overdraft' : '') + '.');
+    out.chart = { type: 'bars', x: 'matchday', y: 'bank balance (£)', bars: p.rounds.map((r) => ({ label: String(r.round), value: r.cash })) };
+    out.caveats.push('Crowds come from the demand model at the current form and league position, and prize money is counted at the current position; both will move with results.');
+    return out;
+  }
+
+  const KINDS = { price, scenario, season, trend, cash };
   WB.register('forecast', (lg, s) => { const k = KINDS[s.kind]; if (!k) return fail('Unknown forecast "' + s.kind + '". Kinds: ' + Object.keys(KINDS).join(', ') + '.'); return k(lg, s); });
   WB.project = project;
   WB.METHOD_HELP.push('{"method":"forecast","kind":"price","stand":STAND,"from":£?,"to":£?,"step":£?}  ticket income at a range of prices for one stand over the remaining home matches (the game\'s own crowd model)');
   WB.METHOD_HELP.push('{"method":"forecast","kind":"scenario","label":"short name","actions":[{"action":ACTION,"params":{...}}]}  the rest of the season\'s money with those changes tried on a COPY of the club, against without them. Use it to test a change before proposing it');
+  WB.METHOD_HELP.push('{"method":"forecast","kind":"cash"}  the bank balance matchday by matchday to the end of the season as things stand');
   WB.METHOD_HELP.push('{"method":"forecast","kind":"season"}  the chance of each finishing position from simulating the matches still to play');
   WB.METHOD_HELP.push('{"method":"forecast","kind":"trend","table":T,"y":COL,"ahead":1-10,"where":[...]?}  a measure carried forward from a fitted straight line with a 95% range');
 })();
