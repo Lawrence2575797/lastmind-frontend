@@ -20373,7 +20373,7 @@ SQIDAQAB
         'l': { lower: 'λ', upper: 'Λ' }, 'w': { lower: 'ω', upper: 'Ω' },
         'x': { lower: 'χ', upper: 'Χ' },
     };
-    const MATH_SHORTCUT_TWO_CHAR_GLOBAL = { '<=': '≤', '>=': '≥', '!=': '≠', '==': '≡' };
+    const MATH_SHORTCUT_TWO_CHAR_GLOBAL = { '<=': '≤', '>=': '≥', '!=': '≠', '==': '≡', '~~': '≈' };
     const MATH_SHORTCUT_ZWS_GLOBAL = '​';
     // Autocorrect (Notes page): a typed word that is on this list is replaced when the next space or punctuation is typed. Only mistakes that are
     // never a real word are here, so nothing a student meant is ever changed. Keys are lower case; capitals are carried across.
@@ -20472,7 +20472,8 @@ SQIDAQAB
         [K('Shift') + ' + ' + K('E'), 'Types ∈, "belongs to the set of", such as c ∈ ℝ.'],
         [K('f'), 'Types f(x). Press ' + K("'") + ' straight after it for f′(x), and again for f″(x).'],
         [K('Shift') + ' + ' + K('I'), 'Types an integral sign. Then press ' + K('d') + ' to add the limits.'],
-        [K(']'), 'Evaluates between limits, such as [x²] from 0 to 2.'],
+        [K(']'), 'After an integral sign, closing a square bracket evaluates between limits, such as ∫ 2x dx = [x²] from 0 to 2. Square brackets anywhere else stay as they are.'],
+        [K('~') + K('~'), 'Two tildes in a row type ≈, approximately equal to.'],
     ]];
     const SC_MATHS_LAYOUT = ['Maths keyboard: layout and switching', [
         [K('Space') + ' on a new line', 'If the line above has an equals sign, the new line lines up under the right-hand side of it. This keeps working lines neat.'],
@@ -20498,7 +20499,8 @@ SQIDAQAB
         [K('Shift') + ' + ' + K('E'), 'Types ∈, "belongs to the set of", such as c ∈ ℝ. Straight after a single letter and a space (c ) it always gives ∈; elsewhere it follows the same maths-or-writing rule as the Greek letters.'],
         [K('Shift') + ' + ' + K('F'), 'Types f(x) when you are writing maths. At the start of a line, type a capital F and then ' + K('(') + ': it becomes f(x). Press ' + K("'") + ' straight after it for f′(x), and again for f″(x).'],
         [K('Shift') + ' + ' + K('I'), 'Types an integral sign in maths (after a sign or a number); a capital I in ordinary writing. Then press ' + K('d') + ' to add the limits.'],
-        [K(']'), 'After a maths expression in square brackets, evaluates between limits, such as [x²] from 0 to 2.'],
+        [K(']'), 'After an integral sign, closing a square bracket evaluates between limits, such as ∫ 2x dx = [x²] from 0 to 2. Square brackets anywhere else stay as they are.'],
+        [K('~') + K('~'), 'Two tildes in a row type ≈, approximately equal to.'],
         [K('Shift') + ' + ' + K('M'), 'Starts a matrix in maths. Type the size as (rows*columns), for example (3*3), then press ' + K(')') + ' or ' + K('Enter') + '.'],
         [K('Space') + ' on a new line', 'If the line above has an equals sign, the new line lines up under the right-hand side of it.'],
     ]];
@@ -21211,7 +21213,8 @@ SQIDAQAB
             return pre.toString().replace(/\u200b/g, '');
         }
         const MATH_OPS = '=+−-×÷<>≤≥≠≈≡^_/*|,';
-        const isSymbolChar = (c) => !!c && c.charCodeAt(0) > 0x2000 && !/[“”‘’…—–•]/.test(c);
+        // (Greek letters, such as α and π, are symbols too: a power or a subscript can follow them)
+        const isSymbolChar = (c) => !!c && (c.charCodeAt(0) > 0x2000 || /[\u0370-\u03ff]/.test(c)) && !/[“”‘’…—–•]/.test(c);
         // True when a key that is also a plain letter or sign in English should be treated as maths: inside a power, fraction, root or matrix,
         // straight after a number, a maths sign, a Greek letter or a lowercase letter (sinθ), or after a maths sign and a space (x = α).
         // At the start of a line, after a word and a space, after a capital letter (GDP, UK) or after sentence punctuation it is ordinary writing.
@@ -21345,11 +21348,13 @@ SQIDAQAB
                 if (ev.key === 'd' && !ev.shiftKey && !ev.ctrlKey && !ev.metaKey && !ev.altKey) { ev.preventDefault(); growLimitBoxes(); return; }
             }
             if ((ev.ctrlKey || ev.metaKey) && !ev.altKey && !ev.shiftKey && (ev.key === '-' || ev.code === 'Minus')) { if (toggleBar()) { ev.preventDefault(); editor.dispatchEvent(new Event('input', { bubbles: true })); return; } }
+            // A closing bracket only adds the limits of a definite integral when its opening bracket comes after an integral sign on the same line:
+            // brackets anywhere else are just brackets.
             const bracketLooksMaths = () => {
                 const t = lineBeforeCaret(), i = t.lastIndexOf('[');
-                return i >= 0 && /[0-9+\-−×÷=^_\/*]|[Α-ωα-ω∫√π]/.test(t.slice(i + 1));
+                return i >= 0 && t.slice(0, i).indexOf('∫') >= 0;
             };
-            if (ev.key === ']' && !ev.shiftKey && !ev.ctrlKey && !ev.metaKey && !ev.altKey && (!auto || bracketLooksMaths())) {
+            if (ev.key === ']' && !ev.shiftKey && !ev.ctrlKey && !ev.metaKey && !ev.altKey && bracketLooksMaths()) {
                 ev.preventDefault(); insertTextAtCaret(']'); growLimitBoxes(); return;
             }
             // Shift + a letter: a Greek letter, an integral, a matrix or f(x) in maths; just a capital letter in ordinary writing. Alt + Shift always
@@ -21390,6 +21395,15 @@ SQIDAQAB
             }
             if (!auto && ev.key === 'f' && !ev.shiftKey && !ev.ctrlKey && !ev.metaKey && !ev.altKey && !precedingCharIsLetter()) { ev.preventDefault(); insertFuncF(); return; }
             if (ev.key === '*' && (!auto || afterOperand())) { ev.preventDefault(); insertStyledSymbol('×'); return; }
+            if (ev.key === '~' && !ev.ctrlKey && !ev.metaKey && !ev.altKey) {
+                const radDouble = closestClass('root-radicand'), rootDouble = radDouble && radDouble.parentNode;
+                if (rootDouble && rootDouble.className === 'root' && !rootDouble.querySelector('.root-index') && !radDouble.textContent.replace(/\u200b/g, '')) {
+                    ev.preventDefault();
+                    const selD = window.getSelection(), rD = document.createRange(); rD.setStartBefore(rootDouble); rD.collapse(true);
+                    rootDouble.parentNode.removeChild(rootDouble); selD.removeAllRanges(); selD.addRange(rD);
+                    insertStyledSymbol('≈'); return;
+                }
+            }
             if (ev.key === '~' && (!auto || (lineBeforeCaret() && mathsContext()))) {
                 ev.preventDefault();
                 const capsOn = ev.getModifierState && ev.getModifierState('CapsLock');
@@ -34081,7 +34095,7 @@ SQIDAQAB
             'l': { lower: 'λ', upper: 'Λ' }, 'w': { lower: 'ω', upper: 'Ω' },
             'x': { lower: 'χ', upper: 'Χ' },
         };
-        const MATH_SHORTCUT_TWO_CHAR = { '<=': '≤', '>=': '≥', '!=': '≠' };
+        const MATH_SHORTCUT_TWO_CHAR = { '<=': '≤', '>=': '≥', '!=': '≠', '~~': '≈' };
         const MATH_SHORTCUT_ZWS = '​';
 
         // Blocks paste/drop outright, and tracks whether the field's
@@ -34371,7 +34385,14 @@ SQIDAQAB
                     pendingIntegral = false;
                     if (ev.key === 'd' && !ev.shiftKey && !ev.ctrlKey && !ev.metaKey && !ev.altKey) { ev.preventDefault(); growLimitBoxes(); return; }
                 }
-                if (ev.key === ']' && !ev.shiftKey && !ev.ctrlKey && !ev.metaKey && !ev.altKey) {
+                // only after an integral sign: other brackets are left as brackets
+                const bracketAfterIntegral = () => {
+                    const sel = window.getSelection(); if (!sel.rangeCount) return false;
+                    const pre = document.createRange(); pre.selectNodeContents(editor); pre.setEnd(sel.getRangeAt(0).startContainer, sel.getRangeAt(0).startOffset);
+                    const text = pre.toString().replace(/\u200b/g, ''), i = text.lastIndexOf('[');
+                    return i >= 0 && text.slice(0, i).indexOf('∫') >= 0;
+                };
+                if (ev.key === ']' && !ev.shiftKey && !ev.ctrlKey && !ev.metaKey && !ev.altKey && bracketAfterIntegral()) {
                     ev.preventDefault(); insertTextAtCaret(']'); growLimitBoxes(); return;
                 }
                 if (ev.shiftKey && !ev.ctrlKey && !ev.metaKey && !ev.altKey) {
@@ -34386,7 +34407,15 @@ SQIDAQAB
                 }
                 if (ev.key === 'f' && !ev.shiftKey && !ev.ctrlKey && !ev.metaKey && !ev.altKey && !precedingCharIsLetter()) { ev.preventDefault(); insertFuncF(); return; }
                 if (ev.key === '*') { ev.preventDefault(); insertStyledSymbol('×'); return; }
-                if (ev.key === '~') { ev.preventDefault(); insertStyledSymbol('√'); return; }
+                if (ev.key === '~') {
+                    ev.preventDefault();
+                    const selT = window.getSelection();
+                    if (selT.rangeCount && selT.isCollapsed) {
+                        const rgT = selT.getRangeAt(0), nT = rgT.startContainer;
+                        if (nT.nodeType === 3 && nT.textContent.slice(0, rgT.startOffset).replace(/\u200b/g, '') === '' && nT.previousSibling && nT.previousSibling.nodeType === 1 && nT.previousSibling.classList && nT.previousSibling.classList.contains('math-symbol') && nT.previousSibling.textContent === '√') { nT.previousSibling.textContent = '≈'; return; }
+                    }
+                    insertStyledSymbol('√'); return;
+                }
                 if (ev.key === '(' || ev.key === ')') { ev.preventDefault(); insertMathBracket(ev.key); return; }
                 if (ev.key === '^') { ev.preventDefault(); startZone('sup'); return; }
                 if (ev.key === '_') { ev.preventDefault(); startZone('sub'); return; }

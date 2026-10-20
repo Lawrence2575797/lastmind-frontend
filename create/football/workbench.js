@@ -13,8 +13,70 @@
   const TIERS = { gcse: 'GCSE', alevel: 'A-level', above: 'Beyond A-level' };
   const DETAIL = { brief: 'brief: keep it short and plain', standard: 'standard detail', detailed: 'detailed: show the workings and the reasoning step by step' };
 
+
+  // ---------- typing shortcuts (the Notes page's, for the Workbench's plain text boxes) ----------
+  // ^ starts a power and _ a subscript (typed after a letter, number or bracket; digits and signs then come out as small characters until Space or →),
+  // * gives ×, ~ gives √ and ~~ gives ≈, <= >= != give ≤ ≥ ≠, Shift + a letter gives the Greek letter (Caps Lock for the capital), Shift+E gives ∈ and Shift+I
+  // gives ∫, Ctrl+- puts a bar over the letter before the cursor. In the calculator these always apply; in a text box Shift + a letter only becomes Greek when
+  // it follows maths (a number, a sign, a letter such as sin, a bracket), so ordinary capitals are left alone.
+  const SUP = { '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴', '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹', '+': '⁺', '-': '⁻', '=': '⁼', '(': '⁽', ')': '⁾', n: 'ⁿ', i: 'ⁱ', x: 'ˣ', a: 'ᵃ', b: 'ᵇ', c: 'ᶜ', d: 'ᵈ', e: 'ᵉ', f: 'ᶠ', g: 'ᵍ', h: 'ʰ', j: 'ʲ', k: 'ᵏ', l: 'ˡ', m: 'ᵐ', o: 'ᵒ', p: 'ᵖ', r: 'ʳ', s: 'ˢ', t: 'ᵗ', u: 'ᵘ', v: 'ᵛ', w: 'ʷ', y: 'ʸ', z: 'ᶻ' };
+  const SUB = { '0': '₀', '1': '₁', '2': '₂', '3': '₃', '4': '₄', '5': '₅', '6': '₆', '7': '₇', '8': '₈', '9': '₉', '+': '₊', '-': '₋', '=': '₌', '(': '₍', ')': '₎', a: 'ₐ', e: 'ₑ', h: 'ₕ', i: 'ᵢ', j: 'ⱼ', k: 'ₖ', l: 'ₗ', m: 'ₘ', n: 'ₙ', o: 'ₒ', p: 'ₚ', r: 'ᵣ', s: 'ₛ', t: 'ₜ', u: 'ᵤ', v: 'ᵥ', x: 'ₓ' };
+  const GREEK = { a: ['α', 'Α'], b: ['β', 'Β'], d: ['Δ', 'Δ'], y: ['γ', 'Γ'], u: ['μ', 'Μ'], p: ['π', 'Π'], t: ['θ', 'Θ'], s: ['σ', 'Σ'], l: ['λ', 'Λ'], w: ['ω', 'Ω'], x: ['χ', 'Χ'] };
+  const MATH_OPS = '=+−-×÷<>≤≥≠≈≡^_/*|,';
+  const isGreekOrSymbol = (c) => !!c && (c.charCodeAt(0) > 0x2000 || /[\u0370-\u03ff]/.test(c));
+  const isOperand = (c) => !!c && (/[A-Za-z0-9)\]′″]/.test(c) || isGreekOrSymbol(c));
+  function wbShortcut(e) {
+    const ta = e.target; if (!ta || ta.tagName !== 'TEXTAREA' || !ta.classList.contains('wb-in') || e.isComposing) return;
+    if (e.ctrlKey && !e.altKey && !e.metaKey && (e.key === '-' || e.code === 'Minus')) {
+      const pos = ta.selectionStart, prev = ta.value.slice(0, pos);
+      if (ta.selectionStart !== ta.selectionEnd || !prev) return;
+      e.preventDefault();
+      if (prev.slice(-1) === '\u0304') ta.setRangeText('', pos - 1, pos, 'end'); else ta.setRangeText('\u0304', pos, pos, 'end');
+      ta.dispatchEvent(new Event('input', { bubbles: true })); return;
+    }
+    if (e.ctrlKey || e.metaKey || e.altKey || !e.key) return;
+    const calc = !!ta.closest('.wb-cell.calc'), pos = ta.selectionStart, before = ta.value.slice(0, pos), last = before.slice(-1);
+    const put = (str, back) => { ta.setRangeText(str, pos - (back || 0), ta.selectionEnd, 'end'); ta._zone = null; ta.dispatchEvent(new Event('input', { bubbles: true })); };
+    // inside a power or a subscript
+    const z = ta._zone;
+    if (z && z.pos === pos && ta.selectionStart === ta.selectionEnd) {
+      const map = z.kind === 'sup' ? SUP : SUB;
+      if (e.key === ' ' || e.key === 'ArrowRight' || e.key === 'Tab') { ta._zone = null; if (e.key === ' ') e.preventDefault(); return; }
+      const ch = map[e.key] || map[String(e.key).toLowerCase()];
+      if (e.key.length === 1 && ch && !e.shiftKey || (e.key === '(' || e.key === ')' || e.key === '+') && ch) { e.preventDefault(); ta.setRangeText(ch, pos, pos, 'end'); ta._zone = { kind: z.kind, pos: pos + ch.length }; ta.dispatchEvent(new Event('input', { bubbles: true })); return; }
+      ta._zone = null;
+    } else if (z) ta._zone = null;
+    if ((e.key === '^' || e.key === '_') && (calc || isOperand(last))) { e.preventDefault(); ta._zone = { kind: e.key === '^' ? 'sup' : 'sub', pos }; return; }
+    if (e.key === '*' && (calc || isOperand(last))) { e.preventDefault(); put('×'); return; }
+    if (e.key === '=' && (last === '<' || last === '>' || last === '!')) { e.preventDefault(); put(last === '<' ? '≤' : last === '>' ? '≥' : '≠', 1); return; }
+    if (e.key === '=' && last === '=' && !calc) { e.preventDefault(); put('≡', 1); return; }
+    if (e.key === '~') {
+      if (last === '√' && ta._sq === pos) { e.preventDefault(); put('≈', 1); return; }
+      if (last === '~') { e.preventDefault(); put('≈', 1); return; }
+      const t2 = before.replace(/[\s\u00a0]+$/, ''), beforeSign = !t2 || MATH_OPS.indexOf(t2.slice(-1)) >= 0 || /[(\[]$/.test(t2);
+      if (calc || beforeSign) { e.preventDefault(); put('√'); ta._sq = pos + 1; return; }
+      return;
+    }
+    // Shift + a letter
+    const letter = e.code && /^Key[A-Z]$/.test(e.code) ? e.code.slice(3).toLowerCase() : '';
+    if (e.shiftKey && letter) {
+      let maths = calc;
+      if (!maths) {
+        if (!before) maths = false;
+        else if (/\s$/.test(last)) { const b = before.replace(/[\s\u00a0]+$/, '').slice(-1); maths = !!b && (MATH_OPS.indexOf(b) >= 0 || isGreekOrSymbol(b)); }
+        else maths = /[0-9a-z]/.test(last) || MATH_OPS.indexOf(last) >= 0 || isGreekOrSymbol(last) || ((last === '(' || last === '[') && /[A-Za-z0-9)]/.test(before.slice(-2, -1) || ''));
+      }
+      if (!maths) return;
+      const caps = e.getModifierState && e.getModifierState('CapsLock');
+      if (letter === 'e') { e.preventDefault(); put('∈'); return; }
+      if (letter === 'i') { e.preventDefault(); put('∫'); return; }
+      if (GREEK[letter]) { e.preventDefault(); put(caps ? GREEK[letter][1] : GREEK[letter][0]); return; }
+    }
+  }
+
   // ---------- the calculator ----------
   // A small evaluator (no eval): numbers, + - × ÷ ^, brackets, constants, functions, variables (x = 3 × 4) and columns of the tables (mean(team_matches.xg)).
+  const SUPBACK = { '⁰': '0', '¹': '1', '²': '2', '³': '3', '⁴': '4', '⁵': '5', '⁶': '6', '⁷': '7', '⁸': '8', '⁹': '9', '⁺': '+', '⁻': '-', '⁼': '=', '⁽': '(', '⁾': ')', 'ⁿ': 'n', 'ⁱ': 'i', 'ˣ': 'x' };
   function makeCalc(league, vars) {
     const S = FM.STAT;
     const fact = (n) => { n = Math.round(n); if (n < 0 || n > 170) return NaN; let r = 1; for (let i = 2; i <= n; i++) r *= i; return r; };
@@ -28,13 +90,13 @@
     };
     const C = { pi: Math.PI, e: Math.E };
     function tokenize(src) {
-      const s = src.replace(/×|·/g, '*').replace(/÷/g, '/').replace(/[−–]/g, '-').replace(/π/g, ' pi ').replace(/√/g, ' sqrt ').replace(/²/g, '^2').replace(/³/g, '^3').replace(/x̄/g, 'xbar').replace(/,/g, ',');
+      const s = src.replace(/[\u0304]/g, '').replace(/[⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾ⁿⁱˣ]+/g, (m) => '^(' + Array.from(m).map((ch) => SUPBACK[ch] || ch).join('') + ')').replace(/[₀₁₂₃₄₅₆₇₈₉]+/g, (m) => '_' + Array.from(m).map((ch) => String('₀₁₂₃₄₅₆₇₈₉'.indexOf(ch))).join('')).replace(/×|·/g, '*').replace(/÷/g, '/').replace(/[−–]/g, '-').replace(/π/g, ' pi ').replace(/√/g, ' sqrt ');
       const out = []; let i = 0;
       while (i < s.length) {
         const ch = s[i];
         if (/\s/.test(ch)) { i++; continue; }
         if (/[0-9.]/.test(ch)) { let j = i; while (j < s.length && /[0-9.]/.test(s[j])) j++; if (/[eE]/.test(s[j] || '') && /[0-9+-]/.test(s[j + 1] || '') && /[0-9]/.test(s[j + 1] === '+' || s[j + 1] === '-' ? s[j + 2] || '' : s[j + 1])) { j += 2; while (j < s.length && /[0-9]/.test(s[j])) j++; } out.push({ t: 'num', v: parseFloat(s.slice(i, j)) }); i = j; continue; }
-        if (/[A-Za-z_]/.test(ch)) { let j = i; while (j < s.length && /[A-Za-z0-9_.]/.test(s[j])) j++; out.push({ t: 'id', v: s.slice(i, j) }); i = j; continue; }
+        if (/[A-Za-z_\u0370-\u03ff]/.test(ch)) { let j = i; while (j < s.length && /[A-Za-z0-9_.\u0370-\u03ff]/.test(s[j])) j++; out.push({ t: 'id', v: s.slice(i, j) }); i = j; continue; }
         if ('+-*/^(),='.indexOf(ch) >= 0) { out.push({ t: 'op', v: ch }); i++; continue; }
         throw new Error('I do not understand the symbol "' + ch + '"');
       }
@@ -197,8 +259,8 @@
   // ---------- the page ----------
   const state = { league: null, opts: null, wb: null, focus: null, host: null };
   const getWb = (league) => {
-    if (!league.workbench) league.workbench = { v: 1, title: 'Untitled analysis', cells: [], chat: [], settings: { detail: 'standard' }, ui: { data: window.innerWidth >= 1200, dataSet: 1, agent: true, kb: false, kbTab: 'Maths' }, extra: [], vars: {} };
-    const w = league.workbench; if (w.ui && w.ui.dataSet == null) { w.ui.dataSet = 1; if (window.innerWidth < 1200) w.ui.data = false; }
+    if (!league.workbench) league.workbench = { v: 1, title: 'Untitled analysis', cells: [], chat: [], settings: { detail: 'standard' }, ui: { data: window.innerWidth >= 1280, dataSet: 1, agent: window.innerWidth >= 1280, kb: false, kbTab: 'Maths' }, extra: [], vars: {} };
+    const w = league.workbench; if (w.ui && w.ui.dataSet == null) { w.ui.dataSet = 1; if (window.innerWidth < 1280) { w.ui.data = false; w.ui.agent = false; } }
     w.cells = w.cells || []; w.chat = w.chat || []; w.settings = w.settings || { detail: 'standard' }; w.ui = w.ui || { data: true, agent: true, kb: false, kbTab: 'Maths' }; w.extra = w.extra || []; w.vars = w.vars || {};
     return w;
   };
@@ -376,6 +438,7 @@
     document.body.appendChild(el2); document.body.classList.add('wb-noscroll'); expandedEl = el2;
     const first = el2.querySelector('[data-xclose]'); if (first) first.focus();
   }
+  const PREVIEW_COLS = 5;
   function dataHtml() {
     const all = T.all(state.league), desc = T.describe(state.league);
     state.shown = state.shown || {};
@@ -384,7 +447,7 @@
       let body = '';
       if (open) {
         body = rows.length
-          ? `<div class="wb-td"><div class="wb-scroll prev"><table class="wb-dtable"><thead><tr>${t.columns.map((c) => `<th class="${c.type === 'cat' ? 'l' : ''}"><button type="button" class="wb-colh" data-insert="${t.table}.${c.name}" title="${esc(c.name + ': ' + c.desc + ' (click to use it in your cell)')}">${esc(c.name)}</button></th>`).join('')}</tr></thead><tbody>${rows.slice(0, n).map((r) => `<tr>${t.columns.map((c) => `<td class="${c.type === 'cat' ? 'l' : 'n'}">${esc(cellText(r[c.name]))}</td>`).join('')}</tr>`).join('')}</tbody></table></div><div class="wb-dfoot"><span>${Math.min(n, rows.length)} of ${rows.length} rows · ${t.columns.length} columns</span><span class="wb-dbtns">${rows.length > n ? `<button type="button" data-more="${t.table}">Show ${Math.min(25, rows.length - n)} more</button>` : ''}<button type="button" data-expand="${t.table}" title="Open this table over the whole page">Expand ⤢</button></span></div></div>`
+          ? `<div class="wb-td"><div class="wb-scroll prev"><table class="wb-dtable"><thead><tr>${t.columns.slice(0, PREVIEW_COLS).map((c) => `<th class="${c.type === 'cat' ? 'l' : ''}"><button type="button" class="wb-colh" data-insert="${t.table}.${c.name}" title="${esc(c.name + ': ' + c.desc + ' (click to use it in your cell)')}">${esc(c.name)}</button></th>`).join('')}</tr></thead><tbody>${rows.slice(0, n).map((r) => `<tr>${t.columns.slice(0, PREVIEW_COLS).map((c) => `<td class="${c.type === 'cat' ? 'l' : 'n'}">${esc(cellText(r[c.name]))}</td>`).join('')}</tr>`).join('')}</tbody></table></div><div class="wb-dfoot"><span>${Math.min(n, rows.length)} of ${rows.length} rows · ${Math.min(PREVIEW_COLS, t.columns.length)} of ${t.columns.length} columns${t.columns.length > PREVIEW_COLS ? ' (Expand shows all)' : ''}</span><span class="wb-dbtns">${rows.length > n ? `<button type="button" data-more="${t.table}">Show ${Math.min(25, rows.length - n)} more</button>` : ''}<button type="button" data-expand="${t.table}" title="Open this table over the whole page">Expand ⤢</button></span></div></div>`
           : '<div class="wb-td"><p class="wb-hint">No rows yet: play a match first.</p></div>';
       }
       return `<div class="wb-t${open ? ' open' : ''}"><button type="button" class="wb-th" data-table="${t.table}" title="${esc(t.desc)}"><span>${t.table}${extra ? ' <i>new</i>' : ''}</span><span class="wb-rows">${t.rows}</span></button>${body}</div>`;
@@ -446,6 +509,7 @@
   async function ask(text) {
     text = String(text || '').trim(); if (!text || state.busy) return;
     const wb = state.wb; chatPush({ role: 'manager', text });
+    if (!wb.ui.agent) { wb.ui.agent = true; layout(); }
     const li = localIntent(text); if (li) { await runLocal(li); return; }
     if (FM.locksOut && FM.locksOut()) { chatPush({ role: 'agent', text: 'You have used all your Locks for now, so I cannot answer. The Workbench still works by hand: build any analysis from the toolbar, or use the calculator, and your Locks come back when they reset.' }); chatDraw(); return; }
     state.busy = 'Thinking…'; chatDraw();
@@ -485,13 +549,13 @@
   // ---------- layout ----------
   function layout() {
     const wb = state.wb, ui = wb.ui, host = state.host;
-    host.classList.toggle('no-data', !ui.data); host.classList.toggle('no-agent', !ui.agent);
+    const box = host.querySelector('.wb'); box.classList.toggle('no-data', !ui.data); box.classList.toggle('no-agent', !ui.agent);
     host.querySelector('[data-tool="data"]').classList.toggle('on', !!ui.data); host.querySelector('[data-tool="agent"]').classList.toggle('on', !!ui.agent); host.querySelector('[data-tool="kb"]').classList.toggle('on', !!ui.kb);
     el('wbKb').hidden = !ui.kb;
   }
   function kbHtml() {
     const tab = state.wb.ui.kbTab || 'Maths';
-    return `<div class="wb-kb-tabs">${Object.keys(KEYS).map((k) => `<button type="button" class="${k === tab ? 'on' : ''}" data-kbtab="${k}">${k}</button>`).join('')}<span class="wb-kb-note">Click into a text or calculator cell, then press keys.</span></div><div class="wb-keys">${KEYS[tab].map((row) => `<div class="wb-krow">${row.map((k) => `<button type="button" class="wb-key" data-key="${esc(k)}">${esc(k)}</button>`).join('')}</div>`).join('')}</div>`;
+    return `<div class="wb-kb-tabs">${Object.keys(KEYS).map((k) => `<button type="button" class="${k === tab ? 'on' : ''}" data-kbtab="${k}">${k}</button>`).join('')}<span class="wb-kb-note">Click into a text or calculator cell, then press keys or type the shortcuts.</span></div><div class="wb-keys">${KEYS[tab].map((row) => `<div class="wb-krow">${row.map((k) => `<button type="button" class="wb-key" data-key="${esc(k)}">${esc(k)}</button>`).join('')}</div>`).join('')}</div><p class="wb-kb-help"><b>Typing shortcuts</b> &nbsp; <kbd>^</kbd> power · <kbd>_</kbd> subscript (then <kbd>Space</kbd> or <kbd>→</kbd> to carry on) · <kbd>Shift</kbd>+letter Greek (<kbd>Shift</kbd>+<kbd>A</kbd> α, <kbd>P</kbd> π; Caps Lock for capitals) · <kbd>*</kbd> × · <kbd>~</kbd> √ · <kbd>~~</kbd> ≈ · <kbd>&lt;=</kbd> ≤ · <kbd>&gt;=</kbd> ≥ · <kbd>!=</kbd> ≠ · <kbd>Shift</kbd>+<kbd>E</kbd> ∈ · <kbd>Shift</kbd>+<kbd>I</kbd> ∫ · <kbd>Ctrl</kbd>+<kbd>-</kbd> bar</p>`;
   }
   function insertText(txt) {
     let t = state.focus; if (!t || !document.body.contains(t)) { t = document.querySelector('#wbDoc .wb-in'); if (!t) return; }
@@ -526,9 +590,9 @@
         <button type="button" data-tool="copy">Copy</button>
       </div>
       <div class="wb-body">
-        <aside class="wb-data" id="wbData" aria-label="Data and controls"><div class="wb-pane-h"><span class="wb-dtabs"><button type="button" data-dtab="data">Data</button><button type="button" data-dtab="controls">Controls</button></span><span>${esc(FM.teamById(league, league.userId).name)} · season ${league.season}</span></div><div class="wb-dlist"></div></aside>
+        <aside class="wb-data" id="wbData" aria-label="Data and controls"><div class="wb-pane-h"><span class="wb-dtabs"><button type="button" data-dtab="data">Data</button><button type="button" data-dtab="controls">Controls</button></span><span>${esc(FM.teamById(league, league.userId).name)} · season ${league.season}</span><button type="button" class="wb-x" data-tool="data" aria-label="Close the data panel">✕</button></div><div class="wb-dlist"></div></aside>
         <section class="wb-main"><div class="wb-doc" id="wbDoc"></div><div class="wb-kb" id="wbKb" hidden></div></section>
-        <aside class="wb-agent" id="wbAgent" aria-label="LastMind AI Agent"><div class="wb-pane-h"><b>LastMind AI Agent</b><button type="button" class="wb-clear" data-tool="clearchat">Clear chat</button></div><div class="wb-log" id="wbLog" role="log" aria-live="polite"></div>
+        <aside class="wb-agent" id="wbAgent" aria-label="LastMind AI Agent"><div class="wb-pane-h"><b>LastMind AI Agent</b><span class="wb-agent-btns"><button type="button" class="wb-clear" data-tool="clearchat">Clear chat</button><button type="button" class="wb-x" data-tool="agent" aria-label="Close the agent">✕</button></span></div><div class="wb-log" id="wbLog" role="log" aria-live="polite"></div>
           <form class="wb-form" id="wbForm"><textarea id="wbAsk" rows="2" placeholder="Ask a question, or say what you want to learn…" aria-label="Message to the agent"></textarea><button class="wb-send" id="wbSend" type="submit">Send</button></form></aside>
       </div><div class="wb-flash" id="wbFlash" role="status"></div></div>`;
     el('wbDetail').value = wb.settings.detail || 'standard'; el('wbLevel').value = tier; el('wbAuto').value = wb.settings.auto ? '1' : '';
@@ -536,6 +600,7 @@
 
     if (host._wbAbort) host._wbAbort.abort();
     const ac = new AbortController(), SIG = { signal: ac.signal }; host._wbAbort = ac;
+    host.addEventListener('keydown', wbShortcut, SIG);
     host.addEventListener('focusin', (e) => { if (e.target.classList && e.target.classList.contains('wb-in')) state.focus = e.target; }, SIG);
     host.addEventListener('input', (e) => {
       const t = e.target, cell = t.closest && t.closest('[data-cell]') && findCell(t.closest('[data-cell]').dataset.cell);

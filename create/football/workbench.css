@@ -143,3 +143,22 @@
 .wb-dbtns { display: inline-flex; gap: 6px; }
 
 .wb-dtable th.l, .wb-dtable th.l .wb-colh { text-align: left; }
+
+/* everything fits across the screen: tables wrap instead of scrolling sideways, and the typing shortcuts are listed under the keyboard */
+.wb-tbl td, .wb-tbl th { white-space: normal; overflow-wrap: anywhere; } .wb-tbl table { table-layout: auto; }
+.wb-doc, .wb-main, .wb-cell { min-width: 0; max-width: 100%; } .wb { max-width: 100%; overflow-x: clip; }
+.wb-kb-help { margin: 8px 0 0; font-size: .74rem; line-height: 1.7; color: var(--wb-mute); } .wb-kb-help b { color: var(--wb-ink); font-size: .66rem; letter-spacing: .12em; text-transform: uppercase; } .wb-kb-help kbd { font: 600 .72rem var(--wb-mono); border: 1px solid var(--wb-line-2); padding: 0 5px; color: var(--wb-ink); background: rgba(255,255,255,.05); }
+.wb-dtable td, .wb-dtable th .wb-colh { overflow-wrap: anywhere; }
+
+/* the cell bars wrap rather than spill over */
+.wb-cbar { flex-wrap: wrap; } .wb-ctype { flex: 1 1 180px; min-width: 0; overflow-wrap: anywhere; } .wb-cact { flex-wrap: wrap; }
+.wb-x { display: none; background: transparent; border: 1px solid var(--wb-line-2); color: var(--wb-ink); padding: 3px 9px; font-size: .8rem; cursor: pointer; } .wb-agent-btns { display: inline-flex; gap: 8px; align-items: center; }
+body[data-view="workbench"] #view-workbench { animation: none !important; transform: none !important; }
+/* narrower than a wide desktop: the data and agent panels open over the page, so the document always has the whole width and nothing scrolls across */
+@media (max-width: 1279px) {
+  .wb-body, .wb.no-data .wb-body, .wb.no-agent .wb-body, .wb.no-data.no-agent .wb-body { grid-template-columns: minmax(0, 1fr); }
+  .wb-data, .wb-agent { position: fixed; top: 0; bottom: 0; z-index: 250; width: min(420px, 100%); max-height: none; height: 100vh; border: 0; }
+  .wb-data { left: 0; border-right: 1px solid var(--wb-line-2); order: 0; } .wb-agent { right: 0; border-left: 1px solid var(--wb-line-2); order: 0; }
+  .wb-x { display: inline-block; }
+  .wb-main { max-height: none; }
+}
