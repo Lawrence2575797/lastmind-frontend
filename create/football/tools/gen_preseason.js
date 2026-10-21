@@ -5,9 +5,10 @@
 // work on before the first league game. Run again (node create/football/tools/gen_preseason.js) after any change to the match engine or the
 // clubs, then commit preseason.js.
 global.window = global;
+global.location = { search: '', pathname: '/' }; global.document = { addEventListener() {} }; global.localStorage = { getItem() { return null; }, setItem() {}, removeItem() {} }; global.addEventListener = function () {};   // league.js reads the page address and storage when it loads
 const path = require('path'), fs = require('fs');
 const dir = path.resolve(__dirname, '..') + '/';
-['formations', 'roles', 'ratings', 'names', 'engine', 'rules', 'instructions', 'fitness', 'match', 'league', 'stats_math', 'stats', 'stats_top', 'news'].forEach((f) => { try { require(dir + f + '.js'); } catch (e) { console.log('skipped', f, e.message); } });
+['formations', 'roles', 'ratings', 'names', 'engine', 'edge', 'rules', 'instructions', 'fitness', 'match', 'league', 'stats_math', 'stats', 'stats_top', 'history', 'skins', 'news'].forEach((f) => { try { require(dir + f + '.js'); } catch (e) { console.log('skipped', f, e.message); } });
 
 // Only what the statistics read: passes, tackles and shots. Dribbles, the heat map and clips are left out to keep the file small.
 const slim = (log) => (log ? {

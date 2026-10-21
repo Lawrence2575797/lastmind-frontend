@@ -652,6 +652,7 @@
   }
   const aiError = (e) => (e && e.code === 'NO_SESSION' ? 'Sign in to LastMind and I can plan analyses for you. The Workbook works without me: use the toolbar to build one yourself.' : e && (e.code === 'LOCK_LIMIT_REACHED' || e.code === '402') ? 'You have used all your Locks for now, so I cannot answer any more questions. Everything else in the Workbook still works.' : (e && e.message) || 'I could not answer just now. Try again in a moment.');
   // Questions about how the team plays, which should always come with a picture of the pitch.
+  const MATCH_RE = /\b(game|match|fixture|went wrong|defeat|lost to|beat us|against [a-z]+)\b/i;
   const TACT_RE = /(tactic|shape|formation|press|build[- ]?up|turnover|lose the ball|lost the ball|losing the ball|possession|pass|chances?|shots?|defen[cs]|attack|midfield|full[- ]?back|wing|striker|counter|how (can|do|should) (i|we)\b)/i;
   async function ask(text) {
     text = String(text || '').trim(); if (!text || state.busy) return;
@@ -669,7 +670,7 @@
       if (!actions.length) { msg.locks = state.locks; save(); state.busy = ''; chatDraw(); return; }
       // a question that gets worked on starts a new page, titled with the question
       const page = newPage(String(out.title || '').trim() || titleFromQuestion(text), { reuseBlank: true }); state.pin = page; renderDoc(); msg.added.push({ page: page.id, title: page.title });
-      const texts = [], tacticCells = [];
+      const texts = [], tacticCells = [], madeCells = [];
       for (const a of actions) {
         if (a.type === 'note') { addCell({ type: 'rich', html: richHtml(a.text), by: 'agent' }, { scroll: false }); texts.push('Note added.'); continue; }
         if (a.type === 'control') {
@@ -685,18 +686,26 @@
         state.busy = bl((spec.method === 'experiment' || spec.method === 'simulate') ? 'Running the simulation…' : 'Running the analysis…'); chatDraw();
         cell.spec = a.type === 'query' ? Object.assign({ method: 'query' }, spec) : spec;
         if (a.type === 'tactic') tacticCells.push(cell);
+        madeCells.push(cell);
         cell.res = await runSpec(cell.spec, (d, t, label) => { cell.progress = label; cell.pct = t ? d / t : null; const n = document.querySelector('[data-cell="' + cell.id + '"] .wb-run-s span'); if (n) n.textContent = label; state.busy = bl(label); chatDraw(); return !cell.stop; });
         cell.running = false; cell.stamp = dataStamp(); cell.edit = !cell.res.ok; refreshCell(cell);
         texts.push(resultText(cell.res, 1400));
       }
       // A question about how the team plays always gets a pitch: if the agent drew none, the Workbook draws the map that fits the question.
-      if (TACT_RE.test(text) && !actions.some((a) => a.type === 'tactic' || (a.spec && a.spec.method === 'pitch'))) {
+      // (a question about a game, "what went wrong against Northfield", counts too). If the picture the agent asked for could not be drawn, a map of
+      // the shots is drawn instead, and if there is still no picture the agent is told so, so it never says "the picture shows" over nothing.
+      const drawn = () => madeCells.some((c) => c.res && c.res.ok && (c.res.pictures || []).length);
+      if ((TACT_RE.test(text) || MATCH_RE.test(text)) && !drawn()) {
         const layer = /\b(lose|lost|losing|turnover|turn over|give (the ball )?away|dispossess)/i.test(text) ? 'losses' : /\b(shot|shoot|chance|goal|score|finish)/i.test(text) ? 'shots' : /\b(win (the ball )?back|recover|regain|press)/i.test(text) ? 'recoveries' : null;
-        const pspec = layer ? { method: 'pitch', layer } : { method: 'pitch' };
-        const pc = addCell({ type: 'analysis', form: formFromSpec(pspec), by: 'agent', edit: false, spec: pspec }, { scroll: false });
-        pc.res = await runSpec(pspec); pc.stamp = dataStamp(); pc.edit = !pc.res.ok; refreshCell(pc);
-        if (pc.res.ok) texts.push(resultText(pc.res, 700));
+        for (const pspec of [layer ? { method: 'pitch', layer } : { method: 'pitch', layer: 'shots' }, { method: 'pitch', layer: 'shots' }]) {
+          const pc = addCell({ type: 'analysis', form: formFromSpec(pspec), by: 'agent', edit: false, spec: pspec }, { scroll: false });
+          pc.res = await runSpec(pspec); pc.stamp = dataStamp(); pc.edit = !pc.res.ok; refreshCell(pc);
+          if (pc.res.ok) { madeCells.push(pc); texts.push(resultText(pc.res, 700)); break; }
+          const page = targetPage(); page.cells = page.cells.filter((c) => c !== pc); renderDoc();   // a failed picture is not left on the page
+        }
       }
+      if (!drawn()) texts.push('NO PICTURE OF THE PITCH COULD BE DRAWN for this question (nothing was recorded to draw it from). Do not mention a picture or a pitch map in the answer.');
+      else texts.push('A picture of the pitch has been drawn on the page for this question.');
       save(); refreshData();
       chatPush({ role: 'results', text: texts.join('\n\n').slice(0, 4800) });
       state.busy = bl('Writing it up…'); chatDraw();

@@ -113,7 +113,8 @@
     return { title: L0.title + (label ? ': ' + label.toLowerCase() : ''), svg: `<svg class="amap" viewBox="0 0 ${PW} ${PH}" role="img" aria-label="${esc(L0.title)}">${A().pitchLines()}${svg}</svg>`, note: L0.note, facts };
   }
   function pitch(league, spec) {
-    const mine = league.fixtures.filter((f) => f.played && !f.friendly && f.log && (f.homeId === league.userId || f.awayId === league.userId)).sort((a, b) => a.round - b.round);
+    let mine = league.fixtures.filter((f) => f.played && !f.friendly && f.log && (f.homeId === league.userId || f.awayId === league.userId)).sort((a, b) => a.round - b.round);
+    if (!mine.length) mine = (league.friendlies || []).filter((f) => f.played && f.log && (f.homeId === league.userId || f.awayId === league.userId)).sort((a, b) => a.round - b.round);   // before the season starts, the pre-season friendlies are the games there are
     if (!mine.length) return fail('There are no recorded matches of yours to draw yet. The picture fills in once you have played a league match.');
     const sets = Array.isArray(spec.compare) && spec.compare.length >= 2 && spec.compare.every(Array.isArray) ? spec.compare.slice(0, 2) : [Array.isArray(spec.rounds) ? spec.rounds : []];
     if (LAYERS[spec.layer]) {

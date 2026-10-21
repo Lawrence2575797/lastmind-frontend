@@ -498,16 +498,15 @@
     S.opp.forEach((o) => {
       const q = tween && tween.opp ? tween.opp(o) : o;
       const hasIt = S.defending && S.eng && S.eng.m.carrier && S.eng.m.carrier.player && S.eng.m.carrier.player.number === o.p.number && S.eng.m.carrier.team === S.eng.o;
-      s += `<g><circle cx="${X(q.x)}" cy="${Y(q.y)}" r="${1.9 * PS}" fill="${oppKit.shirt}" stroke="${hasIt ? '#FFE27A' : oppKit.number}" stroke-width="${hasIt ? 3.5 : 2}" opacity=".92"/><text x="${X(q.x)}" y="${(Y(q.y) * 1 + 5).toFixed(1)}" text-anchor="middle" font-size="13" font-weight="700" fill="${oppKit.number}" font-family="sans-serif">${o.p.number}</text></g>`;
+      s += `<g><circle cx="${X(q.x)}" cy="${Y(q.y)}" r="${(hasIt ? 2.15 : 1.9) * PS}" fill="${oppKit.shirt}" stroke="${hasIt ? '#FFE27A' : oppKit.number}" stroke-width="${hasIt ? 3.5 : 2}" opacity=".92"/><text x="${X(q.x)}" y="${(Y(q.y) * 1 + 5).toFixed(1)}" text-anchor="middle" font-size="13" font-weight="700" fill="${oppKit.number}" font-family="sans-serif">${o.p.number}</text></g>`;
     });
     S.own.forEach((o, i) => {
-      const hold = i === S.holder;
-      s += `<g data-own="${i}" style="cursor:grab"><circle cx="${X(o.x)}" cy="${Y(o.y)}" r="${4.2 * PS}" fill="transparent"/><circle cx="${X(o.x)}" cy="${Y(o.y)}" r="${2.15 * PS}" fill="${ok.shirt}" stroke="${hold ? '#FFE27A' : ok.number}" stroke-width="${hold ? 3.5 : 2}"/><text x="${X(o.x)}" y="${(+Y(o.y) + 5).toFixed(1)}" text-anchor="middle" font-size="14" font-weight="700" fill="${ok.number}" font-family="sans-serif" pointer-events="none">${o.p.number}</text><text x="${X(o.x)}" y="${(+Y(o.y) + 2.15 * PS + 12).toFixed(1)}" text-anchor="middle" font-size="11" fill="#fff" stroke="#000" stroke-width="2.5" style="paint-order:stroke" font-family="sans-serif" pointer-events="none">${esc(o.p.name.split(' ').slice(-1)[0])}</text></g>`;
+      const hold = i === S.holder, rr = (hold ? 2.4 : 2.15) * PS;   // the man with the ball has a slightly bigger shirt
+      s += `<g data-own="${i}" style="cursor:grab"><circle cx="${X(o.x)}" cy="${Y(o.y)}" r="${4.2 * PS}" fill="transparent"/><circle cx="${X(o.x)}" cy="${Y(o.y)}" r="${rr}" fill="${ok.shirt}" stroke="${hold ? '#FFE27A' : ok.number}" stroke-width="${hold ? 3.5 : 2}"/><text x="${X(o.x)}" y="${(+Y(o.y) + 5).toFixed(1)}" text-anchor="middle" font-size="14" font-weight="700" fill="${ok.number}" font-family="sans-serif" pointer-events="none">${o.p.number}</text><text x="${X(o.x)}" y="${(+Y(o.y) + rr + 12).toFixed(1)}" text-anchor="middle" font-size="11" fill="#fff" stroke="#000" stroke-width="2.5" style="paint-order:stroke" font-family="sans-serif" pointer-events="none">${esc(o.p.name.split(' ').slice(-1)[0])}</text></g>`;
     });
-    let b = S.ball;
-    const hd = S.attack && S.holder != null ? S.own[S.holder] : null;
-    if (hd && dist(hd, b) < 1.8) b = { x: hd.x + 4.2 > W - 1 ? hd.x - 4.2 : hd.x + 4.2, y: hd.y - 0.2 };   // resting with its man: drawn beside his shirt so both can be picked up
-    s += `<g data-ball="1" style="cursor:grab"><circle cx="${X(b.x)}" cy="${Y(b.y)}" r="${3.4 * PS}" fill="transparent"/><circle cx="${X(b.x)}" cy="${Y(b.y)}" r="${1.3 * PS}" fill="#fff" stroke="#000" stroke-width="2" pointer-events="none"/></g>`;
+    const b = S.ball, hd = S.attack && S.holder != null ? S.own[S.holder] : null;
+    const grab = hd && dist(hd, b) < 1.8 ? 1.5 : 3.4;   // on top of its man: a grab area no bigger than the ball, so his shirt can still be picked up around it
+    s += `<g data-ball="1" style="cursor:grab"><circle cx="${X(b.x)}" cy="${Y(b.y)}" r="${grab * PS}" fill="transparent"/><circle cx="${X(b.x)}" cy="${Y(b.y)}" r="${1.3 * PS}" fill="#fff" stroke="#000" stroke-width="2" pointer-events="none"/></g>`;
     return s;
   }
 

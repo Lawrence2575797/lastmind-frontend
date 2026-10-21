@@ -109,7 +109,7 @@
       });
       return team;
     });
-    const league = { seed, tier: opts.tier || 'gcse', userId: teams[opts.userIndex || 0].id, season: 1, day: 0, teams, fixtures: [], testLog: [], hypotheses: [], news: [], tacticalPlans: [], publicOpinion: 50, boardApproval: 50, divisionLevel: 1, divisionName: 'Premier Division', seasonHistory: [] };
+    const league = { seed, tier: opts.tier || 'gcse', userId: teams[opts.userIndex || 0].id, season: 1, day: 0, nameFix: 2, teams, fixtures: [], testLog: [], hypotheses: [], news: [], tacticalPlans: [], publicOpinion: 50, boardApproval: 50, divisionLevel: 1, divisionName: 'Premier Division', seasonHistory: [] };
     { const ash0 = teams.find((t) => t.name === 'Ashford Rovers'), nor0 = teams.find((t) => t.name === 'Northfield United'); league.fixtures = makeFixtures(teams.map((t) => t.id), rng, seed + runSeed, ash0 && nor0 ? [ash0.id, nor0.id] : null); }
     // The first game of every season is the Iron Derby: Ashford Rovers at home to Northfield United. The rounds are re-ordered so the pairing falls
     // in round one, and the return game is the mirror of it.
@@ -134,6 +134,7 @@
       .filter((f) => f.round < 3).map((f, i) => Object.assign(f, { id: 'p' + i, round: f.round - 3, friendly: true }));
     // The friendlies for the shared league are played in advance (see tools/gen_preseason.js) and simply loaded here.
     if (seed === FM.WORLD_SEED && FM.PRESEASON) league.friendlies = JSON.parse(JSON.stringify(FM.PRESEASON));
+    if (league.friendlies && FM.namesFromSquads) FM.namesFromSquads(league, league.friendlies);
     league.runSeed = runSeed;
     FM.ensureTwoDivisions(league);
     FM.setBoardExpectation(league);
@@ -769,14 +770,15 @@
   };
   FM.serializeLeague = function (league) {
     const teams = league.teams.map(packTeam), other = FM.ensureTwoDivisions(league);
-    return JSON.stringify({ v: 2, seed: league.seed, runSeed: league.runSeed || 0, tier: league.tier, userId: league.userId, season: league.season, day: league.day, divisionLevel: league.divisionLevel || 1, divisionName: league.divisionName || 'Premier Division', fixtures: league.fixtures, teams, otherLeague: { level: other.level, name: other.name, fixtures: other.fixtures, teams: other.teams.map(packTeam) }, seasonHistory: league.seasonHistory || [], workbench: league.workbench || null, skin: league.skin || null, injuryLog: league.injuryLog || [], board: league.board || null, boardApproval: Number.isFinite(league.boardApproval) ? league.boardApproval : 50, prepStep: league.prepStep || 0, prepPhaseMax: league.prepPhaseMax || 0, testPhaseMax: league.testPhaseMax || 0, testLog: league.testLog || [], hypotheses: league.hypotheses || [], news: league.news || [], friendlies: league.friendlies || [], labRuns: league.labRuns || [], labCtx: league.labCtx || null, labArchive: league.labArchive || [], phaseLabRuns: league.phaseLabRuns || {}, interviews: league.interviews || [], publicOpinion: Number.isFinite(league.publicOpinion) ? league.publicOpinion : 50, tacticalPlans: league.tacticalPlans || [], activePlanId: league.activePlanId || null, transfer: league.transfer || null, develop: league.develop || null, captains: league.captains || {}, captainIntroSeen: !!league.captainIntroSeen, mp: league.mp || null, biz: league.biz || null });
+    return JSON.stringify({ v: 2, nameFix: league.nameFix || 0, seed: league.seed, runSeed: league.runSeed || 0, tier: league.tier, userId: league.userId, season: league.season, day: league.day, divisionLevel: league.divisionLevel || 1, divisionName: league.divisionName || 'Premier Division', fixtures: league.fixtures, teams, otherLeague: { level: other.level, name: other.name, fixtures: other.fixtures, teams: other.teams.map(packTeam) }, seasonHistory: league.seasonHistory || [], workbench: league.workbench || null, skin: league.skin || null, injuryLog: league.injuryLog || [], board: league.board || null, boardApproval: Number.isFinite(league.boardApproval) ? league.boardApproval : 50, prepStep: league.prepStep || 0, prepPhaseMax: league.prepPhaseMax || 0, testPhaseMax: league.testPhaseMax || 0, testLog: league.testLog || [], hypotheses: league.hypotheses || [], news: league.news || [], friendlies: league.friendlies || [], labRuns: league.labRuns || [], labCtx: league.labCtx || null, labArchive: league.labArchive || [], phaseLabRuns: league.phaseLabRuns || {}, interviews: league.interviews || [], publicOpinion: Number.isFinite(league.publicOpinion) ? league.publicOpinion : 50, tacticalPlans: league.tacticalPlans || [], activePlanId: league.activePlanId || null, transfer: league.transfer || null, develop: league.develop || null, captains: league.captains || {}, captainIntroSeen: !!league.captainIntroSeen, mp: league.mp || null, biz: league.biz || null });
   };
   FM.deserializeLeague = function (text) {
     const d = JSON.parse(text);
     const teams = d.teams.map(unpackTeam);
-    const league = { seed: d.seed, runSeed: d.runSeed || 0, tier: d.tier, userId: d.userId, season: d.season, day: d.day, divisionLevel: d.divisionLevel || 1, divisionName: d.divisionName || 'Premier Division', fixtures: d.fixtures, teams, seasonHistory: d.seasonHistory || [], workbench: d.workbench || null, skin: d.skin || null, injuryLog: d.injuryLog || [], board: d.board || null, boardApproval: Number.isFinite(d.boardApproval) ? d.boardApproval : 50, prepStep: d.prepStep || 0, prepPhaseMax: d.prepPhaseMax || 0, testPhaseMax: d.testPhaseMax || 0, testLog: d.testLog || [], hypotheses: d.hypotheses || [], news: d.news || [], friendlies: d.friendlies || [], labRuns: d.labRuns || [], labCtx: d.labCtx || null, labArchive: d.labArchive || [], phaseLabRuns: d.phaseLabRuns || {}, interviews: d.interviews || [], publicOpinion: Number.isFinite(d.publicOpinion) ? d.publicOpinion : 50, tacticalPlans: d.tacticalPlans || [], activePlanId: d.activePlanId || null, transfer: d.transfer || null, develop: d.develop || null, captains: d.captains || {}, captainIntroSeen: !!d.captainIntroSeen, mp: d.mp || null, biz: d.biz || null };
+    const league = { nameFix: d.nameFix || 0, seed: d.seed, runSeed: d.runSeed || 0, tier: d.tier, userId: d.userId, season: d.season, day: d.day, divisionLevel: d.divisionLevel || 1, divisionName: d.divisionName || 'Premier Division', fixtures: d.fixtures, teams, seasonHistory: d.seasonHistory || [], workbench: d.workbench || null, skin: d.skin || null, injuryLog: d.injuryLog || [], board: d.board || null, boardApproval: Number.isFinite(d.boardApproval) ? d.boardApproval : 50, prepStep: d.prepStep || 0, prepPhaseMax: d.prepPhaseMax || 0, testPhaseMax: d.testPhaseMax || 0, testLog: d.testLog || [], hypotheses: d.hypotheses || [], news: d.news || [], friendlies: d.friendlies || [], labRuns: d.labRuns || [], labCtx: d.labCtx || null, labArchive: d.labArchive || [], phaseLabRuns: d.phaseLabRuns || {}, interviews: d.interviews || [], publicOpinion: Number.isFinite(d.publicOpinion) ? d.publicOpinion : 50, tacticalPlans: d.tacticalPlans || [], activePlanId: d.activePlanId || null, transfer: d.transfer || null, develop: d.develop || null, captains: d.captains || {}, captainIntroSeen: !!d.captainIntroSeen, mp: d.mp || null, biz: d.biz || null };
     if (d.otherLeague && d.otherLeague.teams) league.otherLeague = { level: d.otherLeague.level, name: d.otherLeague.name, fixtures: d.otherLeague.fixtures || [], teams: d.otherLeague.teams.map(unpackTeam) };
     FM.ensureTwoDivisions(league); FM.setBoardExpectation(league);
+    if (FM.fixStaleNames) FM.fixStaleNames(league);   // friendlies written with the earlier player names (see name_fix.js)
     if (FM.installSkin) FM.installSkin(league.skin || null);   // a saved game with a league setting reads its history from that setting
     FM.today = d.day;
     // A match that was abandoned part way: put the lineups back as they were before kick-off.
@@ -1072,6 +1074,7 @@
       const have = (league.friendlies || []).length === FM.PRESEASON.length && league.friendlies.every((f) => f.played && f.scout);
       if (have) return false;
       league.friendlies = JSON.parse(JSON.stringify(FM.PRESEASON));
+      if (FM.namesFromSquads) FM.namesFromSquads(league, league.friendlies);   // the pre-played friendlies name players as they are now
       return false;
     }
     // friendlies played before scouting existed have no positions recorded; they change nothing, so before the season they are simply replayed
