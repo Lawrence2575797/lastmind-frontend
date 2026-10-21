@@ -1844,7 +1844,7 @@
 
     /* Key points: a large panel at the top right that opens over the page and works like a Notes text box (the same editor, shortcuts and layout), for the
        points the student wants in view while they work. Closed by default; what is written is kept with the page. */
-    .km-keypoints-widget { position: fixed; top: 70px; right: 20px; z-index: 70; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; max-width: calc(100vw - 24px); }
+    .km-keypoints-widget { position: fixed; top: 70px; right: 20px; z-index: 140; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; max-width: calc(100vw - 24px); }
     .km-keypoints-toggle { flex-shrink: 0; font-family: 'Arial', sans-serif; font-size: 0.78rem; font-weight: 700; background: var(--accent); color: var(--bg); border: none; padding: 9px 16px; border-radius: 20px; cursor: pointer; white-space: nowrap; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35); }
     .km-keypoints-toggle:hover { opacity: 0.85; }
     .km-keypoints-panel { display: none; flex-direction: column; width: min(1000px, calc(100vw - 40px)); height: calc(100vh - 150px); min-height: 320px; background: #1A232D; border: 1px solid rgba(230, 215, 176, 0.3); border-radius: 10px; box-shadow: 0 14px 40px rgba(0, 0, 0, 0.5); overflow: hidden; }
@@ -30791,12 +30791,13 @@ SQIDAQAB
 
     // Key points: the same editor as a Notes text box (shortcuts, maths, bullets and arrows), in a large panel at the top right. The text is kept on the
     // page itself (page.doc.keyPoints), saved with it, and the panel remembers whether it was open.
-    let kpOpen = false;
+    let kpOpenPage = null;   // the page whose Key points are open (another page starts closed, and has its own)
     function renderKeyPointsWidget(page) {
         const prev = document.getElementById('kmKeyPointsWidget'); if (prev) prev.remove();
+        let kpOpen = kpOpenPage === page.id;
         const widget = document.createElement('div');
         widget.className = 'km-keypoints-widget'; widget.id = 'kmKeyPointsWidget';
-        widget.innerHTML = `<button type="button" class="km-keypoints-toggle" aria-expanded="${kpOpen}">Key points ${kpOpen ? '▴' : '▾'}</button>
+        widget.innerHTML = `<button type="button" class="km-keypoints-toggle" aria-expanded="${kpOpen}">Key points${(page.doc.keyPoints || '').replace(/<[^>]*>/g, '').trim() ? ' •' : ''} ${kpOpen ? '▴' : '▾'}</button>
             <div class="km-keypoints-panel${kpOpen ? ' open' : ''}" role="dialog" aria-label="Key points">
                 <div class="km-kp-head"><span>Key points</span><span class="km-kp-state"></span><button type="button" class="km-kp-close" aria-label="Close key points">✕</button></div>
                 <div class="nb-canvas kp-canvas" style="--nb-margin:56px"><div class="nb-block nb-text kp-block"><div class="nb-body"></div></div></div>
@@ -30820,7 +30821,7 @@ SQIDAQAB
         editable.addEventListener('pointerdown', activate); editable.addEventListener('keydown', activate);
         nbTextShortcuts(editable, { page: { doc: { blocks: [] } }, block, canvas, el });   // the same typing shortcuts as a Notes text box
         canvas.addEventListener('pointerdown', (e) => { if (!e.target.closest('.math-shortcut-editor')) { editable.focus(); } });
-        const set = (open) => { kpOpen = open; panel.classList.toggle('open', open); toggle.setAttribute('aria-expanded', String(open)); toggle.textContent = 'Key points ' + (open ? '▴' : '▾'); if (open) setTimeout(() => editable.focus(), 30); };
+        const set = (open) => { kpOpen = open; kpOpenPage = open ? page.id : null; panel.classList.toggle('open', open); toggle.setAttribute('aria-expanded', String(open)); toggle.textContent = 'Key points' + ((page.doc.keyPoints || '').replace(/<[^>]*>/g, '').trim() ? ' •' : '') + ' ' + (open ? '▴' : '▾'); if (open) setTimeout(() => editable.focus(), 30); };
         toggle.addEventListener('click', () => set(!kpOpen));
         widget.querySelector('.km-kp-close').addEventListener('click', () => set(false));
         widget.addEventListener('keydown', (e) => { if (e.key === 'Escape' && kpOpen) { e.stopPropagation(); set(false); toggle.focus(); } });
