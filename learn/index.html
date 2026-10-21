@@ -11840,13 +11840,14 @@ SQIDAQAB
     // The football manager season is saved by its own page. Read that save directly, so it is listed as a project even if the game page
     // has not been opened since this list was added.
     let createFootballUid = 'guest';
+    let createMpCloudIds = new Set();
     function createFootballProject(demo = false) {
         try {
             const raw = localStorage.getItem(demo ? 'lm_football_demo_save_v1' : `lm_football_save_v1:${createFootballUid}`);
             if (!raw) {
                 // the season is kept in the browser's database now; the small summary the game page leaves is enough for the card
                 const sum = createLocalProjects().find((x) => x.id === (demo ? 'local-football-demo' : 'local-football-manager'));
-                return sum ? { id: sum.id, title: sum.title, kind: sum.kind, href: (sum.data && sum.data.href) || (demo ? '/create/football/?demo=1' : '/create/football/'), isReference: false, local: true, updatedAt: sum.updatedAt, meta: sum.data && sum.data.meta } : null;
+                return sum ? { id: sum.id, title: sum.title, kind: sum.kind, href: (sum.data && sum.data.href) || (demo ? '/create/football/?demo=1' : '/create/football/?game=solo'), isReference: false, local: true, updatedAt: sum.updatedAt, meta: sum.data && sum.data.meta } : null;
             }
             const d = JSON.parse(raw);
             const team = (d.teams || []).find((t) => t.id === d.userId);
@@ -11864,7 +11865,7 @@ SQIDAQAB
             const pos = order.findIndex((r) => r.id === d.userId) + 1;
             const ord = (n) => n + (['th', 'st', 'nd', 'rd'][(n % 100 > 10 && n % 100 < 14) || n % 10 > 3 ? 0 : n % 10]);
             const tier = { gcse: 'GCSE', alevel: 'A-level', above: 'Beyond A-level' }[d.tier] || d.tier;
-            return { id: demo ? 'local-football-demo' : 'local-football-manager', title: demo ? 'Lastmind football demo' : 'Be the manager: ' + team.name, kind: demo ? 'football-demo' : 'football-manager', href: demo ? '/create/football/?demo=1' : '/create/football/', isReference: false, local: true,
+            return { id: demo ? 'local-football-demo' : 'local-football-manager', title: demo ? 'Lastmind football demo' : 'Be the manager: ' + team.name, kind: demo ? 'football-demo' : 'football-manager', href: demo ? '/create/football/?demo=1' : '/create/football/?game=solo', isReference: false, local: true,
                 updatedAt: new Date().toISOString(),
                 meta: demo ? 'Opening match' : 'Season ' + d.season + ' · ' + (mine >= 14 ? 'season complete' : mine + ' of 14 played') + (mine ? ' · ' + ord(pos) + ' in the table' : '') };
         } catch (err) { return null; }
@@ -11927,7 +11928,7 @@ SQIDAQAB
         void had; void meta;
         return rest;   // the career is entered from its card on the projects page and nowhere else: no entry in Your projects
     }
-    const createWithFootball = (list0) => { let list = list0; try { list = createWithCareer(list0); } catch (err) { console.error('LastMind: career entry failed.', err); } try { const local = doctorProjects(), have = new Set(local.map((p) => p.track)), isDoc = (p) => String(p.kind || '').startsWith('doctor-career'); const remote = list.filter((p) => isDoc(p) && p.kind !== 'doctor-career').map((p) => ({ id: p.id, title: p.title, kind: 'doctor-career', track: String(p.kind).replace('doctor-career-', ''), meta: 'Saved to your account', isReference: false, updatedAt: p.updatedAt })).filter((p) => !have.has(p.track)); list = [...local, ...remote, ...list.filter((p) => !isDoc(p))]; } catch (err) { console.error('LastMind: doctor entry failed.', err); } const fp = createFootballProject(), dp = createFootballProject(true), cp = createChancellorProject(); list = list.map((p) => (p.kind === 'football-manager' && !String(p.id).startsWith('local-') ? Object.assign({}, p, { href: '/create/football/', meta: p.meta || 'Saved to your account', cloud: true }) : p)); if (fp) list = list.filter((p) => !p.cloud); list = list.filter((p) => !['local-football-manager', 'local-football-demo', 'local-chancellor'].includes(p.id)); if (cp) list.unshift(cp); if (fp) list.unshift(fp); if (dp) list.unshift(dp); return list; };
+    const createWithFootball = (list0) => { let list = list0; try { list = createWithCareer(list0); } catch (err) { console.error('LastMind: career entry failed.', err); } try { const local = doctorProjects(), have = new Set(local.map((p) => p.track)), isDoc = (p) => String(p.kind || '').startsWith('doctor-career'); const remote = list.filter((p) => isDoc(p) && p.kind !== 'doctor-career').map((p) => ({ id: p.id, title: p.title, kind: 'doctor-career', track: String(p.kind).replace('doctor-career-', ''), meta: 'Saved to your account', isReference: false, updatedAt: p.updatedAt })).filter((p) => !have.has(p.track)); list = [...local, ...remote, ...list.filter((p) => !isDoc(p))]; } catch (err) { console.error('LastMind: doctor entry failed.', err); } const fp = createFootballProject(), dp = createFootballProject(true), cp = createChancellorProject(); createMpCloudIds = new Set(list.filter((p) => p.kind === 'football-mp').map((p) => p.id)); list = list.map((p) => (p.kind === 'football-mp' ? Object.assign({}, p, { kind: 'football-manager', href: '/create/football/?game=mp', meta: p.meta || 'Saved to your account' }) : p)); if (createMpCloudIds.size) list = list.filter((p) => p.id !== 'local-football-mp'); list = list.map((p) => (p.kind === 'football-manager' && !String(p.id).startsWith('local-') && !createMpCloudIds.has(p.id) ? Object.assign({}, p, { href: '/create/football/?game=solo', meta: p.meta || 'Saved to your account', cloud: true }) : p)); if (fp) list = list.filter((p) => !p.cloud); list = list.filter((p) => !['local-football-manager', 'local-football-demo', 'local-chancellor'].includes(p.id)); if (cp) list.unshift(cp); if (fp) list.unshift(fp); if (dp) list.unshift(dp); return list; };
     async function createLoadProjects() {
         // The career is saved under a per-account key that is only worked out once the career is opened, so settle it here first or a
         // fresh visit to the list reads the wrong key and the career never shows.
@@ -11980,6 +11981,18 @@ SQIDAQAB
         } catch (err) { /* the list is optional */ }
     }
     async function createDeleteProject(id) {
+        if (id === 'local-football-mp' || createMpCloudIds.has(id)) {
+            // the multiplayer game has its own saves: the single-player season is left alone
+            try {
+                const cid = id === 'local-football-mp' ? localStorage.getItem(`lm_football_mpsave_v1_cloud_id:${createFootballUid}`) : id;
+                const open = indexedDB.open('lastmind-football', 1);
+                open.onsuccess = () => { try { const d = open.result; if (!d.objectStoreNames.contains('saves')) return; const st = d.transaction('saves', 'readwrite').objectStore('saves'); st.openCursor().onsuccess = (e) => { const c = e.target.result; if (!c) return; if (String(c.key).indexOf('lm_football_mpsave_v1') === 0) c.delete(); c.continue(); }; } catch (err) { /* nothing to remove */ } };
+                Object.keys(localStorage).filter((k) => k.indexOf('lm_football_mpsave_v1') === 0).forEach((k) => localStorage.removeItem(k));
+                createSetLocalProjects(createLocalProjects().filter((p) => p.id !== 'local-football-mp'));
+                if (cid) await createAuthedFetch(`/create/projects/${encodeURIComponent(cid)}`, { method: 'DELETE' });
+            } catch (err) { /* nothing to remove */ }
+            return;
+        }
         if (id === 'local-football-manager') {
             try { localStorage.removeItem('lm_football_save_v1'); const cid = localStorage.getItem('lm_football_save_v1_cloud_id'); localStorage.removeItem('lm_football_save_v1_cloud_id'); localStorage.removeItem('lm_football_save_v1_at'); localStorage.removeItem('lm_football_save_v1_owner'); if (cid) await createAuthedFetch(`/create/projects/${encodeURIComponent(cid)}`, { method: 'DELETE' }); } catch (err) { /* nothing to remove */ }
         }

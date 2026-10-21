@@ -2477,6 +2477,7 @@
   }
 
   // ---------- starting up ----------
+  const escapeHtmlNg = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   function showNewGame() {
     document.body.dataset.view = 'new';
     VIEWS.forEach((k) => { el('view-' + k).hidden = true; });
@@ -2492,9 +2493,10 @@
   }
   const openMp = (first) => FM.mpMenu({ start: (league) => { world.league = league; world.match = null; FM.saveLeague(league); if (FM.ensurePreseasonNews) FM.ensurePreseasonNews(league); try { history.replaceState(null, '', cleanUrl()); } catch (e) { /* fine */ } setView('mp'); } }, first);
   try { const lv = localStorage.getItem('lm_football_level'), rb = lv && document.querySelector('input[name="ngLevel"][value="' + lv + '"]'); if (rb) rb.checked = true; } catch (e) { /* the default stands */ }
-  el('ngLeague').addEventListener('click', () => openMp('league'));
-  el('ngMatch').addEventListener('click', () => openMp('match'));
-  el('ngJoin').addEventListener('click', () => openMp('join'));
+  const mpGuard = (first) => () => { if (world.hadMp && !window.confirm('You already have a multiplayer game saved. Starting another replaces it (your single-player season is not affected). Continue?')) return; openMp(first); };
+  el('ngLeague').addEventListener('click', mpGuard('league'));
+  el('ngMatch').addEventListener('click', mpGuard('match'));
+  el('ngJoin').addEventListener('click', mpGuard('join'));
   let ngSkin = null;
   ngSkin = !DEMO_MODE && FM.skinPicker && el('ngSkinHost') ? FM.skinPicker(el('ngSkinHost'), { id: 'ngSk', level: () => { const r = document.querySelector('input[name="ngLevel"]:checked'); return r ? r.value : 'gcse'; }, onChange: () => { const b = el('ngStart'); if (b && ngSkin) b.disabled = !ngSkin.ready(); } }) : null;
   if (DEMO_MODE && el('ngSkinBox')) el('ngSkinBox').hidden = true;
@@ -2503,7 +2505,7 @@
     const btn = el('ngStart'), picked = document.querySelector('input[name="ngLevel"]:checked'), tier = picked ? picked.value : 'gcse';
     // a season in progress is never replaced without asking; it is kept as a backup either way, and can be brought back with "Recover an earlier season"
     if (!DEMO_MODE && world.hadSave && (world.hadSave.season * 1000 + world.hadSave.played) >= 1001) {
-      if (!window.confirm('You have a season in progress: ' + world.hadSave.club + ', season ' + world.hadSave.season + ', ' + world.hadSave.played + ' of 14 played. Starting a new game replaces it. It is kept as a backup, and "Recover an earlier season" brings it back. Start the new game?')) return;
+      if (!window.confirm('You have a single-player season in progress: ' + world.hadSave.club + ', season ' + world.hadSave.season + ', ' + world.hadSave.played + ' of 14 played. Starting a new single-player game replaces it (a multiplayer game is not affected). It is kept as a backup, and "Recover an earlier season" brings it back. Start the new game?')) return;
     }
     if (!DEMO_MODE && FM.markReplaceNext) FM.markReplaceNext();   // the new game is meant to replace the account's save (the server backs the old one up)
     try { localStorage.setItem('lm_football_level', tier); } catch (e) { /* the choice is also in the game */ }
@@ -2545,10 +2547,21 @@
       return;
     }
   }
-  world.league = FM.loadLeague();
+  const wantGame = (location.search.match(/[?&]game=(solo|mp)\b/) || [])[1];
+  world.league = FM.loadLeague(wantGame);
   if (world.league && !(world.league.mp && world.league.mp.kind === 'match') && FM.biz) { FM.biz(world.league); FM.bizSyncBudget(world.league); }   // the club's books
   // "New project" comes here with ?new=1: the set-up choices, even when a game is saved (resuming is what Your projects is for)
   const wantsNew = /[?&]new=1/.test(location.search);
+  if (wantsNew && !DEMO_MODE && FM.savedGames) {
+    const games = await FM.savedGames();
+    world.hadMp = games.mp;
+    world.hadSave = games.solo ? { season: games.solo.season, played: games.solo.played, club: games.solo.club } : null;   // only a single-player season is replaced by a new single-player game
+    const rows = [];
+    if (games.solo) rows.push('<a class="ng-resume" href="/create/football/?game=solo">Resume your single-player season: ' + escapeHtmlNg(games.solo.club) + ', season ' + games.solo.season + ' →</a>');
+    if (games.mp) rows.push('<a class="ng-resume" href="/create/football/?game=mp">Resume your multiplayer ' + (games.mp.mpKind === 'match' ? 'match' : 'league') + ': ' + escapeHtmlNg(games.mp.club) + ' →</a>');
+    if (rows.length) { el('ngResume').innerHTML = rows.join('<br>'); el('ngResume').hidden = false; }
+    world.league = null; showNewGame(); requestAnimationFrame(frame); return;
+  }
   if (world.league && wantsNew) { world.hadSave = { season: world.league.season || 1, played: world.league.fixtures.filter((f) => f.played && (f.homeId === world.league.userId || f.awayId === world.league.userId)).length, club: userTeam().name }; el('ngResume').hidden = false; world.league = null; showNewGame(); requestAnimationFrame(frame); return; }
   if (world.league && world.league.biz && world.league.biz.conf && world.league.biz.conf.dismissed) { boardVerdict(world.league, () => {}); requestAnimationFrame(frame); return; }
   if (world.league) {

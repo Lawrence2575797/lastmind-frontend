@@ -784,18 +784,23 @@
     return league;
   };
   // The Create page's "Your projects" list reads this entry (same browser storage), so the season shows up there with a Resume button.
-  const PROJECTS_KEY = 'lastmind-create-projects', PROJECT_ID = DEMO_MODE ? 'local-football-demo' : 'local-football-manager';
-  FM.syncProject = function (league) {
+  const PROJECTS_KEY = 'lastmind-create-projects', PROJECT_IDS = { solo: DEMO_MODE ? 'local-football-demo' : 'local-football-manager', mp: 'local-football-mp' };
+  FM.syncProject = function (league, which0) {
     try {
+      const which = league ? (league.mp ? 'mp' : 'solo') : (which0 || mode), PROJECT_ID = PROJECT_IDS[which];
       let list = JSON.parse(localStorage.getItem(PROJECTS_KEY) || '[]');
       list = list.filter((p) => p.id !== PROJECT_ID);
-      if (league) {
+      if (league && which === 'mp') {
+        const user = FM.teamById(league, league.userId);
+        list.unshift({ id: PROJECT_ID, title: 'Multiplayer: ' + (user ? user.name : 'My club'), kind: 'football-manager', updatedAt: new Date().toISOString(), isReference: false,
+          data: { href: '/create/football/?game=mp', meta: league.mp.kind === 'match' ? 'Multiplayer match' : 'Multiplayer league · season ' + league.season } });
+      } else if (league) {
         const user = FM.teamById(league, league.userId), played = league.fixtures.filter((f) => f.played && (f.homeId === league.userId || f.awayId === league.userId)).length;
         const pos = FM.tableRows(league).findIndex((r) => r.id === league.userId) + 1;
         const ord = (n) => n + (['th', 'st', 'nd', 'rd'][(n % 100 > 10 && n % 100 < 14) || n % 10 > 3 ? 0 : n % 10]);
         const tier = { gcse: 'GCSE', alevel: 'A-level', above: 'Beyond A-level' }[league.tier] || league.tier;
         list.unshift({ id: PROJECT_ID, title: DEMO_MODE ? 'Lastmind football demo' : 'Be the manager: ' + user.name, kind: DEMO_MODE ? 'football-demo' : 'football-manager', updatedAt: new Date().toISOString(), isReference: false,
-          data: { href: DEMO_MODE ? '/create/football/?demo=1' : '/create/football/', meta: DEMO_MODE ? 'Opening match' : 'Season ' + league.season + ' · ' + (played >= 14 ? 'season complete' : played + ' of 14 played') + (played ? ' · ' + ord(pos) + ' in the table' : '') } });
+          data: { href: DEMO_MODE ? '/create/football/?demo=1' : '/create/football/?game=solo', meta: DEMO_MODE ? 'Opening match' : 'Season ' + league.season + ' · ' + (played >= 14 ? 'season complete' : played + ' of 14 played') + (played ? ' · ' + ord(pos) + ' in the table' : '') } });
       }
       localStorage.setItem(PROJECTS_KEY, JSON.stringify(list));
     } catch (e) { /* the projects list is a convenience */ }
@@ -853,9 +858,23 @@
   let accountUid = null;
   FM.accountId = () => accountUid;
   const accountKey = (base) => (!DEMO_MODE && accountUid ? base + ':' + accountUid : base);
-  const currentSaveKey = () => accountKey(SAVE_KEY);
-  const currentAtKey = () => accountKey(AT_KEY);
-  const currentCloudIdKey = () => accountKey(CLOUD_ID_KEY);
+  // A single-player season and a multiplayer game are kept as two separate saves, each on this device and on the account (kind 'football-manager'
+  // and 'football-mp'). `mode` is the one that is open; the other stays exactly as it was.
+  const MP_KEY = 'lm_football_mpsave_v1', MODE_KEY = 'lm_football_active_mode';
+  let mode = 'solo';
+  const baseOf = (m) => ((m || mode) === 'mp' ? MP_KEY : SAVE_KEY);
+  const saveKey = (m) => accountKey(baseOf(m));
+  const atKey = (m) => accountKey(baseOf(m) + '_at');
+  const cloudIdKey = (m) => accountKey(baseOf(m) + '_cloud_id');
+  const currentSaveKey = () => saveKey();
+  const currentAtKey = () => atKey();
+  const currentCloudIdKey = () => cloudIdKey();
+  function setMode(m) {
+    if (DEMO_MODE) return;
+    if (m !== mode) { mode = m; knownProgress = null; }
+    lsSet(accountKey(MODE_KEY), m);
+  }
+  FM.activeMode = () => mode;
   let cloudTimer = 0, cloudBusy = false, cloudAgain = false, cloudLeague = null, replaceNext = false;
   // How far on a season is: the season number and the matches played in it. A save further back never replaces one further on.
   const progressOfLeague = (lg) => (lg.season || 1) * 1000 + lg.fixtures.filter((f) => f.played && (f.homeId === lg.userId || f.awayId === lg.userId)).length;
@@ -876,11 +895,11 @@
           for (const i of order) { league.fixtures[i].clips = []; text = FM.serializeLeague(league); if (text.length <= 4400000) break; }
         } finally { league.fixtures.forEach((f, i) => { f.clips = kept[i]; }); }
       }
-      const user = FM.teamById(league, league.userId);
-      const body = { id: lsGet(currentCloudIdKey()) || undefined, title: 'Be the manager: ' + (user ? user.name : 'My club'), kind: 'football-manager', data: { href: '/create/football/', meta: 'Season ' + league.season, football: { save: text, savedAt: new Date().toISOString(), progress: progressOfLeague(league) } } };
+      const user = FM.teamById(league, league.userId), m = league.mp ? 'mp' : 'solo';
+      const body = { id: lsGet(cloudIdKey(m)) || undefined, title: (m === 'mp' ? 'Multiplayer: ' : 'Be the manager: ') + (user ? user.name : 'My club'), kind: m === 'mp' ? 'football-mp' : 'football-manager', data: { href: m === 'mp' ? '/create/football/?game=mp' : '/create/football/?game=solo', meta: (m === 'mp' ? 'Multiplayer · season ' : 'Season ') + league.season, football: { save: text, savedAt: new Date().toISOString(), progress: progressOfLeague(league) } } };
       if (replaceNext) body.replace = true;
       const r = await FM.apiCall('POST', '/create/projects', body);
-      if (r && r.ok && r.json && r.json.id && r.uid === accountUid) { ok = true; lsSet(currentCloudIdKey(), r.json.id); lsSet(currentAtKey(), new Date().toISOString()); replaceNext = false; }
+      if (r && r.ok && r.json && r.json.id && r.uid === accountUid) { ok = true; lsSet(cloudIdKey(m), r.json.id); lsSet(atKey(m), new Date().toISOString()); replaceNext = false; }
       else if (r && r.status === 409) { replaceNext = false; FM.cloudRefused = true; }   // the account holds a season further on than this one: the next page open offers it
     } catch (e) { /* the browser copy is still saved; the next change tries again */ }
     cloudBusy = false;
@@ -907,46 +926,56 @@
   // Called once as the page opens: when the account holds a newer game than this browser (or this browser's game belongs to a different
   // account), the account's game is loaded here. Resolves quickly if nobody is signed in.
   FM.pullCloud = async function () {
-    if (DEMO_MODE) { await storeEnsure(currentSaveKey()); return 'none'; }
+    if (DEMO_MODE) { await storeEnsure(saveKey('solo')); return 'none'; }
     try {
       // Wait for the signed-in account's cloud save. Render can take a while
       // to wake, and an arbitrary browser-side cutoff can open the wrong local
       // state before the account response arrives.
       const list = await FM.apiCall('GET', '/create/projects');
       if (!list) return 'nosession';   // not signed in
-      if (list.uid) { accountUid = list.uid; await storeEnsure(currentSaveKey()); }   // the account is known as soon as the sign-in is, even if the server is slow or down
-      if (list.netError || list.status >= 500 || list.status === 429 || list.status === 0) return storeGet(currentSaveKey()) ? 'ok' : 'error';   // a game kept on this device still opens
+      if (list.uid) { accountUid = list.uid; await storeEnsure(saveKey('solo')); await storeEnsure(saveKey('mp')); }   // the account is known as soon as the sign-in is, even if the server is slow or down
+      if (list.netError || list.status >= 500 || list.status === 429 || list.status === 0) return storeGet(saveKey('solo')) || storeGet(saveKey('mp')) ? 'ok' : 'error';   // a game kept on this device still opens
       if (!list.ok || !list.json || list.json.unavailable || !list.uid) return 'none';
-      const uid = list.uid;
+      try { await pullOne(list, 'mp'); } catch (e) { /* the multiplayer game opens from this device; the next page open tries again */ }
+      return pullOne(list, 'solo');
+    } catch (e) { return 'error'; }
+  };
+  async function pullOne(list, m) {
+    {
+      const uid = list.uid, sk = saveKey(m), ak = atKey(m), ck = cloudIdKey(m);
       // One-time migration from the old device-wide slot, but only when its
       // recorded owner is this exact account. Another account's save is never copied.
-      await storeEnsure(currentSaveKey()); await storeEnsure(SAVE_KEY);
-      const owner = lsGet(OWNER_KEY), legacyText = storeGet(SAVE_KEY);
-      if (!storeGet(currentSaveKey()) && legacyText && (!owner || owner === uid)) {   // the old shared slot: this browser's own game from before saves were kept per account
-        storeSet(currentSaveKey(), legacyText); storeDrop(SAVE_KEY);
-        if (lsGet(AT_KEY)) lsSet(currentAtKey(), lsGet(AT_KEY));
-        if (lsGet(CLOUD_ID_KEY)) lsSet(currentCloudIdKey(), lsGet(CLOUD_ID_KEY));
+      await storeEnsure(sk);
+      if (m === 'solo') {
+        await storeEnsure(SAVE_KEY);
+        const owner = lsGet(OWNER_KEY), legacyText = storeGet(SAVE_KEY);
+        if (!storeGet(sk) && legacyText && (!owner || owner === uid)) {   // the old shared slot: this browser's own game from before saves were kept per account
+          storeSet(sk, legacyText); storeDrop(SAVE_KEY);
+          if (lsGet(AT_KEY)) lsSet(ak, lsGet(AT_KEY));
+          if (lsGet(CLOUD_ID_KEY)) lsSet(ck, lsGet(CLOUD_ID_KEY));
+        }
       }
-      const localText = storeGet(currentSaveKey());
+      const localText = storeGet(sk);
       // the season furthest on is the one to carry on with (then the most recently saved)
-      const rows = (list.json.projects || []).filter((p) => p.kind === 'football-manager').sort((a, b) => ((b.progress || 0) - (a.progress || 0)) || String(b.updatedAt).localeCompare(String(a.updatedAt)));
-      const chosen = lsGet(accountKey(SAVE_KEY + '_prefer')), row = (chosen && rows.find((p) => p.id === chosen)) || rows[0];   // a season the manager restored on purpose is kept even when another copy is further on
+      const kind = m === 'mp' ? 'football-mp' : 'football-manager';
+      const rows = (list.json.projects || []).filter((p) => p.kind === kind).sort((a, b) => ((b.progress || 0) - (a.progress || 0)) || String(b.updatedAt).localeCompare(String(a.updatedAt)));
+      const chosen = m === 'solo' ? lsGet(accountKey(SAVE_KEY + '_prefer')) : null, row = (chosen && rows.find((p) => p.id === chosen)) || rows[0];   // a season the manager restored on purpose is kept even when another copy is further on
       if (!row) return 'ok';
-      const at = lsGet(currentAtKey());
+      const at = lsGet(ak);
       const localProg = localText ? progressOfText(localText) : -1; knownProgress = Math.max(0, localProg);
       const cloudNewer = !localText || !at || String(row.updatedAt) > at || (row.progress || 0) > localProg;
-      if (!cloudNewer) { lsSet(currentCloudIdKey(), row.id); return 'ok'; }
+      if (!cloudNewer) { lsSet(ck, row.id); return 'ok'; }
       const got = await FM.apiCall('GET', '/create/projects/' + encodeURIComponent(row.id));
       if (!got || !got.ok) return localText ? 'ok' : 'error';
       const text = got.json && got.json.data && got.json.data.football && got.json.data.football.save;
       if (!text) return 'ok';
       try { FM.deserializeLeague(text); } catch (e) { return 'ok'; }
       // never swap a season for one that is further back
-      if (localText && progressOfText(text) < localProg) { lsSet(currentCloudIdKey(), row.id); return 'ok'; }
-      storeSet(currentSaveKey(), text); lsSet(currentAtKey(), String(row.updatedAt)); lsSet(currentCloudIdKey(), row.id);
+      if (localText && progressOfText(text) < localProg) { lsSet(ck, row.id); return 'ok'; }
+      storeSet(sk, text); lsSet(ak, String(row.updatedAt)); lsSet(ck, row.id);
       return 'ok';
-    } catch (e) { return 'error'; }
-  };
+    }
+  }
 
   // ---- finding an earlier season, and bringing it back ----
   // Every season this device or the account still holds: the saves kept in this browser (under any account, and the archive of seasons that a new game
@@ -954,10 +983,17 @@
   const peekSave = (text) => {
     try {
       const d = JSON.parse(text), me = (d.teams || []).find((t) => t.id === d.userId), played = (d.fixtures || []).filter((f) => f.played && (f.homeId === d.userId || f.awayId === d.userId)).length;
-      return { club: me ? me.name : 'a club', season: d.season || 1, played, tier: d.tier, bytes: text.length, skin: d.skin ? d.skin.title : '' };
+      return { club: me ? me.name : 'a club', season: d.season || 1, played, tier: d.tier, bytes: text.length, skin: d.skin ? d.skin.title : '', mpKind: d.mp ? (d.mp.kind || 'league') : '' };
     } catch (e) { return null; }
   };
   const idbKeys = async () => { const d = await idb(); if (!d) return []; return new Promise((res) => { try { const r = d.transaction('saves').objectStore('saves').getAllKeys(); r.onsuccess = () => res(r.result || []); r.onerror = () => res([]); } catch (e) { res([]); } }); };
+  // The games saved on this device for the signed-in account, one per kind: { solo, mp } (null where there is none).
+  FM.savedGames = async function () {
+    const out = { solo: null, mp: null };
+    if (!DEMO_MODE && !accountUid) return out;
+    for (const m of ['solo', 'mp']) { await storeEnsure(saveKey(m)); const t = storeGet(saveKey(m)); out[m] = t ? peekSave(t) : null; }
+    return out;
+  };
   FM.listSavedSeasons = async function () {
     const out = [], keys = new Set((await idbKeys()).map(String));
     try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.indexOf(SAVE_KEY) === 0 && !/_(owner|at|cloud_id|prefer)(:|$)/.test(k)) keys.add(k); } } catch (e) { /* fine */ }
@@ -965,7 +1001,7 @@
       if (k.indexOf(SAVE_KEY) !== 0 || /_(owner|at|cloud_id|prefer)(:|$)/.test(k)) continue;
       let text = await idbGet(k); if (text == null) text = lsGet(k); if (!text) continue;
       const pk = peekSave(text); if (!pk) continue;
-      out.push(Object.assign({ source: 'device', key: k, current: k === currentSaveKey(), archive: k.indexOf(':archive:') >= 0, otherAccount: k !== currentSaveKey() && k.indexOf(':archive:') < 0, progress: pk.season * 1000 + pk.played, at: (k.split(':archive:')[1] || '').split(':')[1] || null }, pk));
+      out.push(Object.assign({ source: 'device', key: k, current: k === saveKey('solo'), archive: k.indexOf(':archive:') >= 0, otherAccount: k !== saveKey('solo') && k.indexOf(':archive:') < 0, progress: pk.season * 1000 + pk.played, at: (k.split(':archive:')[1] || '').split(':')[1] || null }, pk));
     }
     let cloud = null;
     if (!DEMO_MODE) {
@@ -978,6 +1014,7 @@
   let knownProgress = null;
   const KEEP_ARCHIVES = 8;
   function archiveCurrent() {
+    if (mode === 'mp') return;   // only a single-player season is archived
     const key = currentSaveKey(), cur = storeGet(key); if (!cur) return;
     const pk = peekSave(cur); if (!pk || pk.season * 1000 + pk.played < 1001) return;   // nothing was played: nothing to keep
     const mine = SAVE_KEY + ':archive:' + (accountUid || 'x') + ':';
@@ -991,6 +1028,7 @@
     else { const got = await FM.apiCall('GET', '/create/projects/' + encodeURIComponent(entry.id)); text = got && got.ok && got.json && got.json.data && got.json.data.football && got.json.data.football.save; }
     if (!text) return { ok: false, error: 'That save could not be read.' };
     let lg; try { lg = FM.deserializeLeague(text); } catch (e) { return { ok: false, error: 'That save is damaged and cannot be opened.' }; }
+    setMode('solo');   // a recovered season is a single-player season
     archiveCurrent();
     storeSet(currentSaveKey(), text); knownProgress = progressOfLeague(lg);
     const wrote = await FM.flushStore();
@@ -1011,6 +1049,7 @@
     // refuse to write into a device-wide slot that another account could see.
     if (!DEMO_MODE && !accountUid) return false;
     try {
+      setMode(league.mp ? 'mp' : 'solo');   // a game is saved to its own slot, whichever was open before
       const now = progressOfLeague(league);
       if (knownProgress == null) { const cur = storeGet(currentSaveKey()); knownProgress = cur ? progressOfText(cur) : 0; }
       if (knownProgress > now && !DEMO_MODE) archiveCurrent();   // a season further on is about to be replaced: it is kept first
@@ -1055,13 +1094,25 @@
       Object.keys(role.options || {}).forEach((k) => { p.options[k] = role.options[k].default != null ? role.options[k].default : false; });
     });
   };
-  FM.loadLeague = function () {
+  // want: 'solo' or 'mp' opens that saved game; with none given, the one played last (or the only one there is).
+  FM.loadLeague = function (want) {
     try {
       if (!DEMO_MODE && !accountUid) return null;
-      const t = storeGet(currentSaveKey()), lg = t ? FM.deserializeLeague(t) : null;
+      let m = want === 'mp' || want === 'solo' ? want : (lsGet(accountKey(MODE_KEY)) === 'mp' ? 'mp' : 'solo');
+      const other = m === 'mp' ? 'solo' : 'mp';
+      if (!DEMO_MODE && want !== 'mp' && want !== 'solo' && !storeGet(saveKey(m)) && storeGet(saveKey(other))) m = other;
+      setMode(m);
+      let t = storeGet(saveKey(m)), lg = t ? FM.deserializeLeague(t) : null;
+      if (lg && lg.mp && m === 'solo' && !DEMO_MODE && !storeGet(saveKey('mp'))) {   // a multiplayer game saved before it had its own slot: moved there
+        storeSet(saveKey('mp'), t); storeDrop(saveKey('solo'));
+        const cid = lsGet(cloudIdKey('solo')), at = lsGet(atKey('solo'));
+        if (cid) { lsSet(cloudIdKey('mp'), cid); lsSet(cloudIdKey('solo'), null); }
+        if (at) { lsSet(atKey('mp'), at); lsSet(atKey('solo'), null); }
+        FM.syncProject(null, 'solo'); m = 'mp'; setMode('mp');
+      }
       if (lg) FM.dropStrangeFriendlies(lg);
       if (lg) lg.teams.forEach((tm) => { tm.squad.forEach((p) => FM.backfillPhysique(p)); FM.migrateRoles(tm); }); // saves from before heights existed and before the positional roles went
-      FM.syncProject(lg);
+      FM.syncProject(lg, m);
       return lg;
     } catch (e) { return null; }
   };
