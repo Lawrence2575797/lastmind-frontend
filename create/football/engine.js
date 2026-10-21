@@ -646,6 +646,11 @@
     const mix = (a, c, t) => ({ d: a.d + (c.d - a.d) * t, w: a.w + (c.w - a.w) * t });
     // The version of a stage's end diagram that applies right now (see FM.pickPage): the default one unless an added page's condition holds.
     const pn = (k) => (team.pageNow && team.pageNow[k] ? k + '#' + team.pageNow[k] : k);
+    // Where the manager drew a player on a board, that is where he stands: the drawn place is held much more firmly than a place the game worked out. 'drawn' is how
+    // firmly (0 to 1) the board in force right now is the manager's own for this player, and everything below that drifts him (the press setting, following the ball, the
+    // depth caps, marking) is weakened by it.
+    const drawnOn = (ph) => !!(team.phasePos && team.phasePos[ph] && team.phasePos[ph][player.index]);
+    let drawn = 0;
     let pos, lowK = 0;   // lowK: how far this side is sitting in a low block (0 to 1), set below when it is without the ball
     if (hasBall) {
       // The possession diagrams in order, each with the ball where it is drawn: the team is read off them as the ball goes forward.
@@ -655,6 +660,7 @@
       else for (let i = 0; i < chain.length - 1; i++) {
         if (b.d <= chain[i + 1].d) { pos = mix(chain[i].pos, chain[i + 1].pos, clamp((b.d - chain[i].d) / Math.max(0.05, chain[i + 1].d - chain[i].d), 0, 1)); break; }
       }
+      drawn = ['build', 'buildEnd', 'midfield', 'final'].some((k) => drawnOn(pn(k))) ? 0.5 : 0;
       if (ctx.transAtt > 0) {
         const zone = b.d < 0.33 ? 'defensive' : b.d < 0.67 ? 'middle' : 'attacking';
         const choice = (team.tactics.transAttChoices || {})[zone] || 'counter';
@@ -669,12 +675,15 @@
       // How far it takes up its pressing positions rests on the setting (an average side takes half the way; a side that hardly presses a build-up
       // stays in its block, and one that presses hard goes the whole way).
       const pbuT = team.tactics.pressBuildUp == null ? 0.4 : team.tactics.pressBuildUp;
-      const pw = clamp((b.d - 0.5) / 0.25, 0, 1) * clamp(0.5 + 2.67 * (pbuT - 0.4), 0, 1);
+      // A press the manager drew needs no setting to switch it on: it applies whenever the opposition build from their own end.
+      const manPress = drawnOn('press');
+      const pw = clamp((b.d - 0.5) / 0.25, 0, 1) * (manPress ? 1 : clamp(0.5 + 2.67 * (pbuT - 0.4), 0, 1));
       if (pw > 0) pos = mix(pos, FM.phasePos(team, player, 'press'), pw);
+      drawn = manPress ? 0.9 * pw : (drawnOn('without') || drawnOn('withoutEnd') ? 0.5 : 0);
       // A side that does not press (what the scouting report calls a low block) sits deeper while the ball is up the other end: its whole shape is
       // brought back toward its own goal, so its forwards are about on the halfway line rather than up in the other half.
       const prsLow = 0.6 * pbuT + 0.4 * (team.tactics.pressing == null ? 0.5 : team.tactics.pressing);
-      const lowBlock = clamp((0.4 - prsLow) / 0.1, 0, 1) * clamp((b.d - 0.35) / 0.3, 0, 1);
+      const lowBlock = clamp((0.4 - prsLow) / 0.1, 0, 1) * clamp((b.d - 0.35) / 0.3, 0, 1) * (1 - drawn);
       lowK = lowBlock;
       if (lowBlock > 0) pos = { d: pos.d * (1 - 0.35 * lowBlock), w: pos.w };
       if (ctx.transDef > 0) {
@@ -698,7 +707,7 @@
       // its forwards hold their depth, and only a mid block or a high press moves up with the ball.
       const prs = 0.6 * (team.tactics.pressBuildUp == null ? 0.4 : team.tactics.pressBuildUp) + 0.4 * (team.tactics.pressing == null ? 0.5 : team.tactics.pressing);
       const blockHold = !hasBall && b.d > 0.5 ? clamp(prs / 0.4, 0.12, 1) * (1 - 0.75 * lowK) : 1;
-      const free = clamp((FM.FREEDOM == null ? 0.38 : FM.FREEDOM) * (1 + 0.5 * m.roam) * blockHold, 0, 0.8);
+      const free = clamp((FM.FREEDOM == null ? 0.38 : FM.FREEDOM) * (1 + 0.5 * m.roam) * blockHold * (1 - 0.8 * drawn), 0, 0.8);
       const want = hasBall
         ? clamp(b.d + ({ ST: 0.14, AM: 0.09, WF: 0.09, CM: 0.02, FB: 0.0, DM: -0.1, CB: -0.2 })[player.group], 0.04, 0.95)
         : clamp(b.d - ({ CB: 0.2, FB: 0.19, DM: 0.1, CM: 0.04, AM: -0.02, WF: -0.04, ST: -0.12 })[player.group], ({ CB: 0.17, FB: 0.17, DM: 0.25, CM: 0.3 })[player.group] || 0.04, 0.92);
@@ -748,7 +757,7 @@
         if (danger < pd) { pd = danger; pick = o; }
       });
       if (pick) {
-        const k = ({ CB: 0.85, FB: 0.7, DM: 0.6, CM: 0.45 })[player.group] * clamp(1.15 - b.d, 0.25, 1);
+        const k = ({ CB: 0.85, FB: 0.7, DM: 0.6, CM: 0.45 })[player.group] * clamp(1.15 - b.d, 0.25, 1) * (1 - 0.8 * drawn);
         const gy = W_PITCH / 2, step = 1.5, dirOwn = team.attackDir === 1 ? -1 : 1;
         const tx = clamp(pick.x + dirOwn * step, 0.5, L_PITCH - 0.5), ty = clamp(pick.y + (gy - pick.y) * 0.12, 0.5, W_PITCH - 0.5);
         const ts = toTeamSpace(team.attackDir, tx, ty);
@@ -763,8 +772,8 @@
     // Shape shifts toward the ball (a roaming player follows it more, a player told to hold less).
     const pull = clamp((FM.GROUP_BALL_PULL[player.group] || 0.4) + phase.ballPull + 0.25 * m.roam, 0, 1);
     // With the ball the team mostly holds its board's shape (only a little drawn toward the ball); without it the block shifts with the ball.
-    d += (b.d - d) * pull * (hasBall ? (FM.SHIFT_D_ATT == null ? 0.14 : FM.SHIFT_D_ATT) : 0.3 * (1 - 0.8 * lowK));
-    w += (b.w - w) * pull * (hasBall ? (FM.SHIFT_W_ATT == null ? 0.09 : FM.SHIFT_W_ATT) : 0.22);
+    d += (b.d - d) * pull * (1 - 0.85 * drawn) * (hasBall ? (FM.SHIFT_D_ATT == null ? 0.14 : FM.SHIFT_D_ATT) : 0.3 * (1 - 0.8 * lowK));
+    w += (b.w - w) * pull * (1 - 0.85 * drawn) * (hasBall ? (FM.SHIFT_W_ATT == null ? 0.09 : FM.SHIFT_W_ATT) : 0.22);
     // The manager's own instructions can move him further forward or wider, in the situations they name.
     const rs = FM.rulesShift ? FM.rulesShift(team, player, ball, hasBall) : null;
     if (rs) { d += rs.d; w += (w >= 0.5 ? 1 : -1) * rs.w; }
@@ -784,7 +793,8 @@
     // press is a squeeze right up to the box rather than two forwards chasing alone. The risk is the ball over the top, which the tactical edge charges for.
     if (!hasBall && player.group !== 'GK') {
       const squeeze = clamp((((team.tactics.pressBuildUp == null ? 0.4 : team.tactics.pressBuildUp) + (team.tactics.lineHeight == null ? 0.5 : team.tactics.lineHeight)) / 2 - 0.5) / 0.3, 0, 1) * clamp((b.d - 0.65) / 0.2, 0, 1);
-      const lim = ({ CB: (FM.CB_LIMIT == null ? 0.46 : FM.CB_LIMIT) + 0.14 * squeeze, FB: 0.56 + 0.1 * squeeze, DM: 0.64 + 0.1 * squeeze })[player.group]; if (lim != null) d = Math.min(d, lim);
+      const lim = ({ CB: (FM.CB_LIMIT == null ? 0.46 : FM.CB_LIMIT) + 0.14 * squeeze, FB: 0.56 + 0.1 * squeeze, DM: 0.64 + 0.1 * squeeze })[player.group];
+      if (lim != null && !(drawn > 0.6)) d = Math.min(d, lim);   // (a line the manager drew, in a press, is his call)
     }
     if (player.group === 'GK') d = clamp(d, 0.02, 0.2);
     d = clamp(d, 0.02, 0.97);
