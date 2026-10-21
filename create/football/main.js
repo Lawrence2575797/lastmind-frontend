@@ -2474,7 +2474,6 @@
       modes.forEach((mode, i) => { mode.hidden = i !== 0; });
       el('newGame').querySelector('h2').textContent = 'Play the free first match';
       modes[0].querySelector('h3').textContent = 'Lastmind football demo';
-      modes[0].querySelector('.desc').textContent = 'Take charge of Ashford Rovers and play the opening match. No account or purchase is needed.';
       el('ngStart').textContent = 'Start the demo';
     }
   }
