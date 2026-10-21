@@ -42,6 +42,7 @@
     if (!league) return '';
     const me = FM.teamById(league, league.userId), out = [];
     out.push('Club: ' + me.name + '. Level: ' + league.tier + '. Season ' + league.season + '. Page open: ' + (view || 'home') + '.');
+    { const lab = FM.tables && FM.tables.labSummary ? FM.tables.labSummary(league) : ''; if (lab) out.push(lab); }   // the manager's own test results come first, so they are never cut off
     const played = league.fixtures.filter((f) => f.played && (f.homeId === league.userId || f.awayId === league.userId)).sort((a, b) => b.round - a.round).slice(0, 3);
     played.forEach((f, i) => {
       const h = FM.teamById(league, f.homeId), a = FM.teamById(league, f.awayId), hs = f.stats && f.stats[h.id], as = f.stats && f.stats[a.id];

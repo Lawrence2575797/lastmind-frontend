@@ -84,6 +84,13 @@
         num('pace', 'rating 0-100'), num('dribbling', 'rating'), num('passing', 'rating'), num('finishing', 'rating'), num('tackling', 'rating'), num('composure', 'rating'), num('heading', 'rating'), num('stamina', 'rating'),
         num('keeping', 'goalkeeping rating'), num('age', 'age in years'), num('value', 'transfer value in £ million'), num('apps', 'appearances'), num('goals', 'goals'), num('shots', 'shots'), num('yellows', 'yellow cards'), num('reds', 'red cards'), num('condition', 'condition now, % (100 = fully fresh)'), num('injury_risk', 'chance of an injury in a match at the club\'s current style and his condition, %')],
     },
+    tests: {
+      desc: 'Every run of the phase tests you have done under Test phases (build-up, midfield, final third, defending, pressing and the transitions): one row per run, with how many of the tests were successful and what had been changed since the run before.',
+      cols: [cat('phase', 'which test'), num('run', 'which run of that test (1 = the first)'), cat('opponent', 'the club tested against'), num('tests', 'how many times the situation was played'), num('successes', 'how many of those were successful'),
+        num('success_rate', 'successes as a % of tests (for the attacking tests: the ball got through or ended in a shot; for the defending tests: they were stopped)'), num('shots', 'tests that ended in a shot'), num('goals', 'tests that ended in a goal'),
+        num('xg_per_test', 'average chance quality per test'), num('lost_near_goal', 'tests where the ball was lost near your own goal'), num('lost_elsewhere', 'tests where the ball was lost further up the pitch'), num('pass_rate', '% of passes completed in the tests'),
+        cat('changes', 'what was changed since the run before')],
+    },
     injuries: {
       desc: 'Your own injured players right now: what is wrong, how long is left, and what each kind of treatment would cost and save. Without treatment every injury simply heals in its own time.',
       cols: [cat('player', 'name'), cat('injury', 'what the injury is'), num('days_left', 'days until he is fit'), num('matches_out', 'matches he is expected to miss'), cat('treatment', 'treatment already paid for, if any'),
@@ -121,6 +128,39 @@
   T.SCHEMA = SCHEMA;
   SCHEMA.team_matches.cols.push(num('tact_edge', 'the tactical edge the club had on average in the match (positive = the plan suited the opposition better than theirs suited you); worth about a quarter of a goal for every 1.0'));
   SCHEMA.players.cols.push(num('form', 'form from recent matches, -100 to 100 (it adds to or takes from his ratings in the next match)'));
+
+
+  // ---------- the phase tests (the lab) ----------
+  const LAB_NAME = { build: 'Build-up', midfield: 'Play through midfield', final: 'Final third', organised: 'Organised defending', press: 'Pressing their build-up', transdef: 'Defensive transition', transatt: 'Attacking transition' };
+  const LAB_REV = { organised: true, transdef: true, press: true };
+  // Every run of every test, in order, with the share of the tests that were successful.
+  T.labRuns = function (league) {
+    const out = [], lists = [['build', league.labRuns || []]].concat(Object.keys(league.phaseLabRuns || {}).map((k) => [k, league.phaseLabRuns[k] || []]));
+    lists.forEach(([ph, runs]) => runs.forEach((r, i) => {
+      const x = r.result; if (!x || !x.n) return;
+      const k = LAB_REV[ph] ? x.n - x.beat.k : x.beat.k;
+      out.push({ phase: ph, name: LAB_NAME[ph] || ph, run: i + 1, of: runs.length, opp: r.opp || '', n: x.n, k, rate: 100 * k / x.n, shots: x.shot ? x.shot.k : 0, goals: x.goal ? x.goal.k : 0, xg: x.xg ? x.xg.mean : 0,
+        lostNear: x.lostNear ? x.lostNear.k : 0, lostOther: (x.lostOwn ? x.lostOwn.k : 0) + (x.lostMid ? x.lostMid.k : 0), passRate: x.passStats ? 100 * x.passStats.rate : null, changes: (r.changes || []).join('; '), why: x.why, time: x.time });
+    }));
+    return out;
+  };
+  // A few plain lines for the agent: the latest run of each test, and how it compares with the run before.
+  T.labSummary = function (league) {
+    const runs = T.labRuns(league); if (!runs.length) return '';
+    const byPhase = {}; runs.forEach((r) => { (byPhase[r.phase] = byPhase[r.phase] || []).push(r); });
+    const KIND = { intercepted: 'passes cut out', tackle: 'tackles lost', dribble: 'dribbles lost', loose: 'passes that went astray', offside: 'offsides' };
+    const lines = Object.keys(byPhase).map((ph) => {
+      const list = byPhase[ph], a = list[list.length - 1], b = list.length > 1 ? list[list.length - 2] : null;
+      let line = 'Test, ' + a.name.toLowerCase() + ' (run ' + a.run + ' of ' + a.of + (a.opp ? ', against ' + a.opp : '') + '): ' + Math.round(a.rate) + '% successful (' + a.k + ' of ' + a.n + ')';
+      if (b) line += '; the run before gave ' + Math.round(b.rate) + '%';
+      if (a.changes) line += '; changed since then: ' + a.changes;
+      const w = a.why && a.why.kinds ? Object.keys(a.why.kinds).sort((x, y) => a.why.kinds[y] - a.why.kinds[x]).slice(0, 2).map((k) => a.why.kinds[k] + ' ' + (KIND[k] || k)).join(', ') : '';
+      if (w && a.n - a.k > 0) line += '. What went wrong: ' + w;
+      if (a.lostNear) line += '. Ball lost near our own goal in ' + a.lostNear + ' tests';
+      return line + '.';
+    });
+    return 'The manager\'s own phase tests (under Test phases; also in the tests table):\n' + lines.join('\n');
+  };
 
   // ---------- building the rows ----------
 
@@ -205,6 +245,7 @@
         apps: (p.stats || {}).apps || 0, goals: (p.stats || {}).goals || 0, shots: (p.stats || {}).shots || 0, yellows: (p.stats || {}).yellows || 0, reds: (p.stats || {}).reds || 0,
         condition: FM.conditionOf ? Math.round(100 * FM.conditionOf(p)) : null, form: Math.round(100 * (p.form || 0)), injury_risk: FM.injuryHazard ? r2(100 * (1 - Math.exp(-FM.injuryHazard(Object.assign({}, p, { energy: FM.conditionOf(p) }), t) * 5400))) : null });
     }));
+    T.labRuns(league).forEach((r) => out.tests.push({ phase: r.name, run: r.run, opponent: r.opp, tests: r.n, successes: r.k, success_rate: r2(r.rate), shots: r.shots, goals: r.goals, xg_per_test: r3(r.xg), lost_near_goal: r.lostNear, lost_elsewhere: r.lostOther, pass_rate: r.passRate == null ? null : r2(r.passRate), changes: r.changes }));
     buildClub(league, out);
     FM.tableRows(league).forEach((r, i) => out.league_table.push({ position: i + 1, team: r.name, you: r.id === league.userId ? 1 : 0, played: r.p, won: r.w, drawn: r.d, lost: r.l, gf: r.gf, ga: r.ga, gd: r.gf - r.ga, points: r.pts }));
     return out;

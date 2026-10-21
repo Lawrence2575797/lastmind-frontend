@@ -662,7 +662,7 @@
     state.locks = 0; state.busy = bl('Thinking…'); chatDraw();
     try {
       const C = CTL();
-      const out = await FM.api('/football/workbench', { phase: 'plan', messages: chatMessages().slice(-10), schema: T.digestCompact(), schemaExtra: T.digestExtra(), methods: WB.METHOD_HELP.join('\n'), controls: C ? C.helpStatic() : '', state: C ? C.state(state.league) : '', board: boardText(), summary: summaryText(1800), doc: docSummary(), level: state.league.tier, detail: detailText(), lessons: lessonList() });
+      const out = await FM.api('/football/workbench', { phase: 'plan', messages: chatMessages().slice(-10), schema: T.digestCompact(), schemaExtra: T.digestExtra(), methods: WB.METHOD_HELP.join('\n'), controls: C ? C.helpStatic() : '', state: C ? C.state(state.league) : '', board: boardText(), summary: summaryText(2600), doc: docSummary(), level: state.league.tier, detail: detailText(), lessons: lessonList() });
       state.locks += out.locks || 0;
       const msg = chatPush({ role: 'agent', text: out.reply || 'Tell me more about what you want to find out.', added: [] });
       const actions = Array.isArray(out.actions) ? out.actions : [];
