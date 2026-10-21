@@ -15,8 +15,14 @@
 .wb-pop button:last-child { border-bottom: 0; }
 .wb { --wb-dw: clamp(220px, 20vw, 290px); --wb-aw: clamp(300px, 28vw, 420px); color-scheme: dark; }
 .wb-body { flex: 1; display: grid; grid-template-columns: var(--wb-dw) minmax(0, 1fr) var(--wb-aw); min-height: 0; }
-.wb.no-data .wb-body { grid-template-columns: 0 minmax(0, 1fr) var(--wb-aw); } .wb.no-agent .wb-body { grid-template-columns: var(--wb-dw) minmax(0, 1fr) 0; } .wb.no-data.no-agent .wb-body { grid-template-columns: 0 minmax(0, 1fr) 0; }
-.wb.no-data .wb-data, .wb.no-agent .wb-agent { display: none; }
+/* the data sidebar is always there: open, wider (the arrows button), or folded to a thin rail. Each panel sits in its own column, so hiding one never moves the page into another's. */
+.wb.no-data { --wb-dw: 34px; } .wb.dwide { --wb-dw: clamp(340px, 52vw, 900px); } .wb.dwide:not(.no-agent) { --wb-dw: clamp(320px, 32vw, 520px); }
+.wb.no-agent .wb-body { grid-template-columns: var(--wb-dw) minmax(0, 1fr) 0; }
+.wb-data { grid-column: 1; grid-row: 1; } .wb-body > .wb-main { grid-column: 2; grid-row: 1; } .wb-agent { grid-column: 3; grid-row: 1; }
+.wb.no-agent .wb-agent { display: none; }
+.wb-drail { display: none; background: transparent; border: 0; color: var(--wb-gold); cursor: pointer; font: 700 .72rem var(--wb-mono); letter-spacing: .16em; writing-mode: vertical-rl; padding: 18px 0; flex: 1; width: 100%; } .wb-drail:hover { background: rgba(215, 184, 107, .12); }
+.wb.no-data .wb-data > :not(.wb-drail) { display: none; } .wb.no-data .wb-drail { display: block; }
+.wb-dx { background: transparent; border: 1px solid var(--wb-line-2); color: var(--wb-ink); padding: 3px 9px; font-size: .8rem; cursor: pointer; } .wb-dx:hover { background: rgba(255, 255, 255, .08); } .wb-dbtns { display: inline-flex; gap: 6px; }
 .wb-data, .wb-agent { background: var(--wb-pane); display: flex; flex-direction: column; min-height: 0; max-height: calc(100vh - 150px); overflow: hidden; }
 .wb-data { border-right: 1px solid var(--wb-line-2); } .wb-agent { border-left: 1px solid var(--wb-line-2); }
 .wb-pane-h { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding: 11px 14px; border-bottom: 1px solid var(--wb-line); font-size: .7rem; letter-spacing: .12em; text-transform: uppercase; color: var(--wb-mute); }
@@ -104,7 +110,7 @@
 .tb-workbench.on { background: #f4edda !important; }
 
 @media (max-width: 860px) {
-  .wb-body, .wb.no-data .wb-body, .wb.no-agent .wb-body, .wb.no-data.no-agent .wb-body { grid-template-columns: minmax(0, 1fr); }
+  .wb-body, .wb.no-data .wb-body, .wb.no-agent .wb-body, .wb.no-data.no-agent .wb-body { grid-template-columns: minmax(0, 1fr); } .wb-data, .wb-body > .wb-main, .wb-agent { grid-column: 1; grid-row: auto; }
   .wb-data, .wb-agent { max-height: 70vh; border: 0; border-top: 1px solid var(--wb-line-2); } .wb-main { max-height: none; } .wb-doc { padding: 14px 12px 30px; overflow: visible; }
   .wb-calc { grid-template-columns: 1fr; } .wb-calc .wb-in { border-right: 1px solid var(--wb-line); border-bottom: 0; }
   .wb-agent { order: 2; } .wb-data { order: 3; } .wb-main { order: 1; } .wb { min-height: 0; }
@@ -156,7 +162,8 @@
 body[data-view="workbench"] #view-workbench { animation: none !important; transform: none !important; }
 /* narrower than a wide desktop: the data and agent panels open over the page, so the document always has the whole width and nothing scrolls across */
 @media (max-width: 1279px) {
-  .wb-body, .wb.no-data .wb-body, .wb.no-agent .wb-body, .wb.no-data.no-agent .wb-body { grid-template-columns: minmax(0, 1fr); }
+  .wb-body, .wb.no-data .wb-body, .wb.no-agent .wb-body, .wb.no-data.no-agent .wb-body { grid-template-columns: minmax(0, 1fr); } .wb-data, .wb-body > .wb-main, .wb-agent { grid-column: 1; grid-row: auto; }
+  .wb.no-data .wb-data { top: 40%; bottom: auto; height: 130px; width: 34px; border: 1px solid var(--wb-line-2); border-left: 0; } .wb.dwide .wb-data { width: min(900px, 100%); }
   .wb-data, .wb-agent { position: fixed; top: 0; bottom: 0; z-index: 250; width: min(420px, 100%); max-height: none; height: 100vh; border: 0; }
   .wb-data { left: 0; border-right: 1px solid var(--wb-line-2); order: 0; } .wb-agent { right: 0; border-left: 1px solid var(--wb-line-2); order: 0; }
   .wb-x { display: inline-block; }

@@ -638,7 +638,7 @@
   function layout() {
     const wb = state.wb, ui = wb.ui, host = state.host;
     const box = host.querySelector('.wb'); box.classList.toggle('no-data', !ui.data); box.classList.toggle('no-agent', !ui.agent);
-    host.querySelector('[data-tool="data"]').classList.toggle('on', !!ui.data); host.querySelector('[data-tool="agent"]').classList.toggle('on', !!ui.agent); host.querySelector('[data-tool="kb"]').classList.toggle('on', !!ui.kb);
+    box.classList.toggle('dwide', !!ui.data && !!ui.dwide); host.querySelector('[data-tool="agent"]').classList.toggle('on', !!ui.agent); host.querySelector('[data-tool="kb"]').classList.toggle('on', !!ui.kb);
     el('wbKb').hidden = !ui.kb;
   }
   function kbHtml() {
@@ -674,7 +674,6 @@
         <span class="wb-menu"><button type="button" data-tool="add">+ Add to this page</button><div class="wb-pop" id="wbAdd" hidden>
           <button type="button" data-add="control">Change something</button><button type="button" data-add="forecast">Forecast</button><button type="button" data-add="analysis">Analysis or table</button><button type="button" data-add="calc">Calculator</button><button type="button" data-add="text">Text</button></div></span>
         <button type="button" data-tool="kb">Maths keyboard</button>
-        <button type="button" data-tool="data">Data</button>
         <button type="button" data-tool="agent">AI Agent</button>
         <select id="wbAuto" aria-label="Whether the agent applies changes"><option value="">Agent proposes, I apply</option><option value="1">Agent applies changes itself</option></select>
         <select id="wbDetail" aria-label="Level of detail in explanations"><option value="brief">Brief</option><option value="standard">Standard</option><option value="detailed">Detailed</option></select>
@@ -682,7 +681,7 @@
         <button type="button" data-tool="copy">Copy</button>
       </div>
       <div class="wb-body">
-        <aside class="wb-data" id="wbData" aria-label="Data and controls"><div class="wb-pane-h"><span class="wb-dtabs"><button type="button" data-dtab="data">Data</button><button type="button" data-dtab="controls">Controls</button></span><span>${esc(FM.teamById(league, league.userId).name)} · season ${league.season}</span><button type="button" class="wb-x" data-tool="data" aria-label="Close the data panel">✕</button></div><div class="wb-dlist"></div></aside>
+        <aside class="wb-data" id="wbData" aria-label="Data and controls"><div class="wb-pane-h"><span class="wb-dtabs"><button type="button" data-dtab="data">Data</button><button type="button" data-dtab="controls">Controls</button></span><span>${esc(FM.teamById(league, league.userId).name)} · season ${league.season}</span><span class="wb-dbtns"><button type="button" class="wb-dx" data-tool="dwide" aria-label="Make the data panel wider or narrower" title="Wider / narrower">⇔</button><button type="button" class="wb-dx" data-tool="data" aria-label="Fold the data panel away" title="Fold away">‹</button></span></div><div class="wb-dlist"></div><button type="button" class="wb-drail" data-tool="data" aria-label="Open the data panel">DATA ›</button></aside>
         <section class="wb-main wk-main"><div class="wk-book"><div class="wk-sheet"><div class="wk-scroll" id="wkScroll"><div class="wk-titlebar"><input id="wkTitle" class="wk-title" placeholder="Name this page" aria-label="Page title" maxlength="90"></div><div class="wk-rule"></div><div class="wk-flow" id="wbDoc"></div></div><div class="wk-foot"><button type="button" class="wk-arrow" id="wkPrev" aria-label="Previous page" title="Previous page">‹</button><span class="wk-pos" id="wkPos"></span><button type="button" class="wk-arrow" id="wkNext" aria-label="Next page" title="Next page">›</button></div></div></div><div class="wb-kb" id="wbKb" hidden></div></section>
         <aside class="wb-agent" id="wbAgent" aria-label="LastMind AI Agent"><div class="wb-pane-h"><b>LastMind AI Agent</b><span class="wb-agent-btns"><button type="button" class="wb-clear" data-tool="clearchat">Clear chat</button><button type="button" class="wb-x" data-tool="agent" aria-label="Close the agent">✕</button></span></div><div class="wb-log" id="wbLog" role="log" aria-live="polite"></div>
           <form class="wb-form" id="wbForm"><textarea id="wbAsk" rows="2" placeholder="Ask a question, or say what you want to learn…" aria-label="Message to the agent"></textarea><button class="wb-send" id="wbSend" type="submit">Send</button></form></aside>
@@ -734,6 +733,7 @@
       if (b.id === 'wkNext') { if (wb.cur >= wb.pages.length - 1) { syncRich(); wb.pages.push({ id: uid(), title: '', at: Date.now(), cells: [] }); goPage(wb.pages.length - 1); setTimeout(() => { const ti = el('wkTitle'); if (ti) ti.focus(); }, 60); } else goPage(wb.cur + 1); return; }
       if (tool === 'add') { el('wbAdd').hidden = !el('wbAdd').hidden; return; }
       if (b.dataset.add) { el('wbAdd').hidden = true; if (b.dataset.add === 'analysis') addCell({ type: 'analysis', form: newForm('describe'), edit: true }); else if (b.dataset.add === 'forecast') addCell({ type: 'analysis', form: newForm('forecast'), edit: true }); else if (b.dataset.add === 'control') { wb.ui.data = true; wb.ui.dtab = 'controls'; layout(); refreshData(); flash('Choose what to change from the Controls list'); } else if (b.dataset.add === 'text') { const lastC = curPage().cells[curPage().cells.length - 1]; const ed = lastC && EDS.get(lastC.id); if (ed) ed.focus(); else addCell({ type: 'rich', html: '', _focus: true }); } else addCell({ type: b.dataset.add, text: '' }); return; }
+      if (tool === 'dwide') { wb.ui.dwide = !wb.ui.dwide; if (wb.ui.dwide) wb.ui.data = true; layout(); save(); return; }
       if (tool === 'kb' || tool === 'data' || tool === 'agent') { wb.ui[tool] = !wb.ui[tool]; layout(); save(); return; }
       if (tool === 'copy') { copyDoc(); return; }
       if (tool === 'clearchat') { if (confirm('Clear the whole conversation with the agent? Your pages stay.')) { wb.chat = []; save(); chatDraw(); } return; }
