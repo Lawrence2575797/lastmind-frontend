@@ -164,7 +164,7 @@
   // Possessions (where each began and ended, how the ball was won, how many passes, whether it ended in a shot), the ball won back
   // (where, and how soon after it was lost), the team's shape every half minute (how high the line stood, how wide, how compact) and how far
   // each player ran. Everything here only reads the match: it never changes how it is played.
-  const xrOf = (match) => match.xr || (match.xr = { cur: null, seq: [], recov: [], shape: [], load: {}, last: {}, lostAt: {}, n: 0 });
+  const xrOf = (match) => match.xr || (match.xr = { cur: null, seq: [], recov: [], shape: [], load: {}, last: {}, lostAt: {}, pos: {}, n: 0 });
   const r2 = (v) => Math.round(v * 100) / 100;
   function xrPossession(match, team, player) {
     const x = xrOf(match);
@@ -191,7 +191,10 @@
     const x = xrOf(match);
     x.n++;
     if (x.cur) { const tm = match.teams.find((t) => t.id === x.cur.team); if (tm) x.cur.maxD = Math.max(x.cur.maxD, FM.toTeamSpace(tm.attackDir, match.ball.x, match.ball.y).d); }
+    const poss0 = match.carrier ? match.carrier.team : null;
     match.teams.forEach((team) => team.players.forEach((p) => {
+      // where each player stands on average, with and without the ball (in his own team's view of the pitch), for the tactical picture
+      if (x.n % 4 === 0) { const ts = FM.toTeamSpace(team.attackDir, p.x, p.y), k = (team === match.home ? 0 : 1) + ':' + p.number, e = x.pos[k] || (x.pos[k] = [0, 0, 0, 0, 0, 0]), o = poss0 === team ? 0 : 3; e[o] += ts.d; e[o + 1] += ts.w; e[o + 2]++; }
       const l = x.last[p.id];
       if (l) {
         const ds = Math.hypot(p.x - l[0], p.y - l[1]);
@@ -219,7 +222,8 @@
     const seq = x.seq.slice();
     if (x.cur) { const c = x.cur; seq.push([c.team === match.home.id ? 0 : 1, Math.round(c.t), r2(c.d0), c.how, c.passes, r2(c.maxD), c.goal ? 2 : c.shot ? 1 : 0, Math.round(match.clock - c.t), -1, -1]); }
     const load = {}; Object.keys(x.load).forEach((id) => { load[id] = [Math.round(x.load[id][0]), x.load[id][1]]; });
-    return { seq, recov: x.recov, shape: x.shape, load };
+    const pos = {}; Object.keys(x.pos || {}).forEach((k) => { const e = x.pos[k]; if (e[2] + e[5] >= 20) pos[k] = [e[2] ? r2(e[0] / e[2]) : -1, e[2] ? r2(e[1] / e[2]) : -1, e[2], e[5] ? r2(e[3] / e[5]) : -1, e[5] ? r2(e[4] / e[5]) : -1, e[5]]; });
+    return { seq, recov: x.recov, shape: x.shape, load, pos };
   };
 
   FM.beginKickoff = function (match, team) {

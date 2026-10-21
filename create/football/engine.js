@@ -252,11 +252,15 @@
       // Without the ball the side drops with it: a compact block when the ball is in midfield, and everyone back around the box when it is not.
       without:    { GK: 0.03, CB: 0.26, FB: 0.29, DM: 0.38, CM: 0.44, AM: 0.50, WF: 0.58, ST: 0.64 },
       withoutEnd: { GK: 0.03, CB: 0.17, FB: 0.20, DM: 0.27, CM: 0.33, AM: 0.42, WF: 0.55, ST: 0.60 },
+      // Pressing the opposition's build-up: the whole side squeezes up, the forwards on the edge of their box (about 0.84 of the pitch) so the keeper and
+      // centre-backs cannot play out, and the line just beyond the halfway line so nobody is left a long way behind the press.
+      press:      { GK: 0.10, CB: 0.56, FB: 0.62, DM: 0.69, CM: 0.74, AM: 0.78, WF: 0.82, ST: 0.86 },
     };
     const GROUP_BASE = { GK: 0.03, CB: 0.20, FB: 0.22, DM: 0.41, CM: 0.50, AM: 0.62, WF: 0.78, ST: 0.83 };
     if (POSS_D[phase] && POSS_D[phase][p.group] != null) {
       const oP = phase === 'without' || phase === 'withoutEnd' ? role.outPoss : role.inPoss;
       let d = POSS_D[phase][p.group] + (p.group === 'GK' ? 0 : (base.d - (GROUP_BASE[p.group] == null ? base.d : GROUP_BASE[p.group])) * 0.5) + (oP.depth || 0) * 0.25 + m.depth;
+      if (phase === 'press' && p.group !== 'GK') d += ((team.tactics && team.tactics.lineHeight != null ? team.tactics.lineHeight : 0.5) - 0.5) * 0.16;   // a higher line sets the whole press higher
       const kw = phase === 'build' ? 0.6 : 1;
       let w = base.w;
       const centre = Math.abs(base.w - 0.5) < 0.01;
@@ -776,7 +780,12 @@
 
     // Without the ball a centre-back never goes past the halfway line, however high the press: the other side cannot be offside in their own half, so a
     // line that high is a long ball over the top and a man in on goal. (A full-back and the holding midfielder are held back a little less firmly.)
-    if (!hasBall && player.group !== 'GK') { const lim = ({ CB: FM.CB_LIMIT == null ? 0.46 : FM.CB_LIMIT, FB: 0.56, DM: 0.64 })[player.group]; if (lim != null) d = Math.min(d, lim); }
+    // A side that presses the build-up hard is the exception while the ball is at the other end: its line and midfield come up with the forwards, so the
+    // press is a squeeze right up to the box rather than two forwards chasing alone. The risk is the ball over the top, which the tactical edge charges for.
+    if (!hasBall && player.group !== 'GK') {
+      const squeeze = clamp((((team.tactics.pressBuildUp == null ? 0.4 : team.tactics.pressBuildUp) + (team.tactics.lineHeight == null ? 0.5 : team.tactics.lineHeight)) / 2 - 0.5) / 0.3, 0, 1) * clamp((b.d - 0.65) / 0.2, 0, 1);
+      const lim = ({ CB: (FM.CB_LIMIT == null ? 0.46 : FM.CB_LIMIT) + 0.14 * squeeze, FB: 0.56 + 0.1 * squeeze, DM: 0.64 + 0.1 * squeeze })[player.group]; if (lim != null) d = Math.min(d, lim);
+    }
     if (player.group === 'GK') d = clamp(d, 0.02, 0.2);
     d = clamp(d, 0.02, 0.97);
     w = clamp(w, 0.04, 0.96);

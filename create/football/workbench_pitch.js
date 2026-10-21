@@ -17,7 +17,7 @@
 
   function panel(league, fxs, label) {
     const me = league.userId, PW = A().PW, PH = A().PH;
-    const flows = {}, rec = [], shots = [], shape = { line: 0, front: 0, n: 0 }, tac = { pressing: 0, lineHeight: 0, counterPress: 0, directness: 0, tempo: 0, n: 0 };
+    const flows = {}, rec = [], shots = [], cards = {}, origin = {}, shape = { line: 0, front: 0, n: 0 }, tac = { pressing: 0, lineHeight: 0, counterPress: 0, directness: 0, tempo: 0, n: 0 };
     let made = 0, ok = 0, fwd = 0, len = 0, gf = 0, ga = 0, xg = 0, goals = 0;
     fxs.forEach((fx) => {
       const side = fx.homeId === me ? 0 : 1, D = (x) => (side === 0 ? x / L : 1 - x / L), Wd = (y) => (side === 0 ? y / W : 1 - y / W);
@@ -25,6 +25,7 @@
       const st = fx.stats && fx.stats[me]; if (st) { xg += st.xg || 0; const t = st.tactics || {}; Object.keys(tac).forEach((k) => { if (k !== 'n' && Number.isFinite(t[k])) tac[k] += t[k]; }); tac.n++; }
       fx.log.passes.forEach((p) => {
         if (p[1] !== side) return;
+        { const o = origin[p[2]] || (origin[p[2]] = { d: 0, w: 0, n: 0 }); o.d += D(p[5]); o.w += Wd(p[6]); o.n++; }
         made++; if (p[4] !== 1) return; ok++; len += p[7] || 0;
         if (!(p[11] >= 0 && p[12] >= 0)) return;
         const d0 = D(p[5]), w0 = Wd(p[6]), d1 = D(p[11]), w1 = Wd(p[12]);
@@ -37,6 +38,7 @@
       const xr = fx.log.xr;
       if (xr) {
         (xr.recov || []).forEach((q) => { if (q[0] === side) rec.push({ d: q[2], w: q[3], quick: q[4] >= 0 && q[4] <= 6 }); });
+        Object.keys(xr.pos || {}).forEach((k) => { if (+k.split(':')[0] !== side) return; const q = xr.pos[k], no = +k.split(':')[1], n = q[2] + q[5]; const c = cards[no] || (cards[no] = { d: 0, w: 0, n: 0 }); c.d += (q[0] * q[2] + q[3] * q[5]) ; c.w += (q[1] * q[2] + q[4] * q[5]); c.n += n; });
         (xr.shape || []).forEach((q) => { if (q[1] === side) { shape.line += q[2]; shape.front += q[3]; shape.n++; } });
       }
       (fx.log.other || []).forEach((e) => { if (e.type === 'shot' && e.team === me) { shots.push({ d: D(e.x), w: Wd(e.y), xg: e.xg || 0, goal: e.outcome === 'goal' }); if (e.outcome === 'goal') goals++; } });
@@ -62,6 +64,13 @@
       const bx = x1 - Math.cos(ang) * hl * 0.8, by = y1 - Math.sin(ang) * hl * 0.8, nx = -Math.sin(ang), ny = Math.cos(ang), hw = hl * 0.55;
       return `<g stroke="#000" stroke-opacity=".35" stroke-width=".8"><line x1="${x0.toFixed(1)}" y1="${y0.toFixed(1)}" x2="${bx.toFixed(1)}" y2="${by.toFixed(1)}" stroke="${col}" stroke-opacity=".88" stroke-width="${w.toFixed(1)}" stroke-linecap="round"/><polygon points="${x1.toFixed(1)},${y1.toFixed(1)} ${(bx + nx * hw).toFixed(1)},${(by + ny * hw).toFixed(1)} ${(bx - nx * hw).toFixed(1)},${(by - ny * hw).toFixed(1)}" fill="${col}" fill-opacity=".95"/></g>`;
     }).join('');
+    // player cards at where each one stood on average (from the match record; older matches fall back to where he passed from)
+    const squad = (FM.teamById(league, me) || {}).squad || [];
+    let spots = Object.keys(cards).filter((k) => cards[k].n >= 20).map((k) => ({ no: +k, d: cards[k].d / cards[k].n, w: cards[k].w / cards[k].n }));
+    if (spots.length < 8) spots = Object.keys(origin).filter((k) => origin[k].n >= 12).map((k) => ({ no: +k, d: origin[k].d / origin[k].n, w: origin[k].w / origin[k].n }));
+    spots = spots.map((c) => { const pl = squad.find((q) => q.number === c.no); return Object.assign(c, { name: pl ? String(pl.name).split(' ').slice(-1)[0] : '#' + c.no, group: pl ? pl.group : '' }); }).sort((a, b) => b.n - a.n).slice(0, 11);
+    const RING = { GK: '#FFD54A', CB: '#8FC8FF', FB: '#8FC8FF', DM: '#7FD49A', CM: '#7FD49A', AM: '#7FD49A', WF: '#FFB4A0', ST: '#FFB4A0' };
+    svg += spots.map((c) => { const x = Math.round(c.d * PW), y = Math.round(c.w * PH), nm = c.name.length > 8 ? c.name.slice(0, 7) + '.' : c.name; return `<g><rect x="${x - 36}" y="${y - 17}" width="72" height="34" rx="5" fill="#0E1822" fill-opacity=".9" stroke="${RING[c.group] || '#fff'}" stroke-width="2.2"/><text x="${x - 31}" y="${y + 6}" font-size="16" font-weight="700" fill="#FFD54A">${c.no}</text><text x="${x + 12}" y="${y + 4}" font-size="10" font-weight="600" fill="#fff" text-anchor="middle">${esc(nm.toUpperCase())}</text></g>`; }).join('');
     svg += `<text x="12" y="${PH - 34}" font-size="15" fill="#fff" fill-opacity=".85">attacking →</text>`;
     const picture = `<svg class="amap" viewBox="0 0 ${PW} ${PH}" role="img" aria-label="${esc(label)}: how the team played">${A().pitchLines()}${svg}</svg>`;
     const n = fxs.length, hi = rec.filter((p) => p.d > 0.5).length, quick = rec.filter((p) => p.quick).length;
