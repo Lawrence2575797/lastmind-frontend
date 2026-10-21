@@ -36613,6 +36613,7 @@ SQIDAQAB
         document.body.appendChild(overlay);
     }
     window.addEventListener('message', (event) => {
+        if (event.origin !== window.location.origin) return;   // only this site's own pages may send it
         if (event.data && event.data.type === 'lm-first-meaningful-action') showGuestSavePrompt();
     });
     document.addEventListener('click', (event) => {
@@ -36735,7 +36736,7 @@ SQIDAQAB
     // than once, so this reuses an existing "+Other" folder for that exact
     // subject name if one is already there instead of creating a duplicate.
     window.addEventListener('message', async (e) => {
-        if (!e.data || e.data.type !== 'lm-cortex-start-topic') return;
+        if (e.origin !== window.location.origin || !e.data || e.data.type !== 'lm-cortex-start-topic') return;   // another site cannot start a topic here
         const subject = String(e.data.subject || '').trim();
         if (!subject) return;
         let folder = (folders || []).find((f) => f.qualification === CUSTOM_LEVEL && f.subject === subject && !f.deletedAt);

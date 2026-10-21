@@ -335,7 +335,7 @@
     let mode = 'login'; // 'login' | 'signup' | 'forgot'
     const requestedReturn = new URLSearchParams(window.location.search).get('returnTo') || '';
     // Only a same-site absolute path may be used after authentication.
-    const afterAuth = requestedReturn.startsWith('/') && !requestedReturn.startsWith('//') ? requestedReturn : '/learn/';
+    const afterAuth = (() => { try { if (!requestedReturn.startsWith('/') || /[\\\u0000-\u001f]/.test(requestedReturn)) return '/learn/'; const u = new URL(requestedReturn, window.location.origin); const p = u.pathname + u.search + u.hash; return u.origin === window.location.origin && !p.startsWith('//') ? p : '/learn/'; } catch (e) { return '/learn/'; } })();
 
     function showView(view) {
         [authView, sessionView, recoveryView].forEach((v) => v.classList.remove('active'));
