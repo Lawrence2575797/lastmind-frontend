@@ -256,7 +256,7 @@
   // The short, fixed version the agent is given (no row counts, so the same text serves everyone and can be cached): table, what it holds, column names (starred = categories).
   const firstSentence = (d) => { const m = String(d).match(/^[^.]*\./); return (m ? m[0] : d).slice(0, 140); };
   T.digestCompact = function () {
-    return 'Positions: depth 0 is the acting team\'s own goal line, 1 the goal it attacks; width is 0 to 1 across the pitch. you = 1 means the manager\'s own club. Percent columns run 0 to 100. round is the matchday (1 to 14).\n'
+    return 'Pitch coordinates (metres): x from the own goal line of the acting team (0) to the goal it attacks (105), y across the pitch (0 to 68); depth = x / 105 and width = y / 68. A vector between two players is (x2 - x1, y2 - y1). The positions table holds the average x, y of each player per match. you = 1 means the manager\'s own club. Percent columns run 0 to 100. round is the matchday (1 to 14).\n'
       + Object.keys(SCHEMA).filter((k) => !SCHEMA[k].extra).map((k) => k + ' (' + firstSentence(SCHEMA[k].desc) + '): ' + SCHEMA[k].cols.map((c) => c.name + (c.type === 'cat' ? '*' : '')).join(', ')).join('\n');
   };
   T.digestExtra = function () {
