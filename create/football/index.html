@@ -181,7 +181,9 @@
   .mp-choices { display:grid; gap:10px; } .mp-choices button { text-align:left; padding:14px 16px; border-radius: 0; border:1px solid rgba(255,255,255,.18); background:rgba(255,255,255,.05); color:inherit; font:inherit; cursor:pointer; display:grid; gap:4px; } .mp-choices button:hover { border-color:var(--fm-gold,#f1c04f); } .mp-choices span { opacity:.75; font-size:.88rem; }
   .mp-view { display:grid; gap:16px; } .mp-code { display:flex; align-items:center; gap:14px; flex-wrap:wrap; } .mp-code span { opacity:.7; } .mp-code b { font:800 1.9rem var(--sans, system-ui); letter-spacing:.18em; color:var(--fm-gold,#f1c04f); }
   .mp-in { color:#7fd69a; font-weight:700; } .mp-wait { color:#f1c04f; } .mp-ai { opacity:.65; }
-  .scn2 { display:grid; gap:14px; } .scn2-head h2 { margin:0 0 6px; } .scn2-body { display:grid; grid-template-columns:minmax(320px,520px) minmax(260px,1fr); gap:20px; align-items:start; }
+  .scn2 { display:grid; gap:14px; } .scn2-head h2 { margin:0 0 6px; } .scn2-body { display:flex; justify-content:center; }
+  .scn2-body .scn2-pitch { width:min(100%, 560px); }
+  .scn2-bar { display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap; padding:10px 12px; border:1px solid rgba(255,255,255,.14); background:rgba(255,255,255,.035); } .scn2-btns { display:flex; gap:8px; flex-wrap:wrap; } .scn2-btns button { padding:10px 20px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; font-size:.76rem; } .scn2-bar .scn2-say { margin:0; min-height:0; flex:1; min-width:200px; text-align:right; opacity:.9; }
   .scn2-pitch { position:relative; border-radius: 0; overflow:hidden; border:1px solid rgba(255,255,255,.12); touch-action:pan-y; } .scn2-pitch svg { display:block; width:100%; height:auto; user-select:none; -webkit-user-select:none; }
   .scn2-card { padding:16px 18px; border-radius: 0; background:var(--fm-surface,#17231f); border:1px solid rgba(255,255,255,.08); display:grid; gap:10px; margin-bottom:12px; } .scn2-card h3 { margin:0; font-size:1.05rem; }
   .scn2-help { margin:0; padding-left:18px; display:grid; gap:6px; line-height:1.45; } .scn2-stats { opacity:.8; font-size:.9rem; } .scn2-say { margin:0; min-height:2.6em; font-weight:600; } .scn2-last { margin:0; }
@@ -1128,7 +1130,7 @@
 <script src="/create/football/workbench.js?v=20261201b"></script>
 <script src="/create/football/form.js?v=20261029a"></script>
 <script src="/create/football/cases.js?v=20261028a"></script>
-<script src="/create/football/scenario.js?v=20261203b"></script>
+<script src="/create/football/scenario.js?v=20261203c"></script>
 <script src="/create/football/multiplayer.js?v=20261107c"></script>
 <script src="/create/football/main.js?v=20261202d"></script>
 </body>

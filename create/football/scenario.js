@@ -564,6 +564,22 @@
           : `<button class="primary" id="scnFinish" type="button">Use this</button><button id="scnUndo" type="button"${(S.defending ? S.defHist && S.defHist.length : S.history && S.history.length) ? '' : ' disabled'}>Undo</button><button id="scnReset" type="button">Restart simulation</button>`}
       </div>`;
     };
+    // The buttons sit in a bar above the pitch (Undo and Restart, Play on for a defence, Start before the scenario begins), with the latest thing that happened on the right.
+    const barHtml = () => {
+      let btns = '', say = '';
+      const undoBtn = (list) => `<button id="scnUndo" type="button"${list && list.length && !S.finished ? '' : ' disabled'}>Undo</button>`;
+      if (S && S.defending && S.started) {
+        btns = `<button class="primary" id="scnPlay" type="button"${S.ended ? ' disabled' : ''}>Play on</button>` + (terminal() ? '' : undoBtn(S.defHist) + '<button id="scnReset" type="button">Restart simulation</button>');
+        say = S.say || 'They have the ball. Set your team.';
+      } else if (S && S.started) {
+        btns = terminal() ? '' : undoBtn(S.history) + '<button id="scnReset" type="button">Restart simulation</button>';
+        say = S.say || 'Your move.';
+      } else {
+        btns = '<button class="primary" id="scnStart" type="button">Start scenario</button><button id="scnHow" type="button">How this works</button>';
+        say = S && S.carried ? esc(S.own[S.holder].p.name.split(' ').slice(-1)[0]) + ' has the ball; your players stand where the last phase finished.' : '';
+      }
+      return `<div class="scn2-bar"><div class="scn2-btns">${btns}</div><p class="scn2-say" id="scnSay">${S && S.started ? esc(say) : say}</p></div>`;
+    };
     const draw = () => {
       if (!S) { S = fresh(team, opp, phase); store[phase] = S; }
       host.innerHTML = `<div class="scn2">
@@ -571,27 +587,9 @@
           <p class="desc">Preparing for ${esc(opp.name)}, who usually <b>${esc(phase === 'press' ? buildStyle.you : press.label)}</b>. ${esc(goalText())}</p>
           ${info ? `<p class="note scn2-last">${info.scenarios > 1 ? info.scenarios + ' scenarios combined: ' : 'Last shown: '}${info.passes} pass${info.passes === 1 ? '' : 'es'} (${info.completed} came off), ${info.dribbled} m dribbled, ${info.aerial}% in the air, against a side that ${esc(phase === 'press' ? buildStyle.one : third(info.vs))}.${info.lost ? ' The ball was lost.' : ''}</p>` : ''}
         </div>
+        ${barHtml()}
         <div class="scn2-body">
           <div class="scn2-pitch"><svg id="scnSvg" viewBox="0 ${-GOAL * PS} ${W * PS} ${(L + 2 * GOAL) * PS}" role="img" aria-label="${esc(ph.title)}: drag the players and the ball, and draw passes"></svg>${pitchOverlay()}</div>
-          <div class="scn2-side">
-            ${S && S.defending && S.started ? `<div class="scn2-card"><h3>Defend it</h3><ul class="scn2-help">
-              <li><b>Drag your players</b> to where you want them as they bring the ball ${phase === 'press' ? 'out from the back' : 'into your third'}.</li>
-              <li><b>Drag one onto the man with the ball</b> to close him down: he can be tackled, and the ball is yours if it comes off.</li>
-              <li>Then press <b>Play on</b> and watch what they do with the ball. <b>While it is being passed you can still drag a player into its path</b>: if he gets to it he can cut the pass out or win the ball.</li></ul>
-              <div class="scn2-stats">${S.snaps.length} set-up${S.snaps.length === 1 ? '' : 's'} shown · ${S.events.length} move${S.events.length === 1 ? '' : 's'} by them</div>
-              <p class="scn2-say" id="scnSay">${esc(S.say || 'They have the ball. Set your team.')}</p>
-              <div class="row"><button class="primary" id="scnPlay"${S.ended ? ' disabled' : ''}>Play on</button><button id="scnUndo"${S.defHist && S.defHist.length && !S.finished ? '' : ' disabled'}>Undo</button>${terminal() ? '' : '<button id="scnReset">Restart simulation</button>'}</div></div>`
-            : S && S.started ? `<div class="scn2-card"><h3>How to play it</h3><ul class="scn2-help">
-              <li><b>Drag a player</b> to move him. With the ball, that is a dribble.</li>
-              <li><b>Drag the ball</b> to where you want to play it, and let go. Onto a teammate, or into space. A line follows the ball.</li>
-              <li>Drag it over an opponent in the way and it is a ball in the air.</li></ul>
-              <div class="scn2-stats">${S.beats.filter((b) => b.type === 'pass').length} passes · ${Math.round(S.beats.filter((b) => b.type === 'dribble').reduce((a, b) => a + b.d, 0))} m dribbled</div>
-              <p class="scn2-say" id="scnSay">${esc(S.say || 'Your move.')}</p>
-              <div class="row"><button id="scnUndo"${S.history && S.history.length && !S.finished ? '' : ' disabled'}>Undo</button>${terminal() ? '' : '<button id="scnReset">Restart simulation</button>'}</div></div>`
-            : `<div class="scn2-card"><h3>${ph.defend ? 'Show the team how to defend' : 'Show the team how to play it'}</h3><p class="desc">${ph.defend ? `${phase === 'press' ? esc(opp.name) + ' start with the ball at their goalkeeper and build up against you. You set the press: where your players stand, and who goes to the ball.' : esc(opp.name) + ' come at you with the ball at the edge of your third. You set where the team sits and who closes down.'} They play as they play in a match, and from what you show LastMind works out how the team defends. Go for the man on the ball and you can win it.` : `You will take the ball from the ${phase === 'build' ? 'goalkeeper' : 'man on it'} and play the phase out against ${esc(opp.name)}. They react to every move the way they play. From what you show, LastMind works out how the team plays this phase.`}</p>
-              ${S && S.carried ? `<p class="desc">This starts where the last phase ended: ${esc(S.own[S.holder].p.name.split(' ').slice(-1)[0])} has the ball and your players stand where they finished.</p>` : ''}<p class="desc"><b>Drag your players into position first.</b> ${esc(opp.name)} hold their shape until you start${phase === 'build' ? ', and cannot come into the box before the ball is played' : ''}.</p><div class="row"><button class="primary" id="scnStart">Start scenario</button><button id="scnHow">How this works</button></div></div>`}
-            ${S && S.finished ? `<div class="scn2-card"><h3>What it learned</h3><p class="desc">${esc(S.learned || '')}</p></div>` : ''}
-          </div>
         </div></div>`;
       const svg = host.querySelector('#scnSvg');
       if (S) { svg.innerHTML = boardSvg(S); }
