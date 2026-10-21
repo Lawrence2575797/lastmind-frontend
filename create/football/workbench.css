@@ -207,3 +207,7 @@ body[data-view="workbench"] #view-workbench { animation: none !important; transf
 .wb-locks { margin-top: 8px; font: 700 .66rem var(--wb-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--wb-gold); }
 .wb-auto { display: inline-flex; align-items: center; gap: 6px; font: 600 .7rem var(--wb-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--wb-mute); cursor: pointer; } .wb-auto input { accent-color: var(--wb-gold); }
 .wk-sheet .wb-empty { max-width: none; }
+.wb.awide { --wb-aw: clamp(460px, 46vw, 860px); } .wb-agent-btns .wb-dx { display: inline-block; }
+@media (max-width: 1279px) { .wb.awide .wb-agent { width: min(860px, 100%); } }
+.wb-pitches.one { grid-template-columns: minmax(0, 1fr); } .wb-pitch figcaption:empty { display: none; }
+.wb-tact-btns { display: flex; gap: 10px; margin: 12px 0 4px; } .wb-tact-btns button { padding: 11px 24px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; font-size: .76rem; }

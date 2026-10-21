@@ -190,15 +190,17 @@
     if (!res) return '';
     if (!res.ok) return `<div class="wb-err">${esc(res.error)}</div>`;
     const tables = (res.tables || []).map((t) => `<div class="wb-tbl"><div class="wb-tbl-t">${esc(t.title || '')}</div><div class="wb-scroll"><table><thead><tr>${t.cols.map((c) => `<th>${esc(c)}</th>`).join('')}</tr></thead><tbody>${t.rows.map((r) => `<tr>${r.map((v, i) => `<td class="${typeof v === 'number' ? 'n' : i ? 'n' : 'l'}">${esc(v == null ? '–' : v)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>${t.more ? `<div class="wb-more">${esc(t.more)}</div>` : ''}</div>`).join('');
-    const pics = (res.pictures || []).length ? `<div class="wb-pitches">${res.pictures.map((p) => `<figure class="wb-pitch"><div class="wb-tbl-t">${esc(p.title)}</div>${p.svg}<figcaption>${esc(p.note || '')}</figcaption></figure>`).join('')}</div><div class="wb-pkey"><span><i class="a"></i>pass forward</span><span><i class="b"></i>pass across</span><span><i class="c"></i>pass back</span><span><i class="d"></i>ball won back</span><span><i class="e"></i>shot</span><span><i class="f"></i>back and front line</span><span><i class="g"></i>players, where they stood on average</span></div>` : '';
-    return `${pics}${(res.pictures || []).length ? '' : (res.summary || []).map((s) => `<p class="wb-sum">${esc(s)}</p>`).join('')}${chartSvg(res.chart)}${tables}${res.caveats && res.caveats.length ? `<div class="wb-care"><b>Take care</b><ul>${res.caveats.map((c) => `<li>${esc(c)}</li>`).join('')}</ul></div>` : ''}${res.n != null ? `<div class="wb-foot">${esc(res.n)} rows used</div>` : ''}`;
+    const tspec = res.tactic || res.applySpec;
+    const pics = (res.pictures || []).length ? `<div class="wb-pitches${res.tactic ? ' one' : ''}">${res.pictures.map((p) => `<figure class="wb-pitch"><div class="wb-tbl-t">${esc(p.title)}</div>${p.svg}<figcaption>${esc(p.note || '')}</figcaption></figure>`).join('')}</div>${res.tactic ? '' : '<div class="wb-pkey"><span><i class="a"></i>passes forward</span><span><i class="b"></i>passes across</span><span><i class="c"></i>passes back</span><span><i class="f"></i>back and front line</span><span><i class="g"></i>players, where they stood on average</span></div>'}` : '';
+    const tactBtns = tspec ? `<div class="wb-tact-btns">${res.tactic ? '<button type="button" class="primary" data-tact="test">Run the test</button>' : ''}<button type="button"${res.tactic ? '' : ' class="primary"'} data-tact="apply">${res.tactic ? 'Apply the change' : 'Keep the change'}</button></div>` : '';
+    return `${pics}${tactBtns}${(res.pictures || []).length ? '' : (res.summary || []).map((s) => `<p class="wb-sum">${esc(s)}</p>`).join('')}${chartSvg(res.chart)}${tables}${res.caveats && res.caveats.length ? `<div class="wb-care"><b>Take care</b><ul>${res.caveats.map((c) => `<li>${esc(c)}</li>`).join('')}</ul></div>` : ''}${res.n != null ? `<div class="wb-foot">${esc(res.n)} rows used</div>` : ''}`;
   }
   // the same result as plain text (for the agent, and for copying)
   function resultText(res, cap) {
     if (!res) return '';
     if (!res.ok) return 'Could not run: ' + res.error;
     let s = res.title + (res.n != null ? ' [' + res.n + ' rows]' : '') + '\n' + (res.summary || []).join('\n');
-    (res.pictures || []).forEach((p) => { s += '\nPICTURE ' + p.title + ': ' + (p.note || ''); });
+    (res.pictures || []).forEach((p) => { s += '\nPICTURE ' + p.title + ': ' + (p.facts || p.note || ''); });
     (res.tables || []).forEach((t) => { s += '\n' + (t.title || '') + ': ' + t.cols.join(' | ') + '\n' + t.rows.slice(0, 14).map((r) => r.map((v) => (v == null ? '–' : v)).join(' | ')).join('\n'); });
     if (res.caveats && res.caveats.length) s += '\nCaveats: ' + res.caveats.join(' ');
     return cap ? s.slice(0, cap) : s;
@@ -232,11 +234,12 @@
     bootstrap: [['y', 'Measure', 'num'], ['statistic', 'Statistic', ['mean', 'median', 'sd']]],
     query: [['group', 'Group by (optional)', 'cat?'], ['fn', 'Summary', ['', 'count', 'mean', 'sum', 'median', 'min', 'max', 'sd']], ['col', 'of column', 'num?'], ['order', 'Order by (optional)', 'any?'], ['dir', 'Direction', ['desc', 'asc']], ['limit', 'Rows', 'text']],
     pitch: [['rounds', 'Matchdays to draw (e.g. 1,2,3; blank = all)', 'text'], ['rounds2', 'Compare with these matchdays (optional)', 'text']],
+    tactic: [],
     forecast: [['kind', 'Forecast', ['season', 'price', 'trend']], ['stand', 'Stand (for a price forecast)', 'stand'], ['from', 'Lowest price £ (price)', 'text'], ['to', 'Highest price £ (price)', 'text'], ['y', 'Measure to carry forward (trend)', 'num?'], ['ahead', 'Matchdays ahead (trend)', 'text']],
     experiment: [['tactic', 'Tactic to change', 'tactic'], ['a', 'Setting A (0–1)', 'text'], ['b', 'Setting B (0–1)', 'text'], ['matches', 'Matched replays (4–24)', 'text'], ['minutes', 'Minutes of each (10–90)', 'text'], ['opponent', 'Opponent (optional)', 'opp']],
     simulate: [['tactic', 'Tactic to randomise', 'tactic'], ['lo', 'From (0–1)', 'text'], ['hi', 'To (0–1)', 'text'], ['matches', 'Matches (6–40)', 'text'], ['minutes', 'Minutes of each (10–90)', 'text'], ['opponent', 'Opponent (optional)', 'opp']],
   };
-  const METHOD_LABEL = { query: 'Table of figures', describe: 'Describe', compare: 'Compare two groups', correlation: 'Correlation', ols: 'Linear regression', logistic: 'Logistic regression', mle: 'Maximum likelihood model', did: 'Difference in differences', bootstrap: 'Bootstrap interval', experiment: 'Controlled experiment', simulate: 'Randomised trial', forecast: 'Forecast', pitch: 'Tactical picture' };
+  const METHOD_LABEL = { query: 'Table of figures', describe: 'Describe', compare: 'Compare two groups', correlation: 'Correlation', ols: 'Linear regression', logistic: 'Logistic regression', mle: 'Maximum likelihood model', did: 'Difference in differences', bootstrap: 'Bootstrap interval', experiment: 'Controlled experiment', simulate: 'Randomised trial', forecast: 'Forecast', pitch: 'Tactical picture', tactic: 'Tactical idea' };
   const LEVEL_METHODS = { gcse: ['query', 'pitch', 'describe', 'compare', 'correlation', 'forecast', 'experiment'], alevel: ['query', 'pitch', 'describe', 'compare', 'correlation', 'ols', 'logistic', 'bootstrap', 'forecast', 'experiment'], above: Object.keys(METHOD_LABEL) };
   const num = (v) => { const n = Number(v); return v !== '' && v != null && Number.isFinite(n) ? n : v; };
   function specFromForm(f) {
@@ -551,7 +554,7 @@
   function chatDraw() {
     const log = el('wbLog'); if (!log) return; const wb = state.wb;
     const items = wb.chat.filter((m) => m.role !== 'results');
-    log.innerHTML = items.map((m) => `<div class="wb-msg ${m.role}${m.role === 'agent' ? ' wk-rich' : ''}">${m.role === 'agent' ? richHtml(m.text) : esc(m.text).replace(/\n/g, '<br>')}${m.locks != null ? `<div class="wb-locks">${m.locks} lock${m.locks === 1 ? '' : 's'} used</div>` : ''}${(m.added || []).length ? `<div class="wb-added">${m.added.map((a) => `<button type="button" ${a.page ? 'data-page="' + a.page + '"' : 'data-goto="' + a.id + '"'}>${a.page ? '📖 Open the page: ' : '› '}${esc(a.title)}</button>`).join('')}</div>` : ''}</div>`).join('') + (state.busy ? `<div class="wb-msg agent think">${esc(state.busy)}</div>` : '');
+    log.innerHTML = items.map((m) => `<div class="wb-msg ${m.role}${m.role === 'agent' ? ' wk-rich' : ''}">${m.role === 'agent' ? richHtml(m.text) : esc(m.text).replace(/\n/g, '<br>')}${m.offer ? `<div class="wb-added"><button type="button" data-test="${esc(m.offer)}">Run the test</button></div>` : ''}${m.locks != null ? `<div class="wb-locks">${m.locks} lock${m.locks === 1 ? '' : 's'} used</div>` : ''}${(m.added || []).length ? `<div class="wb-added">${m.added.map((a) => `<button type="button" ${a.page ? 'data-page="' + a.page + '"' : 'data-goto="' + a.id + '"'}>${a.page ? '📖 Open the page: ' : '› '}${esc(a.title)}</button>`).join('')}</div>` : ''}</div>`).join('') + (state.busy ? `<div class="wb-msg agent think">${esc(state.busy)}</div>` : '');
     log.scrollTop = log.scrollHeight;
     const send = el('wbSend'); if (send) send.disabled = !!state.busy;
   }
@@ -570,6 +573,58 @@
     cell.res = await runSpec(li.spec); cell.stamp = dataStamp(); cell.edit = !cell.res.ok; refreshCell(cell); save(); refreshData();
     chatPush({ role: 'agent', text: li.say, added: [{ page: curPage().id, title: curPage().title }] }); state.busy = ''; chatDraw();
   }
+  // ---------- a tactical idea: where the players stand on the boards, the test, and applying it ----------
+  const TEST_N = 100;
+  const TEST_WORD = { build: 'build-ups', midfield: 'moves through midfield', final: 'attacks in the final third', transatt: 'attacks after winning the ball', organised: 'defensive moments', press: 'presses of their build-up', transdef: 'moments after losing the ball' };
+  // Where each player stands on the boards for the main phases, so the agent draws ideas from real places (shirt number, group, x and y in metres).
+  function boardText() {
+    const lg = state.league, team = lg && FM.teamById(lg, lg.userId), LAB = FM.lab; if (!team || !LAB) return '';
+    return ['build', 'midfield', 'final', 'organised', 'press'].map((ph) => {
+      const key = LAB.BOARDS[ph].keys[0];
+      return ph + ': ' + team.players.map((p) => { const q = FM.phasePos(team, p, key); return p.number + p.group + '(' + Math.round(q.d * 105) + ',' + Math.round(q.w * 68) + ')'; }).join(' ');
+    }).join('\n');
+  }
+  const nextOpp = () => { const lg = state.league, nx = FM.nextUserFixture && FM.nextUserFixture(lg); return nx ? FM.teamById(lg, nx.homeId === lg.userId ? nx.awayId : nx.homeId) : null; };
+  const movesOf = (spec) => (spec.moves || []).map((m) => ({ number: m.number, dd: m.dx / 105, dw: m.dy / 68 }));
+  function applyTactic(cell) {
+    const spec = cell && cell.res && (cell.res.tactic || cell.res.applySpec); if (!spec) return;
+    const lg = state.league, team = FM.teamById(lg, lg.userId), out = FM.lab.applyMoves(team, spec.phase, movesOf(spec), { opp: nextOpp() });
+    if (FM.inferShapeTactics) FM.inferShapeTactics(team);
+    save(); flash(out && out.count ? 'Applied: ' + out.count + ' player' + (out.count === 1 ? '' : 's') + ' moved on the boards' : 'Nothing to change');
+  }
+  // The hypothesis test, on this computer and with no Locks: the phase is played TEST_N times with the tactics as they are, the change is applied, it is played TEST_N times
+  // again, and the two success rates are compared. The tactics are put back afterwards; Keep the change applies it for good.
+  async function runHypothesis(cell) {
+    const spec = cell && cell.res && (cell.res.tactic || cell.res.applySpec); if (!spec || state.busy) return;
+    const lg = state.league, team = FM.teamById(lg, lg.userId), opp = nextOpp(), LAB = FM.lab;
+    if (!opp) { chatPush({ role: 'agent', text: 'There is no next match to test against.' }); chatDraw(); return; }
+    const phase = spec.phase, rev = ['organised', 'transdef', 'press'].indexOf(phase) >= 0, attackTest = ['final', 'transatt', 'organised', 'transdef'].indexOf(phase) >= 0;
+    const plan = FM.scout.plan1(FM.scout.profile(lg)), snap = LAB.snapshot(team);
+    const opts = { n: TEST_N, phase: attackTest ? 'final' : (phase === 'midfield' ? 'midfield' : 'build'), user: rev ? opp : team, opp: rev ? team : opp, start: 'keeper', record: false, oppRules: rev ? (team.rules || []) : plan.rules, oppNudge: rev ? {} : plan.tactics };
+    const word = TEST_WORD[phase] || 'tests';
+    state.locks = 0; chatPush({ role: 'manager', text: 'Test it: ' + (spec.title || 'the tactical idea') });
+    let A, Bres;
+    try {
+      state.busy = 'Running ' + TEST_N + ' ' + word + ' with your current tactics…'; chatDraw();
+      A = await LAB.run(lg, opts, (d) => { state.busy = 'Current tactics: ' + d + ' of ' + TEST_N + ' ' + word; chatDraw(); });
+      LAB.applyMoves(team, phase, movesOf(spec), { opp }); if (FM.inferShapeTactics) FM.inferShapeTactics(team);
+      state.busy = 'Running ' + TEST_N + ' ' + word + ' with the change…'; chatDraw();
+      Bres = await LAB.run(lg, opts, (d) => { state.busy = 'With the change: ' + d + ' of ' + TEST_N + ' ' + word; chatDraw(); });
+    } catch (e) { chatPush({ role: 'agent', text: 'The test could not be run just now.' }); }
+    LAB.restore(team, snap); if (FM.inferShapeTactics) FM.inferShapeTactics(team);   // the club is as it was: the change is only kept if the manager says so
+    state.busy = ''; chatDraw();
+    if (!A || !Bres) return;
+    const ok = (r) => (rev ? { k: r.n - r.beat.k, p: (r.n - r.beat.k) / r.n } : { k: r.beat.k, p: r.beat.p }), a = ok(A), b = ok(Bres), cmp = LAB.compare({ n: A.n, ok: a }, { n: Bres.n, ok: b }, 'ok');
+    const pct = (v) => Math.round(v * 100) + '%', d = b.p - a.p, sig = cmp.p < 0.05;
+    const verdict = sig ? (d > 0 ? 'The change helped: the gap is bigger than luck alone would usually give (p = ' + (Math.round(cmp.p * 1000) / 1000) + ').' : 'The change made it worse: the gap is bigger than luck alone would usually give (p = ' + (Math.round(cmp.p * 1000) / 1000) + ').') : 'No clear difference: a gap this size could easily be luck (p = ' + (Math.round(cmp.p * 1000) / 1000) + '). ' + (cmp.need && cmp.need <= 2000 ? 'About ' + cmp.need + ' runs of each would be needed to be sure.' : 'The two are too close to separate with a test this size: try a bigger change.');
+    const res = { ok: true, method: 'tactic-test', title: 'Test: ' + (spec.title || 'tactical idea'), summary: [verdict], caveats: ['Both runs use the same ' + TEST_N + ' ' + word + ' set-up against ' + opp.name + '. A success is the one the phase test counts: ' + (rev ? 'they were stopped before they could shoot or get out.' : 'the ball got through as the test defines it.')],
+      tables: [{ title: 'Result', cols: ['', 'Runs', 'Successful', 'Success rate'], rows: [['Current tactics', A.n, a.k, pct(a.p)], ['With the change', Bres.n, b.k, pct(b.p)], ['Difference', '', b.k - a.k, (d >= 0 ? '+' : '') + Math.round(d * 100) + ' points']] }], applySpec: spec };
+    const rc = addCell({ type: 'analysis', form: formFromSpec({ method: 'tactic' }), by: 'agent', edit: false }, { scroll: true });
+    rc.res = res; rc.stamp = dataStamp(); refreshCell(rc); save();
+    chatPush({ role: 'agent', text: verdict + ' The numbers are on the page.' + (sig && d > 0 ? ' Press Keep the change under them to apply it to your boards.' : '') });
+    chatDraw();
+  }
+
   const summaryText = (n) => (FM.agentContext ? FM.agentContext(state.league, 'workbench') : '').slice(0, n);
   const detailText = () => DETAIL.brief;   // answers are always short and direct
   // The second, short step: the results go back and the agent explains them. It carries no tables, methods or changes list, so it is cheap.
@@ -578,7 +633,6 @@
     state.locks = (state.locks || 0) + (out.locks || 0);
     const text = out.reply || 'Done.';
     chatPush({ role: 'agent', text, locks: state.locks });
-    addExplanation(text, after);
   }
   function addExplanation(text, after) {
     const page = targetPage(), idx = after ? Math.max(0, page.cells.indexOf(after) + 1) : 0;
@@ -604,14 +658,14 @@
     state.locks = 0; state.busy = bl('Thinking…'); chatDraw();
     try {
       const C = CTL();
-      const out = await FM.api('/football/workbench', { phase: 'plan', messages: chatMessages().slice(-10), schema: T.digestCompact(), schemaExtra: T.digestExtra(), methods: WB.METHOD_HELP.join('\n'), controls: C ? C.helpStatic() : '', state: C ? C.state(state.league) : '', summary: summaryText(1800), doc: docSummary(), level: state.league.tier, detail: detailText(), lessons: lessonList() });
+      const out = await FM.api('/football/workbench', { phase: 'plan', messages: chatMessages().slice(-10), schema: T.digestCompact(), schemaExtra: T.digestExtra(), methods: WB.METHOD_HELP.join('\n'), controls: C ? C.helpStatic() : '', state: C ? C.state(state.league) : '', board: boardText(), summary: summaryText(1800), doc: docSummary(), level: state.league.tier, detail: detailText(), lessons: lessonList() });
       state.locks += out.locks || 0;
       const msg = chatPush({ role: 'agent', text: out.reply || 'Tell me more about what you want to find out.', added: [] });
       const actions = Array.isArray(out.actions) ? out.actions : [];
       if (!actions.length) { msg.locks = state.locks; save(); state.busy = ''; chatDraw(); return; }
       // a question that gets worked on starts a new page, titled with the question
       const page = newPage(String(out.title || '').trim() || titleFromQuestion(text), { reuseBlank: true }); state.pin = page; renderDoc(); msg.added.push({ page: page.id, title: page.title });
-      const texts = [];
+      const texts = [], tacticCells = [];
       for (const a of actions) {
         if (a.type === 'note') { addCell({ type: 'rich', html: richHtml(a.text), by: 'agent' }, { scroll: false }); texts.push('Note added.'); continue; }
         if (a.type === 'control') {
@@ -622,10 +676,11 @@
           else { texts.push('PROPOSED, waiting for the manager to press Apply: ' + title + ' ' + JSON.stringify(a.params || {})); }
           continue;
         }
-        const spec = a.spec || {}; const form = formFromSpec(spec); if (!form.table && spec.method !== 'experiment' && spec.method !== 'simulate' && spec.method !== 'forecast') form.table = 'team_matches';
+        const spec = a.type === 'tactic' ? Object.assign({ method: 'tactic' }, a.spec || {}) : (a.spec || {}); const form = formFromSpec(spec); if (!form.table && spec.method !== 'experiment' && spec.method !== 'simulate' && spec.method !== 'forecast') form.table = 'team_matches';
         const cell = addCell({ type: 'analysis', form, by: 'agent', edit: false, running: true, progress: 'Working…' }, { scroll: false });
         state.busy = bl((spec.method === 'experiment' || spec.method === 'simulate') ? 'Running the simulation…' : 'Running the analysis…'); chatDraw();
         cell.spec = a.type === 'query' ? Object.assign({ method: 'query' }, spec) : spec;
+        if (a.type === 'tactic') tacticCells.push(cell);
         cell.res = await runSpec(cell.spec, (d, t, label) => { cell.progress = label; cell.pct = t ? d / t : null; const n = document.querySelector('[data-cell="' + cell.id + '"] .wb-run-s span'); if (n) n.textContent = label; state.busy = bl(label); chatDraw(); return !cell.stop; });
         cell.running = false; cell.stamp = dataStamp(); cell.edit = !cell.res.ok; refreshCell(cell);
         texts.push(resultText(cell.res, 1400));
@@ -634,6 +689,7 @@
       chatPush({ role: 'results', text: texts.join('\n\n').slice(0, 4800) });
       state.busy = bl('Writing it up…'); chatDraw();
       await explainStep();
+      tacticCells.filter((c) => c.res && c.res.ok).forEach((c) => chatPush({ role: 'agent', text: 'Would you like to test this? I will run ' + TEST_N + ' ' + (TEST_WORD[c.res.tactic.phase] || 'tests') + ' with your current tactics, apply the change, run ' + TEST_N + ' more, and put the two side by side on this page.', offer: c.id }));
     } catch (e) { chatPush({ role: 'agent', text: aiError(e) }); }
     state.pin = null; state.busy = ''; chatDraw();
   }
@@ -642,7 +698,7 @@
   function layout() {
     const wb = state.wb, ui = wb.ui, host = state.host;
     const box = host.querySelector('.wb'); box.classList.toggle('no-data', !ui.data); box.classList.toggle('no-agent', !ui.agent);
-    box.classList.toggle('dwide', !!ui.data && !!ui.dwide); host.querySelector('[data-tool="agent"]').classList.toggle('on', !!ui.agent); host.querySelector('[data-tool="kb"]').classList.toggle('on', !!ui.kb);
+    box.classList.toggle('dwide', !!ui.data && !!ui.dwide); box.classList.toggle('awide', !!ui.agent && !!ui.awide); host.querySelector('[data-tool="agent"]').classList.toggle('on', !!ui.agent); host.querySelector('[data-tool="kb"]').classList.toggle('on', !!ui.kb);
     el('wbKb').hidden = !ui.kb;
   }
   function kbHtml() {
@@ -683,7 +739,7 @@
       <div class="wb-body">
         <aside class="wb-data" id="wbData" aria-label="Data and controls"><div class="wb-pane-h"><span class="wb-dtabs"><button type="button" data-dtab="data">Data</button><button type="button" data-dtab="controls">Controls</button></span><span class="wb-dbtns"><button type="button" class="wb-dx" data-tool="dwide" aria-label="Make the data panel wider or narrower" title="Wider / narrower">⇔</button><button type="button" class="wb-dx" data-tool="data" aria-label="Fold the data panel away" title="Fold away">‹</button></span></div><div class="wb-dlist"></div><button type="button" class="wb-drail" data-tool="data" aria-label="Open the data panel">DATA ›</button></aside>
         <section class="wb-main wk-main"><div class="wk-book"><div class="wk-sheet"><div class="wk-scroll" id="wkScroll"><div class="wk-titlebar"><input id="wkTitle" class="wk-title" placeholder="Name this page" aria-label="Page title" maxlength="90"></div><div class="wk-rule"></div><div class="wk-flow" id="wbDoc"></div></div><div class="wk-foot"><button type="button" class="wk-arrow" id="wkPrev" aria-label="Previous page" title="Previous page">‹</button><span class="wk-pos" id="wkPos"></span><button type="button" class="wk-arrow" id="wkNext" aria-label="Next page" title="Next page">›</button></div></div></div><div class="wb-kb" id="wbKb" hidden></div></section>
-        <aside class="wb-agent" id="wbAgent" aria-label="LastMind AI Agent"><div class="wb-pane-h"><b>AI Agent</b><span class="wb-agent-btns"><label class="wb-auto" title="Apply the changes the agent proposes without asking"><input type="checkbox" id="wbAuto"> Auto-apply</label><button type="button" class="wb-clear" data-tool="clearchat">Clear</button><button type="button" class="wb-x" data-tool="agent" aria-label="Close the agent">✕</button></span></div><div class="wb-log" id="wbLog" role="log" aria-live="polite"></div>
+        <aside class="wb-agent" id="wbAgent" aria-label="LastMind AI Agent"><div class="wb-pane-h"><b>AI Agent</b><span class="wb-agent-btns"><button type="button" class="wb-dx" data-tool="awide" aria-label="Make the chat wider or narrower" title="Wider / narrower">⇔</button><label class="wb-auto" title="Apply the changes the agent proposes without asking"><input type="checkbox" id="wbAuto"> Auto-apply</label><button type="button" class="wb-clear" data-tool="clearchat">Clear</button><button type="button" class="wb-x" data-tool="agent" aria-label="Close the agent">✕</button></span></div><div class="wb-log" id="wbLog" role="log" aria-live="polite"></div>
           <form class="wb-form" id="wbForm"><textarea id="wbAsk" rows="2" placeholder="Ask a question, or say what you want to learn…" aria-label="Message to the agent"></textarea><button class="wb-send" id="wbSend" type="submit">Send</button></form></aside>
       </div><div class="wb-flash" id="wbFlash" role="status"></div></div>`;
     el('wbAuto').checked = !!wb.settings.auto;
@@ -731,6 +787,9 @@
       if (b.id === 'wkNext') { if (wb.cur >= wb.pages.length - 1) { syncRich(); wb.pages.push({ id: uid(), title: '', at: Date.now(), cells: [] }); goPage(wb.pages.length - 1); setTimeout(() => { const ti = el('wkTitle'); if (ti) ti.focus(); }, 60); } else goPage(wb.cur + 1); return; }
       if (tool === 'add') { el('wbAdd').hidden = !el('wbAdd').hidden; return; }
       if (b.dataset.add) { el('wbAdd').hidden = true; if (b.dataset.add === 'analysis') addCell({ type: 'analysis', form: newForm('describe'), edit: true }); else if (b.dataset.add === 'forecast') addCell({ type: 'analysis', form: newForm('forecast'), edit: true }); else if (b.dataset.add === 'control') { wb.ui.data = true; wb.ui.dtab = 'controls'; layout(); refreshData(); flash('Choose what to change from the Controls list'); } else if (b.dataset.add === 'text') { const lastC = curPage().cells[curPage().cells.length - 1]; const ed = lastC && EDS.get(lastC.id); if (ed) ed.focus(); else addCell({ type: 'rich', html: '', _focus: true }); } else addCell({ type: b.dataset.add, text: '' }); return; }
+      if (tool === 'awide') { wb.ui.awide = !wb.ui.awide; if (wb.ui.awide) wb.ui.agent = true; layout(); save(); return; }
+      if (b.dataset.test) { runHypothesis(findCell(b.dataset.test)); return; }
+      if (b.dataset.tact) { const cell = findCell((b.closest('[data-cell]') || {}).dataset ? b.closest('[data-cell]').dataset.cell : ''); if (cell) { if (b.dataset.tact === 'test') runHypothesis(cell); else applyTactic(cell); } return; }
       if (tool === 'dwide') { wb.ui.dwide = !wb.ui.dwide; if (wb.ui.dwide) wb.ui.data = true; layout(); save(); return; }
       if (tool === 'kb' || tool === 'data' || tool === 'agent') { wb.ui[tool] = !wb.ui[tool]; layout(); save(); return; }
       if (tool === 'copy') { copyDoc(); return; }

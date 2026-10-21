@@ -44,20 +44,15 @@
       (fx.log.other || []).forEach((e) => { if (e.type === 'shot' && e.team === me) { shots.push({ d: D(e.x), w: Wd(e.y), xg: e.xg || 0, goal: e.outcome === 'goal' }); if (e.outcome === 'goal') goals++; } });
     });
     const top = Math.max.apply(null, Object.values(flows).map((f) => f.n).concat([1]));
-    const arrows = Object.values(flows).filter((f) => f.n >= Math.max(3, top * 0.2)).sort((a, b) => b.n - a.n).slice(0, 9);
+    const arrows = Object.values(flows).filter((f) => f.n >= Math.max(3, top * 0.2)).sort((a, b) => b.n - a.n).slice(0, 5);
     let svg = '';
     // the lines first, so the arrows sit on top
     const line = shape.n ? shape.line / shape.n : null, front = shape.n ? shape.front / shape.n : null;
     if (line != null) {
       svg += `<rect x="${(line * PW).toFixed(1)}" y="0" width="${((front - line) * PW).toFixed(1)}" height="${PH}" fill="#fff" fill-opacity=".07"/>`;
-      svg += `<line x1="${(line * PW).toFixed(1)}" y1="0" x2="${(line * PW).toFixed(1)}" y2="${PH}" stroke="#8FC8FF" stroke-width="3" stroke-dasharray="10 7"/><text x="${(line * PW + 6).toFixed(1)}" y="20" font-size="16" fill="#8FC8FF" font-weight="700">back line ${pc(line)}%</text>`;
-      svg += `<line x1="${(front * PW).toFixed(1)}" y1="0" x2="${(front * PW).toFixed(1)}" y2="${PH}" stroke="#FFB4A0" stroke-width="3" stroke-dasharray="10 7"/><text x="${(front * PW - 6).toFixed(1)}" y="${PH - 10}" font-size="16" fill="#FFB4A0" font-weight="700" text-anchor="end">front line ${pc(front)}%</text>`;
+      svg += `<line x1="${(line * PW).toFixed(1)}" y1="0" x2="${(line * PW).toFixed(1)}" y2="${PH}" stroke="#8FC8FF" stroke-width="3" stroke-dasharray="10 7"/><text x="${(line * PW + 6).toFixed(1)}" y="20" font-size="16" fill="#8FC8FF" font-weight="700">back line</text>`;
+      svg += `<line x1="${(front * PW).toFixed(1)}" y1="0" x2="${(front * PW).toFixed(1)}" y2="${PH}" stroke="#FFB4A0" stroke-width="3" stroke-dasharray="10 7"/><text x="${(front * PW - 6).toFixed(1)}" y="${PH - 10}" font-size="16" fill="#FFB4A0" font-weight="700" text-anchor="end">front line</text>`;
     }
-    // where the ball was won back: a soft circle per patch of pitch, bigger where it happened more
-    const bins = {}; rec.forEach((p) => { const k = Math.min(9, Math.floor(p.d * 10)) + ',' + Math.min(4, Math.floor(p.w * 5)); const b = bins[k] || (bins[k] = { n: 0, x: Math.min(9, Math.floor(p.d * 10)), y: Math.min(4, Math.floor(p.w * 5)) }); b.n++; });
-    const bmax = Math.max.apply(null, Object.values(bins).map((b) => b.n).concat([1]));
-    svg += Object.values(bins).map((b) => `<circle cx="${Math.round((b.x + 0.5) * PW / 10)}" cy="${Math.round((b.y + 0.5) * PH / 5)}" r="${Math.round(7 + 22 * Math.sqrt(b.n / bmax))}" fill="#7FD49A" fill-opacity="${(0.25 + 0.4 * b.n / bmax).toFixed(2)}" stroke="#7FD49A" stroke-opacity=".7" stroke-width="1.5"/>`).join('');
-    svg += shots.map((s) => `<circle cx="${Math.round(s.d * PW)}" cy="${Math.round(s.w * PH)}" r="${Math.round(5 + 16 * Math.sqrt(Math.min(s.xg, 0.8)))}" fill="${s.goal ? '#FFE27A' : '#FF9A3C'}" fill-opacity=".85" stroke="#000" stroke-width="1.5"/>`).join('');
     svg += arrows.map((f) => {
       const x0 = f.d0 / f.n * PW, y0 = f.w0 / f.n * PH, x1 = f.d1 / f.n * PW, y1 = f.w1 / f.n * PH, dd = f.d1 / f.n - f.d0 / f.n;
       const col = dd > 0.04 ? '#FFD54A' : dd < -0.04 ? '#7FB5FF' : '#FFFFFF', w = 2 + 7 * f.n / top, hl = 11 + w * 1.4, ang = Math.atan2(y1 - y0, x1 - x0);
@@ -86,7 +81,7 @@
     words.push(ok ? pc(fwd / ok) + '% of completed passes went forward, averaging ' + r1(len / ok) + 'm' : 'no completed passes');
     words.push(shots.length + ' shots (' + goals + ' goals), expected goals ' + r1(xg));
     const plan = tac.n ? 'plan: line height ' + (Math.round(T('lineHeight') * 100) / 100) + ', pressing ' + r1(T('pressing')) + ', counter-press ' + r1(T('counterPress')) + ', directness ' + r1(T('directness')) + ', tempo ' + r1(T('tempo')) : '';
-    return { title: label, svg: picture, facts, summary: label + ' (' + n + ' match' + (n === 1 ? '' : 'es') + ', scored ' + gf + ', conceded ' + ga + '). ' + (plan ? plan.charAt(0).toUpperCase() + plan.slice(1) + '. ' : '') + words.join('; ') + '.', note: words.join('; ') + (plan ? ' | ' + plan : '') };
+    return { title: label, svg: picture, facts, note: '', summary: label + ' (' + n + ' match' + (n === 1 ? '' : 'es') + ', scored ' + gf + ', conceded ' + ga + '). ' + (plan ? plan.charAt(0).toUpperCase() + plan.slice(1) + '. ' : '') + words.join('; ') + '.', note: words.join('; ') + (plan ? ' | ' + plan : '') };
   }
 
   function pitch(league, spec) {
@@ -101,10 +96,46 @@
     }
     return {
       ok: true, method: 'pitch', title: 'tactical picture' + (panels.length > 1 ? ': ' + panels.map((p) => p.title.toLowerCase()).join(' against ') : ''),
-      summary: panels.map((p) => p.summary), pictures: panels.map((p) => ({ title: p.title, svg: p.svg, note: p.note })),
+      summary: panels.map((p) => p.summary), pictures: panels.map((p) => ({ title: p.title, svg: p.svg, note: '', facts: p.note })),
       caveats: ['Each picture is built from every pass, recovery and shot recorded in those matches, with your club always attacking to the right. Arrows show where passes typically moved the ball, not single passes.'],
     };
   }
+
+  // ---------- a tactical idea, drawn ----------
+  // The idea is a few moves (a player and where he could go), roles for the players who move, and the space the movement opens up. It is drawn on the pitch from
+  // where the manager's board for that phase puts each player, with arrows for the moves and a shaded rectangle for the space. The distances behind the arrows
+  // are not printed: the picture is the explanation. It can be tested (100 runs now, 100 with the change) and applied from the Workbook.
+  function tacticPicture(league, spec) {
+    const team = FM.teamById(league, league.userId), B0 = FM.lab && FM.lab.BOARDS[spec.phase] ? FM.lab.BOARDS[spec.phase] : FM.lab.BOARDS.build, key = B0.keys[0];
+    const PW = A().PW, PH = A().PH, at = {};
+    team.players.forEach((p) => { const q = FM.phasePos(team, p, key); at[p.number] = { p, x: q.d * L, y: q.w * W }; });
+    const moves = (spec.moves || []).filter((m) => at[m.number]).map((m) => { const f = at[m.number]; return { number: m.number, name: f.p.name.split(' ').slice(-1)[0], from: { x: f.x, y: f.y }, to: { x: Math.max(3, Math.min(L - 3, f.x + m.dx)), y: Math.max(3, Math.min(W - 3, f.y + m.dy)) }, tag: m.tag || '' }; });
+    if (!moves.length) return null;
+    const roleOf = {}; (spec.roles || []).forEach((r) => { roleOf[r.number] = r.role; });
+    const moved = new Set(moves.map((m) => m.number));
+    let svg = '';
+    const sp = spec.space;
+    if (sp && sp.x1 > sp.x0 && sp.y1 > sp.y0) svg += `<rect x="${(sp.x0 / L * PW).toFixed(1)}" y="${(sp.y0 / W * PH).toFixed(1)}" width="${((sp.x1 - sp.x0) / L * PW).toFixed(1)}" height="${((sp.y1 - sp.y0) / W * PH).toFixed(1)}" fill="#7FD6FF" fill-opacity=".22" stroke="#7FD6FF" stroke-width="2.5" stroke-dasharray="9 6"/>` + (sp.label ? `<text x="${((sp.x0 + sp.x1) / 2 / L * PW).toFixed(1)}" y="${((sp.y0 + 2.2) / W * PH).toFixed(1)}" text-anchor="middle" font-size="15" font-weight="700" fill="#CFF1FF" stroke="#0b2530" stroke-width="3" paint-order="stroke">${esc(sp.label)}</text>` : '');
+    Object.keys(at).forEach((n) => { if (moved.has(+n)) return; const f = at[n]; svg += `<circle cx="${(f.x / L * PW).toFixed(1)}" cy="${(f.y / W * PH).toFixed(1)}" r="11" fill="#1F8A4C" fill-opacity=".85" stroke="#fff" stroke-width="2"/><text x="${(f.x / L * PW).toFixed(1)}" y="${(f.y / W * PH + 4.5).toFixed(1)}" text-anchor="middle" font-size="12" font-weight="800" fill="#fff">${n}</text>`; });
+    moves.forEach((m) => {
+      const x0 = m.from.x / L * PW, y0 = m.from.y / W * PH, x1 = m.to.x / L * PW, y1 = m.to.y / W * PH, ang = Math.atan2(y1 - y0, x1 - x0), hl = 15, bx = x1 - Math.cos(ang) * hl * 0.8, by = y1 - Math.sin(ang) * hl * 0.8, nx = -Math.sin(ang), ny = Math.cos(ang);
+      svg += `<line x1="${x0.toFixed(1)}" y1="${y0.toFixed(1)}" x2="${bx.toFixed(1)}" y2="${by.toFixed(1)}" stroke="#FFD54A" stroke-width="5" stroke-linecap="round" stroke-opacity=".95"/><polygon points="${x1.toFixed(1)},${y1.toFixed(1)} ${(bx + nx * 8).toFixed(1)},${(by + ny * 8).toFixed(1)} ${(bx - nx * 8).toFixed(1)},${(by - ny * 8).toFixed(1)}" fill="#FFD54A"/>`;
+      svg += `<circle cx="${x1.toFixed(1)}" cy="${y1.toFixed(1)}" r="13" fill="none" stroke="#FFD54A" stroke-width="2.5" stroke-dasharray="4 4"/>`;
+      svg += `<circle cx="${x0.toFixed(1)}" cy="${y0.toFixed(1)}" r="13" fill="#1F8A4C" stroke="#FFD54A" stroke-width="3"/><text x="${x0.toFixed(1)}" y="${(y0 + 5).toFixed(1)}" text-anchor="middle" font-size="13" font-weight="800" fill="#fff">${m.number}</text>`;
+      const label = (roleOf[m.number] || m.tag || '').trim();
+      svg += `<text x="${x0.toFixed(1)}" y="${(y0 + 29).toFixed(1)}" text-anchor="middle" font-size="12" font-weight="700" fill="#fff" stroke="#000" stroke-width="3" paint-order="stroke">${esc(m.name)}</text>`;
+      if (label) svg += `<text x="${x1.toFixed(1)}" y="${(y1 - 19).toFixed(1)}" text-anchor="middle" font-size="13" font-weight="800" fill="#FFE27A" stroke="#000" stroke-width="3" paint-order="stroke">${esc(label)}</text>`;
+    });
+    svg += `<text x="12" y="${PH - 12}" font-size="14" fill="#fff" fill-opacity=".85">attacking →</text>`;
+    return { svg: `<svg class="amap" viewBox="0 0 ${PW} ${PH}" role="img" aria-label="${esc(spec.title || 'Tactical idea')}">${A().pitchLines()}${svg}</svg>`, moves, team };
+  }
+  function tactic(league, spec) {
+    const pic = tacticPicture(league, spec);
+    if (!pic) return fail('That idea names players who are not in the team, so there is nothing to draw.');
+    const facts = 'TACTIC (' + (spec.phase || 'build') + '): ' + (spec.title || '') + '. ' + (spec.note || '') + ' Moves: ' + pic.moves.map((m) => m.name + (m.tag ? ' (' + m.tag + ')' : '')).join(', ') + (spec.space && spec.space.label ? '. Space: ' + spec.space.label : '') + '.';
+    return { ok: true, method: 'tactic', title: spec.title || 'Tactical idea', summary: [spec.note || ''], pictures: [{ title: spec.title || 'Tactical idea', svg: pic.svg, note: spec.note || '', facts }], caveats: [], tactic: { phase: spec.phase || 'build', title: spec.title || '', note: spec.note || '', moves: (spec.moves || []).filter((m) => pic.moves.some((x) => x.number === m.number)).map((m) => ({ number: m.number, dx: m.dx, dy: m.dy })), roles: spec.roles || [], space: spec.space || null } };
+  }
+  WB.register('tactic', tactic);
   WB.register('pitch', pitch);
   WB.METHOD_HELP.push('{"method":"pitch","rounds":[1,2]?,"compare":[[1,2,3],[4,5]]?}  a picture of how your club played, drawn on a pitch with arrows: where passes moved the ball, how high the back and front lines stood, where the ball was won back and the shots; with the numbers behind it. "compare" draws two sets of matchdays side by side (before and after a change of plan). Use this whenever the question is about HOW the team played or about tactics, alongside the figures');
 })();
