@@ -10820,6 +10820,8 @@ SQIDAQAB
         const galleryEl = contentInner.querySelector('.create-gallery');
         if (view === 'gallery' && galleryEl) {
             lmMarkUnlocked(galleryEl);
+            // someone with no projects has no list to go back to, so the button is not offered
+            createLoadProjects().then(({ projects, references }) => { if (!projects.length && !references.length) { const b = document.getElementById('createBackBtn'); if (b && b.dataset.view === 'projects') b.remove(); } }).catch(() => { /* the button stays */ });
             createLoadProjects().then(({ references }) => {
                 const demo = (references || [])[0];
                 if (!demo || !galleryEl.isConnected || galleryEl.querySelector('[data-demo]')) return;
@@ -12142,11 +12144,7 @@ SQIDAQAB
                     : 'Ready to sharpen your legal reasoning and win your next case?';
                 msgEl.textContent = byKind;
             }
-            if (!cards.length) {
-                host.innerHTML = '<div class="create-empty"><p>You have no projects yet.</p><button type="button" class="create-cta" id="simFirst">Add your first project</button></div>';
-                host.querySelector('#simFirst').addEventListener('click', () => renderCreatePage('gallery'));
-                return;
-            }
+            if (!cards.length) { renderCreatePage('gallery'); return; }   // nothing started yet (a guest, or a new account): show every simulation straight away
             simWalletMount(host, cards, async (c) => {
                 if (!confirm('Delete this project?')) return;
                 await createDeleteProject(c.id);
@@ -12161,12 +12159,7 @@ SQIDAQAB
         host.innerHTML = '<div class="mt-empty">Loading your projects…</div>';
         const { projects, references } = await createLoadProjects();
         if (!host.isConnected) return;
-        if (!projects.length && !references.length) {
-            host.innerHTML = `${createDuelBoxHtml()}<div class="create-empty"><p>You have no projects yet.</p><button type="button" class="create-cta" id="createProjectBtn">Create project</button></div>`;
-            host.querySelector('#createProjectBtn').addEventListener('click', () => renderCreatePage('gallery'));
-            createBindDuelBox(host);
-            return;
-        }
+        if (!projects.length && !references.length) { renderCreatePage('gallery'); return; }
         const projectImage = (p) => {
             if (p.kind === 'chancellor') return { src: '/assets/create/chancellor.jpg', alt: 'A finance minister at a desk overlooking a city skyline at dusk' };
             if (p.kind === 'football-manager' || p.kind === 'football-demo') return { src: '/assets/create/football-manager.jpg', alt: 'A football manager on the touchline under stadium floodlights' };
