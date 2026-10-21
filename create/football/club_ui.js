@@ -15,7 +15,7 @@
   const ADDR = ['Gaffer', 'Boss', 'Manager'];
   const addr = (lg, salt) => ADDR[FM.hashString([lg.seed, lg.season || 1, lg.day || 0, salt].join(':')) % ADDR.length];
   // Four pages instead of seven: what is happening, tickets and the ground, finance and deals, and the books.
-  const TAB_OF = { overview: 'home', report: 'home', home: 'home', matchday: 'ground', stadium: 'ground', ground: 'ground', finance: 'funding', commercial: 'funding', funding: 'funding', books: 'books' };
+  const TAB_OF = { controls: 'controls', overview: 'home', report: 'home', home: 'home', matchday: 'ground', stadium: 'ground', ground: 'ground', finance: 'funding', commercial: 'funding', funding: 'funding', books: 'books' };
   const ANCHORS = { matchday: 1, stadium: 1, finance: 1, commercial: 1 };
   const tableOf = (lg) => { const rows = FM.tableRows(lg); return { rows, pos: (id) => rows.findIndex((r) => r.id === id) + 1, row: (id) => rows.find((r) => r.id === id) }; };
   // What the last result means, in football terms: who it was against, where that side are, and what it does for the club.
@@ -213,15 +213,15 @@
   const offerCard = (lg, o, bind) => {
     const talk = (o.talk || []).slice(-2).map((t) => `<p class="neg-reply">${esc(t)}</p>`).join('');
     return `<div class="offer" data-offer-card="${o.id}"><div class="offer-top"><div><b>${esc(o.company)}</b><br><small>${esc(FM.bizOfferText(o))}</small></div>
-      <div class="row">${wbBtn('answerOffer:' + o.id, 'Answer in the Workbook')}</div></div>${talk}</div>`;
+      <div class="row offer-btns"><button type="button" class="primary" data-oa="accept" data-id="${o.id}">Accept</button><button type="button" data-oa="decline" data-id="${o.id}">Reject</button></div></div>${talk}</div>`;
   };
   // Buttons for offers anywhere (the Board page, and a story in the News).
   FM.bizBindOffers = function (root, lg, after) {
     root.querySelectorAll('[data-oa]').forEach((btn) => btn.addEventListener('click', () => {
       const id = btn.dataset.id, act = btn.dataset.oa;
       const offer = FM.biz(lg).offers.find((x) => x.id === id);
-      if (act === 'accept') { FM.bizOffer(lg, id, true); if (offer) okMsg('Deal accepted.', `${offer.company} will pay ${gbp(offer.perRound)} every matchday for ${offer.rounds} matchdays, ${gbp(offer.perRound * offer.rounds)} in all, which is added to the club's income from the next matchday. The deal cannot be ended early, and the slot is no longer free for another company until it finishes.`); after(); }
-      else if (act === 'decline') { FM.bizOffer(lg, id, false); if (offer) okMsg('Offer turned down.', `${offer.company} has been told no. The slot stays free for another advertiser or sponsor, but the ${gbp(offer.perRound)} a matchday on offer is not coming in.`); after(); }
+      if (act === 'accept') { FM.bizOffer(lg, id, true); if (offer) okMsg('Accepted.', `${offer.company}: ${gbp(offer.perRound)} a matchday for ${offer.rounds} matchdays, ${gbp(offer.perRound * offer.rounds)} in all.`); after(); }
+      else if (act === 'decline') { FM.bizOffer(lg, id, false); if (offer) okMsg('Rejected.', `${offer.company}: ${gbp(offer.perRound)} a matchday.`); after(); }
       else if (act === 'negotiate') { st.neg[id] = !st.neg[id]; const card = root.querySelector(`[data-offer-card="${id}"] .neg`); if (card) card.classList.toggle('open', !!st.neg[id]); }
       else if (act === 'counter') {
         const input = root.querySelector(`[data-ask="${id}"]`); st.neg[id] = true;
@@ -392,6 +392,39 @@
       <div class="card"><div class="eyebrow">Bank balance</div>${cols.length ? spark(cols, limit) : ''}<div class="board-legend"><span class="a">Played</span><span class="f">Forecast</span><span class="r">Overdraft limit</span></div></div></div>
       ${last ? `<div class="card"><div class="eyebrow">Last matchday · round ${last.round} · ${last.home ? 'home' : 'away'} v ${esc(last.opp)}</div>${money}</div>` : ''}`;
   }
+  // The money controls, all in one place: each row is the current figure and the input that changes it. They run through the same controls the Workbook uses.
+  const CTL_CONFIRM = { buildStand: 'Start building?', buyFacility: 'Buy it?', takeLoan: 'Take this loan?', issueShares: 'Issue these shares?' };
+  function controlsTab(lg) {
+    const b = FM.biz(lg), C = FM.controls; if (!C) return '';
+    const opts = (id, k) => (C.optionsFor(lg, C.ACTIONS[id].params.find((x) => x.k === k)) || []).map((o) => `<option value="${esc(o.value)}">${esc(o.label)}</option>`).join('');
+    const row = (label, now, inputs, btn) => `<div class="ctl-row"><div class="ctl-l"><b>${label}</b><span>${now}</span></div><div class="ctl-in">${inputs}${btn}</div></div>`;
+    const go = (action, label, extra) => `<button type="button" class="ctl-go" data-ctl="${action}"${extra || ''}>${label}</button>`;
+    const inp = (k, v, step, min) => `<input type="number" data-k="${k}" value="${v}" step="${step}" min="${min}">`;
+    const prices = FM.SEGMENTS.map((s) => `${esc(s.name)} £${b.prices[s.id].price}`).join(' · ');
+    const stands = FM.SEGMENTS.map((s) => { const e = FM.EXPANSIONS[s.id], room = FM.bizBuild.standRoom(lg, s.id), proj = b.projects.find((q) => q.kind === 'stand' && q.stand === s.id), cost = FM.bizBuild.standCost(s.id);
+      return `<tr><td class="l">${esc(s.name)}</td><td class="n">${num(b.seats[s.id])}</td><td class="n">${proj ? '+' + num(proj.seats) + ' · ' + proj.left + ' left' : '–'}</td>${cell(cost)}<td class="n">${room >= e.seats && !proj ? `<button type="button" class="ctl-go" data-ctl="buildStand" data-fix='{"stand":"${s.id}"}'>Add ${num(e.seats)} seats</button>` : proj ? 'Building' : 'Full'}</td></tr>`; }).join('');
+    const facs = FM.FACILITIES.map((f) => { const have = b.facilities.indexOf(f.id) >= 0; return `<tr><td class="l">${esc(f.name)}</td>${cell(f.cost)}${cell(f.upkeep)}<td class="n">${have ? 'Built' : `<button type="button" class="ctl-go" data-ctl="buyFacility" data-fix='{"id":"${f.id}"}'>Buy</button>`}</td></tr>`; }).join('');
+    const loans = b.loans.length ? `<div class="books-wrap"><table class="books-table"><thead><tr><th class="l">Loan</th><th>Owed</th><th>Each matchday</th><th></th></tr></thead><tbody>${b.loans.map((l) => `<tr><td class="l">${l.id} · season ${l.season}</td>${cell(l.balance)}${cell(l.perRound)}<td class="n"><button type="button" class="ctl-go" data-ctl="repayLoan" data-fix='{"id":"${l.id}"}'>Repay</button></td></tr>`).join('')}</tbody></table></div>` : '';
+    return `<div class="card ctl-card"><div class="eyebrow">Money</div>
+        ${row('Ticket price', prices, `<select data-k="stand">${opts('setTicketPrice', 'stand')}</select>${inp('price', 25, 1, 3)}`, go('setTicketPrice', 'Set'))}
+        ${row('Marketing a matchday', gbp(b.marketing || 0), inp('perRound', b.marketing || 0, 500, 0), go('setMarketing', 'Set'))}
+        ${row('Dividend', Math.round((b.dividend.policy || 0) * 100) + '% of profit', inp('percent', Math.round((b.dividend.policy || 0) * 100), 5, 0), go('setDividend', 'Set'))}
+        ${row('Bank loan', b.loans.length ? b.loans.length + ' running' : 'None', `${inp('amount', 500000, 50000, 100000)}<select data-k="term">${opts('takeLoan', 'term')}</select>`, go('takeLoan', 'Borrow'))}
+        ${row('Issue shares', num(b.shares.issued) + ' in issue', inp('amount', 500000, 50000, 100000), go('issueShares', 'Issue'))}${loans}</div>
+      <div class="card ctl-card"><div class="eyebrow">Ground</div><div class="books-wrap"><table class="books-table"><thead><tr><th class="l">Stand</th><th>Seats</th><th>Building</th><th>Cost</th><th></th></tr></thead><tbody>${stands}</tbody></table></div>
+        <div class="books-wrap"><table class="books-table"><thead><tr><th class="l">Facility</th><th>Cost</th><th>Upkeep</th><th></th></tr></thead><tbody>${facs}</tbody></table></div></div>`;
+  }
+  FM.bizBindControls = function (host, lg, after) {
+    host.querySelectorAll('[data-ctl]').forEach((btn) => btn.addEventListener('click', () => {
+      const id = btn.dataset.ctl, scope = btn.closest('.ctl-row') || btn, params = {};
+      if (btn.dataset.fix) Object.assign(params, JSON.parse(btn.dataset.fix));
+      scope.querySelectorAll('[data-k]').forEach((x) => { params[x.dataset.k] = x.value; });
+      if (CTL_CONFIRM[id] && !window.confirm(CTL_CONFIRM[id])) return;
+      const r = FM.controls.run(lg, id, params, 'manual');
+      st.ok = r.ok ? { title: 'Done.', text: r.text } : { title: 'Not done.', text: r.text };
+      after();
+    }));
+  };
   FM.bizLeverCard = function (lg) {
     const b = FM.biz(lg), live = (b.levers || []).filter((l) => l.left > 0); if (!live.length && !(b.rules || []).length) return '';
     const T2 = FM.controls ? FM.controls.TARGETS : {};
@@ -404,14 +437,14 @@
     const b0 = FM.biz(lg);
     FM.bizSyncBudget(lg);
     st.tab = TAB_OF[st.tab] || 'home';
-    const tabs = [['home', 'Overview'], ['ground', 'Tickets'], ['funding', 'Finance'], ['books', 'Accounts']];
+    const tabs = [['home', 'Overview'], ['ground', 'Tickets'], ['funding', 'Finance'], ['books', 'Accounts'], ['controls', 'Controls']];
     const NAMES = Object.assign({}, ...tabs.map(([k, l]) => ({ [k]: l })));
     const ap0 = FM.bizApprovals(lg), yr0 = FM.bizSeasonSum(lg, 'net');
     const owed = b0.loans.reduce((a, l) => a + l.balance, 0), endBal = (() => { const c = FM.bizCashFlow(lg); return c.length ? c[c.length - 1].closing : b0.cash; })();
     const strip = `<div class="board-strip"><span>Cash<b${b0.cash < 0 ? ' class="neg"' : ''}>${gbp(b0.cash)}</b></span><span>Profit this season<b${yr0 < 0 ? ' class="neg"' : ''}>${gbp(yr0)}</b></span><span>Forecast, season end<b${endBal < 0 ? ' class="neg"' : ''}>${gbp(endBal)}</b></span><span>Owed on loans<b>${gbp(owed)}</b></span><span>Approval<b>${Math.round((ap0.financial + ap0.football) / 2)}%</b></span><span>Share price<b>£${ap0.share.toFixed(2)}</b></span></div>`;
     const back = false && st.trail.length ? `<button type="button" class="board-back" id="bzBack">← Back to ${esc(NAMES[st.trail[st.trail.length - 1].tab] || 'the board')}</button>` : '';
     const sec = (id, html) => `<div id="sec-${id}" class="board-sec">${html}</div>`;
-    const body = st.tab === 'home' ? overviewMin(lg) : st.tab === 'ground' ? `<div style="display:grid;gap:22px">${sec('matchday', matchday(lg))}${sec('stadium', stadium(lg))}</div>` : st.tab === 'books' ? books(lg) : `<div style="display:grid;gap:22px">${sec('finance', finance(lg))}${sec('commercial', commercial(lg))}</div>`;
+    const body = st.tab === 'home' ? overviewMin(lg) : st.tab === 'ground' ? `<div style="display:grid;gap:22px">${sec('matchday', matchday(lg))}${sec('stadium', stadium(lg))}</div>` : st.tab === 'books' ? books(lg) : st.tab === 'controls' ? controlsTab(lg) : `<div style="display:grid;gap:22px">${sec('finance', finance(lg))}${sec('commercial', commercial(lg))}</div>`;
     const ro = '';
     host.innerHTML = `<div class="board-page">${strip}<div class="board-nav"><div class="row board-tabs" role="tablist">${tabs.map(([k, l]) => `<button type="button" role="tab" data-tab="${k}" class="${st.tab === k ? 'on' : ''}">${l}</button>`).join('')}</div><button type="button" class="wb-go" data-wb="open">Workbook ›</button></div>${st.ok ? `<p class="banner ok" role="status"><b>${esc(st.ok.title)}</b> ${esc(st.ok.text)}</p>` : ''}${body}</div>`;
     const redo = () => FM.renderBoard(host, lg, hooks);
@@ -426,6 +459,8 @@
     }));
     const bk = host.querySelector('#bzBack');
     if (bk) bk.addEventListener('click', () => { const prev = st.trail.pop(); if (prev) { st.tab = prev.tab; st.books = prev.books; } redo(); window.scrollTo(0, 0); });
+    if (FM.bizBindOffers) FM.bizBindOffers(host, lg, () => { save(); redo(); });
+    FM.bizBindControls(host, lg, () => { save(); redo(); });
     host.querySelectorAll('[data-books]').forEach((b) => b.addEventListener('click', () => { st.books = b.dataset.books; redo(); }));
     host.querySelectorAll('[data-goto]').forEach((b) => b.addEventListener('click', () => go(b.dataset.goto)));
   };

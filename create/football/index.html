@@ -144,6 +144,11 @@
   .board-nav .wb-go { font: 700 .72rem var(--sans); letter-spacing: .12em; text-transform: uppercase; color: var(--fm-gold, #f1c04f); background: transparent; border: 1px solid var(--fm-gold, #f1c04f); padding: 8px 14px; cursor: pointer; }
   .board-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-bottom: 16px; } @media (max-width: 860px) { .board-grid { grid-template-columns: 1fr; } .board-page .board-strip { grid-template-columns: 1fr 1fr; } }
   .board-legend { display: flex; gap: 18px; margin-top: 8px; font: 700 .64rem var(--sans); letter-spacing: .14em; text-transform: uppercase; color: var(--fm-muted, #a8b4ae); } .board-legend span::before { content: ""; display: inline-block; width: 18px; height: 3px; margin-right: 7px; vertical-align: middle; } .board-legend .a::before { background: #7FD49A; } .board-legend .f::before { background: #FFE27A; } .board-legend .r::before { background: #ff8a7a; }
+  .board-page .offer-btns { display: flex; gap: 8px; } .board-page .offer-btns button { padding: 9px 22px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; font-size: .74rem; min-width: 96px; }
+  .board-page .ctl-card { margin-bottom: 16px; } .ctl-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; padding: 14px 0; border-top: 1px solid rgba(255,255,255,.1); } .ctl-row:first-of-type { border-top: 0; }
+  .ctl-l { display: flex; flex-direction: column; gap: 3px; min-width: 200px; flex: 1; } .ctl-l b { font: 700 .72rem var(--sans); letter-spacing: .14em; text-transform: uppercase; color: var(--fm-cream, #f4edda); } .ctl-l span { color: var(--fm-muted, #a8b4ae); font-size: .88rem; }
+  .ctl-in { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; } .ctl-in input, .ctl-in select { padding: 9px 10px; width: 150px !important; margin: 0 !important; background: rgba(255,255,255,.05); color: inherit; border: 1px solid rgba(255,255,255,.24); } .ctl-in select { width: auto !important; max-width: 230px; }
+  .ctl-go { padding: 9px 18px; font: 800 .72rem var(--sans); letter-spacing: .1em; text-transform: uppercase; background: var(--fm-gold, #f1c04f); color: #14181a; border: 0; cursor: pointer; min-width: 84px; } .ctl-go:hover { filter: brightness(1.1); } .books-table .ctl-go { padding: 6px 12px; min-width: 0; }
   .lab-pro { gap: 18px; padding: 22px 24px; }
   .lab-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; } .lab-head h2 { font: 800 1.35rem var(--sans); }
   .lab-vs { font: 700 .72rem var(--sans); letter-spacing: .16em; text-transform: uppercase; color: var(--fm-gold, #f1c04f); }
@@ -1102,7 +1107,7 @@
 <script src="/create/football/recruit.js?v=20261201a"></script>
 <script src="/create/football/development.js?v=20261107l"></script>
 <script src="/create/football/club.js?v=20261125a"></script>
-<script src="/create/football/club_ui.js?v=20261201c"></script>
+<script src="/create/football/club_ui.js?v=20261201g"></script>
 <script src="/create/football/controls.js?v=20261125a"></script>
 <script src="/create/football/recovery.js?v=20261122a"></script>
 <script src="/create/football/review_teach.js?v=20261110b"></script>
