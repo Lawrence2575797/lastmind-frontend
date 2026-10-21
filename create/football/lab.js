@@ -473,4 +473,36 @@
     const moves = Object.keys(byBoard).map((k) => Array.from(byBoard[k]).join(', ') + ' moved on the "' + ((FM.PHASE_NAMES && FM.PHASE_NAMES[k]) || k) + '" board.');
     return { said, moves, count: said.length + moves.length };
   };
+
+  // The picture of average positions: each dragged player moves by the amount he was dragged, from where he stands on every board of this phase, so the
+  // shape the manager drew stays and the player takes a slightly different place in it.
+  LAB.applyMoves = function (team, phase, moves, opts) {
+    const B0 = LAB.BOARDS[phase]; if (!B0) return { count: 0 };
+    let keys = B0.keys.slice();
+    if (phase === 'build') {
+      FM.ensurePages(team); team.pages.buildEnd = team.pages.buildEnd || [];
+      const opp = opts && opts.opp, ot = opp && opp.tactics;
+      const press = ot ? 0.6 * (ot.pressBuildUp == null ? 0.4 : ot.pressBuildUp) + 0.4 * (ot.pressing == null ? 0.5 : ot.pressing) : 0.5;
+      const list = team.pages.buildEnd;
+      if (!list.length) list.push({ id: 's' + Date.now().toString(36), label: '', cond: press >= 0.6 ? 'opp_high' : press >= 0.4 ? 'opp_mid' : 'opp_low', named: false });
+      const LVL = { opp_high: 0.75, opp_mid: 0.5, opp_low: 0.25 };
+      let pg = list[0], nd = 9;
+      list.forEach((x) => { const dd = Math.abs((LVL[x.cond] == null ? 0.5 : LVL[x.cond]) - press); if (dd < nd) { nd = dd; pg = x; } });
+      keys = ['build#' + pg.id, 'build#' + pg.id];
+    }
+    keys = Array.from(new Set(keys));
+    team.phasePos = team.phasePos || {};
+    let count = 0;
+    (moves || []).forEach((m) => {
+      const p = team.players.find((q) => q.number === m.number); if (!p || p.group === 'GK' && false) return;
+      keys.forEach((key) => {
+        const cur = FM.phasePos(team, p, key);
+        let pos = { d: clamp(cur.d + m.dd, 0.03, 0.97), w: clamp(cur.w + m.dw, 0.04, 0.96) };
+        if (FM.clampToReach) pos = FM.clampToReach(team, p, key, pos);
+        FM.setPhasePos(team, p, key, pos);
+      });
+      count++;
+    });
+    return { count };
+  };
 })();
