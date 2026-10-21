@@ -141,6 +141,14 @@
       if (!S.attack && S.stopOn && S.stopOn(m)) break;
     }
     S.own.forEach((q, i) => { const p = u.players[i]; if (!p) return; if (held(S, i)) { p.x = q.y; p.y = q.x; } else { q.x = p.y; q.y = p.x; } });
+    // A man the manager placed stays his own man, but he is not frozen: as the ball moves he shifts with it a short way (at most 6 m) from where he was put,
+    // like everyone else on the team, and a man who was placed is never the one player who does not react.
+    if (S.pinAt) S.own.forEach((q, i) => {
+      const a = S.pinAt[i]; if (!a || !(S.pins && S.pins[i]) || (S.attack && i === S.holder) || q.p.group === 'GK') return;
+      let dx = (S.ball.x - a.bx) * 0.4, dy = (S.ball.y - a.by) * 0.4; const dd = Math.hypot(dx, dy); if (dd > 6) { dx *= 6 / dd; dy *= 6 / dd; }
+      q.x = clamp(a.x + dx, 1, W - 1); q.y = clamp(a.y + dy, 1, L - 1);
+      const p = u.players[i]; if (p) { p.x = q.y; p.y = q.x; }
+    });
     keepApart(S);
     for (let e = from; e < m.events.length; e++) out.push(m.events[e]);
     readOpp(S);
@@ -984,7 +992,7 @@
           if (moved < 0.5) { o.x = d.from.x; o.y = d.from.y; S.ball = d.ballFrom; redraw(); return; }
           // undo needs the state from before the drag
           const tmpOwn = { x: o.x, y: o.y }; o.x = d.from.x; o.y = d.from.y; const ballNow = S.ball; S.ball = d.ballFrom; snapshot(); o.x = tmpOwn.x; o.y = tmpOwn.y; S.ball = ballNow;
-          S.pins[d.i] = true;
+          S.pins[d.i] = true; (S.pinAt = S.pinAt || {})[d.i] = { x: o.x, y: o.y, bx: S.ball.x, by: S.ball.y };
           S.beats.push({ type: 'move', i: d.i, d: moved, fromXY: d.from, endXY: { x: o.x, y: o.y } }); say(`${o.p.name.split(' ').slice(-1)[0]} stands there.`);
           // placing a man is only that: nothing else on the pitch reacts to it (the other side and your own team move when the ball does)
           draw();
