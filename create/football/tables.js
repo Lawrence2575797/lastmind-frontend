@@ -3,8 +3,12 @@
 // Agent is told only the schema (names, meanings, row counts) and asks for numbers by naming tables and columns, never by inventing them.
 //
 // Tables:  team_matches (every league match, both clubs), shots, passes, tackles, dribbles, possessions, recoveries (your own matches' detailed
-// logs), players (every squad), league_table.  Positions in the event tables are from the point of view of the team doing the thing:
-// depth 0 = their own goal line, 1 = the goal they attack; width 0 to 1 across the pitch.
+// logs), positions (where each player stood on average), players (every squad), league_table.
+//
+// THE PITCH AS COORDINATES. Every position is from the point of view of the club doing the thing, which always attacks towards increasing x:
+//   x = metres from its own goal line (0) to the goal it attacks (105);  y = metres across the pitch (0 to 68, the middle is 34).
+//   depth and width are the same place as fractions (depth = x / 105, width = y / 68), so a vector between two players is (x2 - x1, y2 - y1)
+//   in metres, its length is the distance, and its angle (degrees, 0 = straight at goal, positive = towards larger y) is atan2(dy, dx).
 (function () {
   const FM = (window.FM = window.FM || {});
   const T = (FM.tables = {});
@@ -12,6 +16,7 @@
   const r3 = (v) => Math.round(v * 1000) / 1000;
   const num = (name, desc) => ({ name, type: 'num', desc });
   const cat = (name, desc) => ({ name, type: 'cat', desc });
+  T.PITCH = { length: 105, width: 68, note: 'x: metres from the own goal line (0) to the goal attacked (105); y: metres across (0 to 68). A club always attacks towards larger x.' };
 
   const SCHEMA = {
     team_matches: {
@@ -34,25 +39,27 @@
       desc: 'Every shot in your own matches, with the chance quality (xg) and what happened.',
       cols: [cat('match', 'match id'), num('round', 'matchday'), num('minute', 'minute of the match'), cat('team', 'club that shot'), num('you', '1 if your club'), cat('player', 'shooter'),
         num('xg', 'chance quality, the probability of a goal'), cat('outcome', 'goal, saved, blocked or off'), num('goal', '1 if a goal'), num('on_target', '1 if goal or saved'),
-        num('depth', 'how far up the pitch, 0 to 1'), num('width', 'across the pitch, 0 to 1'), num('distance', 'metres from the centre of the goal'), num('defender_distance', 'metres to the nearest defender'),
+        num('x', 'metres from his own goal line, 0 to 105 (goal attacked at 105)'), num('y', 'metres across the pitch, 0 to 68'), num('depth', 'how far up the pitch, 0 to 1 (x / 105)'), num('width', 'across the pitch, 0 to 1 (y / 68)'), num('distance', 'metres from the centre of the goal'), num('defender_distance', 'metres to the nearest defender'),
         cat('kind', 'open play, header, freekick or penalty'), num('move_passes', 'passes in the move before the shot')],
     },
     passes: {
       desc: 'Every pass in your own matches.',
       cols: [cat('match', 'match id'), num('round', 'matchday'), num('minute', 'minute'), cat('team', 'club that passed'), num('you', '1 if your club'), cat('from', 'passer'), cat('to', 'intended receiver'),
-        num('completed', '1 if it reached a team-mate'), num('offside', '1 if flagged offside'), num('depth', 'start depth, 0 to 1'), num('width', 'start width, 0 to 1'), num('end_depth', 'where it was aimed, depth'),
+        num('completed', '1 if it reached a team-mate'), num('offside', '1 if flagged offside'), num('x', 'start: metres from its own goal line, 0 to 105'), num('y', 'start: metres across the pitch, 0 to 68'), num('end_x', 'where it was aimed, x in metres'), num('end_y', 'where it was aimed, y in metres'),
+        num('dx', 'end_x minus x: metres gained towards goal'), num('dy', 'end_y minus y: metres across'), num('angle', 'direction in degrees: 0 straight at goal, 90 across towards larger y, 180 straight back'),
+        num('depth', 'start depth, 0 to 1'), num('width', 'start width, 0 to 1'), num('end_depth', 'where it was aimed, depth'),
         num('end_width', 'where it was aimed, width'), num('length', 'metres'), num('progress', 'metres gained towards goal (negative = backwards)'), num('forward', '1 if it gained at least 5 m'),
         num('lane_clear', 'metres of room round the passing lane'), num('pressure', 'metres to the nearest opponent at the receiver'), num('p_complete', 'the chance the pass was set to have, 0 to 1')],
     },
     tackles: {
       desc: 'Every tackle in your own matches.',
       cols: [cat('match', 'match id'), num('round', 'matchday'), num('minute', 'minute'), cat('team', 'club that tackled'), num('you', '1 if your club'), cat('player', 'tackler'), cat('against', 'player tackled'),
-        num('won', '1 if the ball was won'), num('depth', 'where on the pitch for the tackler, 0 to 1'), num('width', 'across, 0 to 1')],
+        num('won', '1 if the ball was won'), num('x', 'metres from its own goal line, 0 to 105'), num('y', 'metres across, 0 to 68'), num('depth', 'where on the pitch for the tackler, 0 to 1'), num('width', 'across, 0 to 1')],
     },
     dribbles: {
       desc: 'Every dribble in your own matches.',
       cols: [cat('match', 'match id'), num('round', 'matchday'), num('minute', 'minute'), cat('team', 'club'), num('you', '1 if your club'), cat('player', 'dribbler'), num('won', '1 if the dribble came off'),
-        num('depth', 'depth, 0 to 1'), num('width', 'width, 0 to 1'), num('defender_distance', 'metres to the nearest defender'), num('p_success', 'chance of success the game set, 0 to 1')],
+        num('x', 'metres from his own goal line, 0 to 105'), num('y', 'metres across, 0 to 68'), num('depth', 'depth, 0 to 1'), num('width', 'width, 0 to 1'), num('defender_distance', 'metres to the nearest defender'), num('p_success', 'chance of success the game set, 0 to 1')],
     },
     possessions: {
       desc: 'Each spell of possession in your own matches, from winning the ball to losing it or shooting.',
@@ -62,8 +69,14 @@
     },
     recoveries: {
       desc: 'Every time a club won the ball back in your own matches, and how quickly after losing it.',
-      cols: [cat('match', 'match id'), num('round', 'matchday'), cat('team', 'club that won it back'), num('you', '1 if your club'), num('minute', 'minute'), num('depth', 'where, 0 to 1 (for the club that won it)'),
+      cols: [cat('match', 'match id'), num('round', 'matchday'), cat('team', 'club that won it back'), num('you', '1 if your club'), num('minute', 'minute'), num('x', 'metres from its own goal line, 0 to 105'), num('y', 'metres across, 0 to 68'), num('depth', 'where, 0 to 1 (for the club that won it)'),
         num('width', 'where across, 0 to 1'), num('seconds_after_loss', 'seconds since that club lost it (60 = the cap)'), num('high', '1 if won in the opposition half'), num('counter_press', '1 if within 6 seconds of losing it')],
+    },
+    positions: {
+      desc: 'Where each player stood on average in your own matches, in metres (see the pitch coordinates above): over the whole match, and with and without the ball. One row per player per match, for both clubs. Use it to work out distances and directions between players.',
+      cols: [cat('match', 'match id'), num('round', 'matchday'), cat('team', 'club'), num('you', '1 if your club'), cat('player', 'name'), num('number', 'shirt number'), cat('group', 'GK, CB, FB, DM, CM, AM, WF or ST'),
+        num('x', 'average x over the match, metres from his own goal line (0 to 105)'), num('y', 'average y over the match, metres across (0 to 68)'),
+        num('x_in', 'average x with his club in possession'), num('y_in', 'average y with his club in possession'), num('x_out', 'average x without the ball'), num('y_out', 'average y without the ball'), num('samples', 'how many moments the average rests on')],
     },
     players: {
       desc: 'Every squad player, with ratings and season totals.',
@@ -145,21 +158,23 @@
         const side = p[1], d0 = dp(side, p[5]), hasEnd = p[11] >= 0, d1 = hasEnd ? dp(side, p[11]) : null;
         const prog = hasEnd ? (d1 - d0) * L : null;
         out.passes.push(Object.assign({}, base, { minute: r2(p[0] / 60), team: tname(side), you: you(side), from: nm(side, p[2]), to: p[3] >= 0 ? nm(side, p[3]) : '', completed: p[4] === 1 ? 1 : 0, offside: p[4] === 2 ? 1 : 0,
+          x: r2(d0 * L), y: r2(wd(side, p[6]) * W), end_x: hasEnd ? r2(d1 * L) : null, end_y: hasEnd ? r2(wd(side, p[12]) * W) : null,
+          dx: hasEnd ? r2((d1 - d0) * L) : null, dy: hasEnd ? r2((wd(side, p[12]) - wd(side, p[6])) * W) : null, angle: hasEnd ? Math.round(Math.atan2((wd(side, p[12]) - wd(side, p[6])) * W, (d1 - d0) * L) * 180 / Math.PI) : null,
           depth: r3(d0), width: r3(wd(side, p[6])), end_depth: hasEnd ? r3(d1) : null, end_width: hasEnd ? r3(wd(side, p[12])) : null, length: p[7], progress: prog == null ? null : r2(prog), forward: prog == null ? null : prog >= 5 ? 1 : 0,
           lane_clear: p[8], pressure: p[9], p_complete: p[10] }));
       });
       log.tackles.forEach((q) => {
         const side = q[1];
-        out.tackles.push(Object.assign({}, base, { minute: r2(q[0] / 60), team: tname(side), you: you(side), player: nm(side, q[2]), against: nm(1 - side, q[3]), won: q[4], depth: r3(dp(side, q[5])), width: r3(wd(side, q[6])) }));
+        out.tackles.push(Object.assign({}, base, { minute: r2(q[0] / 60), team: tname(side), you: you(side), player: nm(side, q[2]), against: nm(1 - side, q[3]), won: q[4], x: r2(dp(side, q[5]) * L), y: r2(wd(side, q[6]) * W), depth: r3(dp(side, q[5])), width: r3(wd(side, q[6])) }));
       });
       log.dribbles.forEach((q) => {
         const side = q[1];
-        out.dribbles.push(Object.assign({}, base, { minute: r2(q[0] / 60), team: tname(side), you: you(side), player: nm(side, q[2]), won: q[3], depth: r3(dp(side, q[4])), width: r3(wd(side, q[5])), defender_distance: q[6], p_success: q[7] }));
+        out.dribbles.push(Object.assign({}, base, { minute: r2(q[0] / 60), team: tname(side), you: you(side), player: nm(side, q[2]), won: q[3], x: r2(dp(side, q[4]) * L), y: r2(wd(side, q[5]) * W), depth: r3(dp(side, q[4])), width: r3(wd(side, q[5])), defender_distance: q[6], p_success: q[7] }));
       });
       (log.other || []).filter((e) => e.type === 'shot').forEach((e) => {
         const side = e.team === ids[0] ? 0 : 1, d = dp(side, e.x), dx = (1 - d) * L, dy = (wd(side, e.y) - 0.5) * W;
         out.shots.push(Object.assign({}, base, { minute: r2(e.t / 60), team: tname(side), you: you(side), player: nm(side, e.player), xg: e.xg, outcome: e.outcome, goal: e.outcome === 'goal' ? 1 : 0,
-          on_target: e.outcome === 'goal' || e.outcome === 'saved' ? 1 : 0, depth: r3(d), width: r3(wd(side, e.y)), distance: r2(Math.hypot(dx, dy)), defender_distance: e.defDist, kind: e.setPiece || 'open play', move_passes: e.movePasses || 0 }));
+          on_target: e.outcome === 'goal' || e.outcome === 'saved' ? 1 : 0, x: r2(d * L), y: r2(wd(side, e.y) * W), depth: r3(d), width: r3(wd(side, e.y)), distance: r2(Math.hypot(dx, dy)), defender_distance: e.defDist, kind: e.setPiece || 'open play', move_passes: e.movePasses || 0 }));
       });
       const xr = log.xr;
       if (xr) {
@@ -169,9 +184,16 @@
           out.possessions.push(Object.assign({}, base, { team: tname(side), you: you(side), minute: r2(q[1] / 60), start_depth: r3(q[2]), how: typeof q[3] === 'string' ? q[3] : HOW[q[3]] || String(q[3]), passes: q[4], max_depth: r3(q[5]), end_depth: q[8] == null || q[8] < 0 ? null : q[8],
             seconds: q[7], shot: q[6] >= 1 ? 1 : 0, goal: q[6] === 2 ? 1 : 0, final_third: q[5] > 0.66 ? 1 : 0 }));
         });
+        Object.keys(xr.pos || {}).forEach((k) => {
+          const side = +k.split(':')[0], shirt = +k.split(':')[1], q = xr.pos[k], team = FM.teamById(league, ids[side]), pl = team && team.squad.find((z) => z.number === shirt), nIn = q[2], nOut = q[5], n = nIn + nOut;
+          if (!n) return;
+          const dAll = ((q[0] > -1 ? q[0] * nIn : 0) + (q[3] > -1 ? q[3] * nOut : 0)) / n, wAll = ((q[1] > -1 ? q[1] * nIn : 0) + (q[4] > -1 ? q[4] * nOut : 0)) / n;
+          out.positions.push(Object.assign({}, base, { team: tname(side), you: you(side), player: pl ? pl.name : '#' + shirt, number: shirt, group: pl ? pl.group : '',
+            x: r2(dAll * L), y: r2(wAll * W), x_in: nIn ? r2(q[0] * L) : null, y_in: nIn ? r2(q[1] * W) : null, x_out: nOut ? r2(q[3] * L) : null, y_out: nOut ? r2(q[4] * W) : null, samples: n }));
+        });
         (xr.recov || []).forEach((q) => {
           const side = q[0];
-          out.recoveries.push(Object.assign({}, base, { team: tname(side), you: you(side), minute: r2(q[1] / 60), depth: r3(q[2]), width: r3(q[3]), seconds_after_loss: q[4] < 0 ? null : q[4], high: q[2] > 0.5 ? 1 : 0, counter_press: q[4] >= 0 && q[4] <= 6 ? 1 : 0 }));
+          out.recoveries.push(Object.assign({}, base, { team: tname(side), you: you(side), minute: r2(q[1] / 60), x: r2(q[2] * L), y: r2(q[3] * W), depth: r3(q[2]), width: r3(q[3]), seconds_after_loss: q[4] < 0 ? null : q[4], high: q[2] > 0.5 ? 1 : 0, counter_press: q[4] >= 0 && q[4] <= 6 ? 1 : 0 }));
         });
       }
     });
