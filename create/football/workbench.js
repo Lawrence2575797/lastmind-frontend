@@ -574,7 +574,9 @@
     chatPush({ role: 'agent', text: li.say, added: [{ page: curPage().id, title: curPage().title }] }); state.busy = ''; chatDraw();
   }
   // ---------- a tactical idea: where the players stand on the boards, the test, and applying it ----------
-  const TEST_N = 100;
+  // How many runs of each: 100, but a phase whose success is rare (an attack that ends in a shot happens about one time in twenty) needs more to show anything.
+  const testN = (ph) => (ph === 'final' || ph === 'transatt' ? 500 : 100);
+  const SUCCESS_WORD = { build: 'the ball is played out to the halfway line', midfield: 'the ball reaches the edge of the final third', final: 'the attack ends in a shot', transatt: 'the move ends in a shot', organised: 'they are stopped before they can shoot', press: 'they are stopped before they get out of their half', transdef: 'you stop the counter-attack before they shoot' };
   const TEST_WORD = { build: 'build-ups', midfield: 'moves through midfield', final: 'attacks in the final third', transatt: 'attacks after winning the ball', organised: 'defensive moments', press: 'presses of their build-up', transdef: 'moments after losing the ball' };
   // Where each player stands on the boards for the main phases, so the agent draws ideas from real places (shirt number, group, x and y in metres).
   function boardText() {
@@ -600,16 +602,16 @@
     if (!opp) { chatPush({ role: 'agent', text: 'There is no next match to test against.' }); chatDraw(); return; }
     const phase = spec.phase, rev = ['organised', 'transdef', 'press'].indexOf(phase) >= 0, attackTest = ['final', 'transatt', 'organised', 'transdef'].indexOf(phase) >= 0;
     const plan = FM.scout.plan1(FM.scout.profile(lg)), snap = LAB.snapshot(team);
-    const opts = { n: TEST_N, phase: attackTest ? 'final' : (phase === 'midfield' ? 'midfield' : 'build'), user: rev ? opp : team, opp: rev ? team : opp, start: 'keeper', record: false, oppRules: rev ? (team.rules || []) : plan.rules, oppNudge: rev ? {} : plan.tactics };
+    const N = testN(phase), opts = { n: N, phase: attackTest ? 'final' : (phase === 'midfield' ? 'midfield' : 'build'), user: rev ? opp : team, opp: rev ? team : opp, start: 'keeper', record: false, oppRules: rev ? (team.rules || []) : plan.rules, oppNudge: rev ? {} : plan.tactics };
     const word = TEST_WORD[phase] || 'tests';
     state.locks = 0; chatPush({ role: 'manager', text: 'Test it: ' + (spec.title || 'the tactical idea') });
     let A, Bres;
     try {
-      state.busy = 'Running ' + TEST_N + ' ' + word + ' with your current tactics…'; chatDraw();
-      A = await LAB.run(lg, opts, (d) => { state.busy = 'Current tactics: ' + d + ' of ' + TEST_N + ' ' + word; chatDraw(); });
+      state.busy = 'Running ' + N + ' ' + word + ' with your current tactics…'; chatDraw();
+      A = await LAB.run(lg, opts, (d) => { state.busy = 'Current tactics: ' + d + ' of ' + N + ' ' + word; chatDraw(); });
       LAB.applyMoves(team, phase, movesOf(spec), { opp }); if (FM.inferShapeTactics) FM.inferShapeTactics(team);
-      state.busy = 'Running ' + TEST_N + ' ' + word + ' with the change…'; chatDraw();
-      Bres = await LAB.run(lg, opts, (d) => { state.busy = 'With the change: ' + d + ' of ' + TEST_N + ' ' + word; chatDraw(); });
+      state.busy = 'Running ' + N + ' ' + word + ' with the change…'; chatDraw();
+      Bres = await LAB.run(lg, opts, (d) => { state.busy = 'With the change: ' + d + ' of ' + N + ' ' + word; chatDraw(); });
     } catch (e) { chatPush({ role: 'agent', text: 'The test could not be run just now.' }); }
     LAB.restore(team, snap); if (FM.inferShapeTactics) FM.inferShapeTactics(team);   // the club is as it was: the change is only kept if the manager says so
     state.busy = ''; chatDraw();
@@ -617,8 +619,8 @@
     const ok = (r) => (rev ? { k: r.n - r.beat.k, p: (r.n - r.beat.k) / r.n } : { k: r.beat.k, p: r.beat.p }), a = ok(A), b = ok(Bres), cmp = LAB.compare({ n: A.n, ok: a }, { n: Bres.n, ok: b }, 'ok');
     const pct = (v) => Math.round(v * 100) + '%', d = b.p - a.p, sig = cmp.p < 0.05;
     const verdict = sig ? (d > 0 ? 'The change helped: the gap is bigger than luck alone would usually give (p = ' + (Math.round(cmp.p * 1000) / 1000) + ').' : 'The change made it worse: the gap is bigger than luck alone would usually give (p = ' + (Math.round(cmp.p * 1000) / 1000) + ').') : 'No clear difference: a gap this size could easily be luck (p = ' + (Math.round(cmp.p * 1000) / 1000) + '). ' + (cmp.need && cmp.need <= 2000 ? 'About ' + cmp.need + ' runs of each would be needed to be sure.' : 'The two are too close to separate with a test this size: try a bigger change.');
-    const res = { ok: true, method: 'tactic-test', title: 'Test: ' + (spec.title || 'tactical idea'), summary: [verdict], caveats: ['Both runs use the same ' + TEST_N + ' ' + word + ' set-up against ' + opp.name + '. A success is the one the phase test counts: ' + (rev ? 'they were stopped before they could shoot or get out.' : 'the ball got through as the test defines it.')],
-      tables: [{ title: 'Result', cols: ['', 'Runs', 'Successful', 'Success rate'], rows: [['Current tactics', A.n, a.k, pct(a.p)], ['With the change', Bres.n, b.k, pct(b.p)], ['Difference', '', b.k - a.k, (d >= 0 ? '+' : '') + Math.round(d * 100) + ' points']] }], applySpec: spec };
+    const res = { ok: true, method: 'tactic-test', title: 'Test: ' + (spec.title || 'tactical idea'), summary: [verdict], caveats: ['Phase tested: ' + word + ', ' + N + ' runs each, against ' + opp.name + '. A run counts as a success when ' + (SUCCESS_WORD[phase] || 'the phase test says so') + '.', 'Changed for the test: ' + spec.moves.map((m) => { const pl = team.players.find((q) => q.number === m.number); return pl ? pl.name.split(' ').slice(-1)[0] : '#' + m.number; }).join(', ') + ' moved on the ' + LAB.BOARDS[phase].keys.map((k) => '"' + ((FM.PHASE_NAMES && FM.PHASE_NAMES[k]) || k) + '"').filter((v, i, a2) => a2.indexOf(v) === i).join(' and ') + ' board' + (LAB.BOARDS[phase].keys[0] === LAB.BOARDS[phase].keys[1] ? '' : 's') + '. Your own tactics were put back afterwards.'],
+      tables: [{ title: 'Result', cols: ['', 'Runs', 'Successful', 'Success rate'], rows: [['Current tactics', A.n, a.k, (Math.round(a.p * 1000) / 10) + '%'], ['With the change', Bres.n, b.k, (Math.round(b.p * 1000) / 10) + '%'], ['Difference', '', b.k - a.k, (d >= 0 ? '+' : '') + (Math.round(d * 1000) / 10) + ' points']] }], applySpec: spec };
     const rc = addCell({ type: 'analysis', form: formFromSpec({ method: 'tactic' }), by: 'agent', edit: false }, { scroll: true });
     rc.res = res; rc.stamp = dataStamp(); refreshCell(rc); save();
     chatPush({ role: 'agent', text: verdict + ' The numbers are on the page.' + (sig && d > 0 ? ' Press Keep the change under them to apply it to your boards.' : '') });
@@ -689,7 +691,7 @@
       chatPush({ role: 'results', text: texts.join('\n\n').slice(0, 4800) });
       state.busy = bl('Writing it up…'); chatDraw();
       await explainStep();
-      tacticCells.filter((c) => c.res && c.res.ok).forEach((c) => chatPush({ role: 'agent', text: 'Would you like to test this? I will run ' + TEST_N + ' ' + (TEST_WORD[c.res.tactic.phase] || 'tests') + ' with your current tactics, apply the change, run ' + TEST_N + ' more, and put the two side by side on this page.', offer: c.id }));
+      tacticCells.filter((c) => c.res && c.res.ok).forEach((c) => chatPush({ role: 'agent', text: 'Would you like to test this? I will run ' + testN(c.res.tactic.phase) + ' ' + (TEST_WORD[c.res.tactic.phase] || 'tests') + ' with your current tactics, apply the change, run ' + testN(c.res.tactic.phase) + ' more, and put the two side by side on this page.', offer: c.id }));
     } catch (e) { chatPush({ role: 'agent', text: aiError(e) }); }
     state.pin = null; state.busy = ''; chatDraw();
   }
