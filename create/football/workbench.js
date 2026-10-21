@@ -651,6 +651,8 @@
     state.busy = ''; chatDraw();
   }
   const aiError = (e) => (e && e.code === 'NO_SESSION' ? 'Sign in to LastMind and I can plan analyses for you. The Workbook works without me: use the toolbar to build one yourself.' : e && (e.code === 'LOCK_LIMIT_REACHED' || e.code === '402') ? 'You have used all your Locks for now, so I cannot answer any more questions. Everything else in the Workbook still works.' : (e && e.message) || 'I could not answer just now. Try again in a moment.');
+  // Questions about how the team plays, which should always come with a picture of the pitch.
+  const TACT_RE = /(tactic|shape|formation|press|build[- ]?up|turnover|lose the ball|lost the ball|losing the ball|possession|pass|chances?|shots?|defen[cs]|attack|midfield|full[- ]?back|wing|striker|counter|how (can|do|should) (i|we)\b)/i;
   async function ask(text) {
     text = String(text || '').trim(); if (!text || state.busy) return;
     const wb = state.wb; chatPush({ role: 'manager', text });
@@ -686,6 +688,14 @@
         cell.res = await runSpec(cell.spec, (d, t, label) => { cell.progress = label; cell.pct = t ? d / t : null; const n = document.querySelector('[data-cell="' + cell.id + '"] .wb-run-s span'); if (n) n.textContent = label; state.busy = bl(label); chatDraw(); return !cell.stop; });
         cell.running = false; cell.stamp = dataStamp(); cell.edit = !cell.res.ok; refreshCell(cell);
         texts.push(resultText(cell.res, 1400));
+      }
+      // A question about how the team plays always gets a pitch: if the agent drew none, the Workbook draws the map that fits the question.
+      if (TACT_RE.test(text) && !actions.some((a) => a.type === 'tactic' || (a.spec && a.spec.method === 'pitch'))) {
+        const layer = /\b(lose|lost|losing|turnover|turn over|give (the ball )?away|dispossess)/i.test(text) ? 'losses' : /\b(shot|shoot|chance|goal|score|finish)/i.test(text) ? 'shots' : /\b(win (the ball )?back|recover|regain|press)/i.test(text) ? 'recoveries' : null;
+        const pspec = layer ? { method: 'pitch', layer } : { method: 'pitch' };
+        const pc = addCell({ type: 'analysis', form: formFromSpec(pspec), by: 'agent', edit: false, spec: pspec }, { scroll: false });
+        pc.res = await runSpec(pspec); pc.stamp = dataStamp(); pc.edit = !pc.res.ok; refreshCell(pc);
+        if (pc.res.ok) texts.push(resultText(pc.res, 700));
       }
       save(); refreshData();
       chatPush({ role: 'results', text: texts.join('\n\n').slice(0, 4800) });

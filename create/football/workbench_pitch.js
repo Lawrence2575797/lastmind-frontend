@@ -84,10 +84,44 @@
     return { title: label, svg: picture, facts, note: '', summary: label + ' (' + n + ' match' + (n === 1 ? '' : 'es') + ', scored ' + gf + ', conceded ' + ga + '). ' + (plan ? plan.charAt(0).toUpperCase() + plan.slice(1) + '. ' : '') + words.join('; ') + '.', note: words.join('; ') + (plan ? ' | ' + plan : '') };
   }
 
+
+  // ---------- maps: where the ball was lost, won back, or shot from ----------
+  const LAYERS = {
+    losses: { col: '#FF6B5A', title: 'Where we lost the ball', note: 'Each red circle is a place where possession was lost; a bigger circle means it happened more often there.' },
+    recoveries: { col: '#7FD49A', title: 'Where we won the ball back', note: 'Each green circle is a place where the ball was won back; a bigger circle means it happened more often there.' },
+    shots: { col: '#FF9A3C', title: 'Where we shot from', note: 'Each circle is a shot, bigger for a better chance; yellow is a goal.' },
+  };
+  function mapPanel(league, fxs, label, kind) {
+    const me = league.userId, PW = A().PW, PH = A().PH, L0 = LAYERS[kind], pts = [];
+    fxs.forEach((fx) => {
+      const side = fx.homeId === me ? 0 : 1, xr = fx.log.xr, D = (x) => (side === 0 ? x / L : 1 - x / L), Wd = (y) => (side === 0 ? y / W : 1 - y / W);
+      if (kind === 'losses' && xr) (xr.seq || []).forEach((q) => { if (q[0] === side && q[6] === 0 && q[8] >= 0) pts.push({ d: q[8], w: q[9] }); });
+      else if (kind === 'recoveries' && xr) (xr.recov || []).forEach((q) => { if (q[0] === side) pts.push({ d: q[2], w: q[3] }); });
+      else if (kind === 'shots') (fx.log.other || []).forEach((e) => { if (e.type === 'shot' && e.team === me) pts.push({ d: D(e.x), w: Wd(e.y), xg: e.xg || 0, goal: e.outcome === 'goal' }); });
+    });
+    if (!pts.length) return null;
+    let svg = '';
+    if (kind === 'shots') svg += pts.map((q) => `<circle cx="${Math.round(q.d * PW)}" cy="${Math.round(q.w * PH)}" r="${Math.round(6 + 18 * Math.sqrt(Math.min(q.xg, 0.8)))}" fill="${q.goal ? '#FFE27A' : L0.col}" fill-opacity=".85" stroke="#000" stroke-width="1.5"/>`).join('');
+    else {
+      const bins = {}; pts.forEach((q) => { const bx = Math.min(9, Math.floor(q.d * 10)), by = Math.min(4, Math.floor(q.w * 5)), k = bx + ',' + by; (bins[k] = bins[k] || { n: 0, x: bx, y: by }).n++; });
+      const top = Math.max.apply(null, Object.values(bins).map((b) => b.n).concat([1]));
+      svg += Object.values(bins).map((b) => `<circle cx="${Math.round((b.x + 0.5) * PW / 10)}" cy="${Math.round((b.y + 0.5) * PH / 5)}" r="${Math.round(9 + 26 * Math.sqrt(b.n / top))}" fill="${L0.col}" fill-opacity="${(0.28 + 0.5 * b.n / top).toFixed(2)}" stroke="${L0.col}" stroke-width="2"/>`).join('');
+    }
+    svg += `<text x="12" y="${PH - 12}" font-size="14" fill="#fff" fill-opacity=".85">attacking →</text>`;
+    const third = [0, 0, 0]; pts.forEach((q) => { third[q.d < 0.33 ? 0 : q.d < 0.67 ? 1 : 2]++; });
+    const facts = L0.title + ' (' + label + '): ' + pts.length + ' in all, ' + third[0] + ' in our own third, ' + third[1] + ' in the middle third, ' + third[2] + ' in their third.';
+    return { title: L0.title + (label ? ': ' + label.toLowerCase() : ''), svg: `<svg class="amap" viewBox="0 0 ${PW} ${PH}" role="img" aria-label="${esc(L0.title)}">${A().pitchLines()}${svg}</svg>`, note: L0.note, facts };
+  }
   function pitch(league, spec) {
     const mine = league.fixtures.filter((f) => f.played && !f.friendly && f.log && (f.homeId === league.userId || f.awayId === league.userId)).sort((a, b) => a.round - b.round);
     if (!mine.length) return fail('There are no recorded matches of yours to draw yet. The picture fills in once you have played a league match.');
     const sets = Array.isArray(spec.compare) && spec.compare.length >= 2 && spec.compare.every(Array.isArray) ? spec.compare.slice(0, 2) : [Array.isArray(spec.rounds) ? spec.rounds : []];
+    if (LAYERS[spec.layer]) {
+      const want0 = Array.isArray(spec.rounds) ? spec.rounds.map(Number).filter(Number.isFinite) : [], fxs0 = want0.length ? mine.filter((f) => want0.indexOf(f.round + 1) >= 0) : mine;
+      const mp = mapPanel(league, fxs0.length ? fxs0 : mine, want0.length ? 'matchday' + (want0.length > 1 ? 's ' : ' ') + want0.join(', ') : 'every match this season', spec.layer);
+      if (!mp) return fail('There is nothing recorded for that map yet.');
+      return { ok: true, method: 'pitch', title: mp.title, summary: [mp.facts], pictures: [{ title: mp.title, svg: mp.svg, note: mp.note, facts: mp.facts }], caveats: [], map: true };
+    }
     const panels = [];
     for (const rs of sets) {
       const want = rs.map(Number).filter(Number.isFinite), fxs = want.length ? mine.filter((f) => want.indexOf(f.round + 1) >= 0) : mine;
@@ -137,5 +171,5 @@
   }
   WB.register('tactic', tactic);
   WB.register('pitch', pitch);
-  WB.METHOD_HELP.push('{"method":"pitch","rounds":[1,2]?,"compare":[[1,2,3],[4,5]]?}  a picture of how your club played, drawn on a pitch with arrows: where passes moved the ball, how high the back and front lines stood, where the ball was won back and the shots; with the numbers behind it. "compare" draws two sets of matchdays side by side (before and after a change of plan). Use this whenever the question is about HOW the team played or about tactics, alongside the figures');
+  WB.METHOD_HELP.push('{"method":"pitch","layer":"losses|recoveries|shots"?,"rounds":[1,2]?,"compare":[[1,2,3],[4,5]]?}  with "layer" it is a MAP of where the ball was lost (losses), won back (recoveries) or shot from (shots), over the matchdays given or all of them. Without "layer":   a picture of how your club played, drawn on a pitch with arrows: where passes moved the ball, how high the back and front lines stood, where the ball was won back and the shots; with the numbers behind it. "compare" draws two sets of matchdays side by side (before and after a change of plan). Use this whenever the question is about HOW the team played or about tactics, alongside the figures');
 })();
