@@ -190,13 +190,15 @@
     if (!res) return '';
     if (!res.ok) return `<div class="wb-err">${esc(res.error)}</div>`;
     const tables = (res.tables || []).map((t) => `<div class="wb-tbl"><div class="wb-tbl-t">${esc(t.title || '')}</div><div class="wb-scroll"><table><thead><tr>${t.cols.map((c) => `<th>${esc(c)}</th>`).join('')}</tr></thead><tbody>${t.rows.map((r) => `<tr>${r.map((v, i) => `<td class="${typeof v === 'number' ? 'n' : i ? 'n' : 'l'}">${esc(v == null ? '–' : v)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>${t.more ? `<div class="wb-more">${esc(t.more)}</div>` : ''}</div>`).join('');
-    return `${(res.summary || []).map((s) => `<p class="wb-sum">${esc(s)}</p>`).join('')}${chartSvg(res.chart)}${tables}${res.caveats && res.caveats.length ? `<div class="wb-care"><b>Take care</b><ul>${res.caveats.map((c) => `<li>${esc(c)}</li>`).join('')}</ul></div>` : ''}${res.n != null ? `<div class="wb-foot">${esc(res.n)} rows used</div>` : ''}`;
+    const pics = (res.pictures || []).length ? `<div class="wb-pitches">${res.pictures.map((p) => `<figure class="wb-pitch"><div class="wb-tbl-t">${esc(p.title)}</div>${p.svg}<figcaption>${esc(p.note || '')}</figcaption></figure>`).join('')}</div><div class="wb-pkey"><span><i class="a"></i>pass forward</span><span><i class="b"></i>pass across</span><span><i class="c"></i>pass back</span><span><i class="d"></i>ball won back</span><span><i class="e"></i>shot</span><span><i class="f"></i>back and front line</span></div>` : '';
+    return `${pics}${(res.pictures || []).length ? '' : (res.summary || []).map((s) => `<p class="wb-sum">${esc(s)}</p>`).join('')}${chartSvg(res.chart)}${tables}${res.caveats && res.caveats.length ? `<div class="wb-care"><b>Take care</b><ul>${res.caveats.map((c) => `<li>${esc(c)}</li>`).join('')}</ul></div>` : ''}${res.n != null ? `<div class="wb-foot">${esc(res.n)} rows used</div>` : ''}`;
   }
   // the same result as plain text (for the agent, and for copying)
   function resultText(res, cap) {
     if (!res) return '';
     if (!res.ok) return 'Could not run: ' + res.error;
     let s = res.title + (res.n != null ? ' [' + res.n + ' rows]' : '') + '\n' + (res.summary || []).join('\n');
+    (res.pictures || []).forEach((p) => { s += '\nPICTURE ' + p.title + ': ' + (p.note || ''); });
     (res.tables || []).forEach((t) => { s += '\n' + (t.title || '') + ': ' + t.cols.join(' | ') + '\n' + t.rows.slice(0, 14).map((r) => r.map((v) => (v == null ? '–' : v)).join(' | ')).join('\n'); });
     if (res.caveats && res.caveats.length) s += '\nCaveats: ' + res.caveats.join(' ');
     return cap ? s.slice(0, cap) : s;
@@ -205,7 +207,16 @@
     const r = T.query(league, spec);
     if (r.error) return { ok: false, error: r.error };
     const desc = spec.group && spec.group.length ? 'by ' + spec.group.join(', ') : (spec.agg || []).length ? 'summary' : 'rows';
-    return { ok: true, method: 'query', title: spec.table + ': ' + desc, n: r.total, summary: [], caveats: [], tables: [{ title: spec.table + (spec.where && spec.where.length ? ' (filtered)' : ''), cols: r.columns, rows: r.rows, more: r.total > r.rows.length ? 'Showing the first ' + r.rows.length + ' of ' + r.total + ' rows.' : '' }], spec: Object.assign({ method: 'query' }, spec) };
+    const caveats = [];
+    if (r.total === 0) {
+      const all = T.get(league, spec.table) || [];
+      if (!all.length) caveats.push('The table ' + spec.table + ' is empty: it is filled from the detailed record of matches you have played, and none has been recorded in this save.');
+      else {
+        caveats.push('None of the ' + all.length + ' rows in ' + spec.table + ' match all of the conditions together.');
+        (spec.where || []).forEach((w) => { const n = T.query(league, { table: spec.table, where: [w], limit: 1 }).total; if (n === 0) caveats.push('Nothing at all has ' + w.col + ' ' + w.op + ' ' + (Array.isArray(w.value) ? w.value.join('/') : w.value) + ' (this condition alone removes every row).'); });
+      }
+    }
+    return { ok: true, method: 'query', title: spec.table + ': ' + desc, n: r.total, summary: [], caveats, tables: [{ title: spec.table + (spec.where && spec.where.length ? ' (filtered)' : ''), cols: r.columns, rows: r.rows, more: r.total > r.rows.length ? 'Showing the first ' + r.rows.length + ' of ' + r.total + ' rows.' : '' }], spec: Object.assign({ method: 'query' }, spec) };
   }
 
   // ---------- the analysis builder ----------
@@ -220,17 +231,19 @@
     did: [['y', 'Outcome', 'num'], ['treatcol', 'Treated group: column', 'any'], ['treatval', '… equals', 'text'], ['aftercol', 'After the change: column', 'num'], ['afterval', '… is at least', 'text']],
     bootstrap: [['y', 'Measure', 'num'], ['statistic', 'Statistic', ['mean', 'median', 'sd']]],
     query: [['group', 'Group by (optional)', 'cat?'], ['fn', 'Summary', ['', 'count', 'mean', 'sum', 'median', 'min', 'max', 'sd']], ['col', 'of column', 'num?'], ['order', 'Order by (optional)', 'any?'], ['dir', 'Direction', ['desc', 'asc']], ['limit', 'Rows', 'text']],
+    pitch: [['rounds', 'Matchdays to draw (e.g. 1,2,3; blank = all)', 'text'], ['rounds2', 'Compare with these matchdays (optional)', 'text']],
     forecast: [['kind', 'Forecast', ['season', 'price', 'trend']], ['stand', 'Stand (for a price forecast)', 'stand'], ['from', 'Lowest price £ (price)', 'text'], ['to', 'Highest price £ (price)', 'text'], ['y', 'Measure to carry forward (trend)', 'num?'], ['ahead', 'Matchdays ahead (trend)', 'text']],
     experiment: [['tactic', 'Tactic to change', 'tactic'], ['a', 'Setting A (0–1)', 'text'], ['b', 'Setting B (0–1)', 'text'], ['matches', 'Matched replays (4–24)', 'text'], ['minutes', 'Minutes of each (10–90)', 'text'], ['opponent', 'Opponent (optional)', 'opp']],
     simulate: [['tactic', 'Tactic to randomise', 'tactic'], ['lo', 'From (0–1)', 'text'], ['hi', 'To (0–1)', 'text'], ['matches', 'Matches (6–40)', 'text'], ['minutes', 'Minutes of each (10–90)', 'text'], ['opponent', 'Opponent (optional)', 'opp']],
   };
-  const METHOD_LABEL = { query: 'Table of figures', describe: 'Describe', compare: 'Compare two groups', correlation: 'Correlation', ols: 'Linear regression', logistic: 'Logistic regression', mle: 'Maximum likelihood model', did: 'Difference in differences', bootstrap: 'Bootstrap interval', experiment: 'Controlled experiment', simulate: 'Randomised trial', forecast: 'Forecast' };
-  const LEVEL_METHODS = { gcse: ['query', 'describe', 'compare', 'correlation', 'forecast', 'experiment'], alevel: ['query', 'describe', 'compare', 'correlation', 'ols', 'logistic', 'bootstrap', 'forecast', 'experiment'], above: Object.keys(METHOD_LABEL) };
+  const METHOD_LABEL = { query: 'Table of figures', describe: 'Describe', compare: 'Compare two groups', correlation: 'Correlation', ols: 'Linear regression', logistic: 'Logistic regression', mle: 'Maximum likelihood model', did: 'Difference in differences', bootstrap: 'Bootstrap interval', experiment: 'Controlled experiment', simulate: 'Randomised trial', forecast: 'Forecast', pitch: 'Tactical picture' };
+  const LEVEL_METHODS = { gcse: ['query', 'pitch', 'describe', 'compare', 'correlation', 'forecast', 'experiment'], alevel: ['query', 'pitch', 'describe', 'compare', 'correlation', 'ols', 'logistic', 'bootstrap', 'forecast', 'experiment'], above: Object.keys(METHOD_LABEL) };
   const num = (v) => { const n = Number(v); return v !== '' && v != null && Number.isFinite(n) ? n : v; };
   function specFromForm(f) {
     const m = f.method, g = (k) => f[k], out = { method: m, table: f.table };
     const where = (f.where || []).filter((w) => w.col && w.value !== '' && w.value != null).map((w) => ({ col: w.col, op: w.op || '=', value: w.op === 'contains' ? w.value : num(w.value) }));
     if (m === 'experiment' || m === 'simulate') { delete out.table; out.tactic = g('tactic'); ['a', 'b', 'lo', 'hi', 'matches', 'minutes'].forEach((k) => { if (g(k) !== '' && g(k) != null) out[k] = Number(g(k)); }); if (g('opponent')) out.opponent = g('opponent'); return out; }
+    if (m === 'pitch') { const ns = (v) => String(v == null ? '' : v).split(/[ ,;]+/).map(Number).filter((x) => Number.isFinite(x) && x > 0), a = ns(g('rounds')), b = ns(g('rounds2')); return b.length ? { method: 'pitch', compare: [a, b] } : a.length ? { method: 'pitch', rounds: a } : { method: 'pitch' }; }
     if (m === 'forecast') { const o = { method: 'forecast', kind: g('kind') || 'season' }; if (o.kind === 'price') { o.stand = g('stand') || 'family'; if (g('from')) o.from = Number(g('from')); if (g('to')) o.to = Number(g('to')); } if (o.kind === 'trend') { o.table = f.table; if (g('y')) o.y = g('y'); if (g('ahead')) o.ahead = Number(g('ahead')); if (where.length) o.where = where; } return o; }
     if (where.length) out.where = where;
     if (m === 'query') { if (g('group')) out.group = [g('group')]; if (g('fn')) out.agg = [{ fn: g('fn'), col: g('fn') === 'count' ? undefined : g('col'), as: g('fn') + (g('col') ? '_' + g('col') : '') }]; else if (g('group')) out.agg = [{ fn: 'count', as: 'n' }]; if (g('order')) out.order = { col: g('order'), dir: g('dir') || 'desc' }; out.limit = Math.max(1, Math.min(500, Number(g('limit')) || 30)); return out; }
@@ -243,6 +256,7 @@
   function formFromSpec(s) {
     const f = { method: s.method, table: s.table || 'team_matches', where: (s.where || []).map((w) => ({ col: w.col, op: w.op, value: Array.isArray(w.value) ? w.value.join(',') : w.value })) };
     ['y', 'x', 'group', 'model', 'statistic', 'by', 'a', 'b', 'tactic', 'lo', 'hi', 'matches', 'minutes', 'opponent', 'kind', 'stand', 'ahead', 'from', 'to'].forEach((k) => { if (s[k] != null) f[k] = s[k]; });
+    if (s.method === 'pitch') { f.rounds = (s.compare ? s.compare[0] : s.rounds || []).join(','); f.rounds2 = s.compare ? s.compare[1].join(',') : ''; }
     if (s.method === 'query') { f.group = (s.group || [])[0] || ''; const a = (s.agg || [])[0]; if (a) { f.fn = a.fn; f.col = a.col || ''; } if (s.order) { f.order = s.order.col; f.dir = s.order.dir; } f.limit = s.limit || 30; }
     if (s.method === 'did' && s.treat) { f.treatcol = s.treat.col; f.treatval = s.treat.value; f.aftercol = s.after.col; f.afterval = s.after.value; }
     return f;
