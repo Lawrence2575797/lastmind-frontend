@@ -1070,7 +1070,6 @@
   // A rivalry makes a match hotter: more cards, and moments that are not part of the football. They are planned before kick-off from the
   // fixture's seed (so a match always plays the same), spread through the game, and carried out when play is live.
   //   scuffle: a late challenge and a squaring-up between players of both sides, ending in cards, perhaps in a red or two
-  //   managers: the two benches go at each other on the touchline: a manager is sent to the stands and cannot make a change for ten minutes
   //   penalty: a contentious penalty is given, and the defenders protest (one of them is booked)
   //   invader: a supporter gets onto the pitch and play is held up
   FM.setupDrama = function (match, derby, seed) {
@@ -1081,7 +1080,6 @@
     // an ordinary game: now and then; a derby: several times as often; the Iron Derby: nearly always, and often more than one
     const at = (base, top) => base + (top - base) * Math.pow(heat, 1.5);
     plan('scuffle', at(0.07, 0.92), 12, 84);
-    plan('managers', at(0.05, 0.82), 8, 86);
     plan('penalty', at(0.04, 0.5), 15, 88);
     plan('invader', at(0.03, 0.38), 10, 80);
     if (heat >= 1 && !list.length) list.push({ kind: 'scuffle', at: (25 + rng() * 50) * 60 });
@@ -1127,13 +1125,6 @@
       else { outcome = 'both'; give(defT, aggressor, 'red'); give(attT, victim, 'red'); }
       record(match, { type: 'drama', kind: 'scuffle', team: defT.id, player: aggressor.number, vs: victim.number, vsTeam: attT.id, outcome, cards, x: victim.x, y: victim.y });
       startRestart(match, 'freekick', attT, clamp(victim.x, 0.5, L - 0.5), clamp(victim.y, 0.5, W - 0.5));
-      return;
-    }
-    if (next.kind === 'managers') {
-      const both = rng() < 0.45, one = rng() < 0.5 ? attT : defT;
-      const teams = both ? [attT, defT] : [one];
-      teams.forEach((t) => { match.stands[t.id] = match.clock + 600; });
-      record(match, { type: 'drama', kind: 'managers', team: (both ? attT : one).id, both, teams: teams.map((t) => t.id), until: match.clock + 600 });
       return;
     }
     if (next.kind === 'invader') {

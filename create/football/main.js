@@ -223,13 +223,25 @@
     if (m.phase === 'halftime' || m.phase === 'fulltime' || m.injuryPause) { world.highlightSearching = false; world.hlScanned = null; world.hlWait = null; hlOverlay(false); }
     return false;
   }
+  // The buttons that run the match (pause, play, highlights, speed) follow the match even when the pitch is hidden behind the highlight loading screen.
+  function refreshControls(m) {
+    const playing = world.running && m.phase !== 'halftime' && m.phase !== 'fulltime';
+    el('playBtn').textContent = world.skipTo ? 'Stop skipping' : m.phase === 'halftime' ? 'Start second half' : m.phase === 'fulltime' ? 'Full time' : world.running ? 'Pause' : 'Play';
+    el('playBtn').classList.toggle('on', playing);
+    el('highlightBtn').classList.toggle('on', world.highlightsOnly); el('highlightBtn').setAttribute('aria-pressed', String(world.highlightsOnly));
+    { const pz = el('pitchPause'); if (pz) { const running = (playing || !!world.skipTo || (world.highlightsOnly && world.running)) && m.phase !== 'fulltime' && m.phase !== 'halftime'; pz.hidden = !running; pz.textContent = world.skipTo ? 'Stop skipping' : 'Pause'; } }
+    { const pp = el('pitchPlay'); if (pp) { pp.hidden = playing || m.phase === 'fulltime' || !!m.injuryPause || !!world.skipTo; pp.textContent = m.phase === 'halftime' ? 'Start second half' : (m.clock > 0 ? 'Play on' : 'Kick off'); } }
+  }
   let last = performance.now();
   function frame(now) {
     const dt = Math.min(0.1, (now - last) / 1000);
     world.frameDt = dt;
     last = now;
     const m = world.match;
-    if (world.view === 'match' && m && world.hl && world.hl.phase === 'replay') { hlReplayStep(m, now, dt); requestAnimationFrame(frame); return; }
+    if (world.view === 'match' && m && world.hl && world.hl.phase === 'replay') {
+      if (world.running) hlReplayStep(m, now, dt); else world.hl.start += dt * 1000;   // paused: the replay waits
+      refreshControls(m); requestAnimationFrame(frame); return;
+    }
     if (world.view === 'match' && m) {
       if (FM.scout && world.league) FM.scout.watch(world.league, m);
       if (world.skipTo) { skipSlice(m); if (!world.skipTo) world.trails = []; }
@@ -238,7 +250,7 @@
         else { advanceMatch(dt * MATCH_SPEED * world.speed); world.highlightSearching = false; }
         world.vt += dt;
       }
-      if (!world.highlightSearching) { draw(); updateHud(); } else if (!world.highlightsOnly) hlOverlay(false);
+      if (!world.highlightSearching) { draw(); updateHud(); } else { if (!world.highlightsOnly) hlOverlay(false); refreshControls(m); }
     }
     requestAnimationFrame(frame);
   }

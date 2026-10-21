@@ -239,7 +239,8 @@
   .pitch-play[hidden] { display: none; }
   .pitch-pause { position: absolute; right: 18px; top: 18px; z-index: 5; padding: 10px 20px; font-size: 1rem; font-weight: 800; border-radius: 0; background: var(--gold, #f1c04f); color: #14181a; border: 2px solid rgba(255,255,255,.85); box-shadow: 0 6px 24px rgba(0,0,0,.5); cursor: pointer; } .pitch-pause[hidden] { display: none; }
   .lab-how { border: 1px solid rgba(244,237,218,.16); border-radius: 0; padding: 12px 14px; display: grid; gap: 4px; } .lab-how p { margin: 0; }
-  .controls { display: flex; gap: 6px; flex-wrap: wrap; padding: 10px 6px 0; }
+  .controls { display: flex; gap: 6px; flex-wrap: wrap; padding: 10px 6px 0; position: relative; z-index: 7; }   /* above the highlight loading screen, so the buttons never disappear */
+  .pitch-wrap .pitch-pause, .pitch-wrap .pitch-play { z-index: 7; }
   .controls button { padding: 7px 12px; }
   .match-commentary { display: flex; align-items: center; min-height: 48px; margin-top: 8px; padding: 10px 16px; overflow: hidden; border-left: 4px solid var(--gold); border-radius: 0; background: #050707; color: var(--cream); font: 800 clamp(.78rem,1.4vw,.98rem)/1.35 var(--sans); letter-spacing: .035em; text-transform: uppercase; box-shadow: inset 0 1px rgba(255,255,255,.05); }
   .match-commentary::before { content: 'LIVE'; flex: none; margin-right: 12px; padding: 3px 7px; border-radius: 0; background: #b93232; color: #fff; font-size: .62rem; letter-spacing: .12em; }
@@ -1086,7 +1087,7 @@
 <script src="/create/football/rules.js?v=20261202a"></script>
 <script src="/create/football/instructions.js?v=20261010c"></script>
 <script src="/create/football/fitness.js?v=20261127a"></script>
-<script src="/create/football/match.js?v=20261130a"></script>
+<script src="/create/football/match.js?v=20261202c"></script>
 <script src="/create/football/league.js?v=20261128a"></script>
 <script src="/create/football/preseason.js?v=20261010n"></script>
 <script src="/create/football/stats_math.js?v=20261010c"></script>
@@ -1129,6 +1130,6 @@
 <script src="/create/football/cases.js?v=20261028a"></script>
 <script src="/create/football/scenario.js?v=20261111a"></script>
 <script src="/create/football/multiplayer.js?v=20261107c"></script>
-<script src="/create/football/main.js?v=20261202b"></script>
+<script src="/create/football/main.js?v=20261202c"></script>
 </body>
 </html>
