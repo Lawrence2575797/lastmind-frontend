@@ -5,9 +5,31 @@
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const POSITIONS = [['GK', 'Goalkeepers'], ['CB', 'Centre-backs'], ['FB', 'Full-backs'], ['DM', 'Defensive midfielders'], ['CM', 'Central midfielders'], ['AM', 'Attacking midfielders'], ['WF', 'Wingers'], ['ST', 'Strikers']];
   const STAGE_TEXT = { interest: 'Interest declared', counter: 'Counter-offer', bid_rejected: 'Bid rejected', fee_agreed: 'Fee agreed', wage_talks: 'In wage talks', signed: 'Signed', collapsed: 'Collapsed' };
-  const rs = { tab: 'players', club: 'all', pos: 'all', nation: 'all', ageMin: '', ageMax: '', ratingMin: '', priceMax: '', fit: false, sort: 'rating', open: null, bid: null, msg: {} };
+  const rs = { tab: 'players', q: '', club: 'all', pos: 'all', nation: 'all', ageMin: '', ageMax: '', ratingMin: '', priceMax: '', fit: false, sort: 'rating', open: null, bid: null, msg: {} };
   let hooks = {};
 
+  // Closest names first: a word that matches exactly or starts with what was typed beats one that merely contains it, which beats a near miss (a letter or two out).
+  const fold = (v) => String(v || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9 ]/g, ' ').trim();
+  function lev(a, b) {
+    const m = a.length, n = b.length, d = []; for (let i = 0; i <= m; i++) { d[i] = [i]; } for (let j = 1; j <= n; j++) d[0][j] = j;
+    for (let i = 1; i <= m; i++) for (let j = 1; j <= n; j++) d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    return d[m][n];
+  }
+  function nameScore(name, q) {
+    const words = fold(name).split(/\s+/).filter(Boolean), qs = fold(q).split(/\s+/).filter(Boolean);
+    if (!qs.length) return 0;
+    let total = 0;
+    for (const w of qs) {
+      let best = Infinity;
+      for (const nw of words) {
+        const sc = nw === w ? 0 : nw.startsWith(w) ? 1 : nw.includes(w) ? 2 : (w.length >= 3 ? (() => { const dist = Math.min(lev(nw, w), lev(nw.slice(0, w.length + 1), w)); return dist <= (w.length >= 6 ? 2 : 1) ? 3 + dist : Infinity; })() : Infinity);
+        if (sc < best) best = sc;
+      }
+      if (best === Infinity) return Infinity;
+      total += best;
+    }
+    return total;
+  }
   const initials = (p) => esc(p.name.split(/\s+/).map((x) => x[0]).slice(0, 2).join(''));
   const stat = (p, k) => (p.ratings && p.ratings[k] != null ? FM.shown(p.ratings[k]) : '-');
   const chip = (text, cls) => `<span class="rc-chip ${cls || ''}">${esc(text)}</span>`;
@@ -38,6 +60,7 @@
       if (rs.ratingMin !== '' && FM.playerRating(p) < +rs.ratingMin) return false;
       if (rs.priceMax !== '' && FM.askingPrice(league, p) > +rs.priceMax) return false;
       if (rs.fit && FM.isInjured(p)) return false;
+      if (rs.q.trim() && nameScore(p.name, rs.q) === Infinity) return false;
       return true;
     });
     const sorters = {
@@ -47,7 +70,8 @@
       age: (a, b) => FM.ageOf(a.p) - FM.ageOf(b.p),
       name: (a, b) => a.p.name.localeCompare(b.p.name),
     };
-    rows.sort(sorters[rs.sort] || sorters.rating);
+    if (rs.q.trim()) rows.sort((a, b) => nameScore(a.p.name, rs.q) - nameScore(b.p.name, rs.q) || FM.playerRating(b.p) - FM.playerRating(a.p));   // closest names first
+    else rows.sort(sorters[rs.sort] || sorters.rating);
     const marks = FM.squadMarks ? FM.squadMarks(rows.map((x) => x.p)) : {};
     const cell = (p, s) => { const k = marks[p.id] && marks[p.id][s]; return `<td${k ? ' class="hl-' + k + '"' : ''}>${s === 'gk' && p.natural !== 'GK' ? '-' : stat(p, s)}</td>`; };
     const status = (p) => { const d = t.deals[p.id]; return d && d.stage !== 'signed' ? chip(STAGE_TEXT[d.stage] || d.stage, 'st-' + d.stage) : (t.shortlist.indexOf(p.id) >= 0 ? chip('Shortlisted') : ''); };
@@ -57,7 +81,7 @@
       <td><b>${FM.money(FM.askingPrice(league, p))}</b></td><td class="l">${status(p)}</td></tr>`;
     const head = `<thead><tr><th class="l">Player</th><th class="l">Club</th><th class="l">Pos</th><th>Age</th><th class="l">Nation</th><th title="What he is worth to a team now, out of 100">Ability</th><th title="The most he can reach, out of 100">Potential</th><th>Pace</th><th>Dri</th><th>Pas</th><th>Fin</th><th>Tac</th><th>Hea</th><th>Com</th><th>Sta</th><th>GK</th><th>Price</th><th class="l">Status</th></tr></thead>`;
     const clubIdx = rs.club === 'all' ? -1 : others.findIndex((x) => x.id === rs.club);
-    const filters = `<div class="rc-filters">
+    const filters = `<div class="rc-search"><input id="rcSearch" type="search" value="${esc(rs.q)}" placeholder="Search by name" autocomplete="off" aria-label="Search players by name"></div><div class="rc-filters">
         <div class="rc-club"><button type="button" id="rcPrev" aria-label="Previous club">‹</button>
           <select id="rcClub"><option value="all">All clubs</option>${others.map((tm) => `<option value="${tm.id}"${rs.club === tm.id ? ' selected' : ''}>${esc(tm.name)}</option>`).join('')}</select>
           <button type="button" id="rcNext" aria-label="Next club">›</button></div>
@@ -78,7 +102,7 @@
 
     let body = '';
     if (rs.tab === 'players') {
-      body = `${filters}<p class="note">${rows.length} player${rows.length === 1 ? '' : 's'}. Click one to see them, declare interest, or make an approach. Green and red mark ratings well above or below the other players in the league in that position.</p>
+      body = `${filters}<p class="rc-count">${rows.length} player${rows.length === 1 ? '' : 's'}</p>
         <div class="tablewrap rc-table"><table class="data">${head}<tbody>${rows.slice(0, 400).map(rowHtml).join('') || '<tr><td colspan="18" class="l">No players match those filters.</td></tr>'}</tbody></table></div>`;
     } else if (rs.tab === 'shortlist') {
       body = shortlist.length ? `<div class="tablewrap rc-table"><table class="data">${head}<tbody>${shortlist.map((p) => rowHtml({ p, tm: FM.clubOf(league, p) })).join('')}</tbody></table></div>` : '<p class="note">Nobody on your shortlist yet. Declaring interest in a player, or approaching his club, adds him here.</p>';
@@ -107,10 +131,15 @@
     // ----- events
     host.querySelectorAll('[data-rctab]').forEach((b) => b.addEventListener('click', () => { rs.tab = b.dataset.rctab; rs.offerNote = null; draw(); }));
     const bind = (id, key, num) => { const e = host.querySelector(id); if (e) e.addEventListener('change', () => { rs[key] = e.type === 'checkbox' ? e.checked : e.value; draw(); }); void num; };
+    const se = host.querySelector('#rcSearch');
+    if (se) {
+      se.addEventListener('input', () => { rs.q = se.value; rs.refocus = true; clearTimeout(rs.qt); rs.qt = setTimeout(draw, 160); });
+      if (rs.refocus) { rs.refocus = false; se.focus(); try { se.setSelectionRange(se.value.length, se.value.length); } catch (e) { /* a search box that cannot place a caret */ } }
+    }
     bind('#rcClub', 'club'); bind('#rcPos', 'pos'); bind('#rcNation', 'nation'); bind('#rcAgeMin', 'ageMin'); bind('#rcAgeMax', 'ageMax'); bind('#rcRating', 'ratingMin'); bind('#rcPrice', 'priceMax'); bind('#rcFit', 'fit'); bind('#rcSort', 'sort');
     const step = (d) => { const ids = ['all'].concat(others.map((x) => x.id)); rs.club = ids[(ids.indexOf(rs.club) + d + ids.length) % ids.length]; draw(); };
     const pv = host.querySelector('#rcPrev'), nx = host.querySelector('#rcNext'); if (pv) pv.addEventListener('click', () => step(-1)); if (nx) nx.addEventListener('click', () => step(1));
-    const cl = host.querySelector('#rcClear'); if (cl) cl.addEventListener('click', () => { Object.assign(rs, { club: 'all', pos: 'all', nation: 'all', ageMin: '', ageMax: '', ratingMin: '', priceMax: '', fit: false, sort: 'rating' }); draw(); });
+    const cl = host.querySelector('#rcClear'); if (cl) cl.addEventListener('click', () => { Object.assign(rs, { q: '', club: 'all', pos: 'all', nation: 'all', ageMin: '', ageMax: '', ratingMin: '', priceMax: '', fit: false, sort: 'rating' }); draw(); });
     host.querySelectorAll('[data-open]').forEach((r) => r.addEventListener('click', () => { rs.open = r.dataset.open; rs.bid = null; draw(); const side = host.querySelector('#rcSide'); if (side && side.scrollIntoView) side.scrollIntoView({ block: 'nearest' }); }));
     host.querySelectorAll('[data-offer]').forEach((b) => b.addEventListener('click', () => {
       const id = b.dataset.id, counter = host.querySelector('[data-counter="' + id + '"]');

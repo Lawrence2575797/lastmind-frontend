@@ -830,7 +830,7 @@
   el('injuryTen').addEventListener('click', () => { if (world.match) FM.resolveInjury(world.match); });
 
   // ---------- views and navigation ----------
-  const VIEWS = ['home', 'board', 'league', 'squad', 'recruit', 'develop', 'analysis', 'workbench', 'reports', 'news', 'preview', 'mp', 'match'];
+  const VIEWS = ['home', 'board', 'league', 'squad', 'recruit', 'analysis', 'workbench', 'reports', 'news', 'preview', 'mp', 'match'];
   const NAV = [];
   const SCREEN_TITLES = { home: 'Club overview', board: 'The board', league: 'League centre', squad: 'First-team squad', recruit: 'Recruitment', develop: 'Player development', reports: 'Opposition intelligence', news: 'Football world', analysis: 'Performance analysis', preview: 'Match preview', mp: 'Playing with other managers' };
   function demoMatchPlayed() {
@@ -882,6 +882,7 @@
   let wbStarter = null;
   FM.goWorkbench = (arg) => { wbStarter = typeof arg === 'string' ? { starter: arg } : (arg || null); setView('workbench'); wbStarter = null; };
   function setView(v) {
+    if (v === 'develop') v = 'squad';   // the Development page is gone: potential and growth are on the Squad page
     if (v !== 'tactics' && backBtn) dropBackBtn();
     world.view = v;
     { const sb = el('saveBtn'); if (sb) sb.hidden = !world.league; }
@@ -906,7 +907,6 @@
     else if (v === 'home') renderHome();
     else if (v === 'league') renderLeague();
     else if (v === 'squad') renderSquad();
-    else if (v === 'develop') FM.renderDevelop(el('view-develop'), world.league, { save: saveSoon });
     else if (v === 'recruit') FM.renderRecruit(el('view-recruit'), world.league, { save: saveSoon, openSquad: () => setView('squad') });
     else if (v === 'analysis') {
       const av = el('view-analysis');
@@ -961,13 +961,12 @@
     const user = userTeam();
     el('subtitle').textContent = user.name + ' · Season ' + lg.season;
     host.innerHTML = `<span class="hint" style="color:inherit;opacity:0.8">${esc(FM.dayLabel(lg.day))}</span>
-      <label class="top-level" title="The level the analysis and the teaching explain things at. You can change it whenever you like."><span>Level</span><select id="topLevel" aria-label="Level you are studying at">${LEVELS.map(([k, n]) => `<option value="${k}"${lg.tier === k ? ' selected' : ''}>${n}</option>`).join('')}</select></label>
+      <label class="top-level"><select id="topLevel" aria-label="Level you are studying at">${LEVELS.map(([k, n]) => `<option value="${k}"${lg.tier === k ? ' selected' : ''}>${n}</option>`).join('')}</select></label>
       <button data-top="home" class="${world.view === 'home' ? 'on' : ''}">Home</button>
       ${DEMO_MODE ? '' : `<button data-top="workbench" class="tb-workbench ${world.view === 'workbench' ? 'on' : ''}">Workbook</button>`}
       ${lg.mp && lg.mp.kind === 'match' ? '' : `<button data-top="board" class="${world.view === 'board' ? 'on' : ''}">Board</button>`}
       <button data-top="squad" class="${world.view === 'squad' ? 'on' : ''}">Squad</button>
-      ${lg.mp ? '' : `<button data-top="recruit" class="${world.view === 'recruit' ? 'on' : ''}">Recruitment</button>
-      <button data-top="develop" class="${world.view === 'develop' ? 'on' : ''}">Development</button>`}
+      ${lg.mp ? '' : `<button data-top="recruit" class="${world.view === 'recruit' ? 'on' : ''}">Recruitment</button>`}
       ${lg.mp && lg.mp.kind === 'match' ? '' : `<button data-top="news" class="${world.view === 'news' ? 'on' : ''}">News</button>`}
       ${lg.mp ? `<button data-top="mp" class="${world.view === 'mp' ? 'on' : ''}">Online</button>` : ''}`;
     host.querySelectorAll('[data-top]').forEach((b) => b.addEventListener('click', () => setView(b.dataset.top)));
@@ -1182,11 +1181,11 @@
     const highPot = (p) => FM.potentialOf(p) >= 85 && FM.potentialOf(p) - FM.abilityOf(p) >= 8;
     const cell = (p, stat, text) => { const k = marks[p.id] && marks[p.id][stat]; return `<td${k ? ' class="hl-' + k + '" title="' + (k === 'good' ? 'Well above' : 'Well below') + ' the other ' + p.natural + 's in the league"' : ''}>${text}</td>`; };
     const row = (p) => `<tr class="player-row" data-player="${p.id}" tabindex="0"><td>${portraitCache[p.id] ? `<img class="squad-thumb" src="${portraitCache[p.id]}" alt="">` : `<span class="squad-thumb fallback">${esc(p.name.split(/\s+/).map((x) => x[0]).slice(0, 2).join(''))}</span>`}</td><td class="l">${p.number}</td><td class="l"><button class="player-link" data-player="${p.id}">${esc(p.name)}</button>${captain && p.id === captain.id ? ' <span class="cap-badge" title="Captain">C</span>' : ''}</td><td class="l">${esc(p.nation)}</td><td class="l">${p.natural}</td><td class="l">${p.slotKey ? p.slotKey : 'Bench'}</td><td class="l">${{ right: 'Right', left: 'Left', both: 'Both' }[p.foot] || ''}</td><td>${p.height || '-'}</td><td class="${condClass(p)}">${Math.round(100 * FM.conditionOf(p))}%</td><td class="l ${FM.isInjured(p) ? 'out' : ''}">${FM.isInjured(p) ? esc(injuryText(p)) : 'Fit'}</td>
-      <td>${FM.ageOf(p)}</td><td><b>${FM.abilityOf(p)}</b></td><td${highPot(p) ? ' class="hl-good" title="High potential: far more to come"' : ''}>${FM.potentialOf(p)}</td><td>${FM.money(FM.valueOf(p))}</td>${cell(p, 'pace', FM.shown(p.ratings.pace))}${cell(p, 'dribbling', FM.shown(p.ratings.dribbling))}${cell(p, 'passing', FM.shown(p.ratings.passing))}${cell(p, 'finishing', FM.shown(p.ratings.finishing))}${cell(p, 'tackling', FM.shown(p.ratings.tackling))}${cell(p, 'heading', FM.shown(p.ratings.heading))}${cell(p, 'composure', FM.shown(p.ratings.composure))}${cell(p, 'stamina', p.ratings.stamina ? FM.shown(p.ratings.stamina) : '-')}${cell(p, 'gk', p.natural === 'GK' ? FM.shown(p.ratings.gk) : '-')}
+      <td>${FM.ageOf(p)}</td><td><b>${FM.abilityOf(p)}</b></td><td${highPot(p) ? ' class="hl-good" title="High potential: far more to come"' : ''}>${FM.potentialOf(p)}</td><td class="l"><span class="dv-bar" title="${FM.abilityOf(p)} of a possible ${FM.potentialOf(p)}"><i style="width:${Math.min(100, Math.round(100 * FM.abilityOf(p) / Math.max(1, FM.potentialOf(p))))}%"></i></span></td><td>${FM.money(FM.valueOf(p))}</td>${cell(p, 'pace', FM.shown(p.ratings.pace))}${cell(p, 'dribbling', FM.shown(p.ratings.dribbling))}${cell(p, 'passing', FM.shown(p.ratings.passing))}${cell(p, 'finishing', FM.shown(p.ratings.finishing))}${cell(p, 'tackling', FM.shown(p.ratings.tackling))}${cell(p, 'heading', FM.shown(p.ratings.heading))}${cell(p, 'composure', FM.shown(p.ratings.composure))}${cell(p, 'stamina', p.ratings.stamina ? FM.shown(p.ratings.stamina) : '-')}${cell(p, 'gk', p.natural === 'GK' ? FM.shown(p.ratings.gk) : '-')}
       <td>${p.stats.apps}</td><td>${p.stats.goals}</td><td>${p.stats.shots}</td><td>${p.stats.yellows}</td><td>${p.stats.reds}</td></tr>`;
     const captain = FM.captainOf(world.league, team);
     const selected = all.find((p) => p.id === world.profilePlayerId) || captain || all[0];
-    const head = `<thead><tr><th>Player</th><th class="l">#</th><th class="l">Name</th><th class="l">Nation</th><th class="l">Pos</th><th class="l">Now</th><th class="l">Foot</th><th title="Height in cm. Taller players are better in the air.">Ht</th><th>Cond</th><th class="l">Fitness</th><th title="Age in years">Age</th><th title="What he is worth to a team now, out of 100, in his natural position">Ability</th><th title="The most he can reach, out of 100. Develop him in the Development tab.">Potential</th><th title="What he is worth on the transfer market">Value</th><th>Pac</th><th>Dri</th><th>Pas</th><th>Fin</th><th>Tck</th><th>Hea</th><th>Com</th><th>Sta</th><th>GK</th><th>Apps</th><th>Goals</th><th>Shots</th><th>YC</th><th>RC</th></tr></thead>`;
+    const head = `<thead><tr><th>Player</th><th class="l">#</th><th class="l">Name</th><th class="l">Nation</th><th class="l">Pos</th><th class="l">Now</th><th class="l">Foot</th><th title="Height in cm. Taller players are better in the air.">Ht</th><th>Cond</th><th class="l">Fitness</th><th title="Age in years">Age</th><th title="What he is worth to a team now, out of 100, in his natural position">Ability</th><th title="The most he can reach, out of 100">Potential</th><th class="l" title="How much of his potential he has reached">Growth</th><th title="What he is worth on the transfer market">Value</th><th>Pac</th><th>Dri</th><th>Pas</th><th>Fin</th><th>Tck</th><th>Hea</th><th>Com</th><th>Sta</th><th>GK</th><th>Apps</th><th>Goals</th><th>Shots</th><th>YC</th><th>RC</th></tr></thead>`;
     const GROUPS = [['Goalkeepers', ['GK']], ['Defenders', ['CB', 'FB']], ['Midfielders', ['DM', 'CM', 'AM']], ['Forwards', ['WF', 'ST']]];
     const open = world.squadOpen || (world.squadOpen = {});
     const groups = GROUPS.map(([title, kinds]) => {
@@ -1849,24 +1848,17 @@
     const unsat = lastRate != null && lastRate < sat;
     const fixedN = runs.length ? runs[runs.length - 1].n : st.n;
     if (runs.length) st.n = fixedN;
-    const reco = !runs.length ? '' : `<p class="lab-lede">${unsat ? 'Your last result was ' + Math.round(lastRate * 100) + '%. Run the same ' + fixedN + ' tests again and we will check whether the change helped.' : 'Run the same ' + fixedN + ' tests again to see whether you can push the last result of ' + Math.round(lastRate * 100) + '% any further.'}</p><p><button type="button" class="el-go" id="labSeeLast">Back to your last results</button></p>`;
+    const reco = !runs.length ? '' : `<div class="lab-back"><button type="button" class="el-go" id="labSeeLast">← Last results</button></div>`;
     const busyText = st.busy ? (st.planning ? 'Their manager is preparing…' : st.done ? st.n + '/' + st.n + ' tests run' : st.prog + '/' + st.n + ' tests run') : (runs.length ? 'Run ' + st.n + ' tests again' : 'Run ' + st.n + ' tests');
-    host.innerHTML = `<div class="lab">
-      <h2>${title}</h2>
-      <p class="lab-lede">${esc(lede)}</p>
+    host.innerHTML = `<div class="lab lab-pro">
+      <div class="lab-head"><h2>${title}</h2><span class="lab-vs">vs ${esc(opp.name)}</span></div>
       ${reco}
-      <div class="two"><div class="lab-how"><span class="eyebrow">What the test is</span><p>${({
-        build: 'Every test starts with a goal kick, with your players where you put them. It counts as a success if the ball is played out and reaches the halfway line with one of your players.',
-        midfield: 'Every test starts with a midfielder on the ball on the edge of your own third, with your team in the shape you have for that moment. It counts as a success if the ball reaches the edge of the final third without being lost.',
-        final: 'Every test starts with an attack entering the final third with the ball. It counts as a success if it ends in a shot.',
-        press: 'Every test starts with their goalkeeper about to take a goal kick, with your team pressing as you have set it. It counts as a success if they are stopped before they get the ball out of their own half.',
-        organised: 'Every test starts with them in your third with the ball, against your team as you have set it. It counts as a success if they are stopped before they can shoot.',
-        transdef: 'Every test starts with your team losing the ball. It counts as a success if you stop the counter-attack before they can shoot.',
-        transatt: 'Every test starts with your team winning the ball. It counts as a success if the move ends in a shot.',
-      })[phase] || ''}</p></div>
-        <label>Number of tests<select id="labN"${runs.length ? ' disabled title="The same number of tests as last time, so the two results can be compared fairly"' : ''}>${[100, 400, 1000].map((n) => `<option value="${n}"${st.n === n ? ' selected' : ''}>${n}</option>`).join('')}</select></label></div>
-      <div class="row"><button class="primary" id="labRun"${st.busy ? ' disabled' : ''}>${busyText}</button>${skipHtml(phase, st)}</div>
-      ${skipNote(phase)}
+      <div class="lab-ctl">
+        <div class="lab-field"><span class="lab-lab">Tests</span>
+          <div class="ng-seg lab-seg" role="radiogroup" aria-label="Number of tests">${[100, 400, 1000].map((n) => `<button type="button" role="radio" aria-checked="${st.n === n}" data-n="${n}" class="${st.n === n ? 'on' : ''}"${runs.length ? ' disabled' : ''}>${n}</button>`).join('')}</div>
+        </div>
+        <div class="lab-acts"><button class="primary" id="labRun"${st.busy ? ' disabled' : ''}>${busyText}</button>${skipHtml(phase, st)}</div>
+      </div>
       <p class="err">${esc(st.err)}</p>
     </div>`;
     const q = (id) => host.querySelector(id);
@@ -1875,7 +1867,7 @@
     if (q('#labToEvidence2')) q('#labToEvidence2').addEventListener('click', goEvidence);
     if (q('#labSeeLast')) q('#labSeeLast').addEventListener('click', () => { st.view = 'results'; renderLab(team, host, phase); });
     if (q('#labToTactics')) q('#labToTactics').addEventListener('click', () => toTactics(phase === 'press' ? 'organised' : phase));
-    q('#labN').addEventListener('change', (e) => { st.n = +e.target.value; renderLab(team, host, phase); });
+    host.querySelectorAll('.lab-seg button').forEach((bt) => bt.addEventListener('click', () => { if (runs.length || st.busy) return; st.n = +bt.dataset.n; renderLab(team, host, phase); }));
     q('#labRun').addEventListener('click', async () => {
       if (st.busy) return;
       st.busy = true; st.done = false; st.prog = 0; st.err = ''; st.planning = true; renderLab(team, host, phase);
@@ -2432,7 +2424,7 @@
   function transferListHtml(p) {
     if (DEMO_MODE || !FM.isListed || (world.league && world.league.mp)) return '';
     const on = FM.isListed(world.league, p);
-    return `<div class="row" style="flex-wrap:wrap;align-items:center;gap:8px"><button type="button" id="listBtn" class="${on ? '' : 'primary'}">${on ? 'Take him off the transfer list' : 'Add him to the transfer list'}</button><span class="note" id="listNote">${on ? esc(world.listMsg && world.listMsg.id === p.id ? world.listMsg.text : 'He is on the transfer list. More offers may come after your games; they appear under Offers and deals in Recruitment.') : 'Clubs will make offers for him straight away, and again after your games while he stays listed.'}</span></div>`;
+    return `<div class="row" style="flex-wrap:wrap;align-items:center;gap:8px"><button type="button" id="listBtn" class="${on ? '' : 'primary'}">${on ? 'Take him off the transfer list' : 'Add him to the transfer list'}</button><span class="note" id="listNote">${on && world.listMsg && world.listMsg.id === p.id ? esc(world.listMsg.text) : ''}</span></div>`;
   }
   function wireTransferList(host, p, after) {
     const btn = host.querySelector('#listBtn'); if (!btn) return;
