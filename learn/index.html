@@ -10793,7 +10793,7 @@ SQIDAQAB
             heading = 'Choose a project';
             backBtn = '<button type="button" class="create-back" id="createBackBtn" data-view="projects">← Your projects</button>';
             // every project on one page, with its price: no subject headings (the economics project is kept in the code but not offered)
-            const everySim = CREATE_TEMPLATES.reduce((all, t) => all.concat(t.simulations || []), []).filter((t) => t.key !== 'chancellor');
+            const everySim = CREATE_TEMPLATES.reduce((all, t) => all.concat(t.simulations || []), []).filter((t) => t.key !== 'chancellor').sort((x, y) => (y.key === 'football-manager') - (x.key === 'football-manager'));   // Be the manager is always the first card
             body = `<div class="create-gallery">${everySim.map((t) => card(t, `role="button" tabindex="0" data-simulation="${t.key}"${t.href ? ` data-href="${t.href}"` : ''}`)).join('')}</div>`;
         } else if (subject) {
             heading = subject.title;
