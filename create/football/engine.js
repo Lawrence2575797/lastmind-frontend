@@ -764,6 +764,7 @@
         pos = { d: pos.d + (ts.d - pos.d) * k, w: pos.w + (ts.w - pos.w) * k };
       }
     }
+    player._bp = { d: boardPos.d, w: boardPos.w };
     let d = pos.d, w = pos.w;
     const phase = hasBall ? role.inPoss : role.outPoss;
 
@@ -775,10 +776,13 @@
     d += (b.d - d) * pull * (1 - 0.85 * drawn) * (hasBall ? (FM.SHIFT_D_ATT == null ? 0.14 : FM.SHIFT_D_ATT) : 0.3 * (1 - 0.8 * lowK));
     w += (b.w - w) * pull * (1 - 0.85 * drawn) * (hasBall ? (FM.SHIFT_W_ATT == null ? 0.09 : FM.SHIFT_W_ATT) : 0.22);
     // The manager's own instructions can move him further forward or wider, in the situations they name.
+    const d00 = d, w00 = w;   // where the board and the ball put him, before any instruction moves him
     const rs = FM.rulesShift ? FM.rulesShift(team, player, ball, hasBall) : null;
     if (rs) { d += rs.d; w += (w >= 0.5 ? 1 : -1) * rs.w; }
     const pl = FM.rulesPlace ? FM.rulesPlace(team, player, ball, hasBall) : null;   // 'stand where this says', for the situations the manager named
     if (pl) pl.forEach((e) => { if (e.dm != null) d += (e.dm / L - d) * e.k; if (e.wm != null) w += (e.wm / W - w) * e.k; });
+    // an instruction adjusts where a player stands by a few metres; it never sends him across the pitch
+    d = clamp(d, d00 - 8 / L, d00 + 8 / L); w = clamp(w, w00 - 6 / W, w00 + 6 / W);
 
     // Preserve a rest defence while attacking. Centre-backs and holding
     // midfielders can support play but do not all drift beyond the ball.
@@ -802,10 +806,10 @@
     // A leash: whatever the ball, the opposition and his role ask of him, a player stays within a short distance of where the manager put him
     // (a few metres to find space or leave a marker; a little more as an attack reaches the box), so a pass does not rearrange the team.
     // (Without the ball the leash only holds while the ball is near our own goal: pressing and closing down further up the pitch are not limited.)
-    if (player.group !== 'GK' && (hasBall || b.d < (FM.LEASH_ZONE == null ? 0.4 : FM.LEASH_ZONE))) {
+    if (player.group !== 'GK' && (hasBall || b.d < (FM.LEASH_ZONE == null ? 0.4 : FM.LEASH_ZONE) || FM.LEASH_ALL !== false)) {   // everyone stays near the place he was given: general positioning, not roaming
       const home = toMetres(team.attackDir, boardPos.d, boardPos.w), at = toMetres(team.attackDir, d, w);
       const fzr = hasBall ? clamp((b.d - 0.56) / 0.26, 0, 1) : 0;
-      const R = (FM.LEASH == null ? 6 : FM.LEASH) * clamp(1 + 0.5 * m.roam, 0.6, 1.6) * (hasBall ? 1 : (b.d > 0.5 ? (FM.LEASH_PRESS == null ? 3 : FM.LEASH_PRESS) : 0.7)) + (hasBall ? 5 * fzr : 0);   // the press of a build-up is left free: pressing is moving a long way
+      const R = (FM.LEASH == null ? 6 : FM.LEASH) * clamp(1 + 0.5 * m.roam, 0.6, 1.6) * (hasBall ? 1 : (b.d > 0.5 ? (FM.LEASH_PRESS == null ? 1.5 : FM.LEASH_PRESS) : 0.9)) + (hasBall ? 5 * fzr : 0);   // the press of a build-up is left free: pressing is moving a long way
       const dx = at.x - home.x, dy = at.y - home.y, dist = Math.hypot(dx, dy);
       if (dist > R) { const k = R / dist; return { x: home.x + dx * k, y: home.y + dy * k }; }
     }
@@ -827,6 +831,20 @@
       }
       return t;
     });
+    // Players of one line (the centre-backs, the full-backs, the midfielders, the forwards) keep their order across the pitch, with a little room between them,
+    // so nobody swaps sides with a team-mate while pressing or following the ball. A player sent to chase the ball (an override) is left alone.
+    if (FM.KEEP_ORDER !== false) {
+      const byGroup = {};
+      team.players.forEach((p, i) => { if (p.group !== 'GK' && p._bp && !(overrides && overrides.get(p))) (byGroup[p.group] = byGroup[p.group] || []).push(i); });
+      Object.keys(byGroup).forEach((g) => {
+        const idx = byGroup[g].slice().sort((a, b) => team.players[a]._bp.w - team.players[b]._bp.w);
+        if (idx.length < 2) return;
+        const ts = idx.map((i) => toTeamSpace(team.attackDir, targets[i].x, targets[i].y)), GAP = 4.5 / W_PITCH;
+        for (let k = 1; k < ts.length; k++) if (ts[k].w < ts[k - 1].w + GAP) ts[k].w = ts[k - 1].w + GAP;
+        const over = ts[ts.length - 1].w - 0.96; if (over > 0) for (let k = 0; k < ts.length; k++) ts[k].w = Math.max(0.04, ts[k].w - over * (k + 1) / ts.length);
+        idx.forEach((i, k) => { const m = toMetres(team.attackDir, ts[k].d, clamp(ts[k].w, 0.04, 0.96)); targets[i] = { x: m.x, y: m.y }; });
+      });
+    }
     team.players.forEach((p, i) => {
       const t = targets[i];
       const dx = t.x - p.x, dy = t.y - p.y;

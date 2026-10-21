@@ -192,6 +192,7 @@
     if (!team.rules || !team.rules.length) return null;
     let df = 0, dw = 0;
     FM.rulesActive(team, p, FM.rulesCtx(team, ball, hasBall, false)).forEach((e) => { if (e.type === 'position' && (e.phase === 'both' || (e.phase === 'with') === !!hasBall)) { df += e.forward; dw += e.wide; } });
+    df = Math.max(-8, Math.min(8, df)); dw = Math.max(-6, Math.min(6, dw));   // however many instructions apply, a few metres is all they can add up to
     return df || dw ? { d: df / L, w: dw / W } : null;
   };
   // 'place' effects: where an expression says he should stand. Returns metres for each axis it controls, with how strongly he is pulled there.
@@ -250,7 +251,7 @@
       case 'tackle': return e.delta > 0 ? 'tackle harder' : 'stay on their feet';
       case 'holdUp': return 'hold the ball up';
       case 'stepUp': return 'step up to follow a forward who drops';
-      case 'position': return 'stand ' + [e.forward ? Math.abs(e.forward) + ' m ' + (e.forward > 0 ? 'further forward' : 'deeper') : '', e.wide ? Math.abs(e.wide) + ' m ' + (e.wide > 0 ? 'wider' : 'narrower') : ''].filter(Boolean).join(' and ') + (e.phase === 'with' ? ' with the ball' : e.phase === 'without' ? ' without the ball' : '');
+      case 'position': return 'stand ' + [e.forward ? Math.round(Math.abs(e.forward)) + ' m ' + (e.forward > 0 ? 'further forward' : 'deeper') : '', e.wide ? Math.round(Math.abs(e.wide)) + ' m ' + (e.wide > 0 ? 'wider' : 'narrower') : ''].filter(Boolean).join(' and ') + (e.phase === 'with' ? ' with the ball' : e.phase === 'without' ? ' without the ball' : '');
       case 'mark': return e.target.number != null ? 'follow ' + (e.target.name ? e.target.name + ' (#' + e.target.number + ')' : nameOf('opp', e.target.number)) + ' closely, wherever he goes' : 'follow the nearest ' + (e.target.group ? GROUP_WORD[e.target.group].replace(/s$/, '') : e.target.line ? 'player in their ' + e.target.line : 'attacker') + ' closely';
       case 'place': return 'stand where the manager has set (' + placeText(e) + ')';
       case 'passScore': return (e.weight > 0 ? 'favour' : 'avoid') + ' passes to players who meet a condition set by the manager' + strong(e.weight);
@@ -297,7 +298,7 @@
       else if (t === 'freeMan' && num(e.weight, 0, 1) != null) ok.push({ type: t, weight: r2(num(e.weight, 0, 1)) });
       else if (['risk', 'dribble', 'shoot', 'tempo', 'runs', 'closeDown', 'tackle'].indexOf(t) >= 0 && num(e.delta, -1, 1) != null) ok.push({ type: t, delta: r2(num(e.delta, -1, 1)) });
       else if (t === 'holdUp' || t === 'stepUp') ok.push({ type: t, on: e.on !== false });
-      else if (t === 'position') { const f = num(e.forward || 0, -15, 15), w = num(e.wide || 0, -12, 12); if (f != null && w != null && (f || w)) ok.push({ type: t, forward: r2(f), wide: r2(w), phase: ['with', 'without', 'both'].indexOf(e.phase) >= 0 ? e.phase : 'both' }); }
+      else if (t === 'position') { const f0 = num(e.forward || 0, -8, 8), w0 = num(e.wide || 0, -6, 6), f = f0 == null ? null : Math.round(f0), w = w0 == null ? null : Math.round(w0); if (f != null && w != null && (f || w)) ok.push({ type: t, forward: f, wide: w, phase: ['with', 'without', 'both'].indexOf(e.phase) >= 0 ? e.phase : 'both' }); }
       else if (t === 'place' && (e.dm != null || e.wm != null) && sizeOf(e) < 120) ok.push({ type: t, dm: e.dm, wm: e.wm, weight: r2(num(e.weight == null ? 0.85 : e.weight, 0.1, 1)), phase: ['with', 'without', 'both'].indexOf(e.phase) >= 0 ? e.phase : 'both' });
       else if (t === 'passScore' && e.where && num(e.weight, -1, 1) != null && sizeOf(e) < 120) ok.push({ type: t, where: e.where, weight: r2(num(e.weight, -1, 1)) });
       else if (t === 'attract' && e.target && (e.target.number != null || e.target.name)) ok.push({ type: t, target: { number: +e.target.number, name: String(e.target.name || '') }, strength: r2(num(e.strength == null ? 0.7 : e.strength, 0.1, 1)) });
