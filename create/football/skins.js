@@ -259,15 +259,15 @@
     const built = { skin: null };
     const cur = opts.current || '';
     host.innerHTML = `<label class="sk-l" for="${id}Sel">League setting</label>
-      <select id="${id}Sel"><option value="">The Westhaven Counties (the original league)</option>${Object.keys(FM.SKINS).map((k) => `<option value="${k}"${cur === k ? ' selected' : ''}>${esc(FM.SKINS[k].title)} (${esc(FM.SKINS[k].topic)})</option>`).join('')}<option value="__custom"${cur === '__custom' ? ' selected' : ''}>Build one for a topic I am studying…</option></select>
+      <select id="${id}Sel"><option value="">The Westhaven Counties</option>${Object.keys(FM.SKINS).map((k) => `<option value="${k}"${cur === k ? ' selected' : ''}>${esc(FM.SKINS[k].title)} (${esc(FM.SKINS[k].topic)})</option>`).join('')}<option value="__custom"${cur === '__custom' ? ' selected' : ''}>Build one for a topic I am studying…</option></select>
       <p class="note" id="${id}Note"></p>
       <div id="${id}Cust" hidden><div class="sk-row"><input type="text" id="${id}Topic" maxlength="120" placeholder="For example: Elizabethan England, the Cold War, the Roman Republic" autocomplete="off"><button type="button" id="${id}Build">Build this league</button></div><p class="note" id="${id}Msg"></p></div>`;
     const sel = host.querySelector('#' + id + 'Sel'), note = host.querySelector('#' + id + 'Note'), cust = host.querySelector('#' + id + 'Cust'), msg = host.querySelector('#' + id + 'Msg');
     const refresh = () => {
       const v = sel.value; cust.hidden = v !== '__custom';
       if (v === '__custom') note.textContent = built.skin ? built.skin.title + ' is ready. ' + (built.skin.level ? '' : '') : 'The clubs and rivalries are built from real events of the topic you name, then checked. Building uses Locks, and you should check the dates against your own notes.';
-      else if (v) note.textContent = FM.SKINS[v].blurb + ' The clubs stand for real places and groups of the period, and the history of each is real. Only the football stories are invented.';
-      else note.textContent = 'Eight fictional clubs in a fictional region.';
+      else if (v) note.textContent = '';
+      else note.textContent = '';
       if (opts.onChange) opts.onChange(host.querySelector('#' + id + 'Sel').value);
     };
     sel.addEventListener('change', refresh); refresh();

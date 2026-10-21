@@ -823,6 +823,18 @@
   .rv-needs { margin: 0 0 12px; font-size: .9rem; line-height: 1.7; } .rv-steps { margin: 0; padding-left: 24px; display: grid; gap: 14px; } .rv-steps li { line-height: 1.7; padding-left: 4px; }
   .ng-skin select, .sk-card select { width: 100%; margin: 4px 0 6px; } .sk-l { font-size: .74rem; letter-spacing: .1em; text-transform: uppercase; opacity: .75; } .sk-row { display: flex; gap: 8px; } .sk-row input { flex: 1; min-width: 0; background: var(--navy-raise); color: var(--cream); border: 1px solid var(--line); border-radius: 0; padding: 8px 10px; font: inherit; font-family: var(--sans); } .sk-study { background: transparent; border: 1px solid var(--gold); color: var(--gold); padding: 7px 12px; }
   .ng-recover { margin: 10px 0; border: 1px solid var(--line); padding: 8px 12px; } .ng-recover summary { cursor: pointer; font-family: var(--sans); font-weight: 700; } .rec-card td small { opacity: .8; }
+  #newGame .ng-modes { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px; align-items: stretch; margin-top: 18px; }
+  #newGame .ng-mode { position: relative; display: flex; flex-direction: column; gap: 18px; padding: 26px 22px 22px; background: linear-gradient(160deg, rgba(255,255,255,.06), rgba(255,255,255,.015)); border: 1px solid rgba(255,255,255,.14); border-top: 3px solid var(--fm-gold, #f1c04f); transition: transform .15s ease, border-color .15s ease; }
+  #newGame .ng-mode:hover { transform: translateY(-3px); border-color: rgba(241,192,79,.6); }
+  #newGame .ng-mode h3 { margin: 0; font: 800 1.4rem/1.2 var(--sans); letter-spacing: .01em; }
+  #newGame .ng-mode .row { margin-top: auto; } #newGame .ng-mode .row button { flex: 1 1 auto !important; width: 100%; padding: 14px 16px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; font-size: .82rem; }
+  .ng-lab, .ng-skin .sk-l { display: block; font: 700 .68rem var(--sans); letter-spacing: .18em; text-transform: uppercase; color: var(--fm-gold, #f1c04f); opacity: 1; margin-bottom: 8px; }
+  .ng-seg { display: grid; grid-template-columns: repeat(3, 1fr); border: 1px solid rgba(255,255,255,.24); }
+  .ng-seg label { position: relative; cursor: pointer; } .ng-seg input { position: absolute; inset: 0; opacity: 0; cursor: pointer; margin: 0; }
+  .ng-seg span { display: block; text-align: center; padding: 11px 6px; font-weight: 700; font-size: .86rem; border-right: 1px solid rgba(255,255,255,.14); transition: background .12s ease; } .ng-seg label:last-child span { border-right: 0; }
+  .ng-seg label:hover span { background: rgba(255,255,255,.08); } .ng-seg input:checked + span { background: var(--fm-gold, #f1c04f); color: #14181a; } .ng-seg input:focus-visible + span { outline: 2px solid #fff; outline-offset: -3px; }
+  .ng-field { margin: 0; } .ng-skin select { margin: 0 0 4px; padding: 11px 12px; font-weight: 600; }
+  .ng-resume-row { margin: 14px 0 0; } .ng-resume { display: inline-block; padding: 11px 18px; border: 1px solid var(--fm-gold, #f1c04f); color: var(--fm-gold, #f1c04f); font-weight: 800; letter-spacing: .05em; text-decoration: none; } .ng-resume:hover { background: var(--fm-gold, #f1c04f); color: #14181a; }
   .ng-level { border: 1px solid rgba(255,255,255,.18); border-radius: 0; margin: 0 0 12px; padding: 8px 12px 10px; } .ng-level legend { padding: 0 6px; font-weight: 700; } .ng-level label { display: inline-flex; align-items: center; gap: 6px; margin: 4px 14px 4px 0; cursor: pointer; } .ng-level .note { margin: 6px 0 0; }
   #lmAgent[hidden] { display: none; }
   #lmAgent { position: fixed; right: 0; top: 0; bottom: 0; z-index: 60; pointer-events: none; }
@@ -944,33 +956,30 @@
   <section id="newGame" class="card" hidden>
     <h2>How do you want to play?</h2>
     <details class="ng-recover" id="ngRecoverBox"><summary>Lost a season? Recover an earlier one</summary><div id="ngRecover"></div></details>
-    <p class="note" id="ngResume" hidden>You already have a game going. <a href="/create/football/">Resume it</a>, or start something new below (a new game replaces the saved one).</p>
+    <p class="ng-resume-row" id="ngResume" hidden><a class="ng-resume" href="/create/football/">Resume your saved game →</a></p>
     <div class="ng-modes">
       <div class="ng-mode">
         <h3>A season on your own</h3>
-        <p class="desc">Take charge of a club in an eight-club league. Read the match, shape the tactics and see what happens. The other clubs are run by the computer.</p>
-        <fieldset class="ng-level"><legend>What level are you studying?</legend>
-          <label><input type="radio" name="ngLevel" value="gcse" checked> GCSE</label>
-          <label><input type="radio" name="ngLevel" value="alevel"> A-level</label>
-          <label><input type="radio" name="ngLevel" value="above"> Beyond A-level</label>
-          <p class="note">This sets how the analysis and the teaching explain things, so they fit what you are learning now.</p>
-        </fieldset>
-        <fieldset class="ng-level ng-skin" id="ngSkinBox"><legend>League setting</legend><div id="ngSkinHost"></div></fieldset>
+        <div class="ng-field"><span class="ng-lab">Level</span>
+          <div class="ng-seg" role="radiogroup" aria-label="Level">
+            <label><input type="radio" name="ngLevel" value="gcse" checked><span>GCSE</span></label>
+            <label><input type="radio" name="ngLevel" value="alevel"><span>A-level</span></label>
+            <label><input type="radio" name="ngLevel" value="above"><span>Beyond</span></label>
+          </div>
+        </div>
+        <div class="ng-field ng-skin" id="ngSkinBox"><div id="ngSkinHost"></div></div>
         <div class="row"><button class="primary" id="ngStart" style="flex:0 0 auto">Start the season</button></div>
       </div>
       <div class="ng-mode">
         <h3>A league with friends</h3>
-        <p class="desc">Two divisions of eight clubs, fourteen rounds. Each friend takes a club and prepares in their own time; clubs with nobody in charge are run by the computer. You send them a game code.</p>
         <div class="row"><button id="ngLeague" style="flex:0 0 auto">Start a league game</button></div>
       </div>
       <div class="ng-mode">
         <h3>A one-off match with a friend</h3>
-        <p class="desc">Two managers each pick a club, prepare, and play each other once.</p>
         <div class="row"><button id="ngMatch" style="flex:0 0 auto">Play a one-off match</button></div>
       </div>
       <div class="ng-mode">
         <h3>Join a friend's game</h3>
-        <p class="desc">Somebody has sent you a game code.</p>
         <div class="row"><button id="ngJoin" style="flex:0 0 auto">Join with a code</button></div>
       </div>
     </div>
@@ -1061,7 +1070,7 @@
 <script src="/create/football/stats.js?v=20261013a"></script>
 <script src="/create/football/stats_top.js?v=20261010c"></script>
 <script src="/create/football/history.js?v=20261120e"></script>
-<script src="/create/football/skins.js?v=20261120e"></script>
+<script src="/create/football/skins.js?v=20261130c"></script>
 <script src="/create/football/news.js?v=20261120e"></script>
 <script src="/create/football/insights.js?v=20261010c"></script>
 <script src="/create/football/analysis.js?v=20261107h"></script>
@@ -1096,6 +1105,6 @@
 <script src="/create/football/cases.js?v=20261028a"></script>
 <script src="/create/football/scenario.js?v=20261111a"></script>
 <script src="/create/football/multiplayer.js?v=20261107c"></script>
-<script src="/create/football/main.js?v=20261128a"></script>
+<script src="/create/football/main.js?v=20261130c"></script>
 </body>
 </html>

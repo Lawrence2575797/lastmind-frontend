@@ -10769,7 +10769,6 @@ SQIDAQAB
                             <h3>${escapeHtml(t.title)}</h3>
                             ${t.key === 'football-manager' && window.LM_FOOTBALL_FREE ? `<span class="create-price free-offer"><s>${escapeHtml(CREATE_PRICES[t.key])}</s> <b>Free!</b> <small>for a limited time</small></span>` : CREATE_PRICES[t.key] ? `<span class="create-price${CREATE_PRICES[t.key] === 'Free' ? ' free' : ''}">${escapeHtml(CREATE_PRICES[t.key])}</span>` : ''}
                             <img class="create-card-image" src="${t.image}" alt="${escapeHtml(t.alt)}" loading="lazy">
-                            <p>${escapeHtml(t.description)}</p>
                         </article>`;
         const subject = CREATE_TEMPLATES.find((t) => t.key === view);
         let heading = 'Your projects';
@@ -10793,7 +10792,6 @@ SQIDAQAB
                 <div class="create-hero">
                     <h1 class="create-title" id="createTitle">LastMind Simulate</h1>
                     <p class="create-slogan">Learn by doing.</p>
-                    <p class="create-intro">Build, play and share learning simulations.</p>
                 </div>
                 <div class="create-section-heading">
                     <h2>${escapeHtml(heading)}</h2>

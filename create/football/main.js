@@ -2476,7 +2476,7 @@
     document.body.dataset.view = 'new';
     VIEWS.forEach((k) => { el('view-' + k).hidden = true; });
     el('tactics').hidden = true; el('nav').hidden = true; el('prepFlow').hidden = true; el('newGame').hidden = false;
-    el('topRight').innerHTML = ''; el('subtitle').textContent = 'Eight clubs, one season, and a lot of numbers.';
+    el('topRight').innerHTML = ''; el('subtitle').textContent = '';
     if (DEMO_MODE) {
       const modes = el('newGame').querySelectorAll('.ng-mode');
       modes.forEach((mode, i) => { mode.hidden = i !== 0; });
