@@ -26,17 +26,20 @@
 
   // ---------- probabilities ----------
   // Pass: shorter, with a clear lane and a free receiver, from a better passer, is likelier to work.
-  FM.passProb = function (passer, distance, lane, press) {
-    return sig(3.1 + 0.04 * (passer.ratings.passing - 60) - 0.04 * distance - 2.2 * Math.exp(-lane / 2) - 1.0 * Math.exp(-press / 3));
+  // (A rating is read through FM.sk: softened, weighted and moved by form; edge is the side's tactical edge, see edge.js.)
+  const SK = (p, k) => (FM.sk ? FM.sk(p, k) : (p.ratings[k] - 60));
+  const clampP = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+  FM.passProb = function (passer, distance, lane, press, edge) {
+    return clampP(sig(3.1 + 0.04 * SK(passer, 'passing') - 0.04 * distance - 2.2 * Math.exp(-lane / 2) - 1.0 * Math.exp(-press / 3) + 0.45 * (edge || 0)), 0.1, 0.96);
   };
   // Dribble past the nearest defender.
-  FM.dribbleProb = function (carrier, defDist, defender) {
-    const dfn = defender ? 0.03 * (defender.ratings.tackling - 60) : 0;
-    return sig(1.4 + 0.05 * (carrier.ratings.dribbling - 60) - 1.8 * Math.exp(-defDist / 2.5) - dfn);
+  FM.dribbleProb = function (carrier, defDist, defender, edge) {
+    const dfn = defender ? 0.03 * SK(defender, 'tackling') : 0;
+    return clampP(sig(1.4 + 0.05 * SK(carrier, 'dribbling') - 1.8 * Math.exp(-defDist / 2.5) - dfn + 0.35 * (edge || 0)), 0.05, 0.9);
   };
   // Tackle: the defender's tackling against the carrier's dribbling.
-  FM.tackleProb = function (defender, carrier) {
-    return sig(-0.35 + 0.05 * (defender.ratings.tackling - carrier.ratings.dribbling));
+  FM.tackleProb = function (defender, carrier, edge) {
+    return clampP(sig(-0.35 + 0.05 * (SK(defender, 'tackling') - SK(carrier, 'dribbling')) + 0.35 * (edge || 0)), 0.08, 0.88);
   };
   // Expected goals from a shooting position: the wider the goal looks from there, the better the chance.
   FM.shotAngle = function (x, y, attackDir) {
@@ -44,12 +47,12 @@
     const dx = Math.max(0.5, Math.abs(gx - x)), dy = y - W / 2;
     return Math.abs(Math.atan2(dy + 3.66, dx) - Math.atan2(dy - 3.66, dx));
   };
-  FM.xgLogit = function (shooter, x, y, attackDir, defDist) {
+  FM.xgLogit = function (shooter, x, y, attackDir, defDist, edge) {
     // Centre-forwards occupy the best areas but are also the defence's first
     // marking priority. Nearest-defender distance alone misses that attention,
     // which previously made almost every goal belong to a striker.
     const marking = shooter.group === 'ST' ? 2.2 : (shooter.group === 'WF' || shooter.group === 'AM' ? -.08 : 0);
-    return -6.2 + 7.35 * FM.shotAngle(x, y, attackDir) + 0.026 * (shooter.ratings.finishing - 60) - 1.05 * Math.exp(-defDist / 2) - marking;
+    return -6.2 + 7.35 * FM.shotAngle(x, y, attackDir) + 0.026 * SK(shooter, 'finishing') - 1.05 * Math.exp(-defDist / 2) - marking + 0.8 * (edge || 0);
   };
 
   // ---------- roles' tendencies when on the ball ----------
@@ -694,7 +697,7 @@
       // a step beyond it, not several metres behind a defence that is still goal-side.
       if (forward) { const lastX = lastDefenderX; if (lastX != null && (tx - lastX) * team.attackDir > (FM.BEHIND_LINE == null ? 1.5 : FM.BEHIND_LINE)) tx = lastX + team.attackDir * (FM.BEHIND_LINE == null ? 1.5 : FM.BEHIND_LINE); }
       const { lane, press } = laneInfo(match, team, carrier, tx, ty);
-      let p = FM.passProb(carrier, d, lane, press) * (team.tacticalFactor || 1);
+      let p = FM.passProb(carrier, d, lane, press, FM.edgeFor(match, team)) * (team.tacticalFactor || 1);
       // Played in behind the last defender: the ball has to be weighted and the runner has to time it, so these are hard passes to complete.
       if ((tx - carrier.x) * team.attackDir > 6 && !other(match, team).players.some((o) => o.group !== 'GK' && (o.x - tx) * team.attackDir > 0)) p *= (FM.OVER_TOP == null ? .7 : FM.OVER_TOP);
       const prog = clamp((dGoal - Math.hypot(tx - goal.x, ty - goal.y)) / 25, -0.6, 1.2);
@@ -772,7 +775,7 @@
     // A defender who is behind the ball-carrier has been beaten: he is chasing, he is not in the way.
     const nearBehind = !!nearOpp && (nearOpp.x - carrier.x) * team.attackDir < -0.5;
     // Beating a man in the final third is harder than in midfield: the cover is close, and one beaten man is not the whole defence.
-    const dp = FM.dribbleProb(carrier, nearBehind ? nearD * 2.4 : nearD, nearOpp) * (team.tacticalFactor || 1) * (ownDepth0 > 0.66 ? (FM.DRIB_FINAL == null ? 1 : FM.DRIB_FINAL) : 1);
+    const dp = FM.dribbleProb(carrier, nearBehind ? nearD * 2.4 : nearD, nearOpp, FM.edgeFor(match, team)) * (team.tacticalFactor || 1) * (ownDepth0 > 0.66 ? (FM.DRIB_FINAL == null ? 1 : FM.DRIB_FINAL) : 1);
     const dribbleBias = (GROUP_DRIBBLE[carrier.group] || 0) + (ROLE_DRIBBLE[role] || 0);
     // A carry into empty grass is not a take-on. Previously both used the
     // dribble duel, producing hundreds of apparent one-v-ones per match.
@@ -993,8 +996,8 @@
     // The true chance of this shot going in: it must get past a defender on the line, then the goalkeeper. This is what is recorded as
     // its xG, so that over many shots expected goals and goals agree (the chance the shooter weighed up beforehand, opt.xg, ignores both).
     const pBlock = blocker ? 0.8 * Math.exp(-bd / 1.5) : 0;
-    const xgAdj = sig(FM.xgLogit(shooter, carrier.x, carrier.y, team.attackDir, nearD) - 0.55 * crowd(match, team, carrier) - 0.03 * ((gk ? gk.ratings.gk : 60) - 60));
-    const pOn = sig(0.15 + 0.03 * (shooter.ratings.finishing - 60) - 0.6 * Math.exp(-nearD / 2));
+    const xgAdj = sig(FM.xgLogit(shooter, carrier.x, carrier.y, team.attackDir, nearD, FM.edgeFor(match, team)) - 0.55 * crowd(match, team, carrier) - 0.03 * (gk ? SK(gk, 'gk') : 0));
+    const pOn = sig(0.15 + 0.03 * SK(shooter, 'finishing') - 0.6 * Math.exp(-nearD / 2));
     // Record the probability the actual outcome routine uses. Previously xG
     // could exceed the chance of even hitting the target, so match xG and
     // long-run goals described two different models.
@@ -1423,7 +1426,7 @@
     const rng = match.rng, opp = other(match, team), st = statsOf(match, team);
     const gk = opp.players.find((p) => p.group === 'GK');
     const goalX = team.attackDir === 1 ? L : 0;
-    const p = sig(-2.4 + 0.03 * (taker.ratings.finishing - 60) + 0.02 * (taker.ratings.passing - 60) - 0.12 * (dg - 20) - 0.02 * ((gk ? gk.ratings.gk : 60) - 60));
+    const p = sig(-2.4 + 0.03 * SK(taker, 'finishing') + 0.02 * SK(taker, 'passing') - 0.12 * (dg - 20) - 0.02 * (gk ? SK(gk, 'gk') : 0));
     st.shots++; st.xg += p;
     let outcome;
     if (rng() < p) { outcome = 'goal'; st.onTarget++; }
@@ -1443,7 +1446,7 @@
     const rng = match.rng, opp = other(match, team), st = statsOf(match, team);
     const gk = opp.players.find((p) => p.group === 'GK');
     const goalX = team.attackDir === 1 ? L : 0;
-    const p = sig(1.25 + 0.03 * (taker.ratings.finishing - 60) + 0.015 * (taker.ratings.composure - 60) - 0.03 * ((gk ? gk.ratings.gk : 60) - 60));
+    const p = sig(1.25 + 0.03 * SK(taker, 'finishing') + 0.015 * SK(taker, 'composure') - 0.03 * (gk ? SK(gk, 'gk') : 0));
     st.shots++; st.xg += 0.78;
     let outcome;
     if (rng() < p) { outcome = 'goal'; st.onTarget++; }
@@ -1821,7 +1824,7 @@
         const rate = .65 * (opp.tacticalFactor || 1) * (0.05 + 0.08 * opp.tactics.pressing + (d.roleId === 'ball_winning_midfielder' ? 0.06 : 0)) * (0.6 + 0.8 * opp.tactics.tackleAggression) * ((FM.CLOSE_TACKLE == null ? 1 : FM.CLOSE_TACKLE) > 1 && dist(c.player, { x: opp.attackDir === 1 ? 0 : L, y: W / 2 }) < 24 ? (FM.CLOSE_TACKLE == null ? 1 : FM.CLOSE_TACKLE) : 1) * (1 + 0.35 * (FM.instrMods(d).tackle + FM.rulesDelta(opp, d, 'tackle', match.ball, false)));
         if (match.clock >= (match.tackleLock || 0) && match.rng() < rate * dt) {
           match.tackleLock = match.clock + 1.2;
-          const p = FM.tackleProb(d, c.player) * (opp.tacticalFactor || 1);
+          const p = FM.tackleProb(d, c.player, FM.edgeFor(match, opp)) * (opp.tacticalFactor || 1);
           const ok = match.rng() < p;
           const st = statsOf(match, opp);
           st.tackles++;
@@ -1861,6 +1864,7 @@
   // longer change the number or ordering of random decisions.
   FM.stepMatch = function (match, dt) {
     if (!(dt > 0)) return;
+    if (FM.computeEdges && match.clock >= (match.edgeAt || 0)) { FM.computeEdges(match); match.edgeAt = match.clock + 60; }
     match.fixedStepRemainder = (match.fixedStepRemainder || 0) + dt;
     while (match.fixedStepRemainder >= .1 - 1e-9 && match.phase !== 'halftime' && match.phase !== 'fulltime' && !match.injuryPause) {
       stepMatchFixed(match, .1);

@@ -87,7 +87,7 @@
   };
 
   // Top running speed in metres per second, from the pace rating.
-  FM.speedFromPace = function (pace) { return 6 + (pace / 100) * 2.6; };
+  FM.speedFromPace = function (pace) { return 6 + ((FM.eff ? FM.eff(pace) : pace) / 100) * 2.6; };   // a 99 is quicker than an 80, but not by the full gap
 
   // Changes formation. The same 11 players stay on; each goes to the slot that best fits his natural position.
   const GROUP_NEAR = { GK: ['GK'], CB: ['CB', 'DM', 'FB'], FB: ['FB', 'CB', 'WF', 'DM'], DM: ['DM', 'CM', 'CB'], CM: ['CM', 'DM', 'AM'], AM: ['AM', 'CM', 'WF', 'ST'], WF: ['WF', 'AM', 'FB', 'ST'], ST: ['ST', 'AM', 'WF'] };

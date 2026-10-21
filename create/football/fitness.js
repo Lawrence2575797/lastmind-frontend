@@ -39,9 +39,11 @@
       p.energy = p.condition == null ? 1 : p.condition;
       FM.applyFatigue(p);
     });
+    if (FM.setMomentumBonus) FM.setMomentumBonus(team);   // form and momentum move the ratings for this match
   };
   // At the final whistle: ratings back to normal, and the energy a player has left becomes his condition.
   FM.fitnessEnd = function (team, played) {
+    if (FM.clearMomentumBonus) FM.clearMomentumBonus(team);
     team.squad.forEach((p) => {
       if (p.baseRatings) { const keep = p.ratings.gk; Object.assign(p.ratings, p.baseRatings); if (p.emergencyKeeper) p.ratings.gk = keep; p.maxSpeed = FM.speedFromPace(p.baseRatings.pace); delete p.baseRatings; }
       if (played.has(p.id)) p.condition = clamp(p.energy == null ? 1 : p.energy, 0.2, 1);

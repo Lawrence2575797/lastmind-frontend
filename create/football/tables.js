@@ -106,6 +106,8 @@
     },
   };
   T.SCHEMA = SCHEMA;
+  SCHEMA.team_matches.cols.push(num('tact_edge', 'the tactical edge the club had on average in the match (positive = the plan suited the opposition better than theirs suited you); worth about a quarter of a goal for every 1.0'));
+  SCHEMA.players.cols.push(num('form', 'form from recent matches, -100 to 100 (it adds to or takes from his ratings in the next match)'));
 
   // ---------- building the rows ----------
 
@@ -126,7 +128,7 @@
           passes: s.passes, pass_acc: s.passes ? r2(100 * s.passesOk / s.passes) : 0, tackles: s.tackles, tackle_win: s.tackles ? r2(100 * s.tacklesWon / s.tackles) : 0,
           dribbles: s.dribbles, dribble_win: s.dribbles ? r2(100 * s.dribblesWon / s.dribbles) : 0, fouls: s.fouls, yellows: s.yellows, reds: s.reds, corners: s.corners, offsides: s.offsides,
           press: r3(tc.pressing || 0), line_height: r3(tc.lineHeight || 0), tempo: r3(tc.tempo || 0), directness: r3(tc.directness || 0), risk: r3(tc.risk || 0), press_buildup: r3(tc.pressBuildUp || 0),
-          counter_press: r3(tc.counterPress || 0), tackle_aggression: r3(tc.tackleAggression || 0), shoot_freedom: r3(tc.shootFreedom || 0),
+          counter_press: r3(tc.counterPress || 0), tackle_aggression: r3(tc.tackleAggression || 0), shoot_freedom: r3(tc.shootFreedom || 0), tact_edge: r2(s.edge || 0),
         });
       });
       if (!fx.log) return;
@@ -179,7 +181,7 @@
       out.players.push({ player: p.name, team: t.name, you: t.id === league.userId ? 1 : 0, number: p.number, position: p.natural, group: p.group, height: p.height, pace: r.pace, dribbling: r.dribbling, passing: r.passing,
         finishing: r.finishing, tackling: r.tackling, composure: r.composure, heading: r.heading, stamina: r.stamina, keeping: r.gk, age: FM.ageOf ? FM.ageOf(p) : null, value: FM.valueOf ? r2(FM.valueOf(p)) : null,
         apps: (p.stats || {}).apps || 0, goals: (p.stats || {}).goals || 0, shots: (p.stats || {}).shots || 0, yellows: (p.stats || {}).yellows || 0, reds: (p.stats || {}).reds || 0,
-        condition: FM.conditionOf ? Math.round(100 * FM.conditionOf(p)) : null, injury_risk: FM.injuryHazard ? r2(100 * (1 - Math.exp(-FM.injuryHazard(Object.assign({}, p, { energy: FM.conditionOf(p) }), t) * 5400))) : null });
+        condition: FM.conditionOf ? Math.round(100 * FM.conditionOf(p)) : null, form: Math.round(100 * (p.form || 0)), injury_risk: FM.injuryHazard ? r2(100 * (1 - Math.exp(-FM.injuryHazard(Object.assign({}, p, { energy: FM.conditionOf(p) }), t) * 5400))) : null });
     }));
     buildClub(league, out);
     FM.tableRows(league).forEach((r, i) => out.league_table.push({ position: i + 1, team: r.name, you: r.id === league.userId ? 1 : 0, played: r.p, won: r.w, drawn: r.d, lost: r.l, gf: r.gf, ga: r.ga, gd: r.gf - r.ga, points: r.pts }));

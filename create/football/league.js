@@ -490,6 +490,7 @@
       fx.stats[t.id] = Object.assign({}, match.stats[t.id]);
       fx.stats[t.id].formation = FM.formationName ? FM.formationName(t) : t.formationKey;
       fx.stats[t.id].tactics = Object.assign({}, t.tactics);
+      fx.stats[t.id].edge = match.edgeN ? Math.round(100 * (match.edgeSum[t.id] || 0) / match.edgeN) / 100 : 0;   // the tactical edge the club had, on average
     });
     fx.scout = FM.scoutSummary(match);
     if (match.oppLog) fx.oppLog = match.oppLog.slice(-8);
@@ -518,6 +519,7 @@
       }
     });
     [home, away].forEach((t) => t.squad.forEach((p) => { if (played.has(p.id)) p.stats.apps++; }));
+    if (FM.updateMomentum) FM.updateMomentum(league, fx, match, played);   // form and momentum follow the result and how each player did
     // minutes on the pitch, which is what a player's development follows
     { const mins = new Map(); [home, away].forEach((t) => match.starters[t.id].forEach((id) => mins.set(id, 90)));
       match.events.forEach((e) => {
@@ -677,9 +679,10 @@
   function resetClubForSeason(team) {
     team.squad.forEach((p) => {
       p.stats = { apps: 0, goals: 0, shots: 0, yellows: 0, reds: 0 };
-      p.condition = 1; delete p.injury; p.age = FM.ageOf ? FM.ageOf(p) + 1 : (p.age || 24) + 1;
+      p.condition = 1; p.form = (p.form || 0) * 0.5; delete p.injury; p.age = FM.ageOf ? FM.ageOf(p) + 1 : (p.age || 24) + 1;
       if (p.contract != null) p.contract = Math.max(1, p.contract - 1);
     });
+    team.momentum = (team.momentum || 0) * 0.5;
     team.drift = {}; team.rules = []; team.scenarios = []; team.defScenarios = []; team.scenarioEvidence = {}; team.scenarioDefEvidence = {};
     // Summer interrupts the rhythm, but a club does not forget its entire base.
     if (team.tacticalFamiliarity) { team.tacticalFamiliarity.score = Math.max(75, Math.round(team.tacticalFamiliarity.score * 0.9)); team.tacticalFamiliarity.delta = 0; }
@@ -730,13 +733,13 @@
   };
 
   // ---------- saving ----------
-  const PLAYER_KEYS = ['id', 'number', 'natural', 'name', 'nation', 'ratings', 'height', 'foot', 'maxSpeed', 'roleId', 'options', 'index', 'slotKey', 'group', 'stats', 'origGk', 'emergencyKeeper', 'instr', 'note', 'condition', 'injury', 'relapse', 'wage', 'contract', 'joined', 'age', 'pot'];
+  const PLAYER_KEYS = ['id', 'number', 'natural', 'name', 'nation', 'ratings', 'height', 'foot', 'maxSpeed', 'roleId', 'options', 'index', 'slotKey', 'group', 'stats', 'origGk', 'emergencyKeeper', 'instr', 'note', 'condition', 'injury', 'relapse', 'form', 'wage', 'contract', 'joined', 'age', 'pot'];
   function packTeam(t) {
     return {
       id: t.id, name: t.name, kit: t.kit, kits: t.kits, style: t.style, strength: t.strength, seed: t.seed, formationKey: t.formationKey, formationLabel: t.formationLabel || null, tactics: t.tactics,
       subsUsed: t.subsUsed, maxSubs: t.maxSubs, snap: t.snap || null, baseTactics: t.baseTactics, drift: t.drift, shape: t.shape, phasePos: t.phasePos, phaseBall: t.phaseBall || {}, pages: t.pages || {}, pageDefaults: t.pageDefaults || {}, scenarios: t.scenarios || [], defScenarios: t.defScenarios || [], rules: t.rules || [],
       scenarioEnd: t.scenarioEnd || {}, scenarioInfo: t.scenarioInfo || {}, scenarioBall: t.scenarioBall || {}, scenarioEvidence: t.scenarioEvidence || {}, scenarioDefEvidence: t.scenarioDefEvidence || {},
-      tacticalFamiliarity: t.tacticalFamiliarity || null,
+      tacticalFamiliarity: t.tacticalFamiliarity || null, momentum: t.momentum || 0,
       squad: t.squad.map((p) => { const o = {}; PLAYER_KEYS.forEach((k) => { if (p[k] !== undefined) o[k] = p[k]; }); if (p.baseRatings) o.ratings = p.baseRatings; return o; }),
       players: t.players.map((p) => p.id), bench: t.bench.map((p) => p.id),
     };
@@ -748,7 +751,7 @@
       id: t.id, name: t.name, kit: t.kit, kits: t.kits, style: t.style, strength: t.strength, seed: t.seed, attackDir: 1, formationKey: t.formationKey, formationLabel: t.formationLabel || null,
       tactics: Object.assign(FM.defaultTactics(), t.tactics), subsUsed: t.subsUsed || 0, maxSubs: t.maxSubs || 5, snap: t.snap || null, baseTactics: Object.assign(FM.defaultTactics(), t.baseTactics || t.tactics), drift: t.drift || {}, shape: t.shape || {}, phasePos: t.phasePos || {}, phaseBall: t.phaseBall || {}, pages: t.pages || {}, pageDefaults: t.pageDefaults || {}, scenarios: t.scenarios || [], defScenarios: t.defScenarios || [], rules: t.rules || [],
       scenarioEnd: t.scenarioEnd || {}, scenarioInfo: t.scenarioInfo || {}, scenarioBall: t.scenarioBall || {}, scenarioEvidence: t.scenarioEvidence || {}, scenarioDefEvidence: t.scenarioDefEvidence || {},
-      tacticalFamiliarity: t.tacticalFamiliarity || null, tacticalFactor: 1,
+      tacticalFamiliarity: t.tacticalFamiliarity || null, tacticalFactor: 1, momentum: t.momentum || 0,
       squad, players: t.players.map(byId), bench: t.bench.map(byId), sentOff: [],
     };
   }

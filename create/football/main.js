@@ -2422,7 +2422,7 @@
     const r = p.ratings, rows = RATING_ROWS.concat(p.natural === 'GK' ? [['gk', 'Goalkeeping']] : []);
     const bars = rows.map(([k, l]) => `<div class="rrow"><span>${l}</span><span class="rbar"><i style="width:${Math.max(0, Math.min(100, FM.shown(r[k] || 0)))}%"></i></span><b>${r[k] != null ? FM.shown(r[k]) : '-'}</b></div>`).join('');
     const st = p.stats || { apps: 0, goals: 0, shots: 0, yellows: 0, reds: 0 };
-    const cond = FM.isInjured(p) ? `<span class="out">${p.injury && p.injury.suspended ? '' : 'injured: '}${esc(injuryText(p))}</span>` : `condition ${Math.round(100 * FM.conditionOf(p))}%`;
+    const cond = FM.isInjured(p) ? `<span class="out">${p.injury && p.injury.suspended ? '' : 'injured: '}${esc(injuryText(p))}</span>` : `condition ${Math.round(100 * FM.conditionOf(p))}%${FM.formLabel && FM.formLabel(p) ? ', ' + FM.formLabel(p) : ''}`;
     return `<p class="note">${esc(p.nation)} · natural position ${p.natural}${playingAs ? ', playing ' + playingAs : ''} · ${FM.FOOT_TEXT[p.foot] || ''}, ${p.height || '?'} cm · <b>rated ${FM.ratingText(p)}</b>${p.group && p.group !== p.natural ? ' (' + FM.ratingText(p, p.group) + ' as a ' + p.group + ')' : ''} · ${cond}</p>
       <div class="ratings">${bars}</div>
       <p class="note">This season: ${st.apps} appearance${st.apps === 1 ? '' : 's'}, ${st.goals} goal${st.goals === 1 ? '' : 's'}, ${st.shots} shot${st.shots === 1 ? '' : 's'}, ${st.yellows} yellow card${st.yellows === 1 ? '' : 's'}, ${st.reds} red.</p>`;
