@@ -1019,10 +1019,17 @@
     } catch (e) { return false; }
   };
   // A game saved before pre-season friendlies existed has none: if no match has been played yet, add them so the reports have data.
+  // Pre-season friendlies that name a club which is not in this division (it was relegated, or promoted away) cannot be shown or played: they go.
+  FM.dropStrangeFriendlies = function (league) {
+    const ids = new Set((league.teams || []).map((t) => t.id));
+    if ((league.friendlies || []).some((f) => !ids.has(f.homeId) || !ids.has(f.awayId))) league.friendlies = (league.friendlies || []).filter((f) => ids.has(f.homeId) && ids.has(f.awayId));
+    if (league.friendlies && league.friendlies.length < 4 && (league.season || 1) > 1 && !league.fixtures.some((f) => f.played)) league.friendlies = [];   // too few left to mean anything: they are made afresh
+  };
   FM.ensureFriendlies = function (league) {
+    FM.dropStrangeFriendlies(league);
     if (league.fixtures.some((f) => f.played)) return false;
     // the shared league: just load the friendlies that were played in advance
-    if (league.seed === FM.WORLD_SEED && FM.PRESEASON) {
+    if (league.seed === FM.WORLD_SEED && FM.PRESEASON && (league.season || 1) === 1) {
       const have = (league.friendlies || []).length === FM.PRESEASON.length && league.friendlies.every((f) => f.played && f.scout);
       if (have) return false;
       league.friendlies = JSON.parse(JSON.stringify(FM.PRESEASON));
@@ -1052,6 +1059,7 @@
     try {
       if (!DEMO_MODE && !accountUid) return null;
       const t = storeGet(currentSaveKey()), lg = t ? FM.deserializeLeague(t) : null;
+      if (lg) FM.dropStrangeFriendlies(lg);
       if (lg) lg.teams.forEach((tm) => { tm.squad.forEach((p) => FM.backfillPhysique(p)); FM.migrateRoles(tm); }); // saves from before heights existed and before the positional roles went
       FM.syncProject(lg);
       return lg;
