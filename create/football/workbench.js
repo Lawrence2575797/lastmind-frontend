@@ -458,7 +458,7 @@
     if (sc) sc.scrollTop = keep;
   }
   function emptyHtml() {
-    return `<div class="wb-empty"><h3>This is your Workbook</h3><p>Every question you put to the agent gets its own page, titled with the question. You can investigate anything the game recorded, forecast what would happen, and change things: prices, spending, loans, injuries, or something the game has no button for. Write on any page just as you would in Notes. Turn the page with the arrows at the bottom; everything is saved to your account.</p><div class="wb-ex">${EXAMPLES.map((q) => `<button type="button" data-ask="${esc(q)}">${esc(q)}</button>`).join('')}</div></div>`;
+    return `<div class="wb-empty"><div class="wb-ex">${EXAMPLES.map((q) => `<button type="button" data-ask="${esc(q)}">${esc(q)}</button>`).join('')}</div></div>`;
   }
   const EXAMPLES = ['Change the family stand ticket price to £22, and tell me what it should do to the money', 'Spend £20,000 a matchday on a youth scouting network for the rest of the season', 'Look at our injuries and tell me whether paying for treatment is worth it', 'Forecast the bank balance to the end of the season if I stop all marketing', 'Where are we likely to finish this season?', 'Does a higher press lead to more turnovers?'];
 
@@ -551,7 +551,7 @@
   function chatDraw() {
     const log = el('wbLog'); if (!log) return; const wb = state.wb;
     const items = wb.chat.filter((m) => m.role !== 'results');
-    log.innerHTML = (items.length ? items : [{ role: 'agent', text: 'Ask me anything about your club’s data, or anything you want to learn. I choose the method and explain it; the Workbook does the calculating, so the numbers always come from your recorded matches.', intro: true }]).map((m) => `<div class="wb-msg ${m.role}${m.role === 'agent' ? ' wk-rich' : ''}">${m.role === 'agent' ? richHtml(m.text) : esc(m.text).replace(/\n/g, '<br>')}${(m.added || []).length ? `<div class="wb-added">${m.added.map((a) => `<button type="button" ${a.page ? 'data-page="' + a.page + '"' : 'data-goto="' + a.id + '"'}>${a.page ? '📖 Open the page: ' : '› '}${esc(a.title)}</button>`).join('')}</div>` : ''}</div>`).join('') + (state.busy ? `<div class="wb-msg agent think">${esc(state.busy)}</div>` : '');
+    log.innerHTML = items.map((m) => `<div class="wb-msg ${m.role}${m.role === 'agent' ? ' wk-rich' : ''}">${m.role === 'agent' ? richHtml(m.text) : esc(m.text).replace(/\n/g, '<br>')}${m.locks != null ? `<div class="wb-locks">${m.locks} lock${m.locks === 1 ? '' : 's'} used</div>` : ''}${(m.added || []).length ? `<div class="wb-added">${m.added.map((a) => `<button type="button" ${a.page ? 'data-page="' + a.page + '"' : 'data-goto="' + a.id + '"'}>${a.page ? '📖 Open the page: ' : '› '}${esc(a.title)}</button>`).join('')}</div>` : ''}</div>`).join('') + (state.busy ? `<div class="wb-msg agent think">${esc(state.busy)}</div>` : '');
     log.scrollTop = log.scrollHeight;
     const send = el('wbSend'); if (send) send.disabled = !!state.busy;
   }
@@ -571,23 +571,26 @@
     chatPush({ role: 'agent', text: li.say, added: [{ page: curPage().id, title: curPage().title }] }); state.busy = ''; chatDraw();
   }
   const summaryText = (n) => (FM.agentContext ? FM.agentContext(state.league, 'workbench') : '').slice(0, n);
-  const detailText = () => DETAIL[state.wb.settings.detail] || DETAIL.standard;
+  const detailText = () => DETAIL.brief;   // answers are always short and direct
   // The second, short step: the results go back and the agent explains them. It carries no tables, methods or changes list, so it is cheap.
   async function explainStep(after) {
     const out = await FM.api('/football/workbench', { phase: 'explain', messages: chatMessages().slice(-5), level: state.league.tier, detail: detailText(), lessons: lessonList(), summary: summaryText(1000) });
-    const text = out.reply || 'That is the result. Ask me about any part of it.';
-    chatPush({ role: 'agent', text });
+    state.locks = (state.locks || 0) + (out.locks || 0);
+    const text = out.reply || 'Done.';
+    chatPush({ role: 'agent', text, locks: state.locks });
     addExplanation(text, after);
   }
   function addExplanation(text, after) {
     const page = targetPage(), idx = after ? Math.max(0, page.cells.indexOf(after) + 1) : 0;
     return addCell({ type: 'rich', html: richHtml(text), by: 'agent' }, { at: idx, scroll: false });
   }
+  // What the turn has cost so far, shown on the status line and, at the end, under the reply.
+  const bl = (txt) => txt + ' · ' + (state.locks || 0) + ' lock' + ((state.locks || 0) === 1 ? '' : 's') + ' used';
   async function explainCell(cell) {
     if (state.busy || !cell.res || !cell.res.ok) return;
     if (FM.locksOut && FM.locksOut()) { chatPush({ role: 'agent', text: 'You have used all your Locks for now, so I cannot explain it. Everything else in the Workbook still works.' }); chatDraw(); return; }
     chatPush({ role: 'manager', text: 'Explain this result: ' + cell.res.title }); chatPush({ role: 'results', text: resultText(cell.res, 2200) });
-    state.busy = 'Writing it up…'; chatDraw();
+    state.locks = 0; state.busy = bl('Writing it up…'); chatDraw();
     try { await explainStep(cell); } catch (e) { chatPush({ role: 'agent', text: aiError(e) }); }
     state.busy = ''; chatDraw();
   }
@@ -598,13 +601,14 @@
     if (!wb.ui.agent) { wb.ui.agent = true; layout(); }
     const li = localIntent(text); if (li) { await runLocal(li); return; }
     if (FM.locksOut && FM.locksOut()) { chatPush({ role: 'agent', text: 'You have used all your Locks for now, so I cannot answer. The Workbook still works by hand: build any analysis from the toolbar, or use the calculator, and your Locks come back when they reset.' }); chatDraw(); return; }
-    state.busy = 'Thinking…'; chatDraw();
+    state.locks = 0; state.busy = bl('Thinking…'); chatDraw();
     try {
       const C = CTL();
       const out = await FM.api('/football/workbench', { phase: 'plan', messages: chatMessages().slice(-10), schema: T.digestCompact(), schemaExtra: T.digestExtra(), methods: WB.METHOD_HELP.join('\n'), controls: C ? C.helpStatic() : '', state: C ? C.state(state.league) : '', summary: summaryText(1800), doc: docSummary(), level: state.league.tier, detail: detailText(), lessons: lessonList() });
+      state.locks += out.locks || 0;
       const msg = chatPush({ role: 'agent', text: out.reply || 'Tell me more about what you want to find out.', added: [] });
       const actions = Array.isArray(out.actions) ? out.actions : [];
-      if (!actions.length) { state.busy = ''; chatDraw(); return; }
+      if (!actions.length) { msg.locks = state.locks; save(); state.busy = ''; chatDraw(); return; }
       // a question that gets worked on starts a new page, titled with the question
       const page = newPage(String(out.title || '').trim() || titleFromQuestion(text), { reuseBlank: true }); state.pin = page; renderDoc(); msg.added.push({ page: page.id, title: page.title });
       const texts = [];
@@ -620,15 +624,15 @@
         }
         const spec = a.spec || {}; const form = formFromSpec(spec); if (!form.table && spec.method !== 'experiment' && spec.method !== 'simulate' && spec.method !== 'forecast') form.table = 'team_matches';
         const cell = addCell({ type: 'analysis', form, by: 'agent', edit: false, running: true, progress: 'Working…' }, { scroll: false });
-        state.busy = (spec.method === 'experiment' || spec.method === 'simulate') ? 'Running the simulation… (this takes a minute or two)' : 'Running the analysis…'; chatDraw();
+        state.busy = bl((spec.method === 'experiment' || spec.method === 'simulate') ? 'Running the simulation…' : 'Running the analysis…'); chatDraw();
         cell.spec = a.type === 'query' ? Object.assign({ method: 'query' }, spec) : spec;
-        cell.res = await runSpec(cell.spec, (d, t, label) => { cell.progress = label; cell.pct = t ? d / t : null; const n = document.querySelector('[data-cell="' + cell.id + '"] .wb-run-s span'); if (n) n.textContent = label; state.busy = label; chatDraw(); return !cell.stop; });
+        cell.res = await runSpec(cell.spec, (d, t, label) => { cell.progress = label; cell.pct = t ? d / t : null; const n = document.querySelector('[data-cell="' + cell.id + '"] .wb-run-s span'); if (n) n.textContent = label; state.busy = bl(label); chatDraw(); return !cell.stop; });
         cell.running = false; cell.stamp = dataStamp(); cell.edit = !cell.res.ok; refreshCell(cell);
         texts.push(resultText(cell.res, 1400));
       }
       save(); refreshData();
       chatPush({ role: 'results', text: texts.join('\n\n').slice(0, 4800) });
-      state.busy = 'Writing it up…'; chatDraw();
+      state.busy = bl('Writing it up…'); chatDraw();
       await explainStep();
     } catch (e) { chatPush({ role: 'agent', text: aiError(e) }); }
     state.pin = null; state.busy = ''; chatDraw();
@@ -675,18 +679,14 @@
           <button type="button" data-add="control">Change something</button><button type="button" data-add="forecast">Forecast</button><button type="button" data-add="analysis">Analysis or table</button><button type="button" data-add="calc">Calculator</button><button type="button" data-add="text">Text</button></div></span>
         <button type="button" data-tool="kb">Maths keyboard</button>
         <button type="button" data-tool="agent">AI Agent</button>
-        <select id="wbAuto" aria-label="Whether the agent applies changes"><option value="">Agent proposes, I apply</option><option value="1">Agent applies changes itself</option></select>
-        <select id="wbDetail" aria-label="Level of detail in explanations"><option value="brief">Brief</option><option value="standard">Standard</option><option value="detailed">Detailed</option></select>
-        <select id="wbLevel" aria-label="Level you are studying at" title="The level the agent and the lessons explain things at"><option value="gcse">GCSE</option><option value="alevel">A-level</option><option value="above">Beyond A-level</option></select>
-        <button type="button" data-tool="copy">Copy</button>
       </div>
       <div class="wb-body">
-        <aside class="wb-data" id="wbData" aria-label="Data and controls"><div class="wb-pane-h"><span class="wb-dtabs"><button type="button" data-dtab="data">Data</button><button type="button" data-dtab="controls">Controls</button></span><span>${esc(FM.teamById(league, league.userId).name)} · season ${league.season}</span><span class="wb-dbtns"><button type="button" class="wb-dx" data-tool="dwide" aria-label="Make the data panel wider or narrower" title="Wider / narrower">⇔</button><button type="button" class="wb-dx" data-tool="data" aria-label="Fold the data panel away" title="Fold away">‹</button></span></div><div class="wb-dlist"></div><button type="button" class="wb-drail" data-tool="data" aria-label="Open the data panel">DATA ›</button></aside>
+        <aside class="wb-data" id="wbData" aria-label="Data and controls"><div class="wb-pane-h"><span class="wb-dtabs"><button type="button" data-dtab="data">Data</button><button type="button" data-dtab="controls">Controls</button></span><span class="wb-dbtns"><button type="button" class="wb-dx" data-tool="dwide" aria-label="Make the data panel wider or narrower" title="Wider / narrower">⇔</button><button type="button" class="wb-dx" data-tool="data" aria-label="Fold the data panel away" title="Fold away">‹</button></span></div><div class="wb-dlist"></div><button type="button" class="wb-drail" data-tool="data" aria-label="Open the data panel">DATA ›</button></aside>
         <section class="wb-main wk-main"><div class="wk-book"><div class="wk-sheet"><div class="wk-scroll" id="wkScroll"><div class="wk-titlebar"><input id="wkTitle" class="wk-title" placeholder="Name this page" aria-label="Page title" maxlength="90"></div><div class="wk-rule"></div><div class="wk-flow" id="wbDoc"></div></div><div class="wk-foot"><button type="button" class="wk-arrow" id="wkPrev" aria-label="Previous page" title="Previous page">‹</button><span class="wk-pos" id="wkPos"></span><button type="button" class="wk-arrow" id="wkNext" aria-label="Next page" title="Next page">›</button></div></div></div><div class="wb-kb" id="wbKb" hidden></div></section>
-        <aside class="wb-agent" id="wbAgent" aria-label="LastMind AI Agent"><div class="wb-pane-h"><b>LastMind AI Agent</b><span class="wb-agent-btns"><button type="button" class="wb-clear" data-tool="clearchat">Clear chat</button><button type="button" class="wb-x" data-tool="agent" aria-label="Close the agent">✕</button></span></div><div class="wb-log" id="wbLog" role="log" aria-live="polite"></div>
+        <aside class="wb-agent" id="wbAgent" aria-label="LastMind AI Agent"><div class="wb-pane-h"><b>AI Agent</b><span class="wb-agent-btns"><label class="wb-auto" title="Apply the changes the agent proposes without asking"><input type="checkbox" id="wbAuto"> Auto-apply</label><button type="button" class="wb-clear" data-tool="clearchat">Clear</button><button type="button" class="wb-x" data-tool="agent" aria-label="Close the agent">✕</button></span></div><div class="wb-log" id="wbLog" role="log" aria-live="polite"></div>
           <form class="wb-form" id="wbForm"><textarea id="wbAsk" rows="2" placeholder="Ask a question, or say what you want to learn…" aria-label="Message to the agent"></textarea><button class="wb-send" id="wbSend" type="submit">Send</button></form></aside>
       </div><div class="wb-flash" id="wbFlash" role="status"></div></div>`;
-    el('wbDetail').value = wb.settings.detail || 'standard'; el('wbLevel').value = tier; el('wbAuto').value = wb.settings.auto ? '1' : '';
+    el('wbAuto').checked = !!wb.settings.auto;
     refreshData(); renderDoc(); chatDraw(); el('wbKb').innerHTML = kbHtml(); layout();
 
     if (host._wbAbort) host._wbAbort.abort();
@@ -705,9 +705,7 @@
     }, SIG);
     host.addEventListener('change', (e) => {
       const t = e.target;
-      if (t.id === 'wbDetail') { wb.settings.detail = t.value; save(); return; }
-      if (t.id === 'wbLevel') { if (FM.setLevel) FM.setLevel(state.league, t.value); else { state.league.tier = t.value; save(); } refreshData(); renderDoc(); return; }
-      if (t.id === 'wbAuto') { wb.settings.auto = t.value === '1'; save(); return; }
+      if (t.id === 'wbAuto') { wb.settings.auto = !!t.checked; save(); return; }
       const cell = t.closest && t.closest('[data-cell]') && findCell(t.closest('[data-cell]').dataset.cell);
       if (cell && cell.type === 'control' && t.dataset.cp) { cell.params[t.dataset.cp] = t.value; const pv = document.getElementById('prev-' + cell.id); if (pv) pv.innerHTML = previewHtml(cell); save(); return; }
       if (!cell || !cell.form) return;

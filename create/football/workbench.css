@@ -175,8 +175,8 @@ body[data-view="workbench"] #view-workbench { animation: none !important; transf
 .wk-main { display: flex; flex-direction: column; min-width: 0; max-height: none; }
 .wk-book { flex: 1; min-height: 0; display: flex; justify-content: center; padding: 18px 22px 18px 18px; background: var(--wb-bg); }
 .wk-sheet { position: relative; width: min(1000px, 100%); height: clamp(380px, calc(100vh - 260px), 1200px); display: flex; flex-direction: column; min-height: 0;
-  background-color: #1A232D; background-image: linear-gradient(to right, transparent 54px, rgba(230, 215, 176, .5) 54px, rgba(230, 215, 176, .5) 56px, transparent 56px);
-  color: #E6D7B0; font-family: Georgia, 'Lora', 'Times New Roman', serif; border: 1px solid rgba(230, 215, 176, .28); box-shadow: 5px 5px 0 -1px #131d25, 10px 10px 0 -2px #0d151b; }
+  background-color: #111f1c; background-image: linear-gradient(to right, transparent 54px, rgba(230, 215, 176, .5) 54px, rgba(230, 215, 176, .5) 56px, transparent 56px);
+  color: #E6D7B0; font-family: Georgia, 'Lora', 'Times New Roman', serif; border: 1px solid rgba(230, 215, 176, .28); box-shadow: 0 12px 34px rgba(0, 0, 0, .35); }
 .wk-scroll { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 24px 30px 30px 78px; }
 .wk-scroll.turn { animation: wkTurn .24s ease both; } @keyframes wkTurn { from { opacity: 0; transform: translateX(16px); } to { opacity: 1; transform: none; } } @media (prefers-reduced-motion: reduce) { .wk-scroll.turn { animation: none; } }
 .wk-titlebar { display: flex; align-items: baseline; gap: 12px; }
@@ -189,7 +189,7 @@ body[data-view="workbench"] #view-workbench { animation: none !important; transf
 /* blocks on a page */
 .wk-block { min-width: 0; } .wk-block.rich { position: relative; }
 .wk-bar2 { display: flex; justify-content: flex-end; align-items: center; gap: 8px; min-height: 0; height: 0; overflow: visible; opacity: 0; transition: opacity .12s; position: relative; z-index: 2; }
-.wk-block:hover .wk-bar2, .wk-block:focus-within .wk-bar2 { opacity: 1; } .wk-bar2 .wk-by { font: 500 .68rem var(--sans); letter-spacing: .04em; color: var(--wb-gold); } .wk-bar2 .wb-cact { transform: translateY(-4px); background: #1A232D; }
+.wk-block:hover .wk-bar2, .wk-block:focus-within .wk-bar2 { opacity: 1; } .wk-bar2 .wk-by { font: 500 .68rem var(--sans); letter-spacing: .04em; color: var(--wb-gold); } .wk-bar2 .wb-cact { transform: translateY(-4px); background: #111f1c; }
 .wk-host { min-width: 0; }
 .wk-text .math-shortcut-editor { min-height: 1.6em; font-family: Georgia, 'Lora', serif; font-size: 16px; line-height: 1.7; color: #E6D7B0; caret-color: #E6D7B0; }
 .wk-text .math-shortcut-editor p { margin: 0 0 .7em; } .wk-text .math-shortcut-editor ul, .wk-text .math-shortcut-editor ol { margin: .3em 0 .7em; }
@@ -204,3 +204,6 @@ body[data-view="workbench"] #view-workbench { animation: none !important; transf
 .wb-pitches { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; margin: 12px 0 6px; } .wb-pitch { margin: 0; } .wb-pitch svg { width: 100%; height: auto; display: block; border: 1px solid var(--wb-line); } .wb-pitch figcaption { font-size: .74rem; color: var(--wb-mute); margin-top: 4px; line-height: 1.4; }
 .wb-pkey { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: .72rem; color: var(--wb-mute); margin: 2px 0 8px; } .wb-pkey span { display: inline-flex; align-items: center; gap: 5px; } .wb-pkey i { width: 14px; height: 6px; border-radius: 3px; display: inline-block; } .wb-pkey i.a { background: #FFD54A; } .wb-pkey i.b { background: #fff; } .wb-pkey i.c { background: #7FB5FF; } .wb-pkey i.d { background: #7FD49A; height: 10px; width: 10px; border-radius: 50%; } .wb-pkey i.e { background: #FF9A3C; height: 10px; width: 10px; border-radius: 50%; } .wb-pkey i.f { background: none; border-top: 2px dashed #8FC8FF; height: 0; }
 .wb-pkey i.g { background: #0E1822; border: 1.5px solid #8FC8FF; width: 14px; height: 9px; border-radius: 2px; }
+.wb-locks { margin-top: 8px; font: 700 .66rem var(--wb-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--wb-gold); }
+.wb-auto { display: inline-flex; align-items: center; gap: 6px; font: 600 .7rem var(--wb-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--wb-mute); cursor: pointer; } .wb-auto input { accent-color: var(--wb-gold); }
+.wk-sheet .wb-empty { max-width: none; }
