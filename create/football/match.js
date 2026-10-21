@@ -208,7 +208,7 @@
         const out = team.players.filter((p) => p.group !== 'GK').map((p) => FM.toTeamSpace(team.attackDir, p.x, p.y));
         if (out.length < 6) return;
         const ds = out.map((q) => q.d).sort((a, b) => a - b), ws = out.map((q) => q.w * W);
-        const line = ds.slice(0, 4).reduce((a, b) => a + b, 0) / 4, front = ds.slice(-3).reduce((a, b) => a + b, 0) / 3;
+        const line = ds[0], front = ds.slice(-3).reduce((a, b) => a + b, 0) / 3;
         const mw = ws.reduce((a, b) => a + b, 0) / ws.length, width = Math.sqrt(ws.reduce((a, b) => a + (b - mw) * (b - mw), 0) / ws.length);
         const md = ds.reduce((a, b) => a + b, 0) / ds.length * L;
         const comp = Math.sqrt(out.reduce((a, q, i) => a + ((q.d * L - md) ** 2) + ((ws[i] - mw) ** 2), 0) / out.length);
@@ -1046,8 +1046,7 @@
   // 'marginal' if he is within the trap's reach: a high offside-trap instruction catches some who were just onside.
   function offsideStatus(match, team, passer, tx) {
     const opp = other(match, team), dir = team.attackDir;
-    const xs = opp.players.map((o) => o.x * dir).sort((a, b) => b - a);
-    const line = xs.length > 1 ? xs[1] : xs[0];
+    const line = deepestOutfield(opp, dir);   // the line is the deepest outfield player, whoever that is
     const recv = tx * dir, ball = passer.x * dir, mid = dir * L / 2;
     if (recv <= ball || recv <= mid) return 'on';
     if (recv > line) return 'off';
@@ -1055,12 +1054,16 @@
     return 'on';
   }
 
-  // The line each team's attackers must not pass (second-last opposing defender), kept just onside.
+  // How deep the deepest outfield player of a team stands, measured along the attacking direction of the side playing against them (the keeper does not count).
+  function deepestOutfield(opp, dir) {
+    const xs = opp.players.filter((o) => o.group !== 'GK').map((o) => o.x * dir);
+    return xs.length ? Math.max.apply(null, xs) : L * dir;
+  }
+  // The line each team's attackers must not pass (the deepest opposing outfield player), kept just onside.
   function setOffsideLines(match) {
     match.teams.forEach((team) => {
       const opp = other(match, team), dir = team.attackDir;
-      const xs = opp.players.map((o) => o.x * dir).sort((a, b) => b - a);
-      const line = xs.length > 1 ? xs[1] : xs[0];
+      const line = deepestOutfield(opp, dir);
       team.offsideLine = Math.max(line - 1.5, dir * L / 2) * dir;
     });
   }

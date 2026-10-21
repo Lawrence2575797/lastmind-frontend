@@ -415,8 +415,8 @@
   FM.inferShapeTactics = function (team) {
     if (!team || !team.players || !team.players.length) return;
     const positions = (phase, filter) => team.players.filter(filter || (() => true)).map((p) => FM.phasePos(team, p, phase));
-    const backs = positions('without', (p) => p.group === 'CB' || p.group === 'FB');
-    if (backs.length) team.tactics.lineHeight = clamp((backs.reduce((sum, p) => sum + p.d, 0) / backs.length - 0.14) / 0.3, 0, 1);
+    const backs = positions('without', (p) => p.group !== 'GK');
+    if (backs.length) team.tactics.lineHeight = clamp((Math.min.apply(null, backs.map((p) => p.d)) - 0.14) / 0.3, 0, 1);   // the line is the deepest outfield player
     const width = (phase) => {
       const ps = positions(phase, (p) => p.group !== 'GK');
       if (!ps.length) return 1;

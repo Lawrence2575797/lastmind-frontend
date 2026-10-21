@@ -2177,8 +2177,8 @@
     }).join('');
     let guides = '';
     if (key === 'shape' || key === 'without' || key === 'withoutEnd' || key === 'press') {
-      const defenders = team.players.filter((p) => p.group === 'CB' || p.group === 'FB').map(posOf);
-      const depth = defenders.length ? defenders.reduce((a,p) => a + p.d, 0) / defenders.length : .28;
+      const defenders = team.players.filter((p) => p.group !== 'GK').map(posOf);
+      const depth = defenders.length ? Math.min.apply(null, defenders.map((p) => p.d)) : .28;   // the deepest outfield player, whoever he is
       const y = (1 - depth) * BH;
       guides += `<g class="tactic-guide"><line x1="4" y1="${y}" x2="${BW-4}" y2="${y}"/><text x="${BW-8}" y="${y-8}" text-anchor="end">Defensive line</text></g>`;
     }
