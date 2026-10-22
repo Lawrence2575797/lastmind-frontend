@@ -4310,6 +4310,8 @@
     .nb-draw-live { position: absolute; left: 0; top: 0; pointer-events: none; z-index: 5; overflow: visible; }
     /* a text box shaped like a speech bubble */
     .nb-bubble { border: 2px solid #E6D7B0; border-radius: 24px 24px 24px 5px; background: rgba(230, 215, 176, 0.07); padding: 6px 10px; margin-bottom: 16px; }
+    .nb-bubble > .nb-grip { display: flex; }
+    .nb-bubble:hover > .nb-corner, .nb-bubble:focus-within > .nb-corner { opacity: 0.95; }
     .nb-bubble::after { content: ''; position: absolute; left: 22px; bottom: -15px; width: 0; height: 0; border-right: 18px solid transparent; border-top: 15px solid #E6D7B0; pointer-events: none; }
     .math-bar { text-decoration: overline; text-decoration-thickness: 0.09em; }
     .nb-msg .frac, .nb-review .frac, .nb-tex .frac, .nb-sr-card .frac { display: inline-flex; flex-direction: column; align-items: center; vertical-align: middle; margin: 0 0.2em; font-size: 0.9em; line-height: 1.15; }
@@ -22222,6 +22224,30 @@ SQIDAQAB
             handle.addEventListener('pointermove', move); handle.addEventListener('pointerup', up); handle.addEventListener('pointercancel', up);
         });
     }
+    // A speech bubble has four corner handles that change its width and height freely; the corner opposite the one dragged stays where it is.
+    function nbWireBubbleCorners(el, block, canvas) {
+        [['nw', -1, -1], ['ne', 1, -1], ['sw', -1, 1], ['se', 1, 1]].forEach(([name, sx, sy]) => {
+            const h = document.createElement('div'); h.className = 'nb-corner nb-corner-' + name; h.title = 'Drag to resize'; el.appendChild(h);
+            h.addEventListener('pointerdown', (e) => {
+                if (e.button !== 0) return;
+                e.preventDefault(); e.stopPropagation();
+                const px = e.clientX, py = e.clientY, ox = el.offsetLeft, oy = el.offsetTop, ow = el.offsetWidth, oh = el.offsetHeight, edEl = el.querySelector('.math-shortcut-editor');
+                el._nbShift = 0;
+                try { h.setPointerCapture(e.pointerId); } catch (_) { /* older browser */ }
+                const move = (ev) => {
+                    const room = sx > 0 ? canvas.clientWidth - ox : ox + ow;
+                    block.w = Math.round(nbClamp(ow + (ev.clientX - px) * sx, 140, Math.max(140, room)));
+                    block.minH = Math.round(Math.max(60, oh + (ev.clientY - py) * sy));
+                    el.style.width = block.w + 'px'; el.style.minHeight = block.minH + 'px'; if (edEl) edEl.style.minHeight = Math.max(40, block.minH - 28) + 'px';
+                    if (sx < 0) { block.x = Math.max(0, ox + ow - block.w); el.style.left = block.x + 'px'; }
+                    if (sy < 0) { block.y = Math.max(0, oy + oh - el.offsetHeight); el.style.top = block.y + 'px'; }
+                    nbFitCanvas(canvas);
+                };
+                const up = () => { h.removeEventListener('pointermove', move); h.removeEventListener('pointerup', up); h.removeEventListener('pointercancel', up); notesScheduleSave(); };
+                h.addEventListener('pointermove', move); h.addEventListener('pointerup', up); h.addEventListener('pointercancel', up);
+            });
+        });
+    }
     // A graph or diagram can be shrunk to the picture itself: below this width its tool rows fold away (enlarge it again to edit).
     const NB_MIN_FIGURE = 150, NB_COMPACT_BELOW = 340;
     function nbSyncCompact(el) { if (el.classList.contains('nb-graph') || el.classList.contains('nb-diagram')) el.classList.toggle('nb-compact', el.offsetWidth < NB_COMPACT_BELOW); }
@@ -23143,6 +23169,11 @@ SQIDAQAB
         nbPlace(el, block, canvas);
         nbWireDrag(el.querySelector('.nb-grip'), el, block, canvas);
         nbWireResize(el.querySelector('.nb-resize'), el, block, canvas);
+        if (block.bubble) {
+            nbWireBubbleCorners(el, block, canvas);
+            // a speech bubble is moved by its grip or by its own outline, not only after a double-click
+            el.addEventListener('pointerdown', (e) => { if (e.target === el && e.button === 0) { e.preventDefault(); nbDragStart(e, el, el, block, canvas); } });
+        }
         const alignBtn = el.querySelector('.nb-align-left');
         alignBtn.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); });
         alignBtn.addEventListener('click', (e) => {
