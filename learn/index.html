@@ -31407,7 +31407,10 @@ SQIDAQAB
         return local.map((p) => ({ x: origin.x + (p.x - origin.x) * sx, y: origin.y + (p.y - origin.y) * sy }));
     }
     function diagramPlacedPoly(local, inst) {
-        return diagramTranslate(diagramScaleLocal(local, inst.scaleX || 1, inst.scaleY || 1), inst.x, inst.y);
+        let scaled = diagramScaleLocal(local, inst.scaleX || 1, inst.scaleY || 1);
+        // A curve on a Notes diagram can also be turned (inst.rot, radians) about its first point; a graded diagram never is.
+        if (inst.rot) { const o = scaled[0], c = Math.cos(inst.rot), s = Math.sin(inst.rot); scaled = scaled.map((p) => ({ x: o.x + (p.x - o.x) * c - (p.y - o.y) * s, y: o.y + (p.x - o.x) * s + (p.y - o.y) * c })); }
+        return diagramTranslate(scaled, inst.x, inst.y);
     }
     const DIAGRAM_MIN_CURVE_SCALE = 0.35;
     const DIAGRAM_MAX_CURVE_SCALE = 2.5;
@@ -31992,7 +31995,7 @@ SQIDAQAB
 
         function buildAnswer() {
             return {
-                curves: state.placed.map((p) => ({ instanceId: p.instanceId, curveTypeId: p.curveTypeId, x: p.x, y: p.y, scaleX: p.scaleX || 1, scaleY: p.scaleY || 1 })),
+                curves: state.placed.map((p) => ({ instanceId: p.instanceId, curveTypeId: p.curveTypeId, x: p.x, y: p.y, scaleX: p.scaleX || 1, scaleY: p.scaleY || 1, ...(p.rot ? { rot: p.rot } : {}) })),
                 shades: state.shades.map((s) => ({ points: s.points, label: s.label, vertexLabels: s.vertexLabels || [], color: s.color || 'rgba(230, 215, 176, 0.28)' })),
                 labels: state.labels.map((l) => ({ text: l.text, x: l.x, y: l.y })),
                 arrows: state.arrows.map((a) => ({ x1: a.x1, y1: a.y1, x2: a.x2, y2: a.y2 })),
@@ -32191,25 +32194,32 @@ SQIDAQAB
                     if (inst) {
                         const { anchor, dir, baseLen, end, nearLocal, v } = state.dragging;
                         const clampScale = (k) => Math.min(DIAGRAM_MAX_CURVE_SCALE, Math.max(DIAGRAM_MIN_CURVE_SCALE, k));
-                        let sx, sy;
+                        let sx, sy, rot = inst.rot || 0;
                         if (ev.shiftKey) {
-                            // Shift keeps the gradient: only the length changes, along the curve's own direction.
+                            // Shift keeps the direction: only the length changes.
                             const t = (pt.x - anchor.x) * dir.x + (pt.y - anchor.y) * dir.y;
                             sx = sy = clampScale(t / baseLen);
+                        } else if (mode === 'save') {
+                            // On a Notes diagram the dragged end follows the pointer and the whole curve turns about the other end, so the line can be
+                            // swung to any angle as well as made longer or shorter.
+                            const wx = end === 'far' ? pt.x - anchor.x : anchor.x - pt.x, wy = end === 'far' ? pt.y - anchor.y : anchor.y - pt.y, len = Math.hypot(wx, wy);
+                            sx = sy = clampScale(len / baseLen);
+                            if (len > 3) rot = Math.atan2(wy, wx) - Math.atan2(v.y, v.x);
                         } else {
-                            // The dragged end follows the pointer freely, so the length AND the gradient change: the two scales are whatever put
-                            // that end where the pointer is, measured from the end that stays put. (An axis along which the curve has no extent
-                            // keeps its scale.)
+                            // In a graded diagram the dragged end follows the pointer freely, so the length AND the gradient change: the two scales
+                            // are whatever put that end where the pointer is, measured from the end that stays put. (An axis along which the curve
+                            // has no extent keeps its scale.)
                             const dxp = end === 'far' ? pt.x - anchor.x : anchor.x - pt.x, dyp = end === 'far' ? pt.y - anchor.y : anchor.y - pt.y;
                             sx = Math.abs(v.x) > 1 ? clampScale(dxp / v.x) : (inst.scaleX || 1);
                             sy = Math.abs(v.y) > 1 ? clampScale(dyp / v.y) : (inst.scaleY || 1);
                         }
-                        inst.scaleX = sx; inst.scaleY = sy;
+                        inst.scaleX = sx; inst.scaleY = sy; inst.rot = rot;
                         if (end === 'near') {
-                            // The near end's CANVAS position is the fixed far end less the scaled curve vector; back out inst.x/y from it
+                            // The near end's CANVAS position is the fixed far end less the scaled, turned curve vector; back out inst.x/y from it
                             // (poly[0] = nearLocal + inst.{x,y} - see diagramBeginEndpointDrag's own comment).
-                            inst.x = anchor.x - v.x * sx - nearLocal.x;
-                            inst.y = anchor.y - v.y * sy - nearLocal.y;
+                            const c = Math.cos(rot), s = Math.sin(rot), vx = v.x * sx, vy = v.y * sy;
+                            inst.x = anchor.x - (vx * c - vy * s) - nearLocal.x;
+                            inst.y = anchor.y - (vx * s + vy * c) - nearLocal.y;
                         }
                         render();
                     }
