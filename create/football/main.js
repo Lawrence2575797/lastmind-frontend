@@ -2535,6 +2535,8 @@
       .catch((e) => { if (e && (e.code === 'NO_SESSION' || e.code === '401' || e.code === '402' || e.code === 'PROJECT_SUBSCRIPTION_REQUIRED')) location.replace('/learn/?needs=football'); });
   }
   window.FM_WORLD = world; // debug handle for the console
+  // another device saved a newer game while this page was in the background: reload to take it, unless a match is being played right now
+  FM.remoteNewer = () => { const m = world.match; if (m && m.phase !== 'fulltime') return; flushSave(); setTimeout(() => location.reload(), 300); };
   window.addEventListener('resize', resize);
   // the account's saved game, when it is further on than this browser's. If the account cannot be reached, a new game is NOT offered: it
   // could replace a season that is saved there.

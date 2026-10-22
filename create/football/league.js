@@ -877,7 +877,7 @@
     lsSet(accountKey(MODE_KEY), m);
   }
   FM.activeMode = () => mode;
-  let cloudTimer = 0, cloudBusy = false, cloudAgain = false, cloudLeague = null, replaceNext = false;
+  let cloudTimer = 0, cloudBusy = false, cloudAgain = false, cloudLeague = null, replaceNext = false, cloudDirty = false;   // cloudDirty: this device has a change the account does not have yet
   // How far on a season is: the season number and the matches played in it. A save further back never replaces one further on.
   const progressOfLeague = (lg) => (lg.season || 1) * 1000 + lg.fixtures.filter((f) => f.played && (f.homeId === lg.userId || f.awayId === lg.userId)).length;
   const progressOfText = (text) => { try { const d = JSON.parse(text); return (d.season || 1) * 1000 + (d.fixtures || []).filter((f) => f.played && (f.homeId === d.userId || f.awayId === d.userId)).length; } catch (e) { return -1; } };
@@ -886,8 +886,8 @@
   async function cloudWrite() {
     const league = cloudLeague; if (!league || DEMO_MODE || !accountUid) return false;
     if (cloudBusy) { cloudAgain = true; return false; }
-    cloudBusy = true;
-    let ok = false;
+    cloudBusy = true; cloudDirty = false;
+    let ok = false, refused = false;
     try {
       let text = FM.serializeLeague(league);
       if (text.length > 4400000) {   // too big for the account copy: the oldest match clips (replays) are left out of it, nothing else
@@ -901,10 +901,11 @@
       const body = { id: lsGet(cloudIdKey(m)) || undefined, title: (m === 'mp' ? 'Multiplayer: ' : 'Be the manager: ') + (user ? user.name : 'My club'), kind: m === 'mp' ? 'football-mp' : 'football-manager', data: { href: m === 'mp' ? '/create/football/?game=mp' : '/create/football/?game=solo', meta: (m === 'mp' ? 'Multiplayer · season ' : 'Season ') + league.season, football: { save: text, savedAt: new Date().toISOString(), progress: progressOfLeague(league) } } };
       if (replaceNext) body.replace = true;
       const r = await FM.apiCall('POST', '/create/projects', body);
-      if (r && r.ok && r.json && r.json.id && r.uid === accountUid) { ok = true; lsSet(cloudIdKey(m), r.json.id); lsSet(atKey(m), new Date().toISOString()); replaceNext = false; }
-      else if (r && r.status === 409) { replaceNext = false; FM.cloudRefused = true; }   // the account holds a season further on than this one: the next page open offers it
+      if (r && r.ok && r.json && r.json.id && r.uid === accountUid) { ok = true; lsSet(cloudIdKey(m), r.json.id); lsSet(atKey(m), r.json.updatedAt || new Date().toISOString()); replaceNext = false; }
+      else if (r && r.status === 409) { replaceNext = false; refused = true; FM.cloudRefused = true; }   // the account holds a season further on than this one: the next page open offers it
     } catch (e) { /* the browser copy is still saved; the next change tries again */ }
     cloudBusy = false;
+    if (!ok && !refused) cloudDirty = true;   // not on the account yet: the next change, or the page being hidden, tries again
     if (cloudAgain) { cloudAgain = false; cloudTimer = setTimeout(cloudWrite, 800); }
     return ok;
   }
@@ -922,9 +923,34 @@
   };
   FM.cloudSaveSoon = function (league) {
     if (DEMO_MODE) return;
-    cloudLeague = league; clearTimeout(cloudTimer); cloudTimer = setTimeout(cloudWrite, 1200);
+    cloudLeague = league; cloudDirty = true; clearTimeout(cloudTimer); cloudTimer = setTimeout(cloudWrite, 1200);
   };
-  window.addEventListener('pagehide', () => { if (cloudLeague && cloudTimer) { clearTimeout(cloudTimer); cloudWrite(); } });
+  // A phone often suspends a page without ever sending pagehide, so the moment the page is hidden anything not yet on the account is sent. When the page
+  // comes back after a while (another device may have moved the game on), the account is asked whether it holds a newer save, and if it does and this
+  // device has nothing unsent, the page asks to reload and take it (FM.remoteNewer).
+  let hiddenAt = 0;
+  const flushHidden = () => { if (cloudLeague && cloudDirty) { clearTimeout(cloudTimer); cloudTimer = 0; cloudWrite(); } };
+  window.addEventListener('pagehide', flushHidden);
+  document.addEventListener('visibilitychange', () => {
+    if (DEMO_MODE) return;
+    if (document.hidden) { hiddenAt = Date.now(); flushHidden(); }
+    else if (hiddenAt && Date.now() - hiddenAt > 10000) { hiddenAt = 0; FM.checkRemote(); }
+  });
+  FM.checkRemote = async function () {
+    try {
+      if (DEMO_MODE || !accountUid || cloudBusy || cloudDirty) return false;
+      const list = await FM.apiCall('GET', '/create/projects');
+      if (!list || !list.ok || !list.json || !list.uid || list.uid !== accountUid || cloudBusy || cloudDirty) return false;
+      const kind = mode === 'mp' ? 'football-mp' : 'football-manager', id = lsGet(cloudIdKey());
+      const rows = (list.json.projects || []).filter((p) => p.kind === kind);
+      const row = rows.find((p) => p.id === id) || rows.sort((a, b) => ((b.progress || 0) - (a.progress || 0)) || String(b.updatedAt).localeCompare(String(a.updatedAt)))[0];
+      if (!row) return false;
+      const at = Date.parse(lsGet(atKey()) || ''), theirs = Date.parse(row.updatedAt);
+      const newer = Number.isFinite(theirs) && (!Number.isFinite(at) || theirs > at + 1500) && (row.progress || 0) >= (knownProgress || 0);
+      if (newer && FM.remoteNewer) FM.remoteNewer();
+      return newer;
+    } catch (e) { return false; }
+  };
   // Called once as the page opens: when the account holds a newer game than this browser (or this browser's game belongs to a different
   // account), the account's game is loaded here. Resolves quickly if nobody is signed in.
   FM.pullCloud = async function () {
@@ -965,7 +991,7 @@
       if (!row) return 'ok';
       const at = lsGet(ak);
       const localProg = localText ? progressOfText(localText) : -1; knownProgress = Math.max(0, localProg);
-      const cloudNewer = !localText || !at || String(row.updatedAt) > at || (row.progress || 0) > localProg;
+      const cloudNewer = !localText || !at || !(Date.parse(at) >= Date.parse(row.updatedAt) - 1500) || (row.progress || 0) > localProg;   // by the server's own time, not this device's clock
       if (!cloudNewer) { lsSet(ck, row.id); return 'ok'; }
       const got = await FM.apiCall('GET', '/create/projects/' + encodeURIComponent(row.id));
       if (!got || !got.ok) return localText ? 'ok' : 'error';
