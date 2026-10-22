@@ -1906,6 +1906,7 @@
     .diagram-curve-given { stroke-opacity: 0.45; stroke-dasharray: 5 3; }
     .diagram-curve-placed { cursor: grab; }
     .diagram-curve-tag { fill: var(--accent); font-size: 12px; font-weight: 700; font-family: Arial, sans-serif; }
+    .diagram-tag-editable { cursor: text; } .diagram-tag-editable:hover { text-decoration: underline; }
     /* Endpoint handles - the two draggable dots at each end of a placed
        curve (see renderDiagramWidget's endpoint pointerdown wiring). Drawn
        on top of the curve/tag, larger invisible hit ring plus a smaller
@@ -31700,7 +31701,7 @@ SQIDAQAB
             const pt = resolveAnchor(l.anchor);
             if (!pt) return;
             const tag = svgElement('text', { x: pt.x, y: pt.y - 6, class: 'diagram-curve-tag' });
-            tag.textContent = l.text;
+            diagramRichText(tag, l.text);
             svg.appendChild(tag);
         });
 
@@ -31854,6 +31855,45 @@ SQIDAQAB
 
     // Curve names always sit at the RIGHT-hand end of their line (the end with
     // the larger x), right-aligned so the text never runs off the canvas.
+    // The name of a placed curve: the one the student typed, or its standard one (AD, AS, MC...).
+    function diagramCurveLabel(inst) { return inst.label ? inst.label : (DIAGRAM_PALETTE_LABELS[diagramBaseType(inst.curveTypeId)] || inst.curveTypeId); }
+    // Label text with the Notes shorthand: _ gives a subscript and ^ a superscript, of the characters right after it (AS_1, P^e) or of a bracket
+    // group (Q_(max), AS^(2024)).
+    function diagramRichText(el, str) {
+        while (el.firstChild) el.removeChild(el.firstChild);
+        const s = String(str == null ? '' : str), NS = 'http://www.w3.org/2000/svg';
+        let buf = '', i = 0;
+        const flush = () => { if (buf) { el.appendChild(document.createTextNode(buf)); buf = ''; } };
+        while (i < s.length) {
+            const ch = s[i];
+            if (ch === '_' || ch === '^') {
+                let inner = null, end = i + 1;
+                if (s[i + 1] === '(') { const close = s.indexOf(')', i + 2); if (close > i + 1) { inner = s.slice(i + 2, close); end = close + 1; } }
+                else { const m = s.slice(i + 1).match(/^[+\-\u2212]?[A-Za-z0-9]+/); if (m) { inner = m[0]; end = i + 1 + m[0].length; } }
+                if (inner) {
+                    flush();
+                    const ts = document.createElementNS(NS, 'tspan');
+                    ts.setAttribute('baseline-shift', ch === '_' ? 'sub' : 'super'); ts.setAttribute('font-size', '72%'); ts.textContent = inner;
+                    el.appendChild(ts); i = end; continue;
+                }
+            }
+            buf += ch; i++;
+        }
+        flush();
+        if (!el.firstChild) el.appendChild(document.createTextNode(''));
+    }
+    // A small text box over a label to rename it. Enter or clicking away keeps the change, Escape drops it.
+    function diagramEditLabel(anchorEl, current, onCommit) {
+        document.querySelectorAll('.diagram-label-editor').forEach((n) => n.remove());
+        const r = anchorEl.getBoundingClientRect(), inp = document.createElement('input');
+        inp.type = 'text'; inp.value = current; inp.className = 'diagram-label-editor'; inp.setAttribute('aria-label', 'Edit label'); inp.title = 'Use _ for a subscript and ^ for a superscript';
+        inp.style.cssText = `position:fixed; left:${Math.max(8, Math.round(r.left - 12))}px; top:${Math.max(8, Math.round(r.top - 8))}px; width:${Math.max(150, Math.round(r.width + 70))}px; z-index:5000; box-sizing:border-box; font:600 14px Arial,sans-serif; padding:5px 9px; border-radius:7px; border:2px solid #E6D7B0; background:#1A232D; color:#F1EAD6; outline:none; box-shadow:0 6px 18px rgba(0,0,0,.4);`;
+        document.body.appendChild(inp); inp.focus(); inp.select();
+        let done = false;
+        const finish = (keep) => { if (done) return; done = true; const v = inp.value.trim(); inp.remove(); if (keep) onCommit(v); };
+        inp.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') { e.preventDefault(); finish(true); } else if (e.key === 'Escape') { e.preventDefault(); finish(false); } });
+        inp.addEventListener('blur', () => finish(true));
+    }
     function diagramTagPosition(poly, text) {
         const first = poly[0], last = poly[poly.length - 1];
         const end = last.x >= first.x ? last : first, other = end === last ? first : last;
@@ -31902,9 +31942,9 @@ SQIDAQAB
             const poly = diagramPlacedPoly(local, inst);
             polys.push(poly);
             svg.appendChild(svgElement('polyline', { points: diagramPolylinePoints(poly), class: 'diagram-curve diagram-curve-placed' }));
-            const tag = svgElement('text', diagramTagPosition(poly, DIAGRAM_PALETTE_LABELS[diagramBaseType(inst.curveTypeId)] || inst.curveTypeId));
-            tag.textContent = DIAGRAM_PALETTE_LABELS[diagramBaseType(inst.curveTypeId)] || inst.curveTypeId;
-            tag.style.fontSize = `${diagramTagFontSize(tag.textContent)}px`;
+            const tagText = diagramCurveLabel(inst), tag = svgElement('text', diagramTagPosition(poly, tagText));
+            diagramRichText(tag, tagText);
+            tag.style.fontSize = `${diagramTagFontSize(tagText)}px`;
             svg.appendChild(tag);
         });
         diagramDrawIntersections(svg, polys, []);
@@ -31913,7 +31953,7 @@ SQIDAQAB
         });
         ((diagramState && diagramState.labels) || []).forEach((l) => {
             const el = svgElement('text', { x: l.x, y: l.y, class: 'diagram-label' });
-            el.textContent = l.text;
+            diagramRichText(el, l.text);
             svg.appendChild(el);
         });
 
@@ -32014,7 +32054,7 @@ SQIDAQAB
 
         function buildAnswer() {
             return {
-                curves: state.placed.map((p) => ({ instanceId: p.instanceId, curveTypeId: p.curveTypeId, x: p.x, y: p.y, scaleX: p.scaleX || 1, scaleY: p.scaleY || 1, ...(p.rot ? { rot: p.rot } : {}) })),
+                curves: state.placed.map((p) => ({ instanceId: p.instanceId, curveTypeId: p.curveTypeId, x: p.x, y: p.y, scaleX: p.scaleX || 1, scaleY: p.scaleY || 1, ...(p.rot ? { rot: p.rot } : {}), ...(p.label ? { label: p.label } : {}) })),
                 shades: state.shades.map((s) => ({ points: s.points, label: s.label, vertexLabels: s.vertexLabels || [], color: s.color || 'rgba(230, 215, 176, 0.28)' })),
                 labels: state.labels.map((l) => ({ text: l.text, x: l.x, y: l.y })),
                 arrows: state.arrows.map((a) => ({ x1: a.x1, y1: a.y1, x2: a.x2, y2: a.y2 })),
@@ -32118,9 +32158,18 @@ SQIDAQAB
                     state.clean = false;   // working on the curve brings the editing marks back
                 });
                 svg.appendChild(el);
-                const tag = svgElement('text', diagramTagPosition(poly, DIAGRAM_PALETTE_LABELS[diagramBaseType(inst.curveTypeId)] || inst.curveTypeId));
-                tag.textContent = DIAGRAM_PALETTE_LABELS[diagramBaseType(inst.curveTypeId)] || inst.curveTypeId;
-                tag.style.fontSize = `${diagramTagFontSize(tag.textContent)}px`;
+                const tagText = diagramCurveLabel(inst), tag = svgElement('text', diagramTagPosition(poly, tagText));
+                diagramRichText(tag, tagText);
+                tag.style.fontSize = `${diagramTagFontSize(tagText)}px`;
+                if (mode === 'save') {
+                    // clicking the name (AD, AS...) renames the curve; an empty name goes back to the standard one
+                    tag.classList.add('diagram-tag-editable');
+                    tag.addEventListener('pointerdown', (ev) => ev.stopPropagation());
+                    tag.addEventListener('click', (ev) => {
+                        ev.stopPropagation();
+                        diagramEditLabel(tag, inst.label || tagText, (v) => { inst.label = v && v !== (DIAGRAM_PALETTE_LABELS[diagramBaseType(inst.curveTypeId)] || inst.curveTypeId) ? v : undefined; render(); });
+                    });
+                }
                 svg.appendChild(tag);
                 if (!state.clean) svg.appendChild(diagramDeleteGlyph(poly[0].x, poly[0].y - 20, () => {
                     state.placed = state.placed.filter((p) => p.instanceId !== inst.instanceId);
@@ -32168,7 +32217,8 @@ SQIDAQAB
 
             state.labels.forEach((l, idx) => {
                 const el = svgElement('text', { x: l.x, y: l.y, class: 'diagram-label' });
-                el.textContent = l.text;
+                diagramRichText(el, l.text);
+                el.addEventListener('dblclick', (ev) => { ev.stopPropagation(); diagramEditLabel(el, l.text, (v) => { if (v) { l.text = v; render(); } }); });
                 el.addEventListener('pointerdown', (ev) => {
                     ev.preventDefault();
                     const pt = svgPointFromEvent(ev);
@@ -32264,7 +32314,7 @@ SQIDAQAB
             // A click on the empty board shows just the lines: the crosses and the end circles are hidden. Another click on it brings them back.
             if (!state.arrowMode && !state.shadeMode) {
                 if (didDrag) { didDrag = false; return; }
-                if (!(ev.target.closest && ev.target.closest('.diagram-curve-placed, .diagram-curve-handle-hit, .diagram-delete-glyph, .diagram-label, .diagram-shade-vertex-hit, .diagram-shade'))) { state.clean = !state.clean; render(); return; }
+                if (!(ev.target.closest && ev.target.closest('.diagram-curve-placed, .diagram-curve-tag, .diagram-curve-handle-hit, .diagram-delete-glyph, .diagram-label, .diagram-shade-vertex-hit, .diagram-shade'))) { state.clean = !state.clean; render(); return; }
             }
             if (state.arrowMode) {
                 if (!state.arrowDraft) {
