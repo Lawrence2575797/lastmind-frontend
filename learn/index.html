@@ -1817,7 +1817,7 @@
        app's own full-screen overlays (150+) so it never covers a modal,
        but above ordinary page content. */
     .km-quick-notes-widget {
-        position: fixed; right: 20px; bottom: 20px; z-index: 60;
+        position: fixed; right: 20px; bottom: 52px; z-index: 60;   /* clear of the strip along the bottom */
         display: flex; flex-direction: column; align-items: flex-end; gap: 8px;
     }
     .km-quick-notes-toggle {
@@ -3593,6 +3593,10 @@
     /* A button that sits straight on the birch (such as the map's "Try again") reads navy there, and keeps cream inside any navy panel,
        because those panels set --ink to cream themselves. */
     .km-inline-detail-empty .btn { color: var(--ink); border-color: currentColor; }
+    /* a thin navy strip along the bottom of the page: contact and social links */
+    .site-strip { flex: 0 0 auto; display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 6px 20px; padding: 6px 16px; background: #1A232D; color: #F1EAD6; font: 600 12px/1.4 'IBM Plex Sans', system-ui, sans-serif; }
+    .site-strip a { color: #E6D7B0; text-decoration: none; } .site-strip a:hover, .site-strip a:focus-visible { text-decoration: underline; }
+    .site-strip-links { display: inline-flex; gap: 18px; }
     .main {
         flex: 1;
         display: flex;
@@ -7229,6 +7233,11 @@
                     </div>
                 </div>
             </div>
+            <footer class="site-strip" id="siteStrip">
+                <a href="mailto:lastmindadmin@gmail.com">lastmindadmin@gmail.com</a>
+                <span class="site-strip-links" id="siteStripLinks"></span>
+                <script>(function () { var L = { Facebook: '', TikTok: '' }, h = document.getElementById('siteStripLinks'); Object.keys(L).forEach(function (k) { if (!/^https:\/\//.test(L[k])) return; var a = document.createElement('a'); a.href = L[k]; a.textContent = k; a.target = '_blank'; a.rel = 'noopener noreferrer'; h.appendChild(a); }); })();</script>
+            </footer>
         </main>
 
     </div>
