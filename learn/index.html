@@ -4306,11 +4306,11 @@
     .nb-toolbar-toggle { flex: 0 0 auto; font: inherit; font-size: 12.5px; font-weight: 700; padding: 9px 12px; border-radius: 10px; cursor: pointer; background: #1A232D; color: #F1EAD6; border: 0; box-shadow: 0 5px 12px rgba(0,0,0,.35); }
     .nb-toolbar-toggle:hover { background: #26323f; }
     /* an arrow drawn by hand */
-    .nb-canvas .nb-block.nb-darrow { padding: 0; background: none; border: 0; box-shadow: none; pointer-events: none; z-index: 3; }
+    .nb-canvas .nb-block.nb-darrow { padding: 0; background: none; border: 0; box-shadow: none; pointer-events: none; z-index: 90; }   /* above the diagrams (50-70), pictures and graphs; the toolbar (100) stays above it */
     .nb-darrow svg { display: block; overflow: visible; }
     .nb-darrow .nb-darrow-hit { pointer-events: stroke; cursor: grab; } .nb-darrow polygon { pointer-events: all; cursor: grab; }
     .nb-canvas.nb-drawing, .nb-canvas.nb-drawing * { cursor: crosshair !important; touch-action: none; }
-    .nb-draw-live { position: absolute; left: 0; top: 0; pointer-events: none; z-index: 5; overflow: visible; }
+    .nb-draw-live { position: absolute; left: 0; top: 0; pointer-events: none; z-index: 95; overflow: visible; }
     /* a text box shaped like a speech bubble */
     .nb-bubble { border: 2px solid #E6D7B0; border-radius: 24px 24px 24px 5px; background: rgba(230, 215, 176, 0.07); padding: 6px 10px; margin-bottom: 16px; }
     .nb-bubble > .nb-grip { display: flex; }
@@ -31854,9 +31854,16 @@ SQIDAQAB
 
     // Curve names always sit at the RIGHT-hand end of their line (the end with
     // the larger x), right-aligned so the text never runs off the canvas.
-    function diagramTagPosition(poly) {
+    function diagramTagPosition(poly, text) {
         const first = poly[0], last = poly[poly.length - 1];
-        const end = last.x >= first.x ? last : first;
+        const end = last.x >= first.x ? last : first, other = end === last ? first : last;
+        // A curve that comes down to its right-hand end would run through a label sitting above that end, so the label goes to the right of the end
+        // instead (or just below it, when the text would run off the diagram).
+        if (end.y > other.y + 6) {
+            const size = diagramTagFontSize(text), width = String(text || '').length * size * 0.62;
+            if (end.x + 10 + width <= DIAGRAM_CANVAS_WIDTH - 4) return { x: end.x + 10, y: end.y + 4, 'text-anchor': 'start', class: 'diagram-curve-tag' };
+            return { x: end.x - 4, y: end.y + size + 10, 'text-anchor': 'end', class: 'diagram-curve-tag' };
+        }
         return { x: end.x - 4, y: end.y - 8, 'text-anchor': 'end', class: 'diagram-curve-tag' };
     }
     // Long names such as "Demand (relatively inelastic)" shrink so they don't
@@ -31895,7 +31902,7 @@ SQIDAQAB
             const poly = diagramPlacedPoly(local, inst);
             polys.push(poly);
             svg.appendChild(svgElement('polyline', { points: diagramPolylinePoints(poly), class: 'diagram-curve diagram-curve-placed' }));
-            const tag = svgElement('text', diagramTagPosition(poly));
+            const tag = svgElement('text', diagramTagPosition(poly, DIAGRAM_PALETTE_LABELS[diagramBaseType(inst.curveTypeId)] || inst.curveTypeId));
             tag.textContent = DIAGRAM_PALETTE_LABELS[diagramBaseType(inst.curveTypeId)] || inst.curveTypeId;
             tag.style.fontSize = `${diagramTagFontSize(tag.textContent)}px`;
             svg.appendChild(tag);
@@ -32073,7 +32080,7 @@ SQIDAQAB
                 if (!local) return;
                 const poly = diagramTranslate(local, DIAGRAM_GIVEN_ORIGIN.x, DIAGRAM_GIVEN_ORIGIN.y);
                 svg.appendChild(svgElement('polyline', { points: diagramPolylinePoints(poly), class: 'diagram-curve diagram-curve-given' }));
-                const tag = svgElement('text', diagramTagPosition(poly));
+                const tag = svgElement('text', diagramTagPosition(poly, DIAGRAM_PALETTE_LABELS[diagramBaseType(g.type)] || g.type));
                 tag.textContent = DIAGRAM_PALETTE_LABELS[diagramBaseType(g.type)] || g.type;
                 tag.style.fontSize = `${diagramTagFontSize(tag.textContent)}px`;
                 svg.appendChild(tag);
@@ -32083,7 +32090,7 @@ SQIDAQAB
                 svg.appendChild(svgElement('polygon', { points: s.points.map((p) => `${p.x},${p.y}`).join(' '), class: 'diagram-shade', style: `--shade-fill:${s.color || 'rgba(230, 215, 176, 0.28)'}` }));
                 const cx = s.points.reduce((sum, p) => sum + p.x, 0) / s.points.length;
                 const cy = s.points.reduce((sum, p) => sum + p.y, 0) / s.points.length;
-                svg.appendChild(diagramDeleteGlyph(cx, cy, () => { state.shades.splice(shadeIdx, 1); render(); }));
+                if (!state.clean) svg.appendChild(diagramDeleteGlyph(cx, cy, () => { state.shades.splice(shadeIdx, 1); render(); }));
             });
 
             const placedPolys = [];
@@ -32108,13 +32115,14 @@ SQIDAQAB
                     }
                     const pt = svgPointFromEvent(ev);
                     state.dragging = { type: 'curve', id: inst.instanceId, offsetX: pt.x - inst.x, offsetY: pt.y - inst.y };
+                    state.clean = false;   // working on the curve brings the editing marks back
                 });
                 svg.appendChild(el);
-                const tag = svgElement('text', diagramTagPosition(poly));
+                const tag = svgElement('text', diagramTagPosition(poly, DIAGRAM_PALETTE_LABELS[diagramBaseType(inst.curveTypeId)] || inst.curveTypeId));
                 tag.textContent = DIAGRAM_PALETTE_LABELS[diagramBaseType(inst.curveTypeId)] || inst.curveTypeId;
                 tag.style.fontSize = `${diagramTagFontSize(tag.textContent)}px`;
                 svg.appendChild(tag);
-                svg.appendChild(diagramDeleteGlyph(poly[0].x, poly[0].y - 20, () => {
+                if (!state.clean) svg.appendChild(diagramDeleteGlyph(poly[0].x, poly[0].y - 20, () => {
                     state.placed = state.placed.filter((p) => p.instanceId !== inst.instanceId);
                     render();
                 }));
@@ -32129,7 +32137,7 @@ SQIDAQAB
                 // mode - clicking the curve there picks it as a boundary
                 // edge instead, and a handle sitting right on top of that
                 // same click target would just make edge-picking fiddly.
-                if (!state.shadeMode) {
+                if (!state.shadeMode && !state.clean) {
                     [{ end: 'near', pt: poly[0] }, { end: 'far', pt: poly[poly.length - 1] }].forEach((h) => {
                         const hit = svgElement('circle', { cx: h.pt.x, cy: h.pt.y, r: 11, class: 'diagram-curve-handle-hit' });
                         hit.addEventListener('pointerdown', (ev) => {
@@ -32151,7 +32159,7 @@ SQIDAQAB
 
             state.arrows.forEach((a, arrowIdx) => {
                 svg.appendChild(svgElement('line', { x1: a.x1, y1: a.y1, x2: a.x2, y2: a.y2, class: 'diagram-arrow', 'marker-end': `url(#${uid}-arrowhead)` }));
-                svg.appendChild(diagramDeleteGlyph((a.x1 + a.x2) / 2, (a.y1 + a.y2) / 2 - 8, () => {
+                if (!state.clean) svg.appendChild(diagramDeleteGlyph((a.x1 + a.x2) / 2, (a.y1 + a.y2) / 2 - 8, () => {
                     state.arrows.splice(arrowIdx, 1);
                     render();
                 }));
@@ -32167,7 +32175,7 @@ SQIDAQAB
                     state.dragging = { type: 'label', id: idx, offsetX: pt.x - l.x, offsetY: pt.y - l.y };
                 });
                 svg.appendChild(el);
-                svg.appendChild(diagramDeleteGlyph(l.x, l.y - 14, () => {
+                if (!state.clean) svg.appendChild(diagramDeleteGlyph(l.x, l.y - 14, () => {
                     state.labels.splice(idx, 1);
                     render();
                 }));
@@ -32180,7 +32188,7 @@ SQIDAQAB
             // just a free move of that one corner - which is what lets
             // the edge-picked shape (see diagramShadeFromEdges) get
             // nudged onto exactly what the student meant.
-            state.shades.forEach((s, shadeIdx) => {
+            (state.clean ? [] : state.shades).forEach((s, shadeIdx) => {
                 s.points.forEach((p, vIdx) => {
                     const hit = svgElement('circle', { cx: p.x, cy: p.y, r: 9, class: 'diagram-shade-vertex-hit' });
                     hit.addEventListener('pointerdown', (ev) => {
@@ -32195,9 +32203,12 @@ SQIDAQAB
 
         }
 
+        let didDrag = false;   // a drag that ends over the empty board must not count as a click on it
+        svg.addEventListener('pointerdown', () => { didDrag = false; }, true);
         svg.addEventListener('pointermove', (ev) => {
             const pt = svgPointFromEvent(ev);
             if (state.dragging) {
+                didDrag = true;
                 if (state.dragging.type === 'curve') {
                     const inst = state.placed.find((p) => p.instanceId === state.dragging.id);
                     if (inst) { inst.x = pt.x - state.dragging.offsetX; inst.y = pt.y - state.dragging.offsetY; render(); }
@@ -32250,6 +32261,11 @@ SQIDAQAB
 
         svg.addEventListener('click', (ev) => {
             const pt = svgPointFromEvent(ev);
+            // A click on the empty board shows just the lines: the crosses and the end circles are hidden. Another click on it brings them back.
+            if (!state.arrowMode && !state.shadeMode) {
+                if (didDrag) { didDrag = false; return; }
+                if (!(ev.target.closest && ev.target.closest('.diagram-curve-placed, .diagram-curve-handle-hit, .diagram-delete-glyph, .diagram-label, .diagram-shade-vertex-hit, .diagram-shade'))) { state.clean = !state.clean; render(); return; }
+            }
             if (state.arrowMode) {
                 if (!state.arrowDraft) {
                     state.arrowDraft = { x1: pt.x, y1: pt.y, x2: pt.x, y2: pt.y };
