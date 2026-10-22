@@ -4317,7 +4317,7 @@
     .nb-draw-live { position: absolute; left: 0; top: 0; pointer-events: none; z-index: 95; overflow: visible; }
     /* a text box shaped like a speech bubble */
     .nb-bubble { border: 2px solid #E6D7B0; border-radius: 24px 24px 24px 5px; background: rgba(230, 215, 176, 0.07); padding: 6px 10px; margin-bottom: 16px; }
-    .nb-bubble > .nb-grip { display: flex; }
+    .nb-bubble.nb-active > .nb-grip { display: flex; }   /* the drag dots show on the bubble last clicked, and go when the empty page is clicked */
     .nb-bubble:hover > .nb-corner, .nb-bubble:focus-within > .nb-corner { opacity: 0.95; }
     .nb-bubble::after { content: ''; position: absolute; left: 22px; bottom: -15px; width: 0; height: 0; border-right: 18px solid transparent; border-top: 15px solid #E6D7B0; pointer-events: none; }
     .math-bar { text-decoration: overline; text-decoration-thickness: 0.09em; }
@@ -23180,6 +23180,8 @@ SQIDAQAB
         nbWireDrag(el.querySelector('.nb-grip'), el, block, canvas);
         nbWireResize(el.querySelector('.nb-resize'), el, block, canvas);
         if (block.bubble) {
+            el.addEventListener('pointerdown', () => { canvas.querySelectorAll('.nb-bubble.nb-active').forEach((b) => { if (b !== el) b.classList.remove('nb-active'); }); el.classList.add('nb-active'); });
+            if (focus) el.classList.add('nb-active');
             nbWireBubbleCorners(el, block, canvas);
             // a speech bubble is moved by its grip or by its own outline, not only after a double-click
             el.addEventListener('pointerdown', (e) => { if (e.target === el && e.button === 0) { e.preventDefault(); nbDragStart(e, el, el, block, canvas); } });
@@ -24526,7 +24528,7 @@ SQIDAQAB
         const onAlignmentPointerDown = (e) => {
             if (notesAlignSource && !e.target.closest('.nb-align-left') && !e.target.closest('.nb-text')) { nbClearAlignment(); notesStatus('Alignment cancelled'); }
         };
-        const onFramePointerDown = (e) => { canvas.querySelectorAll('.nb-text.nb-frame-open').forEach((b) => { if (!b.contains(e.target)) b.classList.remove('nb-frame-open'); }); };
+        const onFramePointerDown = (e) => { canvas.querySelectorAll('.nb-text.nb-frame-open').forEach((b) => { if (!b.contains(e.target)) b.classList.remove('nb-frame-open'); }); canvas.querySelectorAll('.nb-bubble.nb-active').forEach((b) => { if (!b.contains(e.target)) b.classList.remove('nb-active'); }); };
         document.addEventListener('pointerdown', onFramePointerDown, true);
         document.addEventListener('selectionchange', onSelectionChange);
         document.addEventListener('pointerdown', onSelectionPointerDown, true);
