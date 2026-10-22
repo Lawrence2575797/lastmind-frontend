@@ -4162,6 +4162,7 @@
     .nb-landing-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 14px; }
     .nb-page-wrap { max-width: 1100px; margin: 0 auto; }
     .nb-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+    .nb-head .nb-status { margin-left: auto; }
     .nb-title { flex: 1; min-width: 0; font-family: 'Cormorant Garamond', 'Lora', Georgia, serif; font-size: clamp(34px, 5.2vw, 52px); font-weight: 700; line-height: 1.3; letter-spacing: .015em; color: var(--ink, #1A232D); background: transparent; border: 0; border-bottom: 4px double rgba(26, 35, 45, 0.55); padding: 4px 2px 12px; outline: none; }
     .nb-title::placeholder { color: rgba(26, 35, 45, 0.4); font-style: italic; font-weight: 600; }
     .nb-title:focus { border-bottom-color: var(--ink, #1A232D); }
@@ -4189,7 +4190,7 @@
     .nb-assist-body { flex: 1; overflow-y: auto; padding: 12px 16px; display: grid; align-content: start; gap: 10px; }
     .nb-msg { max-width: 92%; padding: 9px 12px; border-radius: 12px; white-space: pre-wrap; } .nb-msg.me { justify-self: end; background: rgba(230,215,176,.2); } .nb-msg.ai { justify-self: start; background: rgba(255,255,255,.07); } .nb-msg p { margin: 0 0 8px; white-space: normal; } .nb-msg p:last-child { margin: 0; }
     .nb-tool.on { box-shadow: inset 0 -3px 0 #E6D7B0; }
-    #nbHistBtn { margin-left: auto; } #nbSrBtn, #nbSrBtn:hover { margin-left: 0; }
+    #nbHistBtn, #nbSrBtn, #nbSrBtn:hover { margin-left: 0; }
     .nb-sr-btn, .nb-sr-btn:hover { flex: none; background: #1A232D; color: #F1EAD6; border: 1px solid #1A232D; font-weight: 800; }
     .nb-sr-btn:hover { background: #26333f; }
     .nb-tool.nb-sr-btn.on { box-shadow: 0 0 0 2px #E6D7B0, 0 0 0 4px #1A232D; }
@@ -4299,7 +4300,9 @@
     /* the tools bar can be folded away with the button beside it */
     .nb-toolrow { display: flex; align-items: flex-start; gap: 6px; position: sticky; top: 0; z-index: 100; margin-bottom: 8px; }
     .nb-toolrow .nb-toolbar { position: static; margin-bottom: 0; width: auto; flex: 1 1 auto; min-width: 0; }
-    .nb-toolrow.closed .nb-toolbar { display: none; }
+    .nb-toolrow.closed { display: none; }
+    .nb-topbtns { display: none; } body:has(#nbCanvas) .nb-topbtns { display: contents; }
+    #nbSrBtn.on { box-shadow: 0 0 0 2px #E6D7B0, 0 0 0 4px #1A232D; }
     .nb-toolbar-toggle { flex: 0 0 auto; font: inherit; font-size: 12.5px; font-weight: 700; padding: 9px 12px; border-radius: 10px; cursor: pointer; background: #1A232D; color: #F1EAD6; border: 0; box-shadow: 0 5px 12px rgba(0,0,0,.35); }
     .nb-toolbar-toggle:hover { background: #26323f; }
     /* an arrow drawn by hand */
@@ -7182,6 +7185,8 @@
                      here puts every topbar button in the one row that
                      actually handles overflow. -->
                 <div class="topbar-actions" id="topbarActions">
+                    <!-- History, Revision and Tools of an open Notes page sit here (filled by notesRenderPage; shown only while a Notes page is open) -->
+                    <div class="nb-topbtns" id="nbTopBtns"></div>
                     <!-- LastMind Simulate is live for everyone again (was localhost-only while not release-ready). -->
                     <button class="cortex-btn-topbar" id="createTopbarBtn" type="button" style="display:none;">Simulate</button>
                     <!-- Rewards temporarily hidden site-wide (not localhost-gated like Create above) - code/handlers left
@@ -24353,15 +24358,7 @@ SQIDAQAB
         const contentInner = notesPrepareMain('Notes');
         contentInner.innerHTML = `
             <div class="nb-page-wrap">
-                <div class="nb-head">
-                    <button type="button" class="nb-copy-btn" id="nbCopyBtn" title="Copy this whole page" aria-label="Copy this whole page">⧉</button>
-                    <input type="text" class="nb-title" id="nbTitle" placeholder="Untitled page" maxlength="120" aria-label="Page title">
-                    <span class="nb-status" id="nbStatus" aria-live="polite"></span>
-                    <button type="button" class="nb-tool nb-sr-btn" id="nbHistBtn" title="Earlier versions of this page, and a way to get lost writing back">History</button>
-                    <button type="button" class="nb-tool nb-sr-btn" id="nbSrBtn" title="Quiz yourself on this page the day after you write it">Revision</button>
-                </div>
                 <div class="nb-toolrow">
-                <button type="button" class="nb-toolbar-toggle" id="nbToolsToggle" aria-expanded="true" aria-controls="nbToolbar" title="Show or hide the tools bar">‹ Tools</button>
                 <div class="nb-toolbar" id="nbToolbar" role="toolbar" aria-label="Page tools">
                     <label class="nb-text-size-wrap">Text size
                         <select class="nb-text-size" id="nbTextSize" aria-label="Text size" title="Text size for highlighted text or the active text box">
@@ -24379,6 +24376,11 @@ SQIDAQAB
                     <button type="button" class="nb-tool" id="nbShortcuts">Shortcuts</button>
                 </div>
                 </div>
+                <div class="nb-head">
+                    <button type="button" class="nb-copy-btn" id="nbCopyBtn" title="Copy this whole page" aria-label="Copy this whole page">⧉</button>
+                    <input type="text" class="nb-title" id="nbTitle" placeholder="Untitled page" maxlength="120" aria-label="Page title">
+                    <span class="nb-status" id="nbStatus" aria-live="polite"></span>
+                </div>
                 <div class="nb-canvas" id="nbCanvas"></div>
                 <div class="nb-selection-size" id="nbSelectionSize"><span>Text size</span><select class="nb-text-size" aria-label="Selected text size"><option value="12">12px</option><option value="14">14px</option><option value="16" selected>16px</option><option value="18">18px</option><option value="22">22px</option><option value="28">28px</option><option value="36">36px</option></select></div>
                 <div class="nb-table-picker" id="nbTablePicker" hidden>
@@ -24388,6 +24390,8 @@ SQIDAQAB
                     <button type="button" id="nbTableCancel">Cancel</button>
                 </div>
             </div>`;
+        { const slot = document.getElementById('nbTopBtns');   // fresh buttons for this page, so nothing from the page before is still attached to them
+          if (slot) slot.innerHTML = '<button type="button" class="cortex-btn-topbar" id="nbToolsToggle" aria-expanded="true" aria-controls="nbToolbar" title="Show or hide the tools bar">Tools ▴</button><button type="button" class="cortex-btn-topbar" id="nbHistBtn" title="Earlier versions of this page, and a way to get lost writing back">History</button><button type="button" class="cortex-btn-topbar" id="nbSrBtn" title="Quiz yourself on this page the day after you write it">Revision</button>'; }
         const canvas = document.getElementById('nbCanvas');
         if (page.kind === 'problemset') { const t = document.getElementById('nbTitle'); if (t) t.placeholder = 'Untitled problem set'; psMountIntake(page, canvas); if (page.ps && page.ps.done) requestAnimationFrame(() => requestAnimationFrame(() => psRelayout(page, canvas))); }
         // When the sheet gets narrower or wider (the LastMind panel opening beside it, a smaller window), everything is moved so that all of it can
@@ -24600,7 +24604,7 @@ SQIDAQAB
         });
         const toolRow = contentInner.querySelector('.nb-toolrow'), toolToggle = document.getElementById('nbToolsToggle');
         const setTools = (open, remember) => {
-            toolRow.classList.toggle('closed', !open); toolToggle.setAttribute('aria-expanded', String(open)); toolToggle.textContent = open ? '‹ Tools' : 'Tools ›';
+            toolRow.classList.toggle('closed', !open); toolToggle.setAttribute('aria-expanded', String(open)); toolToggle.textContent = open ? 'Tools ▴' : 'Tools ▾';
             if (remember) { try { localStorage.setItem('lm-notes-tools-open', open ? '1' : '0'); } catch (_) { /* a convenience only */ } }
         };
         let toolsOpen = true; try { toolsOpen = localStorage.getItem('lm-notes-tools-open') !== '0'; } catch (_) { toolsOpen = true; }
