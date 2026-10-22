@@ -23282,6 +23282,21 @@ SQIDAQAB
         if (worst <= eps) return [a, b];
         return nbSimplify(pts.slice(0, idx + 1), eps).slice(0, -1).concat(nbSimplify(pts.slice(idx), eps));
     }
+    // The stroke as drawn is shaky and has a hook where the hand slows down. It is resampled evenly, averaged with its neighbours several times (the two ends stay
+    // where they were drawn), and thinned to a point every ~24px, so the curve through them is smooth all the way, with no corners.
+    function nbSmoothStroke(raw) {
+        const out = [raw[0]]; let carry = 0;
+        for (let i = 1; i < raw.length; i++) {
+            let a = out[out.length - 1], bx = raw[i].x, by = raw[i].y, d = Math.hypot(bx - a.x, by - a.y);
+            while (d >= 8) { const k = 8 / d; a = { x: a.x + (bx - a.x) * k, y: a.y + (by - a.y) * k }; out.push(a); d = Math.hypot(bx - a.x, by - a.y); }
+        }
+        const last = raw[raw.length - 1]; if (Math.hypot(last.x - out[out.length - 1].x, last.y - out[out.length - 1].y) > 0.5) out.push({ x: last.x, y: last.y });
+        let pts = out;
+        for (let pass = 0; pass < 8 && pts.length > 3; pass++) pts = pts.map((q, i) => (i === 0 || i === pts.length - 1) ? q : { x: (pts[i - 1].x + 2 * q.x + pts[i + 1].x) / 4, y: (pts[i - 1].y + 2 * q.y + pts[i + 1].y) / 4 });
+        const keep = pts.filter((q, i) => i === 0 || i === pts.length - 1 || i % 3 === 0);
+        if (keep.length > 2 && Math.hypot(keep[keep.length - 1].x - keep[keep.length - 2].x, keep[keep.length - 1].y - keep[keep.length - 2].y) < 10) keep.splice(keep.length - 2, 1);   // no stub at the end
+        return keep.map((q) => ({ x: Math.round(q.x * 10) / 10, y: Math.round(q.y * 10) / 10 }));
+    }
     function nbArrowGeom(pts) {
         const n = pts.length, f = (v) => Math.round(v * 10) / 10, end = pts[n - 1];
         let d = 'M' + f(pts[0].x) + ' ' + f(pts[0].y), c2 = pts[0];
@@ -24562,7 +24577,7 @@ SQIDAQAB
                 canvas._nbJustDrew = true; setTimeout(() => { canvas._nbJustDrew = false; }, 60);
                 let len = 0; for (let i = 1; i < pts.length; i++) len += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
                 if (pts.length < 2 || len < 14) { notesStatus('Drag further to draw an arrow'); return; }
-                const block = { id: notesNewId(), type: 'darrow', pts: nbSimplify(pts, 5).map((q) => ({ x: Math.round(q.x * 10) / 10, y: Math.round(q.y * 10) / 10 })) };
+                const block = { id: notesNewId(), type: 'darrow', pts: nbSmoothStroke(pts) };
                 page.doc.blocks.push(block); nbToggleHint(canvas, page);
                 nbMakeDrawArrow(page, block, canvas); nbFitCanvas(canvas); notesScheduleSave();
             };
