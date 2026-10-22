@@ -36,10 +36,10 @@
         { title: 'Consultant clinical psychologist', place: 'Leading the service', need: 0 },
       ],
       mentor: { name: 'Dr Imani Clarke', img: { hello: '/assets/psych/mentor-hello.jpg', point: '/assets/psych/mentor-point.jpg', think: '/assets/psych/mentor-think.jpg' } },
-      text: { back: '← Psychology', careerTitle: 'Psychology Career', testsTab: 'Assessments', testsH: 'Assessments', testsMeter: 'Choose only the assessments that could change your mind.', onToTests: 'On to the assessments →', result: 'Finding: ', review: 'Look again', reviewBody: 'Revisit Dr Imani Clarke’s notes with the result in mind.', welcome: '<b>Pick a patient.</b> Read, ask, assess and decide. I will stay beside you.', afterCase: '<b>Now look at the twist.</b> Which clue deserved more weight?', role: 'the consultant clinical psychologist supervising you', stepTests: 'Step 3 of 4: assessments', teachIntro: 'Here is the psychology that matters for this patient.', coachAria: 'Your senior psychologist', background: 'is going through the psychology for this patient' },
+      text: { learnTab: 'The psychology', back: '← Psychology', careerTitle: 'Psychology Career', testsTab: 'Assessments', testsH: 'Assessments', testsMeter: 'Choose only the assessments that could change your mind.', onToTests: 'On to the assessments →', result: 'Finding: ', review: 'Look again', reviewBody: 'The psychology for this patient is written out below. Read it again with the result in mind.', welcome: '<b>Pick a patient.</b> Read, ask, assess and decide. I will stay beside you.', afterCase: '<b>Now look at the twist.</b> Which clue deserved more weight?', role: 'the consultant clinical psychologist supervising you', stepTests: 'Step 3 of 4: assessments', teachIntro: 'Here is the psychology that matters for this patient.', coachAria: 'Your senior psychologist', background: 'is going through the psychology for this patient' },
     },
   };
-  var TEXT_DEFAULT = { back: '← Biology', careerTitle: 'Doctor Career', testsTab: 'Tests', testsH: 'Tests', testsMeter: 'Every test takes time and some are uncomfortable or risky, so order only what will change your mind.', onToTests: 'On to the tests →', result: 'Result: ', review: 'Go back over the biology', reviewBody: 'The notes from Dr Hartley on the right still have the lessons for both illnesses. Read them again with this result in mind.', welcome: '<b>Pick a patient from the files.</b> Each takes about ten minutes. For every patient: read the file and the lessons, ask your questions, order a few tests, then decide. I will give you a short note at each step.', afterCase: '<b>Now look at the twist.</b> Go back over the lessons for both illnesses and ask yourself which finding you should have trusted, and which one you let mislead you.', role: 'the consultant supervising you', stepTests: 'Step 3 of 4: tests', teachIntro: 'I will take you through the science for this patient. The boxes marked <b>Easily confused</b> cover the mix-ups that catch people out.', coachAria: 'Your senior doctor', background: 'is going through the science for this patient' };
+  var TEXT_DEFAULT = { learnTab: 'The science', back: '← Biology', careerTitle: 'Doctor Career', testsTab: 'Tests', testsH: 'Tests', testsMeter: 'Every test takes time and some are uncomfortable or risky, so order only what will change your mind.', onToTests: 'On to the tests →', result: 'Result: ', review: 'Go back over the biology', reviewBody: 'The lessons for both illnesses are written out below. Read them again with this result in mind.', welcome: '<b>Pick a patient from the files.</b> Each takes about ten minutes. For every patient: read the file and the lessons, ask your questions, order a few tests, then decide. I will give you a short note at each step.', afterCase: '<b>Now look at the twist.</b> Go back over the lessons for both illnesses and ask yourself which finding you should have trusted, and which one you let mislead you.', role: 'the consultant supervising you', stepTests: 'Step 3 of 4: tests', teachIntro: 'I will take you through the science for this patient. The boxes marked <b>Easily confused</b> cover the mix-ups that catch people out.', coachAria: 'Your senior doctor', background: 'is going through the science for this patient' };
   function TXT(k) { var T = D.tracks[track]; return (T && T.text && T.text[k]) || TEXT_DEFAULT[k]; }
   var PASS = 60, ASKS = 6, TESTS = 3;
   D.ASKS = ASKS; D.TESTS = TESTS;
@@ -164,6 +164,8 @@
       '.dc-coach .teach { margin: 18px 0 8px; padding-bottom: 8px; } .dc-coach .teach + .teach { border-top: 1px solid rgba(26,35,45,.18); padding-top: 16px; } .dc-coach .teach h3 { margin: 0 0 4px; font: 600 1.2rem/1.3 Lora, Georgia, serif; } .dc-coach .teach h3 .lead { display: block; font: 600 .7rem "IBM Plex Sans", Arial, sans-serif; letter-spacing: .1em; text-transform: uppercase; color: #5B6672; }',
       '.dc-coach .teach .spec { display: inline-block; margin: 4px 0 8px; padding: 2px 9px; border-radius: 4px; background: #1A232D; color: #F1EAD6; font: 600 .68rem "IBM Plex Sans", Arial, sans-serif; letter-spacing: .04em; } .dc-coach .teach h4 { margin: 22px 0 6px; font: 600 1rem "IBM Plex Sans", Arial, sans-serif; } .dc-coach .teach p { margin: 0 0 14px; } .dc-coach .teach ul { margin: 0 0 14px 20px; padding: 0; } .dc-coach .teach li { margin-bottom: 6px; }',
       '.dc-coach .teach .ex, .dc-coach .teach .tw { margin: 4px 0 16px; padding: 11px 15px; border-radius: 6px; } .dc-coach .teach .ex { background: rgba(11,114,133,.1); border-left: 3px solid #0B7285; } .dc-coach .teach .tw { background: #FBF1E0; border-left: 3px solid #B45309; } .dc-coach .teach .eq { padding: 8px 12px; background: #FAF6E9; border-left: 3px solid #0A5F8F; font-family: Consolas, monospace; overflow-x: auto; }',
+      '.dc-tab.ref { margin-left: auto; color: #0A4A70; } .dc-tab.ref.on { color: var(--navy); }',
+      '.dc-science.dc-coach { position: static; width: auto; max-height: none; overflow: visible; margin: 6px 0 0; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; color: inherit; font-size: .98rem; line-height: 1.7; } .dc-science .teach-h { margin-top: 0; padding-top: 0; border-top: 0; } .dc-science .teach-tabs { position: static; margin: 6px 0 14px; padding: 0; background: transparent; }',
       '.dc-drawer { position: fixed; top: 0; right: 0; bottom: 0; z-index: 90; width: min(460px, 94vw); overflow-y: auto; padding: 20px 22px 40px; background: #F1EAD6; color: #1A232D; border-left: 1px solid rgba(26,35,45,.3); box-shadow: -18px 0 50px rgba(0,0,0,.45); font: .94rem/1.65 "IBM Plex Sans", Arial, sans-serif; } .dc-drawer h2 { margin: 0 0 4px; font: 600 1.25rem Lora, Georgia, serif; } .dc-drawer h4 { margin: 18px 0 4px; font-size: 1rem; } .dc-drawer p { margin: 0 0 10px; } .dc-drawer .x { float: right; padding: 3px 10px; border: 1px solid rgba(26,35,45,.3); border-radius: 6px; background: transparent; cursor: pointer; }',
       '.dc-drawer .spec { display: inline-block; margin: 4px 0 10px; padding: 2px 9px; border-radius: 4px; background: #1A232D; color: #F1EAD6; font: 600 .7rem "IBM Plex Sans", Arial, sans-serif; } .dc-drawer .ex { margin: 8px 0 12px; padding: 9px 13px; background: rgba(11,114,133,.1); border-left: 3px solid #0B7285; border-radius: 6px; } .dc-drawer .tw { margin: 8px 0 12px; padding: 9px 13px; background: #FBF1E0; border-left: 3px solid #B45309; border-radius: 6px; } .dc-drawer ul { margin: 0 0 10px 18px; padding: 0; } .dc-drawer .chk { margin: 8px 0; }',
     ].join('\n');
@@ -199,8 +201,8 @@
     var body = '';
     if (run.done) body = outcomeHtml(c, run);
     else {
-      body = '<div class="dc-tabs">' + tabs.map(function (t, i) { return '<button type="button" class="dc-tab' + (run.tab === t[0] ? ' on' : '') + '" data-tab="' + t[0] + '"><span class="n">' + (i + 1) + '</span>' + t[1] + '</button>'; }).join('') + '</div>';
-      if (run.tab === 'file') body += fileHtml(c); else if (run.tab === 'ask') body += askHtml(c, run); else if (run.tab === 'tests') body += testsHtml(c, run); else body += decideHtml(c, run);
+      body = '<div class="dc-tabs">' + tabs.map(function (t, i) { return '<button type="button" class="dc-tab' + (run.tab === t[0] ? ' on' : '') + '" data-tab="' + t[0] + '"><span class="n">' + (i + 1) + '</span>' + t[1] + '</button>'; }).join('') + '<button type="button" class="dc-tab ref' + (run.tab === 'learn' ? ' on' : '') + '" data-tab="learn">' + esc(TXT('learnTab')) + '</button></div>';
+      if (run.tab === 'file') body += fileHtml(c); else if (run.tab === 'learn') body += '<h2>' + esc(TXT('learnTab')) + '</h2>' + learnHtml(c); else if (run.tab === 'ask') body += askHtml(c, run); else if (run.tab === 'tests') body += testsHtml(c, run); else body += decideHtml(c, run);
     }
     host.innerHTML = '<div class="dc"><div class="dc-top"><div><button type="button" class="dc-back" data-dc="files">← Back to the files</button></div><div class="dc-role"><b>' + esc(D.tracks[track].ranks[D.rankIndex(track, d.results)].title) + '</b><span>About ' + (c.minutes || 10) + ' minutes</span></div></div><div class="dc-case">' + left + '<section class="dc-main">' + body + '</section></div></div>';
   }
@@ -209,8 +211,8 @@
       '<h3>Observations</h3><div class="dc-obs">' + c.obs.map(function (o) { return '<div><small>' + esc(o[0]) + '</small><b>' + esc(o[1]) + '</b></div>'; }).join('') + '</div>' +
       '<h3>What the notes say</h3><ul style="margin:0 0 10px 18px;padding:0">' + c.notes.map(function (n) { return '<li>' + bold(n) + '</li>'; }).join('') + '</ul>' +
       (c.infoCard ? '<h3>' + esc(c.infoCard.title) + '</h3><div class="dc-note">' + c.infoCard.body.map(function (p) { return '<p>' + bold(p) + '</p>'; }).join('') + '</div>' : '') +
-      '<div class="dc-note"><b>Background.</b> ' + esc(mentor().name) + ' ' + TXT('background') + ' in the panel on the right. Read it before you call the patient in.</div>' +
-      '<div class="dc-learn" style="margin-top:14px"><button type="button" class="dc-btn primary" data-tab="ask">Call the patient in →</button></div>';
+      '<div class="dc-note"><b>Background.</b> ' + esc(mentor().name) + ' ' + TXT('background') + '. It is written out under the <b>' + esc(TXT('learnTab')) + '</b> tab of this file. Read it before you call the patient in.</div>' +
+      '<div class="dc-learn" style="margin-top:14px"><button type="button" class="dc-btn lesson" data-tab="learn">Read ' + esc(TXT('learnTab').toLowerCase()) + ' first</button><button type="button" class="dc-btn primary" data-tab="ask">Call the patient in →</button></div>';
   }
   function askHtml(c, run) {
     var left = ASKS - run.asked.length;
@@ -261,8 +263,8 @@
       (c.twist ? '<div class="dc-warn"><b>The twist.</b> ' + bold(c.twist) + '</div>' : '') +
       '<h3>Your treatment choice</h3><p><b>' + esc(tx ? tx.label : '') + '</b><br>' + bold(tx ? tx.why : '') + '</p>' +
       evidenceFeedback(c, run) +
-      '<h3>' + esc(TXT('review')) + '</h3><p>' + esc(TXT('reviewBody')) + '</p>' +
-      '<div class="dc-learn" style="margin-top:14px"><button type="button" class="dc-btn primary" data-dc="files">Next patient →</button></div>';
+      '<h3>' + esc(TXT('review')) + '</h3><p>' + esc(TXT('reviewBody')) + '</p>' + learnHtml(c) +
+      '<div class="dc-learn" style="margin-top:18px"><button type="button" class="dc-btn primary" data-dc="files">Next patient →</button></div>';
   }
 
 
@@ -277,7 +279,7 @@
     if (!cur) return { img: 'hello', label: 'Welcome to the clinic', html: TXT('welcome') };
     var c = cur.c, run = cur.run, g = (D.guide || {})[c.id];
     if (run.done) return { img: 'hello', label: 'After the case', html: TXT('afterCase'), ideas: g ? g.ideas : null };
-    var tab = run.tab || 'file';
+    var tab = run.tab === 'learn' ? 'file' : (run.tab || 'file');
     if (!g) return { img: STEP_IMG[tab], label: STEP_NAME[tab], html: 'Take your time with this one.' };
     var extra = '';
     if (tab === 'ask') extra = ' <i>You have ' + (ASKS - run.asked.length) + ' question' + (ASKS - run.asked.length === 1 ? '' : 's') + ' left.</i>';
@@ -301,14 +303,12 @@
     coachBtn.style.display = st.coach.muted && !coachOpen ? 'none' : '';
     coachBtn.querySelector('.dot').style.display = !coachOpen && fresh ? '' : 'none';
     if (coachEl) { coachEl.remove(); coachEl = null; }
-    host.style.paddingRight = cur && coachOpen && window.innerWidth > 1000 ? 'min(470px, 38vw)' : '';
+    host.style.paddingRight = '';
     if (!coachOpen) return;
     coachEl = document.createElement('div'); coachEl.className = 'dc-coach'; coachEl.setAttribute('role', 'dialog'); coachEl.setAttribute('aria-label', 'Notes from ' + mentor().name);
     var intro = firstEver && !cur ? '<p class="intro"><b>I am ' + esc(mentor().name) + ', ' + esc(TXT('role')) + '.</b></p>' : '';
     var ideas = (m.ideas || []).map(function (i) { return '<div class="idea"><b>' + esc(i.t) + '</b><p>' + esc(i.b) + '</p></div>'; }).join('');
     coachEl.innerHTML = '<button type="button" class="x" data-coach-close="1" aria-label="Hide the notes">✕</button><div class="who"><img alt="" src="' + mentor().img[m.img || 'hello'] + '"><div><b>' + esc(mentor().name) + '</b><small>' + esc(m.label) + '</small></div></div>' + intro + '<div class="say">' + m.html + '</div>' + (ideas ? '<div class="ideas-h">Worth knowing for this decision</div>' + ideas : '') + '<label class="mute"><input type="checkbox" data-coach-mute="1"' + (st.coach.muted ? ' checked' : '') + '> Keep my notes closed unless I open them</label>';
-    // On a case, the notes sit under the patient so they never cover what you are reading; on the files screen they float.
-    if (cur) { coachEl.classList.add('side'); coachEl.insertAdjacentHTML('beforeend', teachHtml(cur.c)); }
     document.body.appendChild(coachEl);
     coachEl.addEventListener('click', function (ev) {
       var tt = ev.target.closest('[data-ttab]');
@@ -351,6 +351,7 @@
     });
     return out;
   }
+  function learnHtml(c) { var h = teachHtml(c); return h ? '<div class="dc-science dc-coach">' + h + '</div>' : '<p>There is no separate reading for this patient.</p>'; }
   function openLesson() { coachOpen = true; lastStep = null; coachDraw(); }
   function closeDrawer() {}
 
@@ -358,6 +359,13 @@
   /* ---------- events ---------- */
   function bind() {
     host.addEventListener('click', function (e) {
+      var tt = e.target.closest('[data-ttab]');
+      if (tt && cur) {   // a tab of the science written out in the file: one explanation at a time
+        var root = tt.closest('.dc-science'), k = +tt.dataset.ttab; cur.teachTab = k;
+        root.querySelectorAll('.teach-tab').forEach(function (b) { var is = +b.dataset.ttab === k; b.classList.toggle('on', is); b.setAttribute('aria-selected', String(is)); });
+        root.querySelectorAll('.teach-pane').forEach(function (pn) { pn.hidden = +pn.dataset.tpane !== k; });
+        return;
+      }
       var t = e.target.closest('[data-dc],[data-open],[data-tab],[data-ask],[data-test],[data-dx],[data-ev],[data-tx],[data-act],[data-lesson]'); if (!t) return;
       var d = D.load(track), run = cur && cur.run;
       if (t.dataset.lesson) { openLesson(t.dataset.lesson); return; }
