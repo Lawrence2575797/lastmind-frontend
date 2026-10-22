@@ -25146,7 +25146,7 @@ SQIDAQAB
         contentInner.innerHTML = `
             <div class="dashboard-view dashboard-locked" style="max-width:900px; margin:0 auto;">
                 <button type="button" class="btn btn-on-content" id="econDiagramBackBtn" style="margin-bottom:16px;">← Back to gallery</button>
-                <h2 style="display:block; width:fit-content; margin:0 auto 14px auto; background:var(--panel); color:var(--text); padding:14px 28px; border-radius:12px; font-size:clamp(1.7rem, 4vw, 2.3rem);">${escapeHtml(diagram.title)}</h2>
+                <h2 style="display:block; width:fit-content; margin:0 auto 14px auto; background:var(--panel); color:var(--text); padding:14px 28px; border-radius:12px; font-size:clamp(1.7rem, 4vw, 2.3rem); position:sticky; top:0; z-index:20; box-shadow:0 6px 16px rgba(0,0,0,.3);">${escapeHtml(diagram.title)}</h2>
                 <div id="econDiagramWidgetHost"></div>
             </div>
         `;
