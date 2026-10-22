@@ -1911,7 +1911,7 @@
        on top of the curve/tag, larger invisible hit ring plus a smaller
        visible dot, same "grab a handle to extend, don't touch the middle
        to translate" convention as ordinary vector-drawing tools. */
-    .diagram-curve-handle-hit { fill: transparent; cursor: ew-resize; }
+    .diagram-curve-handle-hit { fill: transparent; cursor: move; }
     .diagram-curve-handle-dot { fill: var(--bg); stroke: var(--accent); stroke-width: 2; pointer-events: none; }
     .diagram-shade-vertex-hit { fill: transparent; cursor: move; }
     .diagram-intersection-guide { stroke: var(--text); opacity: 0.35; stroke-width: 1; stroke-dasharray: 3 3; }
@@ -31433,9 +31433,10 @@ SQIDAQAB
         const dir = { x: dx / len, y: dy / len };
         const nearLocal = local[0], farLocal = local[local.length - 1];
         const baseLen = Math.hypot(farLocal.x - nearLocal.x, farLocal.y - nearLocal.y) || 1;
+        const v = { x: farLocal.x - nearLocal.x, y: farLocal.y - nearLocal.y };   // the curve's own un-scaled near-to-far vector: the scales that put the dragged end under the pointer follow from it
         return end === 'far'
-            ? { type: 'endpoint', id: inst.instanceId, end, anchor: { x: near.x, y: near.y }, dir, baseLen, nearLocal }
-            : { type: 'endpoint', id: inst.instanceId, end, anchor: { x: far.x, y: far.y }, dir: { x: -dir.x, y: -dir.y }, baseLen, nearLocal };
+            ? { type: 'endpoint', id: inst.instanceId, end, anchor: { x: near.x, y: near.y }, dir, baseLen, nearLocal, v }
+            : { type: 'endpoint', id: inst.instanceId, end, anchor: { x: far.x, y: far.y }, dir: { x: -dir.x, y: -dir.y }, baseLen, nearLocal, v };
     }
     function diagramPolylinePoints(poly) { return poly.map((p) => `${p.x},${p.y}`).join(' '); }
     function diagramBaseType(type) { return (type || '').replace(/_shift_(left|right)$/, ''); }
@@ -32102,9 +32103,10 @@ SQIDAQAB
                     render();
                 }));
 
-                // Endpoint handles - drag either dot to extend/shorten the
-                // curve along its own fixed direction (gradient never
-                // changes, only length: see diagramBeginEndpointDrag).
+                // Endpoint handles - drag either dot to move that end of the
+                // curve anywhere: its length and its gradient both change
+                // (hold Shift to change only the length: see
+                // diagramBeginEndpointDrag).
                 // A near-invisible larger hit-ring plus a small visible
                 // dot, one pair per end, drawn after the curve/tag so they
                 // sit on top and win the pointerdown. Skipped in shade
@@ -32186,17 +32188,27 @@ SQIDAQAB
                 } else if (state.dragging.type === 'endpoint') {
                     const inst = state.placed.find((p) => p.instanceId === state.dragging.id);
                     if (inst) {
-                        const { anchor, dir, baseLen, end, nearLocal } = state.dragging;
-                        const t = (pt.x - anchor.x) * dir.x + (pt.y - anchor.y) * dir.y;
-                        const scale = Math.min(DIAGRAM_MAX_CURVE_SCALE, Math.max(DIAGRAM_MIN_CURVE_SCALE, t / baseLen));
-                        inst.scaleX = scale; inst.scaleY = scale;
+                        const { anchor, dir, baseLen, end, nearLocal, v } = state.dragging;
+                        const clampScale = (k) => Math.min(DIAGRAM_MAX_CURVE_SCALE, Math.max(DIAGRAM_MIN_CURVE_SCALE, k));
+                        let sx, sy;
+                        if (ev.shiftKey) {
+                            // Shift keeps the gradient: only the length changes, along the curve's own direction.
+                            const t = (pt.x - anchor.x) * dir.x + (pt.y - anchor.y) * dir.y;
+                            sx = sy = clampScale(t / baseLen);
+                        } else {
+                            // The dragged end follows the pointer freely, so the length AND the gradient change: the two scales are whatever put
+                            // that end where the pointer is, measured from the end that stays put. (An axis along which the curve has no extent
+                            // keeps its scale.)
+                            const dxp = end === 'far' ? pt.x - anchor.x : anchor.x - pt.x, dyp = end === 'far' ? pt.y - anchor.y : anchor.y - pt.y;
+                            sx = Math.abs(v.x) > 1 ? clampScale(dxp / v.x) : (inst.scaleX || 1);
+                            sy = Math.abs(v.y) > 1 ? clampScale(dyp / v.y) : (inst.scaleY || 1);
+                        }
+                        inst.scaleX = sx; inst.scaleY = sy;
                         if (end === 'near') {
-                            // Desired near-point CANVAS position, then back
-                            // out inst.x/y from it (poly[0] = nearLocal + inst.{x,y} -
-                            // see diagramBeginEndpointDrag's own comment).
-                            const desiredNear = { x: anchor.x + dir.x * scale * baseLen, y: anchor.y + dir.y * scale * baseLen };
-                            inst.x = desiredNear.x - nearLocal.x;
-                            inst.y = desiredNear.y - nearLocal.y;
+                            // The near end's CANVAS position is the fixed far end less the scaled curve vector; back out inst.x/y from it
+                            // (poly[0] = nearLocal + inst.{x,y} - see diagramBeginEndpointDrag's own comment).
+                            inst.x = anchor.x - v.x * sx - nearLocal.x;
+                            inst.y = anchor.y - v.y * sy - nearLocal.y;
                         }
                         render();
                     }
