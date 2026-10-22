@@ -4899,7 +4899,8 @@
 
     /* LastMind Simulate - same look as Rewards: ink text on the page, panel-coloured cards and buttons. */
     /* Simulate home: the old chat page's greeting, quote and mark, then the projects as a stack of cards. */
-    .sim-home { width: 100%; max-width: 640px; min-height: calc(100vh - 150px); margin: 0 auto; padding: 4vh 16px 56px; color: var(--ink); display: flex; flex-direction: column; align-items: center; justify-content: center; }
+    .content:has(.sim-home) { padding-bottom: 8px; }
+    .sim-home { width: 100%; max-width: 640px; min-height: calc(100vh - 180px); margin: 0 auto; padding: 4vh 16px 16px; color: var(--ink); display: flex; flex-direction: column; align-items: center; justify-content: center; }
     .sim-greeting, .sim-quote { margin: 0; max-width: 480px; text-align: center; font: italic 1.05rem/1.6 'Lora', Georgia, serif; }
     .sim-greeting { margin-bottom: 10px; font: italic 700 clamp(1.5rem, 3.4vw, 2.1rem)/1.25 'Lora', Georgia, serif; opacity: 0.9; min-height: 1.25em; } .sim-quote { opacity: 0.78; font-size: 1.1rem; min-height: 1.6em; margin-bottom: 30px; }
     .sim-mark { display: flex; flex-direction: column; align-items: center; gap: 8px; margin: 3vh 0 4vh; color: var(--ink); font: 900 clamp(1.8rem, 5vw, 2.6rem)/1.1 'Lora', Georgia, serif; letter-spacing: 0.02em; }
@@ -4909,7 +4910,8 @@
     .sim-wallet-head { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 22px; }
     .sim-wallet-head h2 { margin: 0; font: 700 1.2rem 'Lora', Georgia, serif; }
     .sim-wallet-head .create-cta { padding: 10px 22px; font-size: 0.9rem; }
-    .sim-wallet { position: relative; width: 100%; max-width: 440px; height: 500px; touch-action: pan-x; outline: none; perspective: 1200px; user-select: none; -webkit-user-select: none; }
+    .sim-wallet { position: relative; width: 100%; max-width: 440px; height: clamp(400px, calc(100vh - 385px), 500px); touch-action: pan-x;   /* shorter on a short screen, so the page fits above the strip without scrolling */
+    outline: none; perspective: 1200px; user-select: none; -webkit-user-select: none; }
     .sim-wallet:focus-visible { outline: 2px solid var(--accent); outline-offset: 8px; border-radius: 18px; }
     .sim-card { position: absolute; left: 0; right: 0; top: 0; height: 330px; border-radius: 18px; overflow: hidden; background: var(--panel); color: var(--text); border: 1px solid rgba(26,26,28,0.28); box-shadow: 0 14px 34px rgba(26,26,28,0.28); transform-origin: 0 100%; will-change: transform, opacity; cursor: pointer; display: flex; flex-direction: column; }
     .sim-card:not(.front) { cursor: pointer; }
@@ -7236,9 +7238,9 @@
                 </div>
             </div>
             <footer class="site-strip" id="siteStrip">
-                <a href="mailto:lastmindadmin@gmail.com">lastmindadmin@gmail.com</a>
+                <span>Email: <a href="mailto:lastmindadmin@gmail.com">lastmindadmin@gmail.com</a></span>
                 <span class="site-strip-links" id="siteStripLinks"></span>
-                <script>(function () { var L = { Facebook: '', TikTok: '' }, h = document.getElementById('siteStripLinks'); Object.keys(L).forEach(function (k) { if (!/^https:\/\//.test(L[k])) return; var a = document.createElement('a'); a.href = L[k]; a.textContent = k; a.target = '_blank'; a.rel = 'noopener noreferrer'; h.appendChild(a); }); })();</script>
+                <script>(function () { var L = [['Facebook', '', 'Facebook'], ['TikTok', 'https://www.tiktok.com/@lastmindlearn', 'TikTok: @lastmindlearn']], h = document.getElementById('siteStripLinks'); L.forEach(function (x) { if (!/^https:\/\//.test(x[1])) return; var a = document.createElement('a'); a.href = x[1]; a.textContent = x[2]; a.target = '_blank'; a.rel = 'noopener noreferrer'; h.appendChild(a); }); })();</script>
             </footer>
         </main>
 
