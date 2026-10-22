@@ -25146,11 +25146,23 @@ SQIDAQAB
         contentInner.innerHTML = `
             <div class="dashboard-view dashboard-locked" style="max-width:900px; margin:0 auto;">
                 <button type="button" class="btn btn-on-content" id="econDiagramBackBtn" style="margin-bottom:16px;">← Back to gallery</button>
-                <h2 style="display:block; width:fit-content; margin:0 auto 14px auto; background:var(--panel); color:var(--text); padding:14px 28px; border-radius:12px; font-size:clamp(1.7rem, 4vw, 2.3rem); position:sticky; top:0; z-index:20; box-shadow:0 6px 16px rgba(0,0,0,.3);">${escapeHtml(diagram.title)}</h2>
+                <h2 style="display:block; width:fit-content; margin:0 auto 14px auto; background:var(--panel); color:var(--text); padding:14px 28px; border-radius:12px; font-size:clamp(1.7rem, 4vw, 2.3rem);">${escapeHtml(diagram.title)}</h2>
                 <div id="econDiagramWidgetHost"></div>
             </div>
         `;
         document.getElementById('econDiagramBackBtn').addEventListener('click', renderEconDiagramGallery);
+        // The back button and the heading stay put; only the drawing area under them scrolls, so the heading is always readable and nothing slides behind it.
+        {
+            const view = contentInner.querySelector('.dashboard-view'), host = document.getElementById('econDiagramWidgetHost'), scroller = contentInner.closest('.content');
+            host.style.cssText = 'flex:1; min-height:0; overflow-y:auto; padding-bottom:8px;';
+            view.style.display = 'flex'; view.style.flexDirection = 'column';
+            const fit = () => {
+                if (!view.isConnected || !scroller) { window.removeEventListener('resize', fit); return; }
+                const cs = getComputedStyle(scroller);
+                view.style.height = Math.max(320, scroller.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom)) + 'px';
+            };
+            fit(); window.addEventListener('resize', fit);
+        }
 
         // Unsaved-changes safety net: the drawing is mirrored to this browser as
         // you work, and restored if it is newer than what the server holds
