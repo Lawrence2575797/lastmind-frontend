@@ -4306,6 +4306,7 @@
     .nb-toolrow .nb-toolbar { position: static; margin-bottom: 0; width: auto; flex: 1 1 auto; min-width: 0; }
     .nb-toolrow.closed { display: none; }
     .nb-topbtns { display: none; } body:has(#nbCanvas) .nb-topbtns { display: contents; }
+    .nb-canvas.nb-zoomed { pointer-events: none; user-select: none; }
     #nbSrBtn.on { box-shadow: 0 0 0 2px #E6D7B0, 0 0 0 4px #1A232D; }
     .nb-toolbar-toggle { flex: 0 0 auto; font: inherit; font-size: 12.5px; font-weight: 700; padding: 9px 12px; border-radius: 10px; cursor: pointer; background: #1A232D; color: #F1EAD6; border: 0; box-shadow: 0 5px 12px rgba(0,0,0,.35); }
     .nb-toolbar-toggle:hover { background: #26323f; }
@@ -24399,7 +24400,7 @@ SQIDAQAB
                 </div>
             </div>`;
         { const slot = document.getElementById('nbTopBtns');   // fresh buttons for this page, so nothing from the page before is still attached to them
-          if (slot) slot.innerHTML = '<button type="button" class="cortex-btn-topbar" id="nbToolsToggle" aria-expanded="true" aria-controls="nbToolbar" title="Show or hide the tools bar">Tools ▴</button><button type="button" class="cortex-btn-topbar" id="nbHistBtn" title="Earlier versions of this page, and a way to get lost writing back">History</button><button type="button" class="cortex-btn-topbar" id="nbSrBtn" title="Quiz yourself on this page the day after you write it">Revision</button>'; }
+          if (slot) slot.innerHTML = '<button type="button" class="cortex-btn-topbar" id="nbToolsToggle" aria-expanded="true" aria-controls="nbToolbar" title="Show or hide the tools bar">Tools ▴</button><button type="button" class="cortex-btn-topbar" id="nbHistBtn" title="Earlier versions of this page, and a way to get lost writing back">History</button><button type="button" class="cortex-btn-topbar" id="nbSrBtn" title="Quiz yourself on this page the day after you write it">Revision</button><button type="button" class="cortex-btn-topbar" id="nbZoomOut" title="Zoom out" aria-label="Zoom out">−</button><button type="button" class="cortex-btn-topbar" id="nbZoomFit" title="Zoom out to see the whole page, for a screenshot. Click again to go back to normal size.">Fit page</button><button type="button" class="cortex-btn-topbar" id="nbZoomIn" title="Zoom in" aria-label="Zoom in">+</button>'; }
         const canvas = document.getElementById('nbCanvas');
         if (page.kind === 'problemset') { const t = document.getElementById('nbTitle'); if (t) t.placeholder = 'Untitled problem set'; psMountIntake(page, canvas); if (page.ps && page.ps.done) requestAnimationFrame(() => requestAnimationFrame(() => psRelayout(page, canvas))); }
         // When the sheet gets narrower or wider (the LastMind panel opening beside it, a smaller window), everything is moved so that all of it can
@@ -24610,6 +24611,29 @@ SQIDAQAB
             nbFitCanvas(canvas); notesScheduleSave();
             el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
         });
+        // Zoom: the whole sheet is scaled down so all of it can be seen (and screenshotted). While it is zoomed out it is for looking only: clicks pass
+        // through it, and the normal size brings editing back.
+        const zoomFit = document.getElementById('nbZoomFit'), contentScroller = contentInner.closest('.content');
+        let zoom = 1;
+        const applyZoom = (z) => {
+            zoom = Math.round(Math.max(0.25, Math.min(1, z)) * 100) / 100;
+            canvas.style.transformOrigin = '0 0';
+            canvas.style.transform = zoom < 1 ? 'scale(' + zoom + ')' : '';
+            canvas.style.marginBottom = '';
+            if (zoom < 1) canvas.style.marginBottom = '-' + Math.round(canvas.offsetHeight * (1 - zoom)) + 'px';
+            canvas.classList.toggle('nb-zoomed', zoom < 1);
+            zoomFit.textContent = zoom < 1 ? Math.round(zoom * 100) + '% · reset' : 'Fit page';
+        };
+        const fitZoom = () => {
+            applyZoom(1);
+            if (contentScroller) contentScroller.scrollTop = 0;
+            let bottom = 0; canvas.querySelectorAll('.nb-block').forEach((b) => { bottom = Math.max(bottom, b.offsetTop + b.offsetHeight); });
+            const room = window.innerHeight - canvas.getBoundingClientRect().top - 16;
+            applyZoom(bottom > 0 ? Math.min(1, room / (bottom + 40)) : 1);
+        };
+        document.getElementById('nbZoomOut').addEventListener('click', () => applyZoom(zoom - 0.1));
+        document.getElementById('nbZoomIn').addEventListener('click', () => applyZoom(zoom + 0.1));
+        zoomFit.addEventListener('click', () => { if (zoom < 1) applyZoom(1); else fitZoom(); });
         const toolRow = contentInner.querySelector('.nb-toolrow'), toolToggle = document.getElementById('nbToolsToggle');
         const setTools = (open, remember) => {
             toolRow.classList.toggle('closed', !open); toolToggle.setAttribute('aria-expanded', String(open)); toolToggle.textContent = open ? 'Tools ▴' : 'Tools ▾';
