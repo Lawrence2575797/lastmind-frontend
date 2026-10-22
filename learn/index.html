@@ -4292,6 +4292,21 @@
     .nb-drop-over { outline: 3px dashed rgba(230, 215, 176, .8); outline-offset: -6px; }
     .nb-canvas .nb-block.nb-arrow { padding: 0; background: none; border: 0; box-shadow: none; pointer-events: none; z-index: 2; }
     .nb-arrow svg { display: block; overflow: visible; color: #E6D7B0; } .nb-arrow .nb-arrow-hit { pointer-events: stroke; cursor: pointer; }
+    /* the tools bar can be folded away with the button beside it */
+    .nb-toolrow { display: flex; align-items: flex-start; gap: 6px; position: sticky; top: 0; z-index: 100; margin-bottom: 8px; }
+    .nb-toolrow .nb-toolbar { position: static; margin-bottom: 0; width: auto; flex: 1 1 auto; min-width: 0; }
+    .nb-toolrow.closed .nb-toolbar { display: none; }
+    .nb-toolbar-toggle { flex: 0 0 auto; font: inherit; font-size: 12.5px; font-weight: 700; padding: 9px 12px; border-radius: 10px; cursor: pointer; background: #1A232D; color: #F1EAD6; border: 0; box-shadow: 0 5px 12px rgba(0,0,0,.35); }
+    .nb-toolbar-toggle:hover { background: #26323f; }
+    /* an arrow drawn by hand */
+    .nb-canvas .nb-block.nb-darrow { padding: 0; background: none; border: 0; box-shadow: none; pointer-events: none; z-index: 3; }
+    .nb-darrow svg { display: block; overflow: visible; }
+    .nb-darrow .nb-darrow-hit { pointer-events: stroke; cursor: grab; } .nb-darrow polygon { pointer-events: all; cursor: grab; }
+    .nb-canvas.nb-drawing, .nb-canvas.nb-drawing * { cursor: crosshair !important; touch-action: none; }
+    .nb-draw-live { position: absolute; left: 0; top: 0; pointer-events: none; z-index: 5; overflow: visible; }
+    /* a text box shaped like a speech bubble */
+    .nb-bubble { border: 2px solid #E6D7B0; border-radius: 24px 24px 24px 5px; background: rgba(230, 215, 176, 0.07); padding: 6px 10px; margin-bottom: 16px; }
+    .nb-bubble::after { content: ''; position: absolute; left: 22px; bottom: -15px; width: 0; height: 0; border-right: 18px solid transparent; border-top: 15px solid #E6D7B0; pointer-events: none; }
     .math-bar { text-decoration: overline; text-decoration-thickness: 0.09em; }
     .nb-msg .frac, .nb-review .frac, .nb-tex .frac, .nb-sr-card .frac { display: inline-flex; flex-direction: column; align-items: center; vertical-align: middle; margin: 0 0.2em; font-size: 0.9em; line-height: 1.15; }
     .nb-msg .frac-num, .nb-review .frac-num, .nb-sr-card .frac-num { align-self: stretch; text-align: center; padding: 0 0.2em 0.12em; border-bottom: 1.5px solid currentColor; }
@@ -22099,7 +22114,7 @@ SQIDAQAB
         const lineGap = Math.max(18, Number.isFinite(writtenLine) ? writtenLine : fontSize * 1.55);
         const below = [];
         canvas.querySelectorAll('.nb-block').forEach((candidate) => {
-            if (candidate === sourceEl || candidate.offsetTop < oldBottom - lineGap) return;
+            if (candidate === sourceEl || candidate.classList.contains('nb-darrow') || candidate.offsetTop < oldBottom - lineGap) return;
             const candidateLeft = candidate.offsetLeft, candidateRight = candidateLeft + candidate.offsetWidth;
             if (candidateRight <= sourceLeft || candidateLeft >= sourceRight) return;
             const candidateBlock = page.doc.blocks.find((item) => item.id === candidate.dataset.id);
@@ -22125,7 +22140,7 @@ SQIDAQAB
         const sourceLeft = sourceEl.offsetLeft, sourceRight = sourceLeft + sourceEl.offsetWidth;
         const list = [];
         canvas.querySelectorAll('.nb-block').forEach((c) => {
-            if (c === sourceEl || c.offsetTop < oldBottom - 2) return;
+            if (c === sourceEl || c.classList.contains('nb-darrow') || c.offsetTop < oldBottom - 2) return;
             if (c.offsetLeft + c.offsetWidth <= sourceLeft || c.offsetLeft >= sourceRight) return;
             list.push(c);
         });
@@ -23061,7 +23076,7 @@ SQIDAQAB
 
     function nbMakeTextBlock(page, block, canvas, focus) {
         const el = document.createElement('div');
-        el.className = 'nb-block nb-text'; el.dataset.id = block.id;
+        el.className = 'nb-block nb-text' + (block.bubble ? ' nb-bubble' : ''); el.dataset.id = block.id;
         el.innerHTML = '<div class="nb-grip" title="Drag to move" role="button" aria-label="Drag to move this text box">⠿</div><button type="button" class="nb-align-left" aria-label="Align this text box with another" aria-pressed="false" title="Align left edge with another text box">⇤</button><button type="button" class="nb-del" aria-label="Delete this text box" title="Delete">×</button><div class="nb-body"></div><div class="nb-resize" title="Drag to resize"></div>';
         let ready = false;
         const ed = createSmartAnswerEditor('Type here…', { hideShortcutHint: true, auto: true, autocorrect: () => notesAutocorrect, onModeChange: (w) => { if (!ready) return; notesWriting = w; block.writing = w; nbSyncKeyboardButtons(); notesScheduleSave(); } });
@@ -23210,6 +23225,66 @@ SQIDAQAB
             armed = setTimeout(() => { armed = null; delBtn.textContent = '×'; delBtn.style.width = ''; delBtn.style.padding = ''; }, 3000);
         });
         if (focus) focusCell(0, 0);
+        return el;
+    }
+
+    // ----- arrows drawn by hand
+    // Dragged out in any direction and bent as you like; when you let go the path is simplified and drawn as one smooth curve with an arrow head.
+    const NB_ARROW_COLOUR = '#E6D7B0';
+    function nbSimplify(pts, eps) {
+        if (pts.length < 3) return pts.slice();
+        const a = pts[0], b = pts[pts.length - 1], dx = b.x - a.x, dy = b.y - a.y, len = Math.hypot(dx, dy);
+        let worst = 0, idx = -1;
+        for (let i = 1; i < pts.length - 1; i++) {
+            const d = len < 1 ? Math.hypot(pts[i].x - a.x, pts[i].y - a.y) : Math.abs(dy * pts[i].x - dx * pts[i].y + b.x * a.y - b.y * a.x) / len;
+            if (d > worst) { worst = d; idx = i; }
+        }
+        if (worst <= eps) return [a, b];
+        return nbSimplify(pts.slice(0, idx + 1), eps).slice(0, -1).concat(nbSimplify(pts.slice(idx), eps));
+    }
+    function nbArrowGeom(pts) {
+        const n = pts.length, f = (v) => Math.round(v * 10) / 10, end = pts[n - 1];
+        let d = 'M' + f(pts[0].x) + ' ' + f(pts[0].y), c2 = pts[0];
+        if (n === 2) d += 'L' + f(end.x) + ' ' + f(end.y);
+        else for (let i = 0; i < n - 1; i++) {
+            const p0 = pts[i - 1] || pts[i], p1 = pts[i], p2 = pts[i + 1], p3 = pts[i + 2] || p2;
+            const c1 = { x: p1.x + (p2.x - p0.x) / 6, y: p1.y + (p2.y - p0.y) / 6 };
+            c2 = { x: p2.x - (p3.x - p1.x) / 6, y: p2.y - (p3.y - p1.y) / 6 };
+            d += 'C' + f(c1.x) + ' ' + f(c1.y) + ' ' + f(c2.x) + ' ' + f(c2.y) + ' ' + f(p2.x) + ' ' + f(p2.y);
+        }
+        let tx = end.x - c2.x, ty = end.y - c2.y;
+        if (Math.hypot(tx, ty) < 0.5) { tx = end.x - pts[n - 2].x; ty = end.y - pts[n - 2].y; }
+        const tl = Math.hypot(tx, ty) || 1;
+        return { d, ux: tx / tl, uy: ty / tl, end };
+    }
+    function nbRenderDrawArrow(el, block) {
+        const pts = block.pts, g = nbArrowGeom(pts), pad = 26;
+        const x0 = Math.min.apply(null, pts.map((q) => q.x)) - pad, y0 = Math.min.apply(null, pts.map((q) => q.y)) - pad;
+        const w = Math.max.apply(null, pts.map((q) => q.x)) + pad - x0, h = Math.max.apply(null, pts.map((q) => q.y)) + pad - y0;
+        el.style.left = x0 + 'px'; el.style.top = y0 + 'px'; el.style.width = w + 'px'; el.style.height = h + 'px';
+        const hl = 15, hw = 8.5, bx = g.end.x - g.ux * hl, by = g.end.y - g.uy * hl, nx = -g.uy, ny = g.ux, r = (v) => Math.round(v * 10) / 10;
+        const head = `<polygon points="${r(g.end.x)},${r(g.end.y)} ${r(bx + nx * hw)},${r(by + ny * hw)} ${r(bx - nx * hw)},${r(by - ny * hw)}" fill="${NB_ARROW_COLOUR}" stroke="${NB_ARROW_COLOUR}" stroke-width="1.5" stroke-linejoin="round"><title>Drag to move. Double-click to remove.</title></polygon>`;
+        el.innerHTML = `<svg width="${w}" height="${h}" viewBox="${x0} ${y0} ${w} ${h}" aria-hidden="true"><path d="${g.d}" fill="none" stroke="${NB_ARROW_COLOUR}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>${head}<path class="nb-darrow-hit" d="${g.d}" fill="none" stroke="transparent" stroke-width="18"><title>Drag to move. Double-click to remove.</title></path></svg>`;
+    }
+    function nbMakeDrawArrow(page, block, canvas) {
+        const el = document.createElement('div');
+        el.className = 'nb-block nb-darrow'; el.dataset.id = block.id;
+        canvas.appendChild(el);
+        nbRenderDrawArrow(el, block);
+        el.addEventListener('dblclick', (e) => { if (!e.target.closest || !e.target.closest('svg')) return; nbRemoveBlock(page, block, el, canvas); });
+        el.addEventListener('pointerdown', (e) => {
+            if (!e.target.closest || !e.target.closest('svg') || (e.pointerType === 'mouse' && e.button !== 0)) return;
+            e.preventDefault();
+            const sx = e.clientX, sy = e.clientY, orig = block.pts.map((q) => ({ x: q.x, y: q.y }));
+            const minX = Math.min.apply(null, orig.map((q) => q.x)), maxX = Math.max.apply(null, orig.map((q) => q.x)), minY = Math.min.apply(null, orig.map((q) => q.y));
+            const move = (ev) => {
+                const dx = nbClamp(ev.clientX - sx, -minX, Math.max(0, canvas.clientWidth - maxX)), dy = Math.max(-minY, ev.clientY - sy);
+                block.pts = orig.map((q) => ({ x: Math.round((q.x + dx) * 10) / 10, y: Math.round((q.y + dy) * 10) / 10 }));
+                nbRenderDrawArrow(el, block); nbFitCanvas(canvas);
+            };
+            const up = () => { document.removeEventListener('pointermove', move); document.removeEventListener('pointerup', up); document.removeEventListener('pointercancel', up); notesScheduleSave(); };
+            document.addEventListener('pointermove', move); document.addEventListener('pointerup', up); document.addEventListener('pointercancel', up);
+        });
         return el;
     }
 
@@ -24089,7 +24164,7 @@ SQIDAQAB
         let bar = document.getElementById('nbSrBanner');
         const due = nbSrDue(page);
         if (!due.length) { bar?.remove(); } else {
-            if (!bar) { bar = document.createElement('div'); bar.id = 'nbSrBanner'; bar.className = 'nb-sr-banner'; const tb = wrap.querySelector('.nb-toolbar'); tb.parentNode.insertBefore(bar, tb); }
+            if (!bar) { bar = document.createElement('div'); bar.id = 'nbSrBanner'; bar.className = 'nb-sr-banner'; const tb = wrap.querySelector('.nb-toolrow'); tb.parentNode.insertBefore(bar, tb); }
             bar.innerHTML = '<span><b>' + (due.length === 1 ? nbAssistE(nbSrDueText(due[0])) + '.' : 'Revision due.') + '</b> ' + 'A few questions on everything on this page.' + '</span>' + due.map((s) => '<button type="button" data-day="' + s.key + '">' + (due.length === 1 ? 'Take now' : nbAssistE(nbDayStart(s.key).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' }))) + '</button>').join('');
             bar.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => nbSrQuiz(page, b.dataset.day)));
         }
@@ -24224,7 +24299,9 @@ SQIDAQAB
                     <button type="button" class="nb-tool nb-sr-btn" id="nbHistBtn" title="Earlier versions of this page, and a way to get lost writing back">History</button>
                     <button type="button" class="nb-tool nb-sr-btn" id="nbSrBtn" title="Quiz yourself on this page the day after you write it">Revision</button>
                 </div>
-                <div class="nb-toolbar" role="toolbar" aria-label="Page tools">
+                <div class="nb-toolrow">
+                <button type="button" class="nb-toolbar-toggle" id="nbToolsToggle" aria-expanded="true" aria-controls="nbToolbar" title="Show or hide the tools bar">‹ Tools</button>
+                <div class="nb-toolbar" id="nbToolbar" role="toolbar" aria-label="Page tools">
                     <label class="nb-text-size-wrap">Text size
                         <select class="nb-text-size" id="nbTextSize" aria-label="Text size" title="Text size for highlighted text or the active text box">
                             <option value="12">12px</option><option value="14">14px</option><option value="16" selected>16px</option><option value="18">18px</option><option value="22">22px</option><option value="28">28px</option><option value="36">36px</option>
@@ -24235,8 +24312,11 @@ SQIDAQAB
                     <button type="button" class="nb-tool" id="nbAddDiagram">+ Economics diagram</button>
                     <button type="button" class="nb-tool" id="nbAddImage" title="Add a picture from your device (you can also paste or drop one onto the page)">+ Image</button>
                     <input type="file" id="nbImageFile" accept="image/*" multiple hidden>
+                    <button type="button" class="nb-tool" id="nbAddArrow" aria-pressed="false" title="Drag out an arrow in any direction. It can bend, and is smoothed for you.">+ Arrow</button>
+                    <button type="button" class="nb-tool" id="nbAddBubble" title="Add a speech-bubble text box">+ Speech bubble</button>
                     <button type="button" class="nb-tool" id="nbAutocorrect" aria-pressed="true" title="Corrects common typing mistakes as you write. Press Backspace straight after a correction to put back what you typed.">Autocorrect: on</button>
                     <button type="button" class="nb-tool" id="nbShortcuts">Shortcuts</button>
+                </div>
                 </div>
                 <div class="nb-canvas" id="nbCanvas"></div>
                 <div class="nb-selection-size" id="nbSelectionSize"><span>Text size</span><select class="nb-text-size" aria-label="Selected text size"><option value="12">12px</option><option value="14">14px</option><option value="16" selected>16px</option><option value="18">18px</option><option value="22">22px</option><option value="28">28px</option><option value="36">36px</option></select></div>
@@ -24287,7 +24367,7 @@ SQIDAQAB
             if (flowed) notesScheduleSave();
         });
         page.doc = page.doc && Array.isArray(page.doc.blocks) ? page.doc : { blocks: [] };
-        page.doc.blocks.forEach((b) => { if (b.type === 'diagram') nbMakeDiagramBlock(page, b, canvas); else if (b.type === 'graph') nbMakeGraphBlock(page, b, canvas); else if (b.type === 'table') nbMakeTableBlock(page, b, canvas, false); else if (b.type === 'mark') psMakeMarkBlock(page, b, canvas); else if (b.type === 'rule') psMakeRuleBlock(page, b, canvas); else if (b.type === 'total') psMakeTotalBlock(page, b, canvas); else if (b.type === 'image') nbMakeImageBlock(page, b, canvas); else if (b.type === 'arrow') nbMakeArrowBlock(page, b, canvas); else nbMakeTextBlock(page, b, canvas, false); });
+        page.doc.blocks.forEach((b) => { if (b.type === 'diagram') nbMakeDiagramBlock(page, b, canvas); else if (b.type === 'graph') nbMakeGraphBlock(page, b, canvas); else if (b.type === 'table') nbMakeTableBlock(page, b, canvas, false); else if (b.type === 'mark') psMakeMarkBlock(page, b, canvas); else if (b.type === 'rule') psMakeRuleBlock(page, b, canvas); else if (b.type === 'total') psMakeTotalBlock(page, b, canvas); else if (b.type === 'image') nbMakeImageBlock(page, b, canvas); else if (b.type === 'arrow') nbMakeArrowBlock(page, b, canvas); else if (b.type === 'darrow') nbMakeDrawArrow(page, b, canvas); else nbMakeTextBlock(page, b, canvas, false); });
         nbRenderArrows(canvas, page);
         nbToggleHint(canvas, page); nbFitCanvas(canvas);
         // The sheet has a margin line. A click on or near it starts the text a fixed, comfortable distance to its right; a click anywhere
@@ -24297,6 +24377,7 @@ SQIDAQAB
         const nbSetMargin = () => canvas.style.setProperty('--nb-margin', nbMargin() + 'px');
         nbSetMargin(); window.addEventListener('resize', nbSetMargin);
         canvas.addEventListener('click', (e) => {
+            if (canvas._nbJustDrew || canvas.classList.contains('nb-drawing')) return;
             if (e.target !== canvas && !e.target.classList.contains('nb-hint')) return;
             if (page.kind === 'problemset') return;      // on a problem set, writing happens in the question and answer boxes only
             // Some visually empty parts of a positioned text box can expose
@@ -24418,6 +24499,53 @@ SQIDAQAB
         };
         document.getElementById('nbAddGraph').addEventListener('click', addGraph);
         canvas.addEventListener('keydown', (e) => { if ((e.ctrlKey || e.metaKey) && e.altKey && e.code === 'KeyG') { e.preventDefault(); addGraph(); } });
+        const arrowBtn = document.getElementById('nbAddArrow');
+        const stopDrawing = () => { canvas.classList.remove('nb-drawing'); arrowBtn.classList.remove('on'); arrowBtn.setAttribute('aria-pressed', 'false'); };
+        arrowBtn.addEventListener('click', () => {
+            if (canvas.classList.contains('nb-drawing')) { stopDrawing(); notesStatus('Arrow cancelled'); return; }
+            canvas.classList.add('nb-drawing'); arrowBtn.classList.add('on'); arrowBtn.setAttribute('aria-pressed', 'true');
+            notesStatus('Drag on the page to draw an arrow. Bend it however you like.');
+        });
+        canvas.addEventListener('pointerdown', (e) => {
+            if (!canvas.classList.contains('nb-drawing') || (e.pointerType === 'mouse' && e.button !== 0)) return;
+            e.preventDefault(); e.stopPropagation();
+            const rect = canvas.getBoundingClientRect(), at = (ev) => ({ x: nbClamp(ev.clientX - rect.left, 0, canvas.clientWidth), y: Math.max(0, ev.clientY - rect.top) });
+            const pts = [at(e)], NS = 'http://www.w3.org/2000/svg', live = document.createElementNS(NS, 'svg'), line = document.createElementNS(NS, 'path');
+            live.setAttribute('class', 'nb-draw-live'); live.setAttribute('width', canvas.clientWidth); live.setAttribute('height', canvas.clientHeight);
+            line.setAttribute('fill', 'none'); line.setAttribute('stroke', NB_ARROW_COLOUR); line.setAttribute('stroke-width', '3'); line.setAttribute('stroke-linecap', 'round'); line.setAttribute('stroke-linejoin', 'round');
+            live.appendChild(line); canvas.appendChild(live);
+            const draw = () => line.setAttribute('d', 'M' + pts.map((q) => q.x.toFixed(1) + ' ' + q.y.toFixed(1)).join('L'));
+            const move = (ev) => { const q = at(ev), last = pts[pts.length - 1]; if (Math.hypot(q.x - last.x, q.y - last.y) >= 3) { pts.push(q); draw(); } };
+            const up = () => {
+                document.removeEventListener('pointermove', move); document.removeEventListener('pointerup', up); document.removeEventListener('pointercancel', up);
+                live.remove(); stopDrawing();
+                canvas._nbJustDrew = true; setTimeout(() => { canvas._nbJustDrew = false; }, 60);
+                let len = 0; for (let i = 1; i < pts.length; i++) len += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
+                if (pts.length < 2 || len < 14) { notesStatus('Drag further to draw an arrow'); return; }
+                const block = { id: notesNewId(), type: 'darrow', pts: nbSimplify(pts, 5).map((q) => ({ x: Math.round(q.x * 10) / 10, y: Math.round(q.y * 10) / 10 })) };
+                page.doc.blocks.push(block); nbToggleHint(canvas, page);
+                nbMakeDrawArrow(page, block, canvas); nbFitCanvas(canvas); notesScheduleSave();
+            };
+            document.addEventListener('pointermove', move); document.addEventListener('pointerup', up); document.addEventListener('pointercancel', up);
+        }, true);
+        document.getElementById('nbAddBubble').addEventListener('click', () => {
+            let bottom = 0; canvas.querySelectorAll('.nb-block').forEach((b) => { bottom = Math.max(bottom, b.offsetTop + b.offsetHeight); });
+            const x = canvas.clientWidth < 520 ? 44 : 72;
+            const block = { id: notesNewId(), type: 'text', bubble: true, keep: true, x, y: bottom ? bottom + 24 : 24, w: Math.min(320, Math.max(200, canvas.clientWidth - x - 24)), html: '' };
+            page.doc.blocks.push(block); nbToggleHint(canvas, page);
+            const el = nbMakeTextBlock(page, block, canvas, true);
+            nbFitCanvas(canvas); notesScheduleSave();
+            el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        });
+        const toolRow = contentInner.querySelector('.nb-toolrow'), toolToggle = document.getElementById('nbToolsToggle');
+        const setTools = (open, remember) => {
+            toolRow.classList.toggle('closed', !open); toolToggle.setAttribute('aria-expanded', String(open)); toolToggle.textContent = open ? '‹ Tools' : 'Tools ›';
+            if (remember) { try { localStorage.setItem('lm-notes-tools-open', open ? '1' : '0'); } catch (_) { /* a convenience only */ } }
+        };
+        let toolsOpen = true; try { toolsOpen = localStorage.getItem('lm-notes-tools-open') !== '0'; } catch (_) { toolsOpen = true; }
+        setTools(toolsOpen, false);
+        toolToggle.addEventListener('mousedown', (e) => e.preventDefault());
+        toolToggle.addEventListener('click', () => setTools(toolRow.classList.contains('closed'), true));
         document.getElementById('nbAddDiagram').addEventListener('click', () => {
             let bottom = 0; canvas.querySelectorAll('.nb-block').forEach((b) => { bottom = Math.max(bottom, b.offsetTop + b.offsetHeight); });
             const block = { id: notesNewId(), type: 'diagram', x: (canvas.clientWidth < 520 ? 44 : 72), y: bottom ? bottom + 24 : 24, w: Math.min(620, Math.max(300, canvas.clientWidth - 48)), state: {}, linesOpen: true };
