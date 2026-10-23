@@ -4318,7 +4318,10 @@
     .nb-draw-live { position: absolute; left: 0; top: 0; pointer-events: none; z-index: 95; overflow: visible; }
     /* a text box shaped like a speech bubble */
     .nb-bubble { border: 2px solid #E6D7B0; border-radius: 24px 24px 24px 5px; background: rgba(230, 215, 176, 0.07); padding: 6px 10px; margin-bottom: 16px; }
-    .nb-bubble.nb-active > .nb-grip { display: flex; }   /* the drag dots show on the bubble last clicked, and go when the empty page is clicked */
+    .nb-bubble.nb-active > .nb-grip { display: flex; }
+    .nb-bubble.nb-hl { background: rgba(230, 215, 176, 0.3); border-color: #F6E9C0; box-shadow: 0 0 0 2px rgba(246, 233, 192, 0.22), 0 0 20px rgba(230, 215, 176, 0.25); }
+    .nb-bubble-hlbtn { position: absolute; left: 30px; top: -22px; width: 26px; height: 20px; display: none; align-items: center; justify-content: center; padding: 0; border: 0; border-radius: 5px 5px 0 0; background: #E6D7B0; color: #1A232D; cursor: pointer; }
+    .nb-bubble.nb-active > .nb-bubble-hlbtn { display: flex; } .nb-bubble-hlbtn[aria-pressed="true"] { background: #fff; }   /* the drag dots show on the bubble last clicked, and go when the empty page is clicked */
     .nb-bubble:hover > .nb-corner, .nb-bubble:focus-within > .nb-corner { opacity: 0.95; }
     .nb-bubble::after { content: ''; position: absolute; left: 22px; bottom: -15px; width: 0; height: 0; border-right: 18px solid transparent; border-top: 15px solid #E6D7B0; pointer-events: none; }
     .math-bar { text-decoration: overline; text-decoration-thickness: 0.09em; }
@@ -23122,7 +23125,7 @@ SQIDAQAB
 
     function nbMakeTextBlock(page, block, canvas, focus) {
         const el = document.createElement('div');
-        el.className = 'nb-block nb-text' + (block.bubble ? ' nb-bubble' : ''); el.dataset.id = block.id;
+        el.className = 'nb-block nb-text' + (block.bubble ? ' nb-bubble' : '') + (block.bubble && block.hl ? ' nb-hl' : ''); el.dataset.id = block.id;
         el.innerHTML = '<div class="nb-grip" title="Drag to move" role="button" aria-label="Drag to move this text box">⠿</div><button type="button" class="nb-align-left" aria-label="Align this text box with another" aria-pressed="false" title="Align left edge with another text box">⇤</button><button type="button" class="nb-del" aria-label="Delete this text box" title="Delete">×</button><div class="nb-body"></div><div class="nb-resize" title="Drag to resize"></div>';
         let ready = false;
         const ed = createSmartAnswerEditor('Type here…', { hideShortcutHint: true, auto: true, autocorrect: () => notesAutocorrect, onModeChange: (w) => { if (!ready) return; notesWriting = w; block.writing = w; nbSyncKeyboardButtons(); notesScheduleSave(); } });
@@ -23183,6 +23186,12 @@ SQIDAQAB
         if (block.bubble) {
             el.addEventListener('pointerdown', () => { canvas.querySelectorAll('.nb-bubble.nb-active').forEach((b) => { if (b !== el) b.classList.remove('nb-active'); }); el.classList.add('nb-active'); });
             if (focus) el.classList.add('nb-active');
+            // a lighter fill so the bubble stands out; the button sits beside the drag dots and shows with them
+            const hl = document.createElement('button'); hl.type = 'button'; hl.className = 'nb-bubble-hlbtn'; hl.title = 'Highlight this bubble (a lighter fill so it stands out). Click again to remove it.'; hl.setAttribute('aria-label', 'Highlight this bubble'); hl.setAttribute('aria-pressed', String(!!block.hl));
+            hl.innerHTML = '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8 2a6 6 0 0 1 0 12z" fill="currentColor"/></svg>';
+            hl.addEventListener('pointerdown', (e) => { e.stopPropagation(); });
+            hl.addEventListener('click', (e) => { e.stopPropagation(); block.hl = !block.hl; el.classList.toggle('nb-hl', !!block.hl); hl.setAttribute('aria-pressed', String(!!block.hl)); notesScheduleSave(); });
+            el.appendChild(hl);
             nbWireBubbleCorners(el, block, canvas);
             // a speech bubble is moved by its grip or by its own outline, not only after a double-click
             el.addEventListener('pointerdown', (e) => { if (e.target === el && e.button === 0) { e.preventDefault(); nbDragStart(e, el, el, block, canvas); } });
@@ -23638,7 +23647,7 @@ SQIDAQAB
         nbPlace(el, block, canvas);
         const host = el.querySelector('.nb-dhost');
         const s = block.state || {};
-        const initial = { placed: s.curves || [], shades: s.shades || [], labels: s.labels || [], arrows: s.arrows || [] };
+        const initial = { placed: s.curves || [], shades: s.shades || [], labels: s.labels || [], arrows: s.arrows || [], axisText: s.axisText || {} };
         renderDiagramWidget(host, null, async () => ({ correct: true, savedLabel: '✓ Saved', feedback: '' }), null, initial, {
             mode: 'save', onChange: (state) => { block.state = state; notesScheduleSave(); },
         });
@@ -25207,7 +25216,7 @@ SQIDAQAB
             draft = null;
         }
         const initialState = diagram.diagramState && Object.keys(diagram.diagramState).length
-            ? { placed: diagram.diagramState.curves || [], shades: diagram.diagramState.shades || [], labels: diagram.diagramState.labels || [], arrows: diagram.diagramState.arrows || [], notes: diagram.diagramState.notes || '', ...(diagram.diagramState.background !== undefined ? { background: diagram.diagramState.background } : {}) }
+            ? { placed: diagram.diagramState.curves || [], shades: diagram.diagramState.shades || [], labels: diagram.diagramState.labels || [], arrows: diagram.diagramState.arrows || [], axisText: diagram.diagramState.axisText || {}, notes: diagram.diagramState.notes || '', ...(diagram.diagramState.background !== undefined ? { background: diagram.diagramState.background } : {}) }
             : undefined;
         renderDiagramWidget(document.getElementById('econDiagramWidgetHost'), null, async (answer) => {
             const saved = await econFetch(`/economics-diagrams/${diagram.id}`, { method: 'PUT', body: JSON.stringify({ diagramState: answer }) });
@@ -31772,7 +31781,7 @@ SQIDAQAB
     // those guides cross other lines. Shared by the editor and the gallery
     // preview so both show exactly the same diagram. `intersections` is filled
     // with the points found (the editor keeps it on its state).
-    function diagramDrawIntersections(svg, placedPolys, intersections) {
+    function diagramDrawIntersections(svg, placedPolys, intersections, axisCtx) {
     let letterSeq = 0, guideSeq = 0;
     function addNamedIntersection(hit, showGuides) {
         if (!hit || letterSeq >= 26) return false;
@@ -31792,10 +31801,10 @@ SQIDAQAB
             svg.appendChild(svgElement('line', { x1: hit.x, y1: hit.y, x2: DIAGRAM_PRICE_AXIS[0].x, y2: hit.y, class: 'diagram-intersection-guide' }));
             svg.appendChild(svgElement('line', { x1: hit.x, y1: hit.y, x2: hit.x, y2: DIAGRAM_QUANTITY_AXIS[0].y, class: 'diagram-intersection-guide' }));
             const pLabel = svgElement('text', { x: DIAGRAM_PRICE_AXIS[0].x - 6, y: hit.y + 4, class: 'diagram-intersection-label', 'text-anchor': 'end' });
-            pLabel.textContent = `P${guideSeq}`;
+            { const k = 'P' + guideSeq; diagramRichText(pLabel, (axisCtx && axisCtx.text && axisCtx.text[k]) || k); diagramMakeAxisEditable(pLabel, k, axisCtx); }
             svg.appendChild(pLabel);
             const qLabel = svgElement('text', { x: hit.x, y: DIAGRAM_QUANTITY_AXIS[0].y + 16, class: 'diagram-intersection-label', 'text-anchor': 'middle' });
-            qLabel.textContent = `Q${guideSeq}`;
+            { const k = 'Q' + guideSeq; diagramRichText(qLabel, (axisCtx && axisCtx.text && axisCtx.text[k]) || k); diagramMakeAxisEditable(qLabel, k, axisCtx); }
             svg.appendChild(qLabel);
         }
         svg.appendChild(svgElement('circle', { cx: hit.x, cy: hit.y, r: 2.5, class: 'diagram-curve-handle-dot' }));
@@ -31912,6 +31921,14 @@ SQIDAQAB
         flush();
         if (!el.firstChild) el.appendChild(document.createTextNode(''));
     }
+    // The axis labels (P, Q, and the P1, Q1... that mark where curves cross) can be renamed like a curve's name. The typed name is kept against the
+    // standard one in axisText, e.g. { P: 'Price level', Q1: 'Q_e' }.
+    function diagramMakeAxisEditable(el, key, ctx) {
+        if (!ctx || !ctx.edit) return;
+        el.classList.add('diagram-tag-editable');
+        el.addEventListener('pointerdown', (ev) => ev.stopPropagation());
+        el.addEventListener('click', (ev) => { ev.stopPropagation(); ctx.edit(key, el); });
+    }
     // A small text box over a label to rename it. Enter or clicking away keeps the change, Escape drops it.
     function diagramEditLabel(anchorEl, current, onCommit) {
         document.querySelectorAll('.diagram-label-editor').forEach((n) => n.remove());
@@ -31956,10 +31973,10 @@ SQIDAQAB
         svg.appendChild(svgElement('line', { x1: DIAGRAM_PRICE_AXIS[0].x, y1: DIAGRAM_PRICE_AXIS[0].y, x2: DIAGRAM_PRICE_AXIS[1].x, y2: DIAGRAM_PRICE_AXIS[1].y, class: 'diagram-axis' }));
         svg.appendChild(svgElement('line', { x1: DIAGRAM_QUANTITY_AXIS[0].x, y1: DIAGRAM_QUANTITY_AXIS[0].y, x2: DIAGRAM_QUANTITY_AXIS[1].x, y2: DIAGRAM_QUANTITY_AXIS[1].y, class: 'diagram-axis' }));
         const priceLabel = svgElement('text', { x: DIAGRAM_PRICE_AXIS[0].x - 16, y: DIAGRAM_PRICE_AXIS[0].y - 4, class: 'diagram-axis-label', 'text-anchor': 'end', 'font-weight': 'bold', 'font-size': '16' });
-        priceLabel.textContent = 'P';
+        diagramRichText(priceLabel, (diagramState && diagramState.axisText && diagramState.axisText.P) || 'P');
         svg.appendChild(priceLabel);
         const qtyLabel = svgElement('text', { x: DIAGRAM_QUANTITY_AXIS[1].x + 6, y: DIAGRAM_QUANTITY_AXIS[1].y + 16, class: 'diagram-axis-label', 'text-anchor': 'start', 'font-weight': 'bold', 'font-size': '16' });
-        qtyLabel.textContent = 'Q';
+        diagramRichText(qtyLabel, (diagramState && diagramState.axisText && diagramState.axisText.Q) || 'Q');
         svg.appendChild(qtyLabel);
 
         ((diagramState && diagramState.shades) || []).forEach((s) => {
@@ -31977,7 +31994,7 @@ SQIDAQAB
             tag.style.fontSize = `${diagramTagFontSize(tagText)}px`;
             svg.appendChild(tag);
         });
-        diagramDrawIntersections(svg, polys, []);
+        diagramDrawIntersections(svg, polys, [], { text: (diagramState && diagramState.axisText) || {}, edit: null });
         ((diagramState && diagramState.arrows) || []).forEach((a) => {
             svg.appendChild(svgElement('line', { x1: a.x1, y1: a.y1, x2: a.x2, y2: a.y2, class: 'diagram-arrow', 'marker-end': `url(#${arrowId})` }));
         });
@@ -32027,11 +32044,14 @@ SQIDAQAB
             shades: (initialState && initialState.shades) || [],
             labels: (initialState && initialState.labels) || [],
             arrows: (initialState && initialState.arrows) || [],
+            axisText: (initialState && initialState.axisText) || {},
             background: (initialState && initialState.background !== undefined) ? initialState.background : ((options && options.backgrounds && equippedDiagramBackground) || ''),
             shadeMode: false, edgeSelection: [], arrowMode: false, arrowDraft: null, dragging: null,
             intersections: [], labelSelection: [], shadeLabel: null,
         };
         const initialNotes = (initialState && initialState.notes) || '';
+        // clicking an axis label renames it (Notes and the Economics Drawing Tool only; a graded diagram keeps its standard labels)
+        const axisCtx = { text: state.axisText, edit: mode === 'save' ? (key, el) => diagramEditLabel(el, state.axisText[key] || key, (v) => { if (v && v !== key) state.axisText[key] = v; else delete state.axisText[key]; render(); }) : null };
 
         container.innerHTML = `
             <div class="diagram-widget">
@@ -32088,6 +32108,7 @@ SQIDAQAB
                 shades: state.shades.map((s) => ({ points: s.points, label: s.label, vertexLabels: s.vertexLabels || [], color: s.color || 'rgba(230, 215, 176, 0.28)' })),
                 labels: state.labels.map((l) => ({ text: l.text, x: l.x, y: l.y })),
                 arrows: state.arrows.map((a) => ({ x1: a.x1, y1: a.y1, x2: a.x2, y2: a.y2 })),
+                ...(Object.keys(state.axisText || {}).length ? { axisText: state.axisText } : {}),
                 ...(notesInput ? { notes: notesInput.value } : {}),
                 ...(showBackgrounds ? { background: state.background } : {}),
             };
@@ -32139,10 +32160,10 @@ SQIDAQAB
             svg.appendChild(priceAxisEl);
             svg.appendChild(qtyAxisEl);
             const priceLabel = svgElement('text', { x: DIAGRAM_PRICE_AXIS[0].x - 16, y: DIAGRAM_PRICE_AXIS[0].y - 4, class: 'diagram-axis-label', 'text-anchor': 'end', 'font-weight': 'bold', 'font-size': '16' });
-            priceLabel.textContent = 'P';
+            diagramRichText(priceLabel, state.axisText.P || 'P'); diagramMakeAxisEditable(priceLabel, 'P', axisCtx);
             svg.appendChild(priceLabel);
             const qtyLabel = svgElement('text', { x: DIAGRAM_QUANTITY_AXIS[1].x + 6, y: DIAGRAM_QUANTITY_AXIS[1].y + 16, class: 'diagram-axis-label', 'text-anchor': 'start', 'font-weight': 'bold', 'font-size': '16' });
-            qtyLabel.textContent = 'Q';
+            diagramRichText(qtyLabel, state.axisText.Q || 'Q'); diagramMakeAxisEditable(qtyLabel, 'Q', axisCtx);
             svg.appendChild(qtyLabel);
 
             (given || []).forEach((g) => {
@@ -32234,7 +32255,7 @@ SQIDAQAB
             // either axis as well as one curve meeting another, so axis-
             // bounded regions have named corners too. Curve/curve crossings
             // additionally project to matching P1/Q1, P2/Q2... axis values.
-            diagramDrawIntersections(svg, placedPolys, state.intersections);
+            diagramDrawIntersections(svg, placedPolys, state.intersections, axisCtx);
 
             state.arrows.forEach((a, arrowIdx) => {
                 svg.appendChild(svgElement('line', { x1: a.x1, y1: a.y1, x2: a.x2, y2: a.y2, class: 'diagram-arrow', 'marker-end': `url(#${uid}-arrowhead)` }));
