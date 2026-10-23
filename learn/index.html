@@ -31429,6 +31429,12 @@ SQIDAQAB
         demand_relatively_inelastic: [{ x: 0, y: 0 }, { x: 130, y: 120 }, { x: 260, y: 240 }],
         supply_relatively_elastic: [{ x: 0, y: 80 }, { x: 130, y: 40 }, { x: 260, y: 0 }],
         supply_relatively_inelastic: [{ x: 0, y: 240 }, { x: 130, y: 120 }, { x: 260, y: 0 }],
+        // Fixed and variable costs. The totals share one start so that TVC and TC placed together are TFC apart (TC is TVC lifted by the fixed cost).
+        total_fixed_cost: [{ x: 0, y: 0 }, { x: 260, y: 0 }],
+        total_variable_cost: [{ x: 0, y: 200 }, { x: 35, y: 156 }, { x: 70, y: 128 }, { x: 110, y: 110 }, { x: 150, y: 98 }, { x: 190, y: 80 }, { x: 225, y: 56 }, { x: 260, y: 30 }],
+        total_cost: [{ x: 0, y: 170 }, { x: 35, y: 126 }, { x: 70, y: 98 }, { x: 110, y: 80 }, { x: 150, y: 68 }, { x: 190, y: 50 }, { x: 225, y: 26 }, { x: 260, y: 0 }],
+        average_fixed_cost: [{ x: 18, y: 200 }, { x: 24, y: 150 }, { x: 30, y: 120 }, { x: 38, y: 95 }, { x: 48, y: 75 }, { x: 60, y: 60 }, { x: 75, y: 48 }, { x: 95, y: 38 }, { x: 120, y: 30 }, { x: 155, y: 23 }, { x: 200, y: 18 }, { x: 260, y: 14 }],
+        average_variable_cost: [{ x: 0, y: 80 }, { x: 25, y: 48 }, { x: 55, y: 28 }, { x: 90, y: 16 }, { x: 125, y: 12 }, { x: 160, y: 16 }, { x: 195, y: 28 }, { x: 230, y: 50 }, { x: 260, y: 80 }],
     };
     const DIAGRAM_PALETTE_LABELS = {
         demand: 'Demand', supply: 'Supply', generic_price_line: 'Price line', generic_quantity_line: 'Quantity line',
@@ -31439,7 +31445,10 @@ SQIDAQAB
         ppf: 'PPF',
         demand_relatively_elastic: 'Demand (relatively elastic)', demand_relatively_inelastic: 'Demand (relatively inelastic)',
         supply_relatively_elastic: 'Supply (relatively elastic)', supply_relatively_inelastic: 'Supply (relatively inelastic)',
+        total_fixed_cost: 'TFC', total_variable_cost: 'TVC', total_cost: 'TC', average_fixed_cost: 'AFC', average_variable_cost: 'AVC',
     };
+    // What the palette button says, where the curve's own name on the diagram is the short one.
+    const DIAGRAM_PALETTE_TEXT = { total_fixed_cost: 'Fixed cost (TFC)', total_variable_cost: 'Variable cost (TVC)', total_cost: 'Total cost (TC)', average_fixed_cost: 'Avg fixed cost (AFC)', average_variable_cost: 'Avg variable cost (AVC)' };
     // Every "given" (pre-known, from a prerequisite) curve shares this
     // one fixed origin — matches how the grading engine's own real
     // demand+supply crossing was verified (both placed at an identical
@@ -32402,7 +32411,7 @@ SQIDAQAB
             preview.appendChild(svgElement('polyline', { points: diagramPolylinePoints(DIAGRAM_CURVE_SHAPES[type]), class: 'diagram-curve' }));
             btn.appendChild(preview);
             const labelSpan = document.createElement('span');
-            labelSpan.textContent = DIAGRAM_PALETTE_LABELS[type] || type;
+            labelSpan.textContent = DIAGRAM_PALETTE_TEXT[type] || DIAGRAM_PALETTE_LABELS[type] || type;
             btn.appendChild(labelSpan);
             btn.addEventListener('click', () => {
                 state.placed.push({ instanceId: `c${Math.random().toString(36).slice(2)}`, curveTypeId: type, x: 220, y: 160, scaleX: 1, scaleY: 1 });
