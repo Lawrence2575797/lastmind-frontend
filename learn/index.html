@@ -31921,6 +31921,18 @@ SQIDAQAB
         flush();
         if (!el.firstChild) el.appendChild(document.createTextNode(''));
     }
+    // A long label (a renamed axis, say) must not be cut off at the edge: the view is widened to take in every piece of text, keeping the board's shape,
+    // so the whole drawing shrinks a little instead. Returns the view used, for turning a pointer position into a drawing position.
+    function diagramFitViewBox(svg) {
+        const W = DIAGRAM_CANVAS_WIDTH, H = DIAGRAM_CANVAS_HEIGHT;
+        let left = 0, top = 0, right = W, bottom = H;
+        svg.querySelectorAll('text').forEach((tx) => {
+            try { const b = tx.getBBox(); if (!b.width && !b.height) return; left = Math.min(left, b.x - 8); right = Math.max(right, b.x + b.width + 8); top = Math.min(top, b.y - 6); bottom = Math.max(bottom, b.y + b.height + 6); } catch (e) { /* not drawn yet */ }
+        });
+        const k = Math.max(1, (right - left) / W, (bottom - top) / H), v = { x: left, y: top, w: W * k, h: H * k };
+        svg.setAttribute('viewBox', v.x + ' ' + v.y + ' ' + v.w + ' ' + v.h);
+        return v;
+    }
     // The axis labels (P, Q, and the P1, Q1... that mark where curves cross) can be renamed like a curve's name. The typed name is kept against the
     // standard one in axisText, e.g. { P: 'Price level', Q1: 'Q_e' }.
     function diagramMakeAxisEditable(el, key, ctx) {
@@ -32006,6 +32018,7 @@ SQIDAQAB
 
         container.innerHTML = '';
         container.appendChild(svg);
+        diagramFitViewBox(svg);
     }
 
     let diagramWidgetSeq = 0;
@@ -32121,11 +32134,12 @@ SQIDAQAB
             changeTimer = setTimeout(() => { try { options.onChange(buildAnswer()); } catch (_) {} }, 300);
         }
 
+        let view = { x: 0, y: 0, w: DIAGRAM_CANVAS_WIDTH, h: DIAGRAM_CANVAS_HEIGHT };   // what part of the drawing the board shows (see diagramFitViewBox)
         function svgPointFromEvent(ev) {
             const rect = svg.getBoundingClientRect();
             return {
-                x: (ev.clientX - rect.left) * (DIAGRAM_CANVAS_WIDTH / rect.width),
-                y: (ev.clientY - rect.top) * (DIAGRAM_CANVAS_HEIGHT / rect.height),
+                x: view.x + (ev.clientX - rect.left) * (view.w / rect.width),
+                y: view.y + (ev.clientY - rect.top) * (view.h / rect.height),
             };
         }
 
@@ -32301,7 +32315,7 @@ SQIDAQAB
                     svg.appendChild(svgElement('circle', { cx: p.x, cy: p.y, r: 3.5, class: 'diagram-curve-handle-dot' }));
                 });
             });
-
+            view = diagramFitViewBox(svg);
         }
 
         let didDrag = false;   // a drag that ends over the empty board must not count as a click on it
