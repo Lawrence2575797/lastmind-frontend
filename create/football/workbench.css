@@ -211,3 +211,4 @@ body[data-view="workbench"] #view-workbench { animation: none !important; transf
 @media (max-width: 1279px) { .wb.awide .wb-agent { width: min(860px, 100%); } }
 .wb-pitches.one { grid-template-columns: minmax(0, 1fr); } .wb-pitch figcaption:empty { display: none; }
 .wb-tact-btns { display: flex; gap: 10px; margin: 12px 0 4px; } .wb-tact-btns button { padding: 11px 24px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; font-size: .76rem; }
+.wb-steps { margin: 12px 0 4px; padding: 13px 16px; border: 1px solid var(--wb-line, rgba(230, 215, 176, .22)); border-radius: 8px; background: rgba(255, 255, 255, .035); } .wb-steps ol { margin: 8px 0 0 20px; padding: 0; } .wb-steps li { margin: 7px 0; line-height: 1.55; }

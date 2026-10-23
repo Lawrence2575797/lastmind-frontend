@@ -167,8 +167,9 @@
   function tactic(league, spec) {
     const pic = tacticPicture(league, spec);
     if (!pic) return fail('That idea names players who are not in the team, so there is nothing to draw.');
-    const facts = 'TACTIC (' + (spec.phase || 'build') + '): ' + (spec.title || '') + '. ' + (spec.note || '') + ' Moves: ' + pic.moves.map((m) => m.name + (m.tag ? ' (' + m.tag + ')' : '')).join(', ') + (spec.space && spec.space.label ? '. Space: ' + spec.space.label : '') + '.';
-    return { ok: true, method: 'tactic', title: spec.title || 'Tactical idea', summary: [spec.note || ''], pictures: [{ title: spec.title || 'Tactical idea', svg: pic.svg, note: spec.note || '', facts }], caveats: [], tactic: { phase: spec.phase || 'build', title: spec.title || '', note: spec.note || '', moves: (spec.moves || []).filter((m) => pic.moves.some((x) => x.number === m.number)).map((m) => ({ number: m.number, dx: m.dx, dy: m.dy })), roles: spec.roles || [], space: spec.space || null } };
+    const steps = (spec.steps || []).filter(Boolean).slice(0, 5);
+    const facts = 'TACTIC (' + (spec.phase || 'build') + '): ' + (spec.title || '') + '. ' + (spec.note || '') + (steps.length ? ' Steps: ' + steps.join(' ') : '') + ' Moves: ' + pic.moves.map((m) => m.name + (m.tag ? ' (' + m.tag + ')' : '')).join(', ') + (spec.space && spec.space.label ? '. Space: ' + spec.space.label : '') + '.';
+    return { ok: true, method: 'tactic', title: spec.title || 'Tactical idea', summary: [spec.note || ''], pictures: [{ title: spec.title || 'Tactical idea', svg: pic.svg, note: spec.note || '', facts }], caveats: [], tactic: { phase: spec.phase || 'build', title: spec.title || '', note: spec.note || '', moves: (spec.moves || []).filter((m) => pic.moves.some((x) => x.number === m.number)).map((m) => ({ number: m.number, dx: m.dx, dy: m.dy })), roles: spec.roles || [], space: spec.space || null, steps } };
   }
   WB.register('tactic', tactic);
   WB.register('pitch', pitch);
