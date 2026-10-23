@@ -31433,8 +31433,8 @@ SQIDAQAB
         total_fixed_cost: [{ x: 0, y: 0 }, { x: 260, y: 0 }],
         total_variable_cost: [{ x: 0, y: 200 }, { x: 35, y: 156 }, { x: 70, y: 128 }, { x: 110, y: 110 }, { x: 150, y: 98 }, { x: 190, y: 80 }, { x: 225, y: 56 }, { x: 260, y: 30 }],
         total_cost: [{ x: 0, y: 170 }, { x: 35, y: 126 }, { x: 70, y: 98 }, { x: 110, y: 80 }, { x: 150, y: 68 }, { x: 190, y: 50 }, { x: 225, y: 26 }, { x: 260, y: 0 }],
-        average_fixed_cost: [{ x: 18, y: 200 }, { x: 24, y: 150 }, { x: 30, y: 120 }, { x: 38, y: 95 }, { x: 48, y: 75 }, { x: 60, y: 60 }, { x: 75, y: 48 }, { x: 95, y: 38 }, { x: 120, y: 30 }, { x: 155, y: 23 }, { x: 200, y: 18 }, { x: 260, y: 14 }],
-        average_variable_cost: [{ x: 0, y: 80 }, { x: 25, y: 48 }, { x: 55, y: 28 }, { x: 90, y: 16 }, { x: 125, y: 12 }, { x: 160, y: 16 }, { x: 195, y: 28 }, { x: 230, y: 50 }, { x: 260, y: 80 }],
+        average_fixed_cost: [{ x: 18, y: 14 }, { x: 24, y: 64 }, { x: 30, y: 94 }, { x: 38, y: 119 }, { x: 48, y: 139 }, { x: 60, y: 154 }, { x: 75, y: 166 }, { x: 95, y: 176 }, { x: 120, y: 184 }, { x: 155, y: 191 }, { x: 200, y: 196 }, { x: 260, y: 200 }],   // high on the left, falling fast and then flattening (the board's y runs downwards)
+        average_variable_cost: [{ x: 0, y: 10 }, { x: 25, y: 42 }, { x: 55, y: 62 }, { x: 90, y: 74 }, { x: 125, y: 78 }, { x: 160, y: 74 }, { x: 195, y: 62 }, { x: 230, y: 40 }, { x: 260, y: 10 }],   // a U: lowest in the middle
     };
     const DIAGRAM_PALETTE_LABELS = {
         demand: 'Demand', supply: 'Supply', generic_price_line: 'Price line', generic_quantity_line: 'Quantity line',
@@ -31986,10 +31986,16 @@ SQIDAQAB
     }
     function diagramTagPosition(poly, text) {
         const first = poly[0], last = poly[poly.length - 1];
-        const end = last.x >= first.x ? last : first, other = end === last ? first : last;
-        // A curve that comes down to its right-hand end would run through a label sitting above that end, so the label goes to the right of the end
-        // instead (or just below it, when the text would run off the diagram).
-        if (end.y > other.y + 6) {
+        const atLast = last.x >= first.x, end = atLast ? last : first;
+        // Which way the curve is heading as it reaches that end: the point about 18 units back along it.
+        let back = end, walked = 0;
+        for (let i = atLast ? poly.length - 2 : 1; atLast ? i >= 0 : i < poly.length; i += atLast ? -1 : 1) {
+            const q = poly[i]; walked += Math.hypot(back.x - q.x, back.y - q.y); back = q;
+            if (walked >= 18) break;
+        }
+        // A curve that comes down to its end would run through a label sitting above that end, so the label goes to the right of the end instead
+        // (or just below it, when the text would run off the diagram).
+        if (end.y - back.y > 3) {
             const size = diagramTagFontSize(text), width = String(text || '').length * size * 0.62;
             if (end.x + 10 + width <= DIAGRAM_CANVAS_WIDTH - 4) return { x: end.x + 10, y: end.y + 4, 'text-anchor': 'start', class: 'diagram-curve-tag' };
             return { x: end.x - 4, y: end.y + size + 10, 'text-anchor': 'end', class: 'diagram-curve-tag' };
