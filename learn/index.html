@@ -31445,7 +31445,7 @@ SQIDAQAB
         ppf: 'PPF',
         demand_relatively_elastic: 'Demand (relatively elastic)', demand_relatively_inelastic: 'Demand (relatively inelastic)',
         supply_relatively_elastic: 'Supply (relatively elastic)', supply_relatively_inelastic: 'Supply (relatively inelastic)',
-        total_fixed_cost: 'TFC', total_variable_cost: 'TVC', total_cost: 'TC', average_fixed_cost: 'AFC', average_variable_cost: 'AVC',
+        custom: 'Curve', total_fixed_cost: 'TFC', total_variable_cost: 'TVC', total_cost: 'TC', average_fixed_cost: 'AFC', average_variable_cost: 'AVC',
     };
     // What the palette button says, where the curve's own name on the diagram is the short one.
     const DIAGRAM_PALETTE_TEXT = { total_fixed_cost: 'Fixed cost (TFC)', total_variable_cost: 'Variable cost (TVC)', total_cost: 'Total cost (TC)', average_fixed_cost: 'Avg fixed cost (AFC)', average_variable_cost: 'Avg variable cost (AVC)' };
@@ -31616,7 +31616,7 @@ SQIDAQAB
         }
         const inst = state.placed.find((p) => p.instanceId === edge.id);
         if (!inst) return null;
-        const local = DIAGRAM_CURVE_SHAPES[diagramBaseType(inst.curveTypeId)];
+        const local = diagramLocalOf(inst);
         return local ? diagramPlacedPoly(local, inst) : null;
     }
     function diagramShadeFromEdges(edgeList, state) {
@@ -31942,6 +31942,28 @@ SQIDAQAB
         svg.setAttribute('viewBox', v.x + ' ' + v.y + ' ' + v.w + ' ' + v.h);
         return v;
     }
+    // A curve the student drew keeps its own shape (inst.points, relative to its first point); every other curve comes from the library of shapes.
+    function diagramLocalOf(inst) { return inst.points && inst.points.length > 1 ? inst.points : DIAGRAM_CURVE_SHAPES[diagramBaseType(inst.curveTypeId)]; }
+    // A hand-drawn stroke as one smooth curve: the stroke is smoothed (see nbSmoothStroke), then a spline through it is sampled finely, so the curve
+    // is a smooth line of short straight pieces like every other curve on the board. Returns where it starts and its points relative to the start.
+    function diagramCurveFromStroke(raw) {
+        const sm = nbSmoothStroke(raw), n = sm.length, out = [];
+        if (n < 2) return null;
+        if (n === 2) out.push({ x: sm[0].x, y: sm[0].y }, { x: sm[1].x, y: sm[1].y });
+        else {
+            for (let i = 0; i < n - 1; i++) {
+                const p0 = sm[i - 1] || sm[i], p1 = sm[i], p2 = sm[i + 1], p3 = sm[i + 2] || p2;
+                const c1 = { x: p1.x + (p2.x - p0.x) / 6, y: p1.y + (p2.y - p0.y) / 6 }, c2 = { x: p2.x - (p3.x - p1.x) / 6, y: p2.y - (p3.y - p1.y) / 6 };
+                for (let k = 0; k < 10; k++) {
+                    const u = k / 10, v = 1 - u;
+                    out.push({ x: v * v * v * p1.x + 3 * v * v * u * c1.x + 3 * v * u * u * c2.x + u * u * u * p2.x, y: v * v * v * p1.y + 3 * v * v * u * c1.y + 3 * v * u * u * c2.y + u * u * u * p2.y });
+                }
+            }
+            out.push({ x: sm[n - 1].x, y: sm[n - 1].y });
+        }
+        const o = out[0], r1 = (v) => Math.round(v * 10) / 10;
+        return { origin: { x: r1(o.x), y: r1(o.y) }, points: out.map((q) => ({ x: r1(q.x - o.x), y: r1(q.y - o.y) })) };
+    }
     // The axis labels (P, Q, and the P1, Q1... that mark where curves cross) can be renamed like a curve's name. The typed name is kept against the
     // standard one in axisText, e.g. { P: 'Price level', Q1: 'Q_e' }.
     function diagramMakeAxisEditable(el, key, ctx) {
@@ -32005,7 +32027,7 @@ SQIDAQAB
         });
         const polys = [];
         ((diagramState && diagramState.curves) || []).forEach((inst) => {
-            const local = DIAGRAM_CURVE_SHAPES[diagramBaseType(inst.curveTypeId)];
+            const local = diagramLocalOf(inst);
             if (!local) return;
             const poly = diagramPlacedPoly(local, inst);
             polys.push(poly);
@@ -32068,7 +32090,7 @@ SQIDAQAB
             arrows: (initialState && initialState.arrows) || [],
             axisText: (initialState && initialState.axisText) || {},
             background: (initialState && initialState.background !== undefined) ? initialState.background : ((options && options.backgrounds && equippedDiagramBackground) || ''),
-            shadeMode: false, edgeSelection: [], arrowMode: false, arrowDraft: null, dragging: null,
+            shadeMode: false, edgeSelection: [], arrowMode: false, drawMode: false, arrowDraft: null, dragging: null,
             intersections: [], labelSelection: [], shadeLabel: null,
         };
         const initialNotes = (initialState && initialState.notes) || '';
@@ -32092,6 +32114,7 @@ SQIDAQAB
                     </select>
                     <button type="button" class="btn primary diagram-tool-btn" id="${uid}-shade-btn">Shade a region</button>
                     <button type="button" class="btn diagram-tool-btn" id="${uid}-arrow-btn">Add arrow (click start, then end)</button>
+                    <button type="button" class="btn diagram-tool-btn" id="${uid}-draw-btn" title="Drag on the board to draw a curve of your own; it is smoothed when you let go">Draw a curve</button>
                     <input spellcheck="true" type="text" class="diagram-label-input" id="${uid}-label-input" placeholder="Label text, e.g. S1">
                     <button type="button" class="btn diagram-tool-btn" id="${uid}-label-btn">Add label</button>
                     <button type="button" class="btn diagram-tool-btn" id="${uid}-clear-btn">Clear</button>
@@ -32114,6 +32137,8 @@ SQIDAQAB
         const resultEl = container.querySelector(`#${uid}-result`);
         const shadeBtn = container.querySelector(`#${uid}-shade-btn`);
         const arrowBtn = container.querySelector(`#${uid}-arrow-btn`);
+        const drawBtn = container.querySelector(`#${uid}-draw-btn`);
+        if (mode !== 'save') drawBtn.hidden = true;   // a graded diagram only takes the curves from the library
         const notesInput = showNotes ? container.querySelector(`#${uid}-notes`) : null;
         if (showBackgrounds) {
             svg.style.background = diagramBackgroundCss(state.background);
@@ -32126,7 +32151,7 @@ SQIDAQAB
 
         function buildAnswer() {
             return {
-                curves: state.placed.map((p) => ({ instanceId: p.instanceId, curveTypeId: p.curveTypeId, x: p.x, y: p.y, scaleX: p.scaleX || 1, scaleY: p.scaleY || 1, ...(p.rot ? { rot: p.rot } : {}), ...(p.label ? { label: p.label } : {}) })),
+                curves: state.placed.map((p) => ({ instanceId: p.instanceId, curveTypeId: p.curveTypeId, x: p.x, y: p.y, scaleX: p.scaleX || 1, scaleY: p.scaleY || 1, ...(p.rot ? { rot: p.rot } : {}), ...(p.label ? { label: p.label } : {}), ...(p.points ? { points: p.points } : {}) })),
                 shades: state.shades.map((s) => ({ points: s.points, label: s.label, vertexLabels: s.vertexLabels || [], color: s.color || 'rgba(230, 215, 176, 0.28)' })),
                 labels: state.labels.map((l) => ({ text: l.text, x: l.x, y: l.y })),
                 arrows: state.arrows.map((a) => ({ x1: a.x1, y1: a.y1, x2: a.x2, y2: a.y2 })),
@@ -32209,7 +32234,7 @@ SQIDAQAB
 
             const placedPolys = [];
             state.placed.forEach((inst) => {
-                const local = DIAGRAM_CURVE_SHAPES[diagramBaseType(inst.curveTypeId)];
+                const local = diagramLocalOf(inst);
                 if (!local) return;
                 const poly = diagramPlacedPoly(local, inst);
                 placedPolys.push(poly);
@@ -32474,11 +32499,40 @@ SQIDAQAB
         });
         arrowBtn.addEventListener('click', () => {
             state.arrowMode = !state.arrowMode;
-            state.shadeMode = false; state.edgeSelection = []; state.arrowDraft = null;
+            state.shadeMode = false; state.edgeSelection = []; state.arrowDraft = null; state.drawMode = false; drawBtn.classList.remove('active');
             arrowBtn.classList.toggle('active', state.arrowMode);
             shadeBtn.classList.remove('active');
             render();
         });
+        // Draw a curve: drag on the board; when you let go the stroke is smoothed into a curve of its own, and its name can be typed straight away.
+        drawBtn.addEventListener('click', () => {
+            state.drawMode = !state.drawMode;
+            if (state.drawMode) { state.arrowMode = false; state.arrowDraft = null; state.shadeMode = false; state.edgeSelection = []; arrowBtn.classList.remove('active'); shadeBtn.classList.remove('active'); }
+            drawBtn.classList.toggle('active', state.drawMode); drawBtn.textContent = state.drawMode ? 'Drawing: drag on the board' : 'Draw a curve';
+            svg.style.cursor = state.drawMode ? 'crosshair' : '';
+            render();
+        });
+        svg.addEventListener('pointerdown', (ev) => {
+            if (!state.drawMode || (ev.pointerType === 'mouse' && ev.button !== 0)) return;
+            ev.preventDefault(); ev.stopPropagation();
+            const raw = [svgPointFromEvent(ev)], live = svgElement('polyline', { class: 'diagram-curve', points: '' });
+            svg.appendChild(live);
+            const show = () => live.setAttribute('points', raw.map((q) => q.x.toFixed(1) + ',' + q.y.toFixed(1)).join(' '));
+            const move = (e) => { const q = svgPointFromEvent(e), last = raw[raw.length - 1]; if (Math.hypot(q.x - last.x, q.y - last.y) >= 3) { raw.push(q); show(); } };
+            const up = () => {
+                window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', up);
+                live.remove(); didDrag = true;
+                let len = 0; for (let i = 1; i < raw.length; i++) len += Math.hypot(raw[i].x - raw[i - 1].x, raw[i].y - raw[i - 1].y);
+                state.drawMode = false; drawBtn.classList.remove('active'); drawBtn.textContent = 'Draw a curve'; svg.style.cursor = '';
+                const made = len >= 14 ? diagramCurveFromStroke(raw) : null;
+                if (!made) { render(); return; }
+                const inst = { instanceId: `c${Math.random().toString(36).slice(2)}`, curveTypeId: 'custom', points: made.points, x: made.origin.x, y: made.origin.y, scaleX: 1, scaleY: 1 };
+                state.placed.push(inst); render();
+                const tags = svg.querySelectorAll('.diagram-curve-tag'), tag = tags[tags.length - 1];
+                if (tag) diagramEditLabel(tag, '', (v) => { if (v) { inst.label = v; render(); } });
+            };
+            window.addEventListener('pointermove', move); window.addEventListener('pointerup', up); window.addEventListener('pointercancel', up);
+        }, true);
         container.querySelector(`#${uid}-label-btn`).addEventListener('click', () => {
             const input = container.querySelector(`#${uid}-label-input`);
             const text = input.value.trim();
