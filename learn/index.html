@@ -24698,8 +24698,21 @@ SQIDAQAB
             const d = e.data;
             if (e.origin !== location.origin || !d || d.lm !== 'wb-notes') return;
             if (d.op === 'append') { const ok = wbEmbedAppend(String(d.text || '')); try { parent.postMessage({ lm: 'wb-notes', op: 'appended', ok }, location.origin); } catch (_) { /* no parent */ } }
+            else if (d.op === 'diagram') wbEmbedDiagram(d.state);
         });
         try { parent.postMessage({ lm: 'wb-notes', op: 'ready' }, location.origin); } catch (_) { /* no parent */ }
+    }
+    // A diagram copied from the chat becomes a real Economics diagram block under everything on the page.
+    function wbEmbedDiagram(st) {
+        const page = notes.activeId && notesNode(notes.activeId), canvas = document.getElementById('nbCanvas');
+        if (!page || !canvas || !st || !Array.isArray(st.curves)) return false;
+        let bottom = 0; canvas.querySelectorAll('.nb-block').forEach((b) => { bottom = Math.max(bottom, b.offsetTop + b.offsetHeight); });
+        const block = { id: notesNewId(), type: 'diagram', x: canvas.clientWidth < 520 ? 44 : 72, y: bottom ? bottom + 24 : 24, w: Math.min(620, Math.max(300, canvas.clientWidth - 48)), state: JSON.parse(JSON.stringify(st)), linesOpen: true };
+        page.doc.blocks.push(block); nbToggleHint(canvas, page);
+        const el = nbMakeDiagramBlock(page, block, canvas);
+        nbFitCanvas(canvas); notesScheduleSave();
+        if (el && el.scrollIntoView) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        return true;
     }
     // Text copied from the chat becomes a new text box under everything on the page, with its maths drawn. Only the student asks for this.
     function wbEmbedAppend(text) {
@@ -31451,8 +31464,8 @@ SQIDAQAB
         supply: [{ x: 0, y: 160 }, { x: 130, y: 80 }, { x: 260, y: 0 }],
         generic_price_line: [{ x: 0, y: 0 }, { x: 260, y: 0 }],
         generic_quantity_line: [{ x: 0, y: 0 }, { x: 0, y: 220 }],
-        marginal_cost: [{ x: 0, y: 70 }, { x: 70, y: 15 }, { x: 140, y: 10 }, { x: 210, y: 35 }, { x: 260, y: 85 }],
-        average_cost: [{ x: 0, y: 100 }, { x: 90, y: 48 }, { x: 170, y: 46 }, { x: 260, y: 95 }],
+        marginal_cost: [{ x: 0, y: 40 }, { x: 25, y: 57 }, { x: 50, y: 69 }, { x: 75, y: 76 }, { x: 100, y: 78 }, { x: 130, y: 75 }, { x: 170, y: 64 }, { x: 200, y: 49 }, { x: 230, y: 30 }, { x: 260, y: 5 }],   // a U: the board's y runs downwards, so low y is high on the screen
+        average_cost: [{ x: 0, y: 15 }, { x: 30, y: 31 }, { x: 60, y: 43 }, { x: 90, y: 53 }, { x: 120, y: 60 }, { x: 150, y: 63 }, { x: 170, y: 64 }, { x: 200, y: 62 }, { x: 230, y: 58 }, { x: 260, y: 50 }],   // a U that MC cuts through at its lowest point (x 170)
         world_supply: [{ x: 0, y: 110 }, { x: 260, y: 110 }],
         average_revenue: [{ x: 0, y: 0 }, { x: 130, y: 80 }, { x: 260, y: 160 }],
         marginal_revenue: [{ x: 0, y: 0 }, { x: 65, y: 80 }, { x: 130, y: 160 }],

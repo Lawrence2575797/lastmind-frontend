@@ -624,6 +624,15 @@
     const f = el('wbNotes'); if (!f || !f.contentWindow) { flash('Your notebook is not ready yet'); return; }
     f.contentWindow.postMessage({ lm: 'wb-notes', op: 'append', text }, location.origin);
   }
+  // An economics diagram in a lesson goes to the notebook as a real diagram of the Notes tool (curves the student can move, rename and add to).
+  function copyDiagrams(msg) {
+    const f = el('wbNotes'); if (!f || !f.contentWindow || !msg || !msg.lesson || !FM.econ) return;
+    const l = msg.lesson, seen = {};
+    [l.diagram].concat((l.steps || []).map((st) => st.diagram)).forEach((d) => {
+      if (!d || !d.econ || seen[d.econ]) return; seen[d.econ] = 1;
+      const st = FM.econ.state(d.econ); if (st) f.contentWindow.postMessage({ lm: 'wb-notes', op: 'diagram', state: st }, location.origin);
+    });
+  }
   // A phase played 100 times (500 for the rare ones) with the club's tactics exactly as they are, against the next opponent: the numbers a lesson can work on.
   async function runPhaseTest(phase, onProgress) {
     const lg = state.league, team = FM.teamById(lg, lg.userId), opp = nextOpp(), LAB = FM.lab;
@@ -948,7 +957,7 @@
       if (b.dataset.known && msg && msg.lesson) { FM.learn.markKnown(msg.lesson.topic); flash('Marked as learnt'); chatDraw(true); return; }
       if (b.dataset.ask) { state.from = (msg && msg.lesson && msg.lesson.topic) || (msg && msg.from) || null; ask(b.dataset.ask); return; }
       if (b.dataset.exdone) { ask('I have made the change and run the test. Help me work out what my result shows.'); return; }
-      if (b.dataset.copy && msg) { copyToNotes(msgText(msg)); return; }
+      if (b.dataset.copy && msg) { copyToNotes(msgText(msg)); copyDiagrams(msg); return; }
       if (b.dataset.copycard) { const cc0 = findCell(b.dataset.copycard); if (cc0 && cc0.res) copyToNotes(resultText(cc0.res)); return; }
       if (tool === 'toc') { const tc = el('wkToc'); tc.hidden = !tc.hidden; if (!tc.hidden) tc.innerHTML = wb.pages.map((pg, i) => `<div class="wk-toc-row${i === wb.cur ? ' on' : ''}"><button type="button" data-pageidx="${i}"><span>${i + 1}</span> ${esc(pg.title || 'Untitled page')}</button><button type="button" class="wk-toc-x" data-delpage="${i}" aria-label="Delete this page" title="Delete this page">✕</button></div>`).join(''); return; }
       if (tool === 'newpage') { syncRich(); const pg = { id: uid(), title: '', at: Date.now(), cells: [] }; wb.pages.push(pg); goPage(wb.pages.length - 1); setTimeout(() => { const ti = el('wkTitle'); if (ti) ti.focus(); }, 60); return; }

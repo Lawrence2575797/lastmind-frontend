@@ -97,6 +97,7 @@
   function plot(d) {
     if (!d) return '';
     if (d.dist && d.dist.length) return distPlot(d);
+    if (d.econ && FM.econ) return FM.econ.svg(d.econ, d);
     const W = 440, H = 290, L = 46, R = 16, T = 14, B = 40, pw = W - L - R, ph = H - T - B;
     const x0 = d.x[0], x1 = d.x[1], y0 = d.y[0], y1 = d.y[1];
     const px = (x) => L + (x - x0) / (x1 - x0) * pw, py = (y) => T + ph - (y - y0) / (y1 - y0) * ph;
@@ -150,7 +151,7 @@
     const done = !steps.length || (m.shown || 1) >= steps.length;
     if (done && l.exercise) h += '<div class="lw-ex"><b>Your turn</b><div>' + render(l.exercise) + '</div><button type="button" class="primary" data-exdone="1">I have made the change and run the test</button></div>';
     if (done && l.practice && !l.exercise) h += '<div class="lw-ex"><b>Your turn</b><div>' + render(l.practice) + '</div><p class="lw-hint">Type your answer in the box below and I will check it with you.</p></div>';
-    if (done && l.next && l.next.say && l.next.ask) h += '<div class="lw-next"><div>' + render(l.next.say) + '</div><button type="button" data-ask="' + esc(l.next.ask) + '">Yes, look into it</button></div>';
+    if (done && l.next && l.next.say && l.next.ask) h += '<div class="lw-next"><div>' + render(l.next.say) + '</div><button type="button" data-ask="' + esc(l.next.ask) + '">Yes please</button></div>';
     return h;
   }
 
