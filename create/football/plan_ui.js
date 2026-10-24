@@ -11,7 +11,7 @@
   const TAB_PHASES = { build: ['build'], midfield: ['midfield'], final: ['final'], transdef: ['transDef'], organised: ['defence', 'press'], transatt: ['transAtt'] };
   const SIDE_OF = { build: 'with', midfield: 'with', final: 'with', transAtt: 'with', transDef: 'without', defence: 'without', press: 'without' };
   const TAG_COL = { press: '#FF6B4A', sit: '#9FB0BF', protect: '#5EA8FF', safe: '#6FD08C', risk: '#FFA94D', overload: '#B58CFF', target: '#FFD54A', switch: '#4FD1C5', keep: '#B8E986' };
-  const UI = { sel: null, mode: 'view', cells: [], sub: null, draft: {}, openTog: {} };
+  const UI = { sel: null, mode: 'view', cells: [], sub: null, draft: {}, openTog: {}, showOpp: false };
   const sname = (p) => { const n = p.name.split(' ').slice(1).join(' ') || p.name; return n.length > 11 ? n.slice(0, 10) + '.' : n; };
 
   // ---------- the pitch ----------
@@ -28,6 +28,15 @@
       const c0 = (z.cells || [])[0]; if (c0) { const dp = FM.PLAN_DEPTHS[c0[0]], ch = FM.PLAN_CHANNELS[c0[1]]; s += `<text x="${(+X(ch.lo) + 6).toFixed(0)}" y="${(+Y(dp.hi) + 16).toFixed(0)}" font-size="12" font-weight="800" fill="#fff" stroke="#000" stroke-width="3" style="paint-order:stroke">${esc((FM.PLAN_ZONE_TAG[z.tag] || {}).name || '')}</text>`; }
     });
     pl.triggers.filter((t) => t.on !== false && t.cells && t.cells.length && (FM.PLAN_WHEN_BY[t.when] || {}).side === SIDE_OF[ph]).forEach((t) => (t.cells || []).forEach((c) => { const dp = FM.PLAN_DEPTHS[c[0]], ch = FM.PLAN_CHANNELS[c[1]]; s += `<rect x="${X(ch.lo)}" y="${Y(dp.hi)}" width="${(ch.hi - ch.lo) * PW}" height="${(dp.hi - dp.lo) * PH}" fill="none" stroke="#fff" stroke-width="2" stroke-dasharray="2 5"/>`; }));
+    // the opposition as scouted for the next match: where they stand in the phase that answers this one
+    if (UI.showOpp && hooks.opp) {
+      const od = hooks.opp(eng);
+      if (od) Object.keys(od.cells).forEach((slot) => {
+        const c = od.cells[slot], pl2 = od.opp.players.find((q) => q.slotKey === slot), nm = pl2 ? sname(pl2) : slot, x = (1 - c.w) * PW, y = c.d * PH;
+        s += `<g transform="translate(${x.toFixed(1)},${y.toFixed(1)})" pointer-events="none"><rect x="-31" y="-15" width="62" height="30" rx="7" fill="${od.kit.shirt}" fill-opacity=".88" stroke="${od.kit.number}" stroke-width="1.8" stroke-dasharray="4 3"/>
+          <text x="-23" y="5" text-anchor="middle" font-size="12" font-weight="800" fill="${od.kit.number}">${pl2 ? pl2.number : ''}</text><text x="-12" y="5" font-size="10.5" font-weight="700" fill="${od.kit.number}">${esc(nm.length > 7 ? nm.slice(0, 6) + '.' : nm)}</text></g>`;
+      });
+    }
     // the ball
     const bp = FM.phaseBall(team, eng); s += `<circle cx="${X(bp.w)}" cy="${Y(bp.d)}" r="7" fill="#fff" stroke="#111" stroke-width="2"/>`;
     // the grid, when a zone is being chosen
@@ -119,15 +128,15 @@
     const ph = UI.sub, info = FM.planPhase(ph), pl = FM.planGet(team);
     if (!pl.migrated) { migrate(team); pl.migrated = true; hooks.save(); }
     if (!UI.sel || !team.players.some((p) => p.slotKey === UI.sel)) UI.sel = null;
-    const legacy = (team.rules || []).filter((r) => r.source !== 'plan');
     const draw = () => {
+      const legacy = (team.rules || []).filter((r) => r.source !== 'plan');
       host.innerHTML = `<div class="pl">
         ${phases.length > 1 ? `<div class="pl-sub">${phases.map((k) => `<button type="button" class="${k === ph ? 'on' : ''}" data-sub="${k}">${esc(FM.planPhase(k).name)}</button>`).join('')}</div>` : ''}
         <div class="pl-head"><h3>${esc(info.name)}</h3><p>${esc(info.blurb)}</p></div>
         ${team.legacyTactics && !pl.noticeSeen ? '<div class="pl-notice">Tactics are now set with roles and choices, not by dragging players. Your hand-placed positions from before have been cleared (they are kept as a backup) and the team now stands where its roles and choices put it. <button type="button" data-notice="1">Got it</button></div>' : ''}
         ${legacy.length ? `<div class="pl-notice">${legacy.length} written instruction${legacy.length === 1 ? '' : 's'} from before ${legacy.length === 1 ? 'is' : 'are'} still active. <button type="button" data-clear-legacy="1">Remove ${legacy.length === 1 ? 'it' : 'them'}</button></div>` : ''}
         <div class="pl-grid">
-          <section class="card pl-left"><div class="pl-pitchwrap${UI.mode !== 'view' ? ' picking' : ''}">${pitchSvg(team, ph, hooks)}</div>
+          <section class="card pl-left"><div class="pl-pitchbar"><button type="button" class="${UI.showOpp ? 'on' : ''}" data-opp="1"${hooks.opp ? '' : ' disabled'}>${UI.showOpp ? 'Hide' : 'Show'} the opposition</button></div><div class="pl-pitchwrap${UI.mode !== 'view' ? ' picking' : ''}">${pitchSvg(team, ph, hooks)}</div>
             <p class="pl-help pl-legend">Each card is a player and where this phase puts him. Click one to give him instructions below. The gold number is how many instructions he has here.</p></section>
           <section class="card pl-right"><h4>Team approach: ${esc(info.name.toLowerCase())}</h4>${teamPanel(team, ph)}</section>
         </div>
@@ -155,6 +164,7 @@
       }));
       host.querySelectorAll('[data-item-toggle]').forEach((b) => b.addEventListener('click', () => { const [k, id] = b.dataset.itemToggle.split(':'); FM.planToggleItem(team, k, id); again(); }));
       host.querySelectorAll('[data-item-del]').forEach((b) => b.addEventListener('click', () => { const [k, id] = b.dataset.itemDel.split(':'); FM.planRemove(team, k, id); again(); }));
+      const ob = host.querySelector('[data-opp]'); if (ob) ob.addEventListener('click', () => { UI.showOpp = !UI.showOpp; draw(); });
       const nt = host.querySelector('[data-notice]'); if (nt) nt.addEventListener('click', () => { pl.noticeSeen = true; again(); });
       const cl = host.querySelector('[data-clear-legacy]'); if (cl) cl.addEventListener('click', () => { team.legacyTactics = team.legacyTactics || {}; team.legacyTactics.rules = (team.rules || []).filter((r) => r.source !== 'plan'); team.rules = (team.rules || []).filter((r) => r.source === 'plan'); FM.planApply(team); again(); });
     };

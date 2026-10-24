@@ -1731,7 +1731,7 @@
     if (inMatch) (['build', 'midfield', 'final', 'organised'].indexOf(world.tab) >= 0 ? renderLiveBoard(team, world.tab) : renderBoardTab(team, world.tab));
     else if (world.testing) renderTestPhase(team, world.tab);
     else if (world.tab === 'setpieces') renderSetPieces(team);
-    else if (FM.renderPlanTab && ['build', 'midfield', 'final', 'organised', 'transdef', 'transatt'].indexOf(world.tab) >= 0) FM.renderPlanTab(el('tabBody'), team, world.tab, { save: saveSoon });
+    else if (FM.renderPlanTab && ['build', 'midfield', 'final', 'organised', 'transdef', 'transatt'].indexOf(world.tab) >= 0) FM.renderPlanTab(el('tabBody'), team, world.tab, { save: saveSoon, opp: (key) => { const sc = scoutFor(), cells = sc && oppCellsFor(sc, key); return cells ? { cells, opp: sc.opp, kit: FM.kitAgainst(sc.opp, userTeam()) } : null; } });
     else if (world.tab === 'transdef' || world.tab === 'transatt') renderTransitionTab(team, world.tab);
     else if (['build', 'midfield', 'final', 'organised'].indexOf(world.tab) >= 0 && FM.renderScenario && nextOpponent()) renderScenarioTab(team, world.tab);
     else renderBoardTab(team, world.tab);

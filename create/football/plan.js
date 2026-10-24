@@ -173,8 +173,8 @@
   FM.planPlayerToggles = (phaseKey, group) => (FM.PLAN_PLAYER[phaseKey] || []).filter((g) => g.groups.indexOf(group) >= 0);
 
   // ---------- zones and triggers ----------
-  // The pitch is a grid: three depths (our third, the middle, their third) by five channels (far left to far right), seen by the team attacking up the page.
-  FM.PLAN_DEPTHS = [{ k: 0, lo: 0, hi: 1 / 3, name: 'our third' }, { k: 1, lo: 1 / 3, hi: 2 / 3, name: 'the middle third' }, { k: 2, lo: 2 / 3, hi: 1, name: 'their third' }];
+  // The pitch is a grid: six depths (from around our own box to their penalty area) by five channels (far left to far right), seen by the team attacking up the page.
+  FM.PLAN_DEPTHS = [{ k: 0, lo: 0, hi: 1 / 6, name: 'around our box' }, { k: 1, lo: 1 / 6, hi: 1 / 3, name: 'the rest of our third' }, { k: 2, lo: 1 / 3, hi: 1 / 2, name: 'our side of midfield' }, { k: 3, lo: 1 / 2, hi: 2 / 3, name: 'their side of midfield' }, { k: 4, lo: 2 / 3, hi: 5 / 6, name: 'the edge of their box' }, { k: 5, lo: 5 / 6, hi: 1, name: 'their penalty area' }];
   FM.PLAN_CHANNELS = [{ k: 0, lo: 0, hi: 0.2, name: 'far left' }, { k: 1, lo: 0.2, hi: 0.4, name: 'left' }, { k: 2, lo: 0.4, hi: 0.6, name: 'central' }, { k: 3, lo: 0.6, hi: 0.8, name: 'right' }, { k: 4, lo: 0.8, hi: 1, name: 'far right' }];
   FM.PLAN_WHO = { forwards: ['att'], mids: ['mid'], defenders: ['def'], everyone: ['team'], nearest: ['team'], wingers: ['WF'], striker: ['ST'], fullbacks: ['FB'] };
   FM.PLAN_WHO_NAMES = { nearest: 'the nearest two players', forwards: 'the forwards', mids: 'the midfield', defenders: 'the defence', everyone: 'everyone', wingers: 'the wingers', striker: 'the striker', fullbacks: 'the full-backs' };
@@ -226,8 +226,8 @@
   FM.planSetPlayer = function (team, slot, phase, key, v) { const pl = FM.planGet(team); pl.player[slot] = pl.player[slot] || {}; pl.player[slot][phase] = pl.player[slot][phase] || {}; if (v == null || v === 'std') delete pl.player[slot][phase][key]; else pl.player[slot][phase][key] = v; FM.planApply(team); };
   FM.planCount = (team) => { const pl = FM.planGet(team); let n = 0; Object.keys(pl.team).forEach((ph) => { n += Object.keys(pl.team[ph]).length; }); Object.keys(pl.player).forEach((s) => Object.keys(pl.player[s]).forEach((ph) => { n += Object.keys(pl.player[s][ph]).length; })); return n + pl.zones.length + pl.triggers.length; };
   const uid = () => 'z' + Math.random().toString(36).slice(2, 7);
-  FM.planAddZone = function (team, z) { const pl = FM.planGet(team); const zone = Object.assign({ id: uid(), who: 'everyone', on: true }, z); pl.zones.push(zone); FM.planApply(team); return zone; };
-  FM.planAddTrigger = function (team, t) { const pl = FM.planGet(team); const trig = Object.assign({ id: uid(), who: 'nearest', on: true }, t); pl.triggers.push(trig); FM.planApply(team); return trig; };
+  FM.planAddZone = function (team, z) { const pl = FM.planGet(team); const zone = Object.assign({ id: uid(), who: 'everyone', on: true, g: 2 }, z); pl.zones.push(zone); FM.planApply(team); return zone; };
+  FM.planAddTrigger = function (team, t) { const pl = FM.planGet(team); const trig = Object.assign({ id: uid(), who: 'nearest', on: true, g: 2 }, t); pl.triggers.push(trig); FM.planApply(team); return trig; };
   FM.planRemove = function (team, kind, id) { const pl = FM.planGet(team), a = kind === 'zone' ? pl.zones : pl.triggers; const i = a.findIndex((x) => x.id === id); if (i >= 0) a.splice(i, 1); FM.planApply(team); };
   FM.planToggleItem = function (team, kind, id) { const pl = FM.planGet(team), a = kind === 'zone' ? pl.zones : pl.triggers, x = a.find((y) => y.id === id); if (x) x.on = !x.on; FM.planApply(team); };
   FM.planReset = function (team) { team.plan = { v: 1, team: {}, player: {}, zones: [], triggers: [] }; FM.planApply(team); };
@@ -245,13 +245,15 @@
   FM.planCellsName = function (cells) {
     if (!cells || !cells.length) return 'nowhere';
     const ds = [...new Set(cells.map((c) => c[0]))].sort(), cs = [...new Set(cells.map((c) => c[1]))].sort();
-    const dn = ds.length === 3 ? 'the whole length' : ds.map((d) => FM.PLAN_DEPTHS[d].name).join(' and '), cn = cs.length === 5 ? 'across the pitch' : cs.map((c) => FM.PLAN_CHANNELS[c].name).join(' and ');
+    const dn = ds.length === 6 ? 'the whole length' : ds.map((d) => FM.PLAN_DEPTHS[d].name).join(' and '), cn = cs.length === 5 ? 'across the pitch' : cs.map((c) => FM.PLAN_CHANNELS[c].name).join(' and ');
     return (cs.length === 5 ? dn + ', ' + cn : dn + ', ' + cn);
   };
 
   FM.planApply = function (team) {
     if (!team || !team.players) return;
     const pl = FM.planGet(team), rules = [], off = {}, tac = {};
+    // marks made on the old grid of three depths become the same area on the grid of six
+    pl.zones.concat(pl.triggers).forEach((it) => { if (!it.g) { it.cells = (it.cells || []).reduce((a, c) => a.concat([[c[0] * 2, c[1]], [c[0] * 2 + 1, c[1]]]), []); it.g = 2; } });
     const addOff = (phaseKey, slot, dm, wm, abs, p) => { const eng = PHASE[phaseKey].eng; const sd = abs ? 1 : baseSide(team, p); const dw = abs ? wm / W : sd * wm / W; if (!dw && !dm) return; eng.forEach((ek) => { off[ek] = off[ek] || {}; const c = off[ek][slot] || [0, 0]; off[ek][slot] = [c[0] + dm / L, c[1] + dw]; }); };
     const push = (phaseKey, scope, effects, when, text, pid) => { if (!effects || !effects.length) return; rules.push({ id: pid, pid, text: text || '', scope: scopeRule(scope), when: Object.assign({ stage: [PHASE[phaseKey].stage] }, when || {}), effects: effects.map((e) => Object.assign({}, e)), off: false, source: 'plan' }); };
     const slotsFor = (scope) => team.players.filter((p) => inScope(scope, p));
@@ -365,7 +367,7 @@
   // A change is checked against the catalogue before anything is done with it, so whatever the agent sends can only ever be one of the choices above.
   //   {kind:'team', phase, key, value}   {kind:'player', slot, phase, key, value}   {kind:'role', slot, role}
   //   {kind:'zone', tag, cells, who, phase}   {kind:'trigger', when, group, who, do, cells}
-  const cellsOk = (cells) => (Array.isArray(cells) ? cells.slice(0, 9).filter((c) => Array.isArray(c) && Number.isInteger(c[0]) && Number.isInteger(c[1]) && c[0] >= 0 && c[0] <= 2 && c[1] >= 0 && c[1] <= 4).map((c) => [c[0], c[1]]) : []);
+  const cellsOk = (cells) => (Array.isArray(cells) ? cells.slice(0, 9).filter((c) => Array.isArray(c) && Number.isInteger(c[0]) && Number.isInteger(c[1]) && c[0] >= 0 && c[0] <= 5 && c[1] >= 0 && c[1] <= 4).map((c) => [c[0], c[1]]) : []);
   FM.planDescribeChange = function (team, ch) {
     if (!ch || typeof ch !== 'object') return null;
     const slotP = (sl) => team.players.find((p) => p.slotKey === sl);
@@ -385,12 +387,12 @@
     if (ch.kind === 'zone') {
       const tag = FM.PLAN_ZONE_TAG[ch.tag], cells = cellsOk(ch.cells); if (!tag || !cells.length) return null;
       const z = { tag: ch.tag, cells, who: FM.PLAN_WHO[ch.who] ? ch.who : 'everyone', phase: PHASE[ch.phase] ? ch.phase : 'any' };
-      return { text: FM.planZoneText(z), apply: () => { FM.planGet(team).zones.push(Object.assign({ id: uid(), on: true }, z)); } };
+      return { text: FM.planZoneText(z), apply: () => { FM.planGet(team).zones.push(Object.assign({ id: uid(), on: true, g: 2 }, z)); } };
     }
     if (ch.kind === 'trigger') {
       const w = FM.PLAN_WHEN_BY[ch.when], d = FM.PLAN_DO_BY[ch.do], cells = cellsOk(ch.cells); if (!w || !d || d.side !== w.side || (w.needs === 'zone' && !cells.length)) return null;
       const t = { when: ch.when, group: w.needs === 'carrier' && w.options.some((x) => x[0] === ch.group) ? ch.group : 'FB', who: FM.PLAN_WHO[ch.who] ? ch.who : 'nearest', do: ch.do, cells };
-      return { text: FM.planTriggerText(t), apply: () => { FM.planGet(team).triggers.push(Object.assign({ id: uid(), on: true }, t)); } };
+      return { text: FM.planTriggerText(t), apply: () => { FM.planGet(team).triggers.push(Object.assign({ id: uid(), on: true, g: 2 }, t)); } };
     }
     return null;
   };
@@ -409,7 +411,7 @@
     out.push('TEAM CHOICES {kind:"team",phase,key,value}: ' + FM.PLAN_PHASES.map((ph) => ph.key + ' -> ' + (FM.PLAN_TEAM[ph.key] || []).map((t) => t.key + '=[' + t.opts.map((x) => x.v + ':' + x.label).join(' | ') + ']').join('; ')).join('\n  '));
     out.push('PLAYER CHOICES {kind:"player",slot,phase,key,value}, by phase and kind of player: ' + FM.PLAN_PHASES.map((ph) => ph.key + ' -> ' + ['CB', 'FB', 'DM', 'CM', 'AM', 'WF', 'ST'].map((g) => g + ': ' + FM.planPlayerToggles(ph.key, g).map((t) => t.key + '=[' + t.opts.map((x) => x.v).join('|') + ']').join(' ')).join(' / ')).join('\n  '));
     out.push('ROLES {kind:"role",slot,role}: ' + GROUPS.map((g) => g + ': ' + FM.rolesForGroup(g).join(',')).join(' / '));
-    out.push('PITCH GRID: depth 0 = our third, 1 = the middle, 2 = their third; channel 0 far left, 1 left, 2 central, 3 right, 4 far right; a cell is [depth,channel]. Left and right are as seen by the team attacking.');
+    out.push('PITCH GRID: depth 0 = around our own box, 1 = rest of our third, 2 = our side of midfield, 3 = their side of midfield, 4 = the edge of their box, 5 = their penalty area; channel 0 far left, 1 left, 2 central, 3 right, 4 far right; a cell is [depth,channel]. Left and right are as seen by the team attacking.');
     out.push('ZONES {kind:"zone",tag,cells:[[d,c]..],who,phase}: tags ' + FM.PLAN_ZONE_TAGS.map((t) => t.k + '(' + t.side + ')').join(', ') + '; who one of ' + Object.keys(FM.PLAN_WHO).join(',') + '; phase one of ' + FM.PLAN_PHASES.map((p) => p.key).join(',') + ' or "any"');
     out.push('TRIGGERS {kind:"trigger",when,group,who,do,cells}: when one of ' + FM.PLAN_WHEN.map((w) => w.k + '(' + w.side + (w.needs === 'carrier' ? ', group one of FB,CB,GK,DM,CM,WF,ST' : ', needs cells') + ')').join(', ') + '; do one of ' + FM.PLAN_DO.map((d) => d.k + '(' + d.side + ')').join(', ') + ' (do must be on the same side as when)');
     return out.join('\n');
