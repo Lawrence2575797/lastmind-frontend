@@ -331,9 +331,56 @@
     if (cell._focus) { delete cell._focus; setTimeout(() => ed.focus(), 30); }
   }
   // Reply text (with the agent's maths written out, and lesson links) as the same drawn maths the Notes page makes.
+  // A division written in the agent's text is drawn as a fraction: a bracketed top or bottom (with brackets inside it), a function call such as f(30+h), or a
+  // short word or number, with or without spaces round the slash. Plain "and/or" and units such as m/s are left alone, and so is anything between dollar signs.
+  function fracPass(text) {
+    return String(text || '').split(/(\$[^$\n]*\$)/).map((part, n) => (n % 2 ? part : fracPart(part))).join('');
+  }
+  function fracPart(t) {
+    const idChar = /[A-Za-z0-9.]/;
+    const back = (str, end) => {            // the operand that ends just before position end: [start, text, strip]
+      let j = end; while (j > 0 && str[j - 1] === ' ') j--;
+      if (j > 0 && str[j - 1] === ')') {
+        let d = 0, k = j - 1;
+        for (; k >= 0; k--) { if (str[k] === ')') d++; else if (str[k] === '(') { d--; if (!d) break; } }
+        if (k < 0) return null;
+        let st = k; while (st > 0 && /[A-Za-z]/.test(str[st - 1])) st--;
+        const call = st < k;               // f(30+h): a function call keeps its own brackets
+        return { start: st, text: call ? str.slice(st, j) : str.slice(k + 1, j - 1), bracket: true };
+      }
+      let st = j; while (st > 0 && idChar.test(str[st - 1])) st--;
+      const tok = str.slice(st, j);
+      return tok && tok.length <= 4 ? { start: st, text: tok, bracket: false } : null;
+    };
+    const fwd = (str, begin) => {
+      let j = begin; while (j < str.length && str[j] === ' ') j++;
+      let st = j; while (st < str.length && /[A-Za-z]/.test(str[st])) st++;
+      if (str[st] === '(') {
+        let d = 0, k = st;
+        for (; k < str.length; k++) { if (str[k] === '(') d++; else if (str[k] === ')') { d--; if (!d) break; } }
+        if (k >= str.length) return null;
+        const call = st > j;
+        return { end: k + 1, text: call ? str.slice(j, k + 1) : str.slice(st + 1, k), bracket: true };
+      }
+      let e = j; while (e < str.length && idChar.test(str[e])) e++;
+      const tok = str.slice(j, e);
+      return tok && tok.length <= 4 ? { end: e, text: tok, bracket: false } : null;
+    };
+    let out = t, i = 0;
+    while ((i = out.indexOf('/', i)) >= 0) {
+      if (out[i - 1] === '/' || out[i + 1] === '/' || out[i - 1] === ':' || /[A-Za-z]/.test(out[i - 1] || '') && /[A-Za-z]/.test(out[i + 1] || '')) { i++; continue; }
+      const L = back(out, i), R = fwd(out, i + 1);
+      if (!L || !R || !(L.bracket || R.bracket)) { i++; continue; }
+      const clean = (x) => x.replace(/[$\\{}\n]/g, '').trim();
+      const tex = '$\\frac{' + clean(L.text) + '}{' + clean(R.text) + '}$';
+      out = out.slice(0, L.start) + tex + out.slice(R.end);
+      i = L.start + tex.length;
+    }
+    return out;
+  }
   function richHtml(text) {
     const links = []; let x = String(text || '').replace(/\[\[([a-z]+)\|([^\]]+)\]\]/g, (m, id, w) => { if (id === 'need') { links.push(['need', w]); return '\u0002' + (links.length - 1) + '\u0002'; } if (!(FM.teach && FM.teach.lessons[id])) return w; links.push([id, w]); return '\u0002' + (links.length - 1) + '\u0002'; });
-    const h = window.LMMath ? window.LMMath.rich(x) : plainToHtml(x);
+    const h = window.LMMath ? window.LMMath.rich(fracPass(x)) : plainToHtml(x);
     return h.replace(/\u0002(\d+)\u0002/g, (m, n) => (links[n][0] === 'need' ? (FM.learn ? FM.learn.chip(links[n][1]) : esc(links[n][1])) : '<span class="rv-term" data-lesson="' + links[n][0] + '" contenteditable="false">' + esc(links[n][1]) + '</span>'));
   }
   function richCellHtml(cell, i, n) {
@@ -601,7 +648,7 @@
     const welcome = !items.length && !state.busy ? `<div class="wb-welcome"><p>Ask me anything, or say what you want to learn. I teach through your own league, and I mark the ideas you need first so you can go to them before the lesson.</p><div class="wb-sugg">${SUGG.map((x) => `<button type="button" data-ask="${esc(x)}">${esc(x)}</button>`).join('')}</div></div>` : '';
     log.innerHTML = welcome + items.map((m) => {
       if (m.role === 'card') return cardHtml(m);
-      if (m.role === 'manager') return `<div class="wb-msg manager">${esc(m.text).replace(/\n/g, '<br>')}</div>`;
+      if (m.role === 'manager') return `<div class="wb-msg manager wk-rich">${/[\^_]\(|\)\/\(|sqrt\(/.test(m.text) ? richHtml(m.text) : esc(m.text).replace(/\n/g, '<br>')}</div>`;
       const les = m.lesson && L ? L.lessonHtml(m, richHtml) : '';
       const learnt = m.lesson && m.lesson.topic && L && L.isKnown(m.lesson.topic);
       const btns = (m.text && m.text.length > 70) || m.lesson ? `<div class="wb-mbtns"><button type="button" data-copy="1">Copy to notes</button>${m.lesson && m.lesson.topic ? (learnt ? '<span class="lw-learnt">✓ Learnt</span>' : '') : ''}${m.from ? `<button type="button" data-back="${esc(m.from)}">← Back to ${esc(m.from)}</button>` : ''}</div>` : '';
@@ -828,7 +875,7 @@
       <div class="wb2-body">
         <section class="wb2-notes" aria-label="Your notebook"><iframe id="wbNotes" title="Your notebook" src="/learn/?embed=wbnotes"></iframe></section>
         <aside class="wb-agent wb2-chat" id="wbAgent" aria-label="LastMind AI Agent"><div class="wb-pane-h"><b>AI Agent</b><span class="wb-agent-btns"><span class="wb-lk" id="wbLkTotal"></span><select id="wbDepth" class="wb-depth" aria-label="How deeply the agent teaches" title="Standard: the key ideas, quickly and cheaply. High: a fuller lesson with the reasoning behind each step, from a stronger model; it uses more Locks."><option value="standard">Standard</option><option value="high">High</option></select><button type="button" class="wb-clear" data-tool="clearchat">Clear</button></span></div><div class="wb-log" id="wbLog" role="log" aria-live="polite"></div>
-          <form class="wb-form" id="wbForm"><textarea id="wbAsk" rows="2" placeholder="Ask anything, or say what you want to learn…" aria-label="Message to the agent"></textarea><button class="wb-send" id="wbSend" type="submit">Send</button></form></aside>
+          <form class="wb-form" id="wbForm"><div id="wbAsk" class="wb-ask" aria-label="Message to the agent"></div><button class="wb-send" id="wbSend" type="submit">Send</button></form></aside>
       </div>
       <div class="wb-legacy" hidden><div class="wb-bar" role="toolbar" aria-label="Workbook tools">
         <span class="wk-brand">Workbook</span>
@@ -875,8 +922,19 @@
       else if (t.dataset.f === 'table') { cell.form.y = cell.form.x = cell.form.group = cell.form.by = cell.form.col = cell.form.order = undefined; cell.form.x = []; cell.form.where = []; refreshCell(cell); }
       save();
     }, SIG);
-    host.addEventListener('submit', (e) => { if (e.target.id === 'wbForm') { e.preventDefault(); const ta = el('wbAsk'), v = ta.value; ta.value = ''; ask(v); } }, SIG);
-    el('wbAsk').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); el('wbForm').requestSubmit(); } });
+    // The message box is the same maths editor as the notebook, so the shortcuts work here too: / makes a fraction, ^ and _ make powers and subscripts, sqrt and
+    // Greek names turn into their symbols. What is sent is the plain shorthand the agent reads, and the message is drawn back as maths in the chat.
+    const LMM = window.LMMath;
+    if (LMM) {
+      const ed = LMM.createEditor('Ask anything, or say what you want to learn…', { hideShortcutHint: true, auto: true, autocorrect: () => true });
+      el('wbAsk').appendChild(ed.container); state.askEd = ed;
+      const editable = ed.container.querySelector('.math-shortcut-editor');
+      editable.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); el('wbForm').requestSubmit(); } });
+    } else {
+      el('wbAsk').innerHTML = '<textarea rows="2" placeholder="Ask anything, or say what you want to learn…"></textarea>';
+    }
+    const askValue = () => { if (state.askEd) { const v = state.askEd.getValue().replace(/√\(/g, 'sqrt(').replace(/\u200B/g, ''); state.askEd.setHtml(''); return v; } const ta = el('wbAsk').querySelector('textarea'), v = ta.value; ta.value = ''; return v; };
+    host.addEventListener('submit', (e) => { if (e.target.id === 'wbForm') { e.preventDefault(); ask(askValue()); } }, SIG);
     host.addEventListener('mousedown', (e) => { if (e.target.closest && e.target.closest('.wb-key')) e.preventDefault(); }, SIG);
     host.addEventListener('click', (e) => {
       const b = e.target.closest && e.target.closest('button'); if (!b) return;
