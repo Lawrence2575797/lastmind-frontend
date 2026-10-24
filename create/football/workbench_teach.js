@@ -102,11 +102,15 @@
     const steps = l.steps || [];
     if (steps.length) {
       const shown = Math.max(1, Math.min(steps.length, m.shown || 1));
-      h += '<ol class="lw-steps">' + steps.slice(0, shown).map((st, n) => '<li><div class="lw-say">' + render(st.say) + '</div>' + (st.maths ? '<div class="lw-maths">' + render(st.maths) + '</div>' : '') + (st.diagram ? plot(st.diagram) : '') + '</li>').join('') + '</ol>';
+      h += '<ol class="lw-steps">' + steps.slice(0, shown).map((st, n) => '<li><div class="lw-say">' + render(st.say) + '</div>' + (st.maths ? '<div class="lw-maths">' + render(st.maths) + '</div>' : '') + (st.diagram ? plot(st.diagram) : '') + (st.why ? '<div class="lw-why"><button type="button" data-ask="' + esc(st.why) + '">Explain why</button></div>' : '') + '</li>').join('') + '</ol>';
       if (shown < steps.length) h += '<div class="lw-more"><button type="button" class="primary" data-lwnext="1">Next step (' + (shown + 1) + ' of ' + steps.length + ')</button><button type="button" data-lwall="1">Show all</button></div>';
     }
     if (l.diagram) h += plot(l.diagram);
-    if (l.exercise) h += '<div class="lw-ex"><b>Your turn</b><div>' + render(l.exercise) + '</div><button type="button" class="primary" data-exdone="1">I have made the change and run the test</button></div>';
+    // what comes after the working only appears once all of it has been read
+    const done = !steps.length || (m.shown || 1) >= steps.length;
+    if (done && l.exercise) h += '<div class="lw-ex"><b>Your turn</b><div>' + render(l.exercise) + '</div><button type="button" class="primary" data-exdone="1">I have made the change and run the test</button></div>';
+    if (done && l.practice && !l.exercise) h += '<div class="lw-ex"><b>Your turn</b><div>' + render(l.practice) + '</div><p class="lw-hint">Type your answer in the box below and I will check it with you.</p></div>';
+    if (done && l.next && l.next.say && l.next.ask) h += '<div class="lw-next"><div>' + render(l.next.say) + '</div><button type="button" data-ask="' + esc(l.next.ask) + '">Yes, look into it</button></div>';
     return h;
   }
 

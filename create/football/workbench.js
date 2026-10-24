@@ -888,6 +888,7 @@
       if (b.dataset.lwnext && msg) { msg.shown = Math.min((msg.lesson.steps || []).length, (msg.shown || 1) + 1); save(); chatDraw(true); return; }
       if (b.dataset.lwall && msg) { msg.shown = (msg.lesson.steps || []).length; save(); chatDraw(true); return; }
       if (b.dataset.known && msg && msg.lesson) { FM.learn.markKnown(msg.lesson.topic); flash('Marked as learnt'); chatDraw(true); return; }
+      if (b.dataset.ask) { state.from = (msg && msg.lesson && msg.lesson.topic) || (msg && msg.from) || null; ask(b.dataset.ask); return; }
       if (b.dataset.exdone) { ask('I have made the change and run the test. Help me work out what my result shows.'); return; }
       if (b.dataset.copy && msg) { copyToNotes(msgText(msg)); return; }
       if (b.dataset.copycard) { const cc0 = findCell(b.dataset.copycard); if (cc0 && cc0.res) copyToNotes(resultText(cc0.res)); return; }
