@@ -122,7 +122,7 @@
       s += '<path d="' + path + '" fill="none" stroke="' + col + '" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>';
       if (c.label && last) s += '<text x="' + Math.min(W - 6, last[0] + 6) + '" y="' + Math.max(12, last[1] - 6) + '" class="lw-cl" fill="' + col + '">' + esc(c.label) + '</text>';
     });
-    (d.points || []).forEach((p) => { s += '<circle cx="' + px(p.x) + '" cy="' + py(p.y) + '" r="4.5" class="lw-pt"/>' + (p.label ? '<text x="' + (px(p.x) + 8) + '" y="' + (py(p.y) - 8) + '" class="lw-pl">' + esc(p.label) + '</text>' : ''); });
+    (d.points || []).forEach((p) => { s += '<circle cx="' + px(p.x) + '" cy="' + py(p.y) + '" r="4.5" class="lw-pt"/>' + (p.label ? '<text x="' + (px(p.x) > W - 90 ? px(p.x) - 8 : px(p.x) + 8) + '" y="' + (py(p.y) - 8) + '" text-anchor="' + (px(p.x) > W - 90 ? 'end' : 'start') + '" class="lw-pl">' + esc(p.label) + '</text>' : ''); });
     return '<svg class="lw-plot" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Graph">' + s + '</svg>';
   }
 
