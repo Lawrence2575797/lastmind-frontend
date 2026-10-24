@@ -62,8 +62,41 @@
   // ---------- a small graph ----------
   const COLS = ['#E6D7B0', '#7FD6FF', '#FFD54A', '#8FE3A3', '#F2A0A0'];
   const tick = (v) => (Math.abs(v) >= 100 ? String(Math.round(v)) : String(Math.round(v * 100) / 100));
+  // ---------- a distribution: the exact bars, worked out here from the name and the parameters the agent chose ----------
+  function pmf(q, k) {
+    if (q.kind === 'poisson') { let p = Math.exp(-q.lambda); for (let i = 1; i <= k; i++) p *= q.lambda / i; return p; }
+    let p = Math.pow(1 - q.p, q.n); for (let i = 1; i <= k; i++) p *= (q.n - i + 1) / i * (q.p / (1 - q.p)); return k > q.n ? 0 : p;
+  }
+  const meanOf = (q) => (q.kind === 'poisson' ? q.lambda : q.n * q.p);
+  function distPlot(d) {
+    const ds = d.dist || [], W = 440, H = 290, L = 46, R = 16, T = 26, B = 40, pw = W - L - R, ph = H - T - B;
+    let K = 6; ds.forEach((q) => { let c = 0, k = 0; while (k < 40 && c < 0.999) { c += pmf(q, k); k++; } K = Math.max(K, k); });
+    K = Math.min(K, 30);
+    let ymax = 0; ds.forEach((q) => { for (let k = 0; k <= K; k++) ymax = Math.max(ymax, pmf(q, k)); });
+    ymax = Math.ceil(ymax * 1.12 * 20) / 20 || 0.1;
+    const slot = pw / (K + 1), bw = Math.max(2, (slot * 0.8) / ds.length), py = (v) => T + ph - v / ymax * ph;
+    let s = '';
+    for (let g = 0; g <= 4; g++) { const v = ymax * g / 4; s += '<line x1="' + L + '" y1="' + py(v) + '" x2="' + (L + pw) + '" y2="' + py(v) + '" class="lw-grid"/><text x="' + (L - 6) + '" y="' + (py(v) + 4) + '" text-anchor="end" class="lw-tk">' + tick(v) + '</text>'; }
+    const every = K > 16 ? 2 : 1;
+    for (let k = 0; k <= K; k += every) s += '<text x="' + (L + slot * (k + 0.5)) + '" y="' + (H - B + 16) + '" text-anchor="middle" class="lw-tk">' + k + '</text>';
+    ds.forEach((q, n) => {
+      const col = COLS[(n + 1) % COLS.length];
+      for (let k = 0; k <= K; k++) {
+        const v = pmf(q, k), x = L + slot * k + (slot - bw * ds.length) / 2 + bw * n, hit = d.mark === k;
+        s += '<rect x="' + x.toFixed(1) + '" y="' + py(v).toFixed(1) + '" width="' + (bw - 1).toFixed(1) + '" height="' + Math.max(0, T + ph - py(v)).toFixed(1) + '" fill="' + col + '" fill-opacity="' + (hit ? 1 : 0.72) + '"' + (hit ? ' stroke="#fff" stroke-width="1.5"' : '') + '/>';
+      }
+      const mx = L + slot * (meanOf(q) + 0.5);
+      s += '<line x1="' + mx.toFixed(1) + '" y1="' + T + '" x2="' + mx.toFixed(1) + '" y2="' + (T + ph) + '" stroke="' + col + '" stroke-dasharray="4 3" stroke-width="1.4"/>';
+      if (q.label) s += '<rect x="' + (L + 6 + n * 150) + '" y="6" width="10" height="10" fill="' + col + '"/><text x="' + (L + 20 + n * 150) + '" y="15" class="lw-cl" fill="' + col + '">' + esc(q.label) + '</text>';
+    });
+    s += '<line x1="' + L + '" y1="' + T + '" x2="' + L + '" y2="' + (T + ph) + '" class="lw-axis"/><line x1="' + L + '" y1="' + (T + ph) + '" x2="' + (L + pw) + '" y2="' + (T + ph) + '" class="lw-axis"/>';
+    if (d.xLabel) s += '<text x="' + (L + pw / 2) + '" y="' + (H - 6) + '" text-anchor="middle" class="lw-ax">' + esc(d.xLabel) + '</text>';
+    s += '<text x="12" y="' + (T + ph / 2) + '" text-anchor="middle" class="lw-ax" transform="rotate(-90 12 ' + (T + ph / 2) + ')">' + esc(d.yLabel || 'Probability') + '</text>';
+    return '<svg class="lw-plot" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Probability distribution">' + s + '</svg>';
+  }
   function plot(d) {
     if (!d) return '';
+    if (d.dist && d.dist.length) return distPlot(d);
     const W = 440, H = 290, L = 46, R = 16, T = 14, B = 40, pw = W - L - R, ph = H - T - B;
     const x0 = d.x[0], x1 = d.x[1], y0 = d.y[0], y1 = d.y[1];
     const px = (x) => L + (x - x0) / (x1 - x0) * pw, py = (y) => T + ph - (y - y0) / (y1 - y0) * ph;
