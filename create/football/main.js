@@ -1589,7 +1589,7 @@
   };
 
   // Surname only, shortened, so labels stay readable on a phone.
-  const boardName = (p) => { const n = p.name.split(' ').slice(1).join(' ') || p.name; return n.length > 12 ? n.slice(0, 11) + '.' : n; };
+  const boardName = (p) => { const n = p.name.split(' ').slice(1).join(' ') || p.name; return n.length > 10 ? n.slice(0, 9) + '.' : n; };
   const KITNUM = (team) => 'background:' + team.kit.shirt + ';color:' + team.kit.number;
   const overall = (p) => { const r = p.ratings; return p.natural === 'GK' ? r.gk : Math.round((r.pace + r.dribbling + r.passing + r.finishing + r.tackling) / 5); };
   const inLive = () => world.match && world.match.clock > 0 && world.match.phase !== 'fulltime';
@@ -2170,17 +2170,13 @@
     const dots = team.players.map((p) => {
       const pt = bpt(posOf(p)), sel = selected === p, sr = p.index === carrierIdx ? 31 : 27;
       const manual = key === 'shape' ? !!(team.shape && team.shape[p.index]) : FM.isManual(team, p, key);
-      // a small card for each player: shirt number, surname, and his rating (with how fit he is) in the kit's colours
-      const cw = p.index === carrierIdx ? 142 : 134, ch = p.index === carrierIdx ? 68 : 62, nm = boardName(p), nfs = nm.length > 8 ? 15 : 18, inj = FM.isInjured(p), cond = FM.conditionOf(p);
       return `<g class="dot" data-idx="${p.index}" transform="translate(${pt.x.toFixed(1)},${pt.y.toFixed(1)})">
-        <rect x="-72" y="-44" width="144" height="88" fill="transparent"/>
-        <rect x="${-cw / 2}" y="${-ch / 2}" width="${cw}" height="${ch}" rx="10" fill="${team.kit.shirt}" stroke="${sel ? '#F2C14E' : '#fff'}" stroke-width="${sel ? 5 : 3}"/>
-        <rect x="${-cw / 2}" y="${-ch / 2}" width="34" height="${ch}" rx="10" fill="rgba(0,0,0,.22)"/>
-        <text x="${-cw / 2 + 17}" y="-3" text-anchor="middle" font-size="22" font-weight="800" fill="${team.kit.number}" stroke="none" style="paint-order:normal">${p.number}</text>
-        <text x="${-cw / 2 + 17}" y="19" text-anchor="middle" font-size="12" font-weight="700" fill="${team.kit.number}" fill-opacity=".8" stroke="none" style="paint-order:normal">${esc(p.group || '')}</text>
-        <text x="${-cw / 2 + 40}" y="-6" font-size="${nfs}" font-weight="800" fill="${team.kit.number}" stroke="none" style="paint-order:normal">${esc(nm)}</text>
-        <text x="${-cw / 2 + 40}" y="20" font-size="19" font-weight="700" stroke="none" style="paint-order:normal" fill="${inj ? '#FFB3B3' : cond < 0.6 ? '#FFD8B0' : team.kit.number}">${inj ? 'injured' : FM.playerRating(p, p.group).toFixed(1)}<tspan font-size="13" font-weight="600" fill-opacity=".75" dx="6">${inj ? '' : Math.round(100 * cond) + '%'}</tspan></text>
-        ${manual ? '<circle cx="' + (cw / 2) + '" cy="' + (-ch / 2) + '" r="7.5" fill="#F2C14E" stroke="#1A232D" stroke-width="1.5"/>' : ''}</g>`;
+        <circle r="46" fill="transparent"/>
+        <circle r="${sr}" fill="${team.kit.shirt}" stroke="${sel ? '#F2C14E' : '#fff'}" stroke-width="${sel ? 5 : 3}"/>
+        <text y="10" text-anchor="middle" font-size="25" font-weight="700" fill="${team.kit.number}">${p.number}</text>
+        <text y="52" text-anchor="middle" font-size="20" font-weight="700" fill="#fff" stroke="#000" stroke-width="4" style="paint-order:stroke">${esc(boardName(p))}</text>
+        <text y="72" text-anchor="middle" font-size="16" fill="${FM.isInjured(p) ? '#FF9A9A' : FM.conditionOf(p) < 0.6 ? '#F2C8A0' : '#cfe8cf'}" stroke="#000" stroke-width="3.5" style="paint-order:stroke">${FM.isInjured(p) ? 'injured' : FM.playerRating(p, p.group).toFixed(1) + ' · ' + Math.round(100 * FM.conditionOf(p)) + '%'}</text>
+        ${manual ? '<circle cx="23" cy="-23" r="7.5" fill="#F2C14E" stroke="#1A232D" stroke-width="1.5"/>' : ''}</g>`;
     }).join('');
     let guides = '';
     if (key === 'shape' || key === 'without' || key === 'withoutEnd' || key === 'press') {

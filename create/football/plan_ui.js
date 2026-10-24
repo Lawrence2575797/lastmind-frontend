@@ -33,8 +33,7 @@
       const od = hooks.opp(eng);
       if (od) Object.keys(od.cells).forEach((slot) => {
         const c = od.cells[slot], pl2 = od.opp.players.find((q) => q.slotKey === slot), nm = pl2 ? sname(pl2) : slot, x = (1 - c.w) * PW, y = c.d * PH;
-        s += `<g transform="translate(${x.toFixed(1)},${y.toFixed(1)})" pointer-events="none"><rect x="-31" y="-15" width="62" height="30" rx="7" fill="${od.kit.shirt}" fill-opacity=".88" stroke="${od.kit.number}" stroke-width="1.8" stroke-dasharray="4 3"/>
-          <text x="-23" y="5" text-anchor="middle" font-size="12" font-weight="800" fill="${od.kit.number}">${pl2 ? pl2.number : ''}</text><text x="-12" y="5" font-size="10.5" font-weight="700" fill="${od.kit.number}">${esc(nm.length > 7 ? nm.slice(0, 6) + '.' : nm)}</text></g>`;
+        s += `<g transform="translate(${x.toFixed(1)},${y.toFixed(1)})" pointer-events="none"><circle r="${(19 * PW / 442).toFixed(1)}" fill="${od.kit.shirt}" fill-opacity=".9" stroke="${od.kit.number}" stroke-width="1.8" stroke-dasharray="3 2"/><text y="${(4.5 * PW / 442).toFixed(1)}" text-anchor="middle" font-size="${(12.5 * PW / 442 * 1.4).toFixed(1)}" font-weight="700" fill="${od.kit.number}">${pl2 ? pl2.number : ''}</text></g>`;
       });
     }
     // the ball
@@ -47,13 +46,13 @@
     // the players, as cards
     team.players.forEach((p) => {
       const q = FM.phasePos(team, p, eng), sel = UI.sel === p.slotKey, inj = FM.isInjured && FM.isInjured(p), nChoices = Object.keys(((pl.player[p.slotKey] || {})[ph]) || {}).length;
-      const cw = 78, ch = 40;
-      s += `<g class="pl-card" data-slot="${esc(p.slotKey)}" transform="translate(${X(q.w)},${Y(q.d)})" style="cursor:pointer"><rect x="-${cw / 2}" y="-${ch / 2}" width="${cw}" height="${ch}" rx="8" fill="${kit.shirt}" stroke="${sel ? '#F2C14E' : '#fff'}" stroke-width="${sel ? 4 : 2}"/>
-        <rect x="-${cw / 2}" y="-${ch / 2}" width="22" height="${ch}" rx="8" fill="#000" fill-opacity=".22"/>
-        <text x="${-cw / 2 + 11}" y="5" text-anchor="middle" font-size="15" font-weight="800" fill="${kit.number}">${p.number}</text>
-        <text x="${-cw / 2 + 26}" y="-4" font-size="12" font-weight="800" fill="${kit.number}">${esc(sname(p))}</text>
-        <text x="${-cw / 2 + 26}" y="12" font-size="12" font-weight="700" fill="${inj ? '#FFB3B3' : kit.number}">${FM.playerRating ? FM.playerRating(p, p.group).toFixed(1) : ''}<tspan font-size="9" fill-opacity=".8" dx="4">${esc((FM.ROLES[p.roleId] || {}).name ? (FM.ROLES[p.roleId].name.length > 10 ? FM.ROLES[p.roleId].name.slice(0, 9) + '.' : FM.ROLES[p.roleId].name) : '')}</tspan></text>
-        ${nChoices ? `<circle cx="${cw / 2}" cy="${-ch / 2}" r="9" fill="#F2C14E" stroke="#1A232D" stroke-width="1.5"/><text x="${cw / 2}" y="${-ch / 2 + 4}" text-anchor="middle" font-size="11" font-weight="800" fill="#1A232D">${nChoices}</text>` : ''}</g>`;
+      const k = PW / 442, r = 27 * k, rating = FM.playerRating ? FM.playerRating(p, p.group).toFixed(1) : '';
+      s += `<g class="pl-card" data-slot="${esc(p.slotKey)}" transform="translate(${X(q.w)},${Y(q.d)})" style="cursor:pointer"><circle r="${(46 * k).toFixed(1)}" fill="transparent"/>
+        <circle r="${r.toFixed(1)}" fill="${kit.shirt}" stroke="${sel ? '#F2C14E' : '#fff'}" stroke-width="${sel ? 4 : 2.3}"/>
+        <text y="${(10 * k).toFixed(1)}" text-anchor="middle" font-size="${(25 * k).toFixed(1)}" font-weight="700" fill="${kit.number}">${p.number}</text>
+        <text y="${(52 * k).toFixed(1)}" text-anchor="middle" font-size="${(20 * k).toFixed(1)}" font-weight="700" fill="#fff" stroke="#000" stroke-width="3" style="paint-order:stroke">${esc(sname(p))}</text>
+        <text y="${(72 * k).toFixed(1)}" text-anchor="middle" font-size="${(16 * k).toFixed(1)}" fill="${inj ? '#FF9A9A' : '#cfe8cf'}" stroke="#000" stroke-width="2.6" style="paint-order:stroke">${inj ? 'injured' : rating}</text>
+        ${nChoices ? `<circle cx="${(23 * k).toFixed(1)}" cy="${(-23 * k).toFixed(1)}" r="9" fill="#F2C14E" stroke="#1A232D" stroke-width="1.5"/><text x="${(23 * k).toFixed(1)}" y="${(-23 * k + 4).toFixed(1)}" text-anchor="middle" font-size="11" font-weight="800" fill="#1A232D">${nChoices}</text>` : ''}</g>`;
     });
     return `<svg class="pl-pitch" viewBox="0 0 ${PW} ${PH}" role="img" aria-label="Where the team stands in this phase">${s}</svg>`;
   }
@@ -137,7 +136,7 @@
         ${legacy.length ? `<div class="pl-notice">${legacy.length} written instruction${legacy.length === 1 ? '' : 's'} from before ${legacy.length === 1 ? 'is' : 'are'} still active. <button type="button" data-clear-legacy="1">Remove ${legacy.length === 1 ? 'it' : 'them'}</button></div>` : ''}
         <div class="pl-grid">
           <section class="card pl-left"><div class="pl-pitchbar"><button type="button" class="${UI.showOpp ? 'on' : ''}" data-opp="1"${hooks.opp ? '' : ' disabled'}>${UI.showOpp ? 'Hide' : 'Show'} the opposition</button></div><div class="pl-pitchwrap${UI.mode !== 'view' ? ' picking' : ''}">${pitchSvg(team, ph, hooks)}</div>
-            <p class="pl-help pl-legend">Each card is a player and where this phase puts him. Click one to give him instructions below. The gold number is how many instructions he has here.</p></section>
+            <p class="pl-help pl-legend">Each circle is a player and where this phase puts him. Click one to give him instructions below. The gold number is how many instructions he has here.</p></section>
           <section class="card pl-right"><h4>Team approach: ${esc(info.name.toLowerCase())}</h4>${teamPanel(team, ph)}</section>
         </div>
         <section class="card pl-players"><h4>${UI.sel ? 'Player instructions for this phase' : 'Players'}</h4>${playerPanel(team, ph)}</section>
