@@ -39,6 +39,12 @@
     const f0 = data.frames[fi], f1 = data.frames[Math.min(fi + 1, data.frames.length - 1)];
     const X = (x) => (x * PS).toFixed(1), Y = (y) => (y * PS).toFixed(1);
     let s = FM.ANALYSIS_DRAW.pitchLines();
+    // marks put on the replay by the review (an area to be careful of, and where a shot came from), in metres with the user's team attacking right
+    if (c.annot) {
+      const z = c.annot.zone;
+      if (z) s += `<rect x="${X(z.x0)}" y="${Y(z.y0)}" width="${((z.x1 - z.x0) * PS).toFixed(1)}" height="${((z.y1 - z.y0) * PS).toFixed(1)}" fill="#FF5A36" fill-opacity=".18" stroke="#FFB38F" stroke-width="3" stroke-dasharray="10 7"/><text x="${(z.x0 * PS + 10).toFixed(1)}" y="${(z.y1 < 62 ? z.y1 * PS + 24 : z.y0 * PS - 8).toFixed(1)}" font-size="20" font-weight="800" fill="#fff" stroke="#000" stroke-width="4" style="paint-order:stroke">${esc(z.label || '')}</text>`;
+      (c.annot.marks || []).forEach((m) => { s += `<circle cx="${X(m.x)}" cy="${Y(m.y)}" r="22" fill="none" stroke="#FFE27A" stroke-width="3.5"/><text x="${X(m.x)}" y="${(m.y * PS - 30).toFixed(1)}" text-anchor="middle" font-size="18" font-weight="800" fill="#FFE27A" stroke="#000" stroke-width="4" style="paint-order:stroke">${esc(m.label || '')}</text>`; });
+    }
     // passes made in the last few seconds stay on the pitch, fading
     data.ev.forEach((e) => {
       if (e.type !== 'pass') return;

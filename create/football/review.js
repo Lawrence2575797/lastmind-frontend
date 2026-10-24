@@ -16,6 +16,8 @@
   const surname = (p) => p.name.split(' ').slice(-1)[0];
   const A = () => FM.ANALYSIS_DRAW;
   const poissonUpper = (k, lam) => { let c = 0, t = Math.exp(-lam); for (let i = 0; i < k; i++) { c += t; t *= lam / (i + 1); } return Math.max(0, Math.min(1, 1 - c)); };   // P(X >= k)
+  const BRIEF = true;   // the match review states what was tested and the result; the statistics themselves are taught in the Workbook
+  let lastTest = null;   // the first test a candidate describes, kept so the review can say what was tested and how it came out
   const SIG = 0.05, ACT = 0.1;   // a result is significant below 5%; below 10% something is worth changing
 
   // ---------- the techniques ----------
@@ -136,6 +138,7 @@
 
   // Does this go with winning? One thing, set against the goal difference over every team-match this season.
   function matterSection(c, key, label, unit) {
+    if (BRIEF) return '';
     const rows = leagueRows(c.league).filter((r) => key !== 'pass' || r.pass > 0), reg = rows.length >= 10 ? pearson(rows.map((r) => r[key]), rows.map((r) => r.gd)) : null;
     if (!reg) return `<p>I would also like to check whether ${esc(label)} goes with winning across the league, but there are not enough matches in the league yet (about ten team-matches are needed).</p>`;
     const now = c.fx.stats && c.fx.stats[c.me] ? (key === 'pass' ? (c.fx.stats[c.me].passes ? 100 * c.fx.stats[c.me].passesOk / c.fx.stats[c.me].passes : 0) : 0) : 0;
@@ -147,6 +150,7 @@
 
   // What happened in the seconds after we lost the ball: did the shots against follow our turnovers?
   function linkSection(c, mode) {
+    if (BRIEF) return '';
     const xr = c.fx.log.xr; if (!xr) return '';
     const dur = Math.max(600, c.fx.log.duration || 5400), losses = xr.seq.filter((q) => q[0] === c.side && q[6] === 0 && q[8] >= 0 && (mode === 'all' || q[8] < 1 / 3));
     const theirs = c.fx.log.other.filter((e) => e.type === 'shot' && e.team !== c.me);
@@ -171,6 +175,7 @@
   }
   // Does where we challenge go with whether we win? (chi-square test of independence)
   function zoneSection(c, rows) {
+    if (BRIEF) return '';
     const zones = [['our own third', (d) => d < 1 / 3], ['the middle third', (d) => d >= 1 / 3 && d < 2 / 3], ['their third', (d) => d >= 2 / 3]];
     const data = zones.map(([n, f]) => { const r = rows.filter((x) => f(mine(c, x[5], x[6]).d)); return { n, tot: r.length, won: r.filter((x) => x[4] === 1).length }; });
     if (data.filter((d) => d.tot >= 3).length < 2) return '';
@@ -182,6 +187,7 @@
   }
   // Does the defender's distance go with whether a dribble comes off? (chi-square on a 2 × 2 table)
   function distanceSection(c, rows) {
+    if (BRIEF) return '';
     const near = rows.filter((r) => r[6] < 2), far = rows.filter((r) => r[6] >= 2);
     if (near.length < 3 || far.length < 3) return '';
     const a = near.filter((r) => r[3] === 1).length, b = near.length - a, cc = far.filter((r) => r[3] === 1).length, d = far.length - cc, n = a + b + cc + d;
@@ -192,6 +198,7 @@
   }
   // The shares of passes completed this match and earlier, with their 95% intervals: is the difference bigger than the noise?
   function intervalTable(label, k, n, k0, n0) {
+    if (BRIEF) return '';
     const [a, b] = wilson(k, n), [a0, b0] = wilson(k0, n0), overlap = !(a > b0 || a0 > b);
     if (reviewTier !== 'above') return `<div class="books-wrap"><table class="books-table calc"><thead><tr><th class="l">${esc(label)}</th><th>Attempts</th><th>Completed</th><th>Share</th></tr></thead><tbody>
       <tr><td class="l">This match</td><td class="n">${n}</td><td class="n">${k}</td><td class="n">${pc(k / n)}</td></tr><tr><td class="l">Earlier matches</td><td class="n">${n0}</td><td class="n">${k0}</td><td class="n">${pc(k0 / n0)}</td></tr></tbody></table></div>
@@ -307,6 +314,8 @@
     return base.replace('</ol></div>', extra + '</ol></div>');
   }
   function testBlock(t) {
+    if (!lastTest) lastTest = t;
+    if (BRIEF) return '';
     if (!t.kind) return alevelWork(t);
     return reviewTier === 'gcse' ? gcseWork(t) : reviewTier === 'above' ? aboveWork(t) : alevelWork(t);
   }
@@ -340,6 +349,14 @@
     dribbling: 'a binomial test against our own record and a chi-square test to see whether the defender\'s distance matters.',
     fouls: 'a Poisson test against the league, because fouls are counts of events.', regains: 'a binomial test against our own record.'
   };
+  // What was tested and the result, with none of the working.
+  function briefTest(x) {
+    const t = x.test; if (!t || t.p == null) return '';
+    const aim = String(t.aim || '').replace(/^I wanted to test /i, '').replace(/\.$/, '');
+    const said = t.p < SIG ? 'unlikely to be a bad day: there is something underneath it' : t.p < ACT ? 'borderline: it may be more than a bad day, but I would not be sure' : 'well within what a bad day looks like';
+    return `<div class="rv-brief"><p><b>What I tested:</b> ${aim ? aim.charAt(0).toUpperCase() + aim.slice(1) + '.' : esc(x.title) + '.'}</p><p><b>Result:</b> ${esc(pcs(t.p))} chance of seeing this from luck alone, so it is ${said}.</p></div>`;
+  }
+  FM.reviewBrief = briefTest;
   const box = (title, html) => `<article class="card rv-box"><h3>${esc(title)}</h3>${html}</article>`;
   const costLine = (c, missed) => {
     const extra = Math.round(missed);
@@ -647,8 +664,9 @@
     const c = context(league); if (!c) return null;
     reviewTier = league.tier || 'gcse';
     const mid = (d) => d >= 1 / 3 && d < 2 / 3, back = (d) => d < 1 / 3, final = (d) => d >= 2 / 3;
-    const cands = [candShooting(c), candTeamFinishing(c), candPassingZone(c, 'passFinal', 'in the final third', final, 'Final third'), candPassingZone(c, 'passMid', 'through midfield', mid, 'Play through midfield'), candPassingZone(c, 'passBuild', 'in our own third', back, 'Build-up'),
-      candCrossing(c), candOwnThirdLosses(c), candShotsConceded(c), candDuels(c), candDribbling(c), candFouls(c), candRegains(c)].filter(Boolean);
+    const run = (fn, ...a) => { lastTest = null; const x = fn(...a); if (x) x.test = lastTest; return x; };
+    const cands = [run(candShooting, c), run(candTeamFinishing, c), run(candPassingZone, c, 'passFinal', 'in the final third', final, 'Final third'), run(candPassingZone, c, 'passMid', 'through midfield', mid, 'Play through midfield'), run(candPassingZone, c, 'passBuild', 'in our own third', back, 'Build-up'),
+      run(candCrossing, c), run(candOwnThirdLosses, c), run(candShotsConceded, c), run(candDuels, c), run(candDribbling, c), run(candFouls, c), run(candRegains, c)].filter(Boolean);
     // the two where things went most wrong: the smallest chance of being just a bad day, at most one from each family (finishing, passing...)
     cands.sort((a, b) => (a.p - b.p) || (b.impact - a.impact));
     const picked = [], fams = new Set();
@@ -664,24 +682,24 @@
     const real = league.fixtures.find((f) => f.id === r.c.fx.id);
     const draw = () => paint(host, r);
     const outOfLocks = () => { host.innerHTML = '<div class="card rv-intro"><h2>The analysis is paused: your Locks are used up</h2><p class="desc">Every analysis after a game costs Locks, because it uses the LastMind servers and AI, and that costs real money. Locks are the limit on how much each account can use, so when they run out I stop producing new analyses rather than carry on regardless. Nothing is lost: the games you have already analysed stay open, the match, the table and everything saved in your game carry on as normal, and the analysis of this match will be here as soon as your Locks are topped up.</p><div class="row"><button type="button" id="rvRetry">Check again</button></div></div>'; const rb = host.querySelector('#rvRetry'); if (rb) rb.addEventListener('click', () => { if (FM.locksReset) FM.locksReset(); FM.renderMatchReview(host, league); }); };
-    if (!real || real.reviewPaid || !FM.apiCall) { draw(); return; }
-    if (FM.locksOut && FM.locksOut()) { outOfLocks(); return; }
-    host.innerHTML = '<div class="card rv-intro"><h2>Going through the match…</h2><p class="desc">Working through the match with you. This analysis costs a few Locks.</p></div>';
-    FM.apiCall('POST', '/football/review-charge', {}).then((res) => {
-      if (res && res.status === 402) { outOfLocks(); return; }
-      if (res && res.ok) { real.reviewPaid = true; if (FM.requestSave) FM.requestSave(); }
-      draw();
-    }).catch(() => draw());
+    draw();
   };
   function paint(host, r) {
-    const c = r.c, gd = c.gf - c.ga, hour = new Date().getHours(), tod = hour < 12 ? 'Morning' : hour < 18 ? 'Afternoon' : 'Evening';
-    const A = ['Gaffer', 'Boss', 'Manager'][FM.hashString([c.league.seed, c.league.season || 1, c.league.day || 0, 'rv'].join(':')) % 3];
-    const verdictWord = gd >= 3 ? 'a brilliant win, and congratulations' : gd >= 1 ? 'a good win, and well done' : gd === 0 ? 'a draw, so a point on the board' : gd <= -3 ? 'a heavy defeat, and I know that is hard to read' : 'a defeat, but there is plenty in it to learn from';
-    const lvl = { gcse: 'GCSE', alevel: 'A-level', above: 'beyond A-level' }[reviewTier] || 'GCSE';
-    host.innerHTML = `<div class="card rv-intro"><div class="eyebrow">The last match: round ${c.fx.round + 1}</div><h2>${esc(c.team.name)} ${c.gf}-${c.ga} ${esc(c.opp.name)}</h2>
-      ${r.picked.length ? `<p class="desc">${tod}, ${A}. I have been going through our latest game against ${esc(c.opp.name)}, ${verdictWord}. One thing stood out that was worth testing properly, and I show exactly how I tested it, one step at a time, as if I were explaining it across the table, at ${lvl} level. Any word that looks like <button type="button" class="rv-term" data-lesson="average">this</button> is something I will explain from the beginning if you press it, and every explanation has links of its own back to the basics.</p>` : `<p class="desc">${tod}, ${A}. I have been going through our latest game against ${esc(c.opp.name)}, ${verdictWord}. Nothing in it was clear enough to test properly, so there is no analysis this time. Play another match and I will have more for you.</p>`}</div>
-      ${r.picked.map((x) => box(x.title, x.html)).join('')}
-      <div class="card rv-outro"><p class="desc">If you want to explore any other points from the last game, just ask, and I can provide the data and assistance. Any techniques you need help with, I can explain too. I looked at ${r.all.length} different areas of the game${r.picked.length ? ' to choose this one' : ''}, including finishing, passing, crossing, tackling, dribbling, fouls and how quickly we win the ball back, so if you want any of them, say which.</p><div class="row"><button type="button" class="primary" id="rvAsk">Ask the LastMind AI Agent</button></div></div>`;
-    const b = host.querySelector('#rvAsk'); if (b) b.addEventListener('click', () => { if (FM.agentOpen) FM.agentOpen(); });
+    const c = r.c, hour = new Date().getHours(), tod = hour < 12 ? 'Morning' : hour < 18 ? 'Afternoon' : 'Evening';
+    const A = ['Gaffer', 'Boss', 'Manager'][FM.hashString([c.league.seed, c.league.season || 1, c.league.day || 0, 'rv'].join(':')) % 3], greet = tod + ', ' + A;
+    const real = c.league.fixtures.find((f) => f.id === r.c.fx.id), facts = FM.reviewFacts ? FM.reviewFacts(c) : [], narr = real && real.reviewNarr;
+    const lines = (arr) => arr.map((t) => `<p class="rv-line">${esc(t)}</p>`).join('');
+    const main = r.picked[0];
+    host.innerHTML = `<div class="card rv-intro"><div class="eyebrow">The last match: round ${c.fx.round + 1}</div><h2>${esc(c.team.name)} ${c.gf}-${c.ga} ${esc(c.opp.name)}</h2><div id="rvIntroLines">${lines(narr ? narr.intro : FM.reviewIntroLines(c, facts, greet))}</div></div>
+      <div id="rvTac">${FM.reviewTacticsHtml ? FM.reviewTacticsHtml(c, real, facts, narr && narr.notes) : ''}</div>
+      ${main ? `<article class="card rv-box"><h3>What the numbers say: ${esc(main.title)}</h3>${briefTest(main)}${main.html}</article>` : ''}
+      <div class="card rv-outro"><p class="desc">If you want to go further on anything from the last game, just ask the agent in the Workbook, and I can provide the data and take you through it. I looked at ${r.all.length} different areas of the game${main ? ' to choose what to show you' : ''}.</p><div class="row"><button class="primary" id="rvAsk">Ask the agent about this match</button></div></div>`;
+    if (FM.reviewMount) FM.reviewMount(host, c.league, real, facts);
+    const b = host.querySelector('#rvAsk'); if (b) b.addEventListener('click', () => { if (FM.goWorkbench) FM.goWorkbench(); else if (FM.agentOpen) FM.agentOpen(); });
+    // the wording around the facts comes from a model (a few Locks, once per match); until it arrives, and if it cannot, the lines above are the code's own
+    if (FM.reviewWrite && !narr) FM.reviewWrite(c, real, facts, greet, (n) => {
+      const il = host.querySelector('#rvIntroLines'); if (il) il.innerHTML = lines(n.intro);
+      host.querySelectorAll('[data-note]').forEach((el) => { const t = n.notes && n.notes[el.dataset.note]; if (t) { el.textContent = t; el.hidden = false; } });
+    });
   }
 })();
