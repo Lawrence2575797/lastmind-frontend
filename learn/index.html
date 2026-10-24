@@ -4306,6 +4306,10 @@
     .nb-toolrow .nb-toolbar { position: static; margin-bottom: 0; width: auto; flex: 1 1 auto; min-width: 0; }
     .nb-toolrow.closed { display: none; }
     .nb-topbtns { display: none; } body:has(#nbCanvas) .nb-topbtns { display: contents; }
+    /* the Football Workbook shows the user's notebook (this page) beside its chat: only the page and its own buttons are left */
+    html.embed-notes .sidebar, html.embed-notes .site-strip, html.embed-notes .nb-home-btn, html.embed-notes .topbar > *:not(.topbar-actions), html.embed-notes .topbar-actions > *:not(.nb-topbtns), html.embed-notes .topbar-scroll-hint, html.embed-notes .km-quick-notes-widget, html.embed-notes #minLocks { display: none !important; }
+    html.embed-notes .topbar { min-height: 0; padding: 8px 10px; }
+    html.embed-notes .content { padding: 4px 12px 12px; }
     .nb-canvas.nb-zoomed { pointer-events: none; user-select: none; }
     #nbSrBtn.on { box-shadow: 0 0 0 2px #E6D7B0, 0 0 0 4px #1A232D; }
     .nb-toolbar-toggle { flex: 0 0 auto; font: inherit; font-size: 12.5px; font-weight: 700; padding: 9px 12px; border-radius: 10px; cursor: pointer; background: #1A232D; color: #F1EAD6; border: 0; box-shadow: 0 5px 12px rgba(0,0,0,.35); }
@@ -6881,6 +6885,7 @@
 <link rel="prefetch" href="/learn/derive/player.html" as="document">
 </head>
 <body>
+<script>if (/[?&]embed=wbnotes\b/.test(location.search)) document.documentElement.classList.add('embed-notes');</script>
 
 <div id="gate-message" style="background:#D9C398; color:#1A1A1C;">Checking your subscription…</div>
 
@@ -24671,6 +24676,39 @@ SQIDAQAB
         notesStatus(page.doc.blocks.length ? 'Saved' : '');
     }
 
+    // ----- the Football Workbook's notebook: this same Notes editor, in a frame beside the AI chat. It is an ordinary Notes page called "Football Workbook" in a
+    // folder called "Football", so the student finds it (and can use it) in their notes as well.
+    async function wbEmbedNotes() {
+        await notesEnsureLoaded();
+        const now = new Date().toISOString();
+        let folder = notes.nodes.find((n) => n.type === 'folder' && (n.wbFolder || (!n.parentId && n.name === 'Football')));
+        if (!folder) { folder = { id: notesNewId(), type: 'folder', parentId: null, name: 'Football', open: true, wbFolder: true, updatedAt: now }; notes.nodes.push(folder); }
+        let page = notes.nodes.find((n) => n.type === 'page' && (n.wbNotes || (n.parentId === folder.id && n.name === 'Football Workbook')));
+        if (!page) { page = { id: notesNewId(), type: 'page', parentId: folder.id, name: 'Football Workbook', doc: { blocks: [] }, wbNotes: true, updatedAt: now }; notes.nodes.push(page); }
+        page.wbNotes = true; folder.wbFolder = true;
+        notes.activeId = page.id; notesPersist();
+        notesRenderPage(page);
+        window.addEventListener('message', (e) => {
+            const d = e.data;
+            if (e.origin !== location.origin || !d || d.lm !== 'wb-notes') return;
+            if (d.op === 'append') { const ok = wbEmbedAppend(String(d.text || '')); try { parent.postMessage({ lm: 'wb-notes', op: 'appended', ok }, location.origin); } catch (_) { /* no parent */ } }
+        });
+        try { parent.postMessage({ lm: 'wb-notes', op: 'ready' }, location.origin); } catch (_) { /* no parent */ }
+    }
+    // Text copied from the chat becomes a new text box under everything on the page, with its maths drawn. Only the student asks for this.
+    function wbEmbedAppend(text) {
+        const page = notes.activeId && notesNode(notes.activeId), canvas = document.getElementById('nbCanvas');
+        if (!page || !canvas || !text.trim()) return false;
+        const html = text.split(/\n+/).map((line) => (line.trim() ? '<div>' + nbMathInline(line, { markdown: false }) + '</div>' : '')).join('');
+        let bottom = 0; canvas.querySelectorAll('.nb-block').forEach((b) => { bottom = Math.max(bottom, b.offsetTop + b.offsetHeight); });
+        const x = canvas.clientWidth < 520 ? 44 : 72;
+        const block = { id: notesNewId(), type: 'text', x, y: bottom ? bottom + 24 : 24, w: Math.min(640, Math.max(240, canvas.clientWidth - x - 24)), html, keep: true };
+        page.doc.blocks.push(block); nbToggleHint(canvas, page);
+        const el = nbMakeTextBlock(page, block, canvas, false);
+        nbFitCanvas(canvas); notesScheduleSave();
+        if (el && el.scrollIntoView) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        return true;
+    }
     function notesOpenPage(id, fromNew) {
         const page = notesNode(id);
         if (!page || page.type !== 'page') return;
@@ -37112,7 +37150,10 @@ SQIDAQAB
         const deepLinkParams = new URLSearchParams(window.location.search);
         const deepLinkPageId = deepLinkParams.get('openPage');
         let openedViaDeepLink = false;
-        if (deepLinkPageId) {
+        if (deepLinkParams.get('embed') === 'wbnotes') {
+            openedViaDeepLink = true;
+            try { await wbEmbedNotes(); } catch (err) { console.error('LastMind: the Workbook notebook could not open.', err); }
+        } else if (deepLinkPageId) {
             openPage(deepLinkParams.get('openFolder'), deepLinkPageId, deepLinkParams.get('openSubfolder'));
             openedViaDeepLink = true;
             history.replaceState(null, '', window.location.pathname);
