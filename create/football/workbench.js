@@ -594,7 +594,7 @@
   function chatPush(m) { m.at = Date.now() + Math.random(); const wb = state.wb; wb.chat.push(m); if (wb.chat.length > 70) wb.chat = wb.chat.slice(-60); save(); return m; }
   const SUGG = ['Teach me perfect competition', 'What is a hypothesis test?', 'How does my club make its money?', 'Why do we lose the ball in build-up?'];
   function chatDraw(keep) {
-    const log = el('wbLog'); if (!log) return; const wb = state.wb, L = FM.learn, prev = log.scrollTop;
+    const log = el('wbLog'); if (!log) return; const wb = state.wb, L = FM.learn, prev = log.scrollTop, wasThinking = !!log.querySelector('.think');
     const items = wb.chat.filter((m) => m.role !== 'results');
     let total = 0; wb.chat.forEach((m) => { total += m.locks || 0; });
     const lk = el('wbLkTotal'); if (lk) lk.textContent = total + ' lock' + (total === 1 ? '' : 's') + ' used in this chat';
@@ -607,7 +607,15 @@
       const btns = (m.text && m.text.length > 70) || m.lesson ? `<div class="wb-mbtns"><button type="button" data-copy="1">Copy to notes</button>${m.lesson && m.lesson.topic ? (learnt ? '<span class="lw-learnt">✓ Learnt</span>' : '<button type="button" data-known="1">I understand this</button>') : ''}${m.from ? `<button type="button" data-back="${esc(m.from)}">← Back to ${esc(m.from)}</button>` : ''}</div>` : '';
       return `<div class="wb-msg ${m.role} wk-rich" data-m="${m.at}">${richHtml(m.text)}${les}${m.offer ? `<div class="wb-added"><button type="button" data-test="${esc(m.offer)}">Run the test</button></div>` : ''}${btns}${m.locks != null ? `<div class="wb-locks">${m.locks} lock${m.locks === 1 ? '' : 's'} used</div>` : ''}</div>`;
     }).join('') + (state.busy ? `<div class="wb-msg agent think">${esc(state.busy)}</div>` : '');
-    log.scrollTop = keep ? prev : log.scrollHeight;
+    // While the agent is working the log shows its progress; when the answer lands the log stays at the student's question, so they read down from it
+    // instead of being thrown to the end. The student's own scrolling is never undone.
+    if (keep || (state.busy && wasThinking)) log.scrollTop = prev;
+    else if (state.busy) log.scrollTop = log.scrollHeight;
+    else {
+      const qs = log.querySelectorAll('.wb-msg.manager'), q = qs[qs.length - 1], last = log.lastElementChild;
+      if (q && last && last !== q) log.scrollTop = Math.max(0, log.scrollTop + q.getBoundingClientRect().top - log.getBoundingClientRect().top - 8);
+      else log.scrollTop = log.scrollHeight;
+    }
     const send = el('wbSend'); if (send) send.disabled = !!state.busy;
   }
   function chatMessages() { return state.wb.chat.filter((m) => m.role !== 'card').slice(-14).map((m) => ({ role: m.role === 'manager' ? 'manager' : m.role === 'results' ? 'results' : 'agent', text: m.text })); }
