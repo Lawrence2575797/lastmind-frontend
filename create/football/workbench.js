@@ -604,8 +604,8 @@
       if (m.role === 'manager') return `<div class="wb-msg manager">${esc(m.text).replace(/\n/g, '<br>')}</div>`;
       const les = m.lesson && L ? L.lessonHtml(m, richHtml) : '';
       const learnt = m.lesson && m.lesson.topic && L && L.isKnown(m.lesson.topic);
-      const btns = (m.text && m.text.length > 70) || m.lesson ? `<div class="wb-mbtns"><button type="button" data-copy="1">Copy to notes</button>${m.lesson && m.lesson.topic ? (learnt ? '<span class="lw-learnt">✓ Learnt</span>' : '<button type="button" data-known="1">I understand this</button>') : ''}${m.from ? `<button type="button" data-back="${esc(m.from)}">← Back to ${esc(m.from)}</button>` : ''}</div>` : '';
-      return `<div class="wb-msg ${m.role} wk-rich" data-m="${m.at}">${richHtml(m.text)}${les}${m.offer ? `<div class="wb-added"><button type="button" data-test="${esc(m.offer)}">Run the test</button></div>` : ''}${btns}${m.locks != null ? `<div class="wb-locks">${m.locks} lock${m.locks === 1 ? '' : 's'} used</div>` : ''}</div>`;
+      const btns = (m.text && m.text.length > 70) || m.lesson ? `<div class="wb-mbtns"><button type="button" data-copy="1">Copy to notes</button>${m.lesson && m.lesson.topic ? (learnt ? '<span class="lw-learnt">✓ Learnt</span>' : '') : ''}${m.from ? `<button type="button" data-back="${esc(m.from)}">← Back to ${esc(m.from)}</button>` : ''}</div>` : '';
+      return `<div class="wb-msg ${m.role} wk-rich" data-m="${m.at}">${richHtml(m.lesson && L ? L.lines(m.text) : m.text)}${les}${m.offer ? `<div class="wb-added"><button type="button" data-test="${esc(m.offer)}">Run the test</button></div>` : ''}${btns}${m.locks != null ? `<div class="wb-locks">${m.locks} lock${m.locks === 1 ? '' : 's'} used</div>` : ''}</div>`;
     }).join('') + (state.busy ? `<div class="wb-msg agent think">${esc(state.busy)}</div>` : '');
     // While the agent is working the log shows its progress; when the answer lands the log stays at the student's question, so they read down from it
     // instead of being thrown to the end. The student's own scrolling is never undone.
@@ -885,8 +885,8 @@
       const msgEl = b.closest('[data-m]'), msg = msgEl && wb.chat.find((x) => String(x.at) === msgEl.dataset.m);
       if (b.dataset.explain) { state.from = (msg && msg.lesson && msg.lesson.topic) || (msg && msg.from) || null; ask("Explain '" + b.dataset.explain + "'"); return; }
       if (b.dataset.back) { ask("Carry on with '" + b.dataset.back + "'"); return; }
-      if (b.dataset.lwnext && msg) { msg.shown = Math.min((msg.lesson.steps || []).length, (msg.shown || 1) + 1); save(); chatDraw(true); return; }
-      if (b.dataset.lwall && msg) { msg.shown = (msg.lesson.steps || []).length; save(); chatDraw(true); return; }
+      if (b.dataset.lwnext && msg) { msg.shown = Math.min((msg.lesson.steps || []).length, (msg.shown || 1) + 1); if (msg.shown >= (msg.lesson.steps || []).length && msg.lesson.topic) FM.learn.markKnown(msg.lesson.topic); save(); chatDraw(true); return; }
+      if (b.dataset.lwall && msg) { msg.shown = (msg.lesson.steps || []).length; if (msg.lesson.topic) FM.learn.markKnown(msg.lesson.topic); save(); chatDraw(true); return; }
       if (b.dataset.known && msg && msg.lesson) { FM.learn.markKnown(msg.lesson.topic); flash('Marked as learnt'); chatDraw(true); return; }
       if (b.dataset.ask) { state.from = (msg && msg.lesson && msg.lesson.topic) || (msg && msg.from) || null; ask(b.dataset.ask); return; }
       if (b.dataset.exdone) { ask('I have made the change and run the test. Help me work out what my result shows.'); return; }

@@ -126,6 +126,13 @@
     return '<svg class="lw-plot" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Graph">' + s + '</svg>';
   }
 
+  // One piece of information per line: text that arrives as a paragraph is cut into its sentences, each shown as its own line.
+  function lines(text) {
+    let parts = String(text || '').split(/\n+/).map((x) => x.trim()).filter(Boolean);
+    if (parts.length < 2) parts = String(text || '').split(/(?<=[.!?])\s+(?=[A-Z"'(])/).map((x) => x.trim()).filter(Boolean);
+    return parts.join('\n\n');
+  }
+
   // ---------- the lesson part of a message ----------
   // m.lesson = { topic, needs, steps, diagram, exercise }; m.shown = how many steps are showing; render(text) draws maths text.
   function lessonHtml(m, render) {
@@ -135,7 +142,7 @@
     const steps = l.steps || [];
     if (steps.length) {
       const shown = Math.max(1, Math.min(steps.length, m.shown || 1));
-      h += '<ol class="lw-steps">' + steps.slice(0, shown).map((st, n) => '<li><div class="lw-say">' + render(st.say) + '</div>' + (st.maths ? '<div class="lw-maths">' + render(st.maths) + '</div>' : '') + (st.diagram ? plot(st.diagram) : '') + (st.why ? '<div class="lw-why"><button type="button" data-ask="' + esc(st.why) + '">Explain why</button></div>' : '') + '</li>').join('') + '</ol>';
+      h += '<ol class="lw-steps">' + steps.slice(0, shown).map((st, n) => '<li><div class="lw-say">' + render(lines(st.say)) + '</div>' + (st.maths ? '<div class="lw-maths">' + render(st.maths) + '</div>' : '') + (st.diagram ? plot(st.diagram) : '') + (st.why ? '<div class="lw-why"><button type="button" data-ask="' + esc(st.why) + '">Explain why</button></div>' : '') + '</li>').join('') + '</ol>';
       if (shown < steps.length) h += '<div class="lw-more"><button type="button" class="primary" data-lwnext="1">Next step (' + (shown + 1) + ' of ' + steps.length + ')</button><button type="button" data-lwall="1">Show all</button></div>';
     }
     if (l.diagram) h += plot(l.diagram);
@@ -147,5 +154,5 @@
     return h;
   }
 
-  FM.learn = { norm, known, markKnown, isKnown, chip, plot, compile, lessonHtml };
+  FM.learn = { lines, norm, known, markKnown, isKnown, chip, plot, compile, lessonHtml };
 })();
