@@ -1132,7 +1132,6 @@
     const leagueSelect = host.querySelector('#homeLeagueSelect'); if (leagueSelect) leagueSelect.addEventListener('change', () => { world.homeTableLevel = +leagueSelect.value; renderHome(); });
     const nb = host.querySelector('[data-nav-news]'); if (nb) nb.addEventListener('click', () => setView('news'));
     if (!DEMO_MODE && !lg.mp && FM.recoveryPanel) { const rh = document.createElement('div'); rh.style.marginTop = '16px'; host.appendChild(rh); FM.recoveryPanel(rh); }
-    if (!DEMO_MODE && !lg.mp && FM.skinCard) { const sh = document.createElement('div'); sh.id = 'homeSkin'; sh.style.marginTop = '16px'; host.appendChild(sh); FM.skinCard(sh, lg, { save: saveSoon, refresh: () => setView('home') }); }
     const ns = host.querySelector('#newSeasonBtn'); if (ns) ns.addEventListener('click', () => { ns.disabled = true; ns.textContent = 'Preparing the new season...'; if (FM.startNextSeason(lg)) { world.homeTableLevel = lg.divisionLevel; FM.saveLeague(lg); renderTop(); renderHome(); } });
   }
 
@@ -2501,7 +2500,7 @@
   el('ngMatch').addEventListener('click', mpGuard('match'));
   el('ngJoin').addEventListener('click', mpGuard('join'));
   let ngSkin = null;
-  ngSkin = !DEMO_MODE && FM.skinPicker && el('ngSkinHost') ? FM.skinPicker(el('ngSkinHost'), { id: 'ngSk', level: () => { const r = document.querySelector('input[name="ngLevel"]:checked'); return r ? r.value : 'gcse'; }, onChange: () => { const b = el('ngStart'); if (b && ngSkin) b.disabled = !ngSkin.ready(); } }) : null;
+  ngSkin = null;   // the league is always the Westhaven Counties; no other setting is offered
   if (DEMO_MODE && el('ngSkinBox')) el('ngSkinBox').hidden = true;
   if (el('ngRecover')) { if (DEMO_MODE) el('ngRecoverBox').hidden = true; else if (FM.recoveryPanel) FM.recoveryPanel(el('ngRecover')); }
   el('ngStart').addEventListener('click', async () => {
