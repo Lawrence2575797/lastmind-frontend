@@ -773,10 +773,12 @@
     if (FM.locksOut && FM.locksOut()) { chatPush({ role: 'agent', text: 'You have used all your Locks for now, so I cannot explain it. Everything else in the Workbook still works.' }); chatDraw(); return; }
     chatPush({ role: 'manager', text: 'Explain this result: ' + cell.res.title }); chatPush({ role: 'results', text: resultText(cell.res, 2200) });
     state.locks = 0; state.busy = bl('Writing it up…'); chatDraw();
-    try { await explainStep(cell); } catch (e) { chatPush({ role: 'agent', text: aiError(e) }); }
+    try { await explainStep(cell); } catch (e) { dropRefused(e); chatPush({ role: 'agent', text: aiError(e) }); }
     state.busy = ''; chatDraw();
   }
-  const aiError = (e) => (e && e.code === 'NO_SESSION' ? 'Sign in to LastMind and I can plan analyses for you. The Workbook works without me: use the toolbar to build one yourself.' : e && (e.code === 'LOCK_LIMIT_REACHED' || e.code === '402') ? 'You have used all your Locks for now, so I cannot answer any more questions. Everything else in the Workbook still works.' : (e && e.message) || 'I could not answer just now. Try again in a moment.');
+  // A message refused for personal information is removed from the chat (the chat is saved with the game, and the detail should not be kept) and the reason shown.
+  function dropRefused(e) { if (e && e.code === 'PII_DETECTED') { const wb = state.wb, i = wb.chat.map((m) => m.role).lastIndexOf('manager'); if (i >= 0) wb.chat.splice(i, 1); } }
+  const aiError = (e) => (e && e.code === 'PII_DETECTED' ? e.message : e && e.code === 'NO_SESSION' ? 'Sign in to LastMind and I can plan analyses for you. The Workbook works without me: use the toolbar to build one yourself.' : e && (e.code === 'LOCK_LIMIT_REACHED' || e.code === '402') ? 'You have used all your Locks for now, so I cannot answer any more questions. Everything else in the Workbook still works.' : (e && e.message) || 'I could not answer just now. Try again in a moment.');
   // Questions about how the team plays, which should always come with a picture of the pitch.
   const IMPROVE_RE = /\b(improv\w*|better|fix|how (can|do|should|could) (i|we)|what should (i|we)|help (me|us)|more (successful|effective))\b/i;   // asking for a plan, not asking what happened
   const MATCH_RE = /\b(game|match|fixture|went wrong|defeat|lost to|beat us|against [a-z]+)\b/i;
@@ -845,7 +847,7 @@
       state.busy = bl('Writing it up…'); chatDraw();
       await explainStep(from);
       tacticCells.filter((c) => c.res && c.res.ok).forEach((c) => chatPush({ role: 'agent', text: lastRunOf(c.res.tactic.phase) ? 'Would you like to test this? I will apply the change, run it again and compare it with your last test of this phase, so your current tactics are not tested twice. The two go side by side in the chat.' : 'Would you like to test this? I will run ' + testN(c.res.tactic.phase) + ' ' + (TEST_WORD[c.res.tactic.phase] || 'tests') + ' with your current tactics, apply the change, run ' + testN(c.res.tactic.phase) + ' more, and put the two side by side in the chat.', offer: c.id }));
-    } catch (e) { chatPush({ role: 'agent', text: aiError(e) }); }
+    } catch (e) { dropRefused(e); chatPush({ role: 'agent', text: aiError(e) }); }
     state.pin = null; state.busy = ''; chatDraw();
   }
 

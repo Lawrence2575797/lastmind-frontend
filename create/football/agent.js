@@ -92,7 +92,7 @@
       const out = await FM.api('/football/agent', { messages: state.messages.slice(-10).map((m) => ({ role: m.role, text: m.text })), context: state.ctx() });
       push({ role: 'agent', text: out.reply || 'Tell me what you notice first.', show: Array.isArray(out.show) ? out.show.slice(0, 3) : [] });
     } catch (e) {
-      const msg = e && e.code === 'NO_SESSION' ? 'Sign in to LastMind and I can guide you through your matches.' : e && (e.code === 'LOCK_LIMIT_REACHED' || e.code === '402') ? 'You have used your whole Locks allowance, so I cannot answer any more questions for now. Every answer the agent writes for you uses some of that allowance, and it is all spent. Your football game and everything saved in it carry on as normal.' : 'I could not be reached just now. Try again in a moment.';
+      const msg = e && e.code === 'PII_DETECTED' ? e.message : e && e.code === 'NO_SESSION' ? 'Sign in to LastMind and I can guide you through your matches.' : e && (e.code === 'LOCK_LIMIT_REACHED' || e.code === '402') ? 'You have used your whole Locks allowance, so I cannot answer any more questions for now. Every answer the agent writes for you uses some of that allowance, and it is all spent. Your football game and everything saved in it carry on as normal.' : 'I could not be reached just now. Try again in a moment.';
       push({ role: 'agent', text: msg });
     }
     state.busy = false; draw();

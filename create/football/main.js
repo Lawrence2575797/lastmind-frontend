@@ -1099,7 +1099,7 @@
       next = `<h2>Next match</h2>
         <div class="fixture-big">${esc(home.name)} <span style="opacity:.6">v</span> ${esc(away.name)}</div>
         <p class="desc">${when} · Round ${nextFx.round + 1} of 14 · ${home.id === me ? 'Home' : 'Away'} against ${esc(opp.name)}</p>
-        ${today && !today.played ? '<div class="banner">Matchday. Complete the preparation flow, then play from Match preview.</div>' : '<p class="note">Work through the preparation flow above. The match begins from Match preview.</p>'}`;
+        ${today && !today.played ? '' : '<p class="note">Work through the preparation flow above. The match begins from Match preview.</p>'}`;
     }
     const played = lg.fixtures.filter((f) => f.played && (f.homeId === me || f.awayId === me)).sort((a, b) => b.round - a.round);
     const myFriendlies = (lg.friendlies || []).filter((f) => f.played && (f.homeId === me || f.awayId === me));
