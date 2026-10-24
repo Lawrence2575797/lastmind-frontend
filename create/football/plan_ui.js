@@ -7,7 +7,7 @@
 (function () {
   const FM = (window.FM = window.FM || {});
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  const PW = 340, PH = 500;
+  const PW = 700, PH = 682;   // the same wide shape the squad board has, so a circle is the same size against the pitch there and here
   const TAB_PHASES = { build: ['build'], midfield: ['midfield'], final: ['final'], transdef: ['transDef'], organised: ['defence', 'press'], transatt: ['transAtt'] };
   const SIDE_OF = { build: 'with', midfield: 'with', final: 'with', transAtt: 'with', transDef: 'without', defence: 'without', press: 'without' };
   const TAG_COL = { press: '#FF6B4A', sit: '#9FB0BF', protect: '#5EA8FF', safe: '#6FD08C', risk: '#FFA94D', overload: '#B58CFF', target: '#FFD54A', switch: '#4FD1C5', keep: '#B8E986' };
@@ -20,12 +20,14 @@
     const X = (w) => (w * PW).toFixed(1), Y = (d) => ((1 - d) * PH).toFixed(1);
     let s = `<rect width="${PW}" height="${PH}" rx="6" fill="#2F7D3F"/>`;
     for (let i = 0; i < 10; i++) if (i % 2) s += `<rect y="${i * PH / 10}" width="${PW}" height="${PH / 10}" fill="#000" fill-opacity=".05"/>`;
-    s += `<g fill="none" stroke="#fff" stroke-opacity=".7" stroke-width="2"><rect x="2" y="2" width="${PW - 4}" height="${PH - 4}"/><line x1="2" y1="${PH / 2}" x2="${PW - 2}" y2="${PH / 2}"/><circle cx="${PW / 2}" cy="${PH / 2}" r="46"/>
-      <rect x="${PW / 2 - 100}" y="${PH - 80}" width="200" height="78"/><rect x="${PW / 2 - 100}" y="2" width="200" height="78"/><rect x="${PW / 2 - 45}" y="${PH - 28}" width="90" height="26"/><rect x="${PW / 2 - 45}" y="2" width="90" height="26"/></g>`;
+    const mx = PW / 68, my = PH / 105;   // metres to drawing units across and along
+    s += `<g fill="none" stroke="#fff" stroke-opacity=".7" stroke-width="2"><rect x="2" y="2" width="${PW - 4}" height="${PH - 4}"/><line x1="2" y1="${PH / 2}" x2="${PW - 2}" y2="${PH / 2}"/><ellipse cx="${PW / 2}" cy="${PH / 2}" rx="${(9.15 * mx).toFixed(1)}" ry="${(9.15 * my).toFixed(1)}"/>
+      <rect x="${(PW / 2 - 20.15 * mx).toFixed(1)}" y="${(PH - 16.5 * my).toFixed(1)}" width="${(40.3 * mx).toFixed(1)}" height="${(16.5 * my - 2).toFixed(1)}"/><rect x="${(PW / 2 - 20.15 * mx).toFixed(1)}" y="2" width="${(40.3 * mx).toFixed(1)}" height="${(16.5 * my).toFixed(1)}"/>
+      <rect x="${(PW / 2 - 9.15 * mx).toFixed(1)}" y="${(PH - 5.5 * my).toFixed(1)}" width="${(18.3 * mx).toFixed(1)}" height="${(5.5 * my - 2).toFixed(1)}"/><rect x="${(PW / 2 - 9.15 * mx).toFixed(1)}" y="2" width="${(18.3 * mx).toFixed(1)}" height="${(5.5 * my).toFixed(1)}"/></g>`;
     // zones of this page
     pl.zones.filter((z) => z.on !== false && (z.phase === ph || (!z.phase || z.phase === 'any') && FM.PLAN_ZONE_TAG[z.tag] && FM.PLAN_ZONE_TAG[z.tag].side === SIDE_OF[ph])).forEach((z) => {
       (z.cells || []).forEach((c) => { const dp = FM.PLAN_DEPTHS[c[0]], ch = FM.PLAN_CHANNELS[c[1]], col = TAG_COL[z.tag] || '#fff'; s += `<rect x="${X(ch.lo)}" y="${Y(dp.hi)}" width="${(ch.hi - ch.lo) * PW}" height="${(dp.hi - dp.lo) * PH}" fill="${col}" fill-opacity=".24" stroke="${col}" stroke-width="2" stroke-dasharray="6 4"/>`; });
-      const c0 = (z.cells || [])[0]; if (c0) { const dp = FM.PLAN_DEPTHS[c0[0]], ch = FM.PLAN_CHANNELS[c0[1]]; s += `<text x="${(+X(ch.lo) + 6).toFixed(0)}" y="${(+Y(dp.hi) + 16).toFixed(0)}" font-size="12" font-weight="800" fill="#fff" stroke="#000" stroke-width="3" style="paint-order:stroke">${esc((FM.PLAN_ZONE_TAG[z.tag] || {}).name || '')}</text>`; }
+      const c0 = (z.cells || [])[0]; if (c0) { const dp = FM.PLAN_DEPTHS[c0[0]], ch = FM.PLAN_CHANNELS[c0[1]]; s += `<text x="${(+X(ch.lo) + 6).toFixed(0)}" y="${(+Y(dp.hi) + 16).toFixed(0)}" font-size="16" font-weight="800" fill="#fff" stroke="#000" stroke-width="4" style="paint-order:stroke">${esc((FM.PLAN_ZONE_TAG[z.tag] || {}).name || '')}</text>`; }
     });
     pl.triggers.filter((t) => t.on !== false && t.cells && t.cells.length && (FM.PLAN_WHEN_BY[t.when] || {}).side === SIDE_OF[ph]).forEach((t) => (t.cells || []).forEach((c) => { const dp = FM.PLAN_DEPTHS[c[0]], ch = FM.PLAN_CHANNELS[c[1]]; s += `<rect x="${X(ch.lo)}" y="${Y(dp.hi)}" width="${(ch.hi - ch.lo) * PW}" height="${(dp.hi - dp.lo) * PH}" fill="none" stroke="#fff" stroke-width="2" stroke-dasharray="2 5"/>`; }));
     // the opposition as scouted for the next match: where they stand in the phase that answers this one
@@ -33,7 +35,7 @@
       const od = hooks.opp(eng);
       if (od) Object.keys(od.cells).forEach((slot) => {
         const c = od.cells[slot], pl2 = od.opp.players.find((q) => q.slotKey === slot), nm = pl2 ? sname(pl2) : slot, x = (1 - c.w) * PW, y = c.d * PH;
-        s += `<g transform="translate(${x.toFixed(1)},${y.toFixed(1)})" pointer-events="none"><circle r="${(19 * PW / 442).toFixed(1)}" fill="${od.kit.shirt}" fill-opacity=".9" stroke="${od.kit.number}" stroke-width="1.8" stroke-dasharray="3 2"/><text y="${(4.5 * PW / 442).toFixed(1)}" text-anchor="middle" font-size="${(12.5 * PW / 442 * 1.4).toFixed(1)}" font-weight="700" fill="${od.kit.number}">${pl2 ? pl2.number : ''}</text></g>`;
+        s += `<g transform="translate(${x.toFixed(1)},${y.toFixed(1)})" pointer-events="none"><circle r="19" fill="${od.kit.shirt}" fill-opacity=".9" stroke="${od.kit.number}" stroke-width="1.8" stroke-dasharray="3 2"/><text y="4.5" text-anchor="middle" font-size="12.5" font-weight="700" fill="${od.kit.number}">${pl2 ? pl2.number : ''}</text></g>`;
       });
     }
     // the ball
@@ -46,13 +48,13 @@
     // the players, as cards
     team.players.forEach((p) => {
       const q = FM.phasePos(team, p, eng), sel = UI.sel === p.slotKey, inj = FM.isInjured && FM.isInjured(p), nChoices = Object.keys(((pl.player[p.slotKey] || {})[ph]) || {}).length;
-      const k = PW / 442, r = 27 * k, rating = FM.playerRating ? FM.playerRating(p, p.group).toFixed(1) : '';
+      const k = 1, r = 27 * k, rating = FM.playerRating ? FM.playerRating(p, p.group).toFixed(1) : '';
       s += `<g class="pl-card" data-slot="${esc(p.slotKey)}" transform="translate(${X(q.w)},${Y(q.d)})" style="cursor:pointer"><circle r="${(46 * k).toFixed(1)}" fill="transparent"/>
         <circle r="${r.toFixed(1)}" fill="${kit.shirt}" stroke="${sel ? '#F2C14E' : '#fff'}" stroke-width="${sel ? 4 : 2.3}"/>
         <text y="${(10 * k).toFixed(1)}" text-anchor="middle" font-size="${(25 * k).toFixed(1)}" font-weight="700" fill="${kit.number}">${p.number}</text>
         <text y="${(52 * k).toFixed(1)}" text-anchor="middle" font-size="${(20 * k).toFixed(1)}" font-weight="700" fill="#fff" stroke="#000" stroke-width="3" style="paint-order:stroke">${esc(sname(p))}</text>
         <text y="${(72 * k).toFixed(1)}" text-anchor="middle" font-size="${(16 * k).toFixed(1)}" fill="${inj ? '#FF9A9A' : '#cfe8cf'}" stroke="#000" stroke-width="2.6" style="paint-order:stroke">${inj ? 'injured' : rating}</text>
-        ${nChoices ? `<circle cx="${(23 * k).toFixed(1)}" cy="${(-23 * k).toFixed(1)}" r="9" fill="#F2C14E" stroke="#1A232D" stroke-width="1.5"/><text x="${(23 * k).toFixed(1)}" y="${(-23 * k + 4).toFixed(1)}" text-anchor="middle" font-size="11" font-weight="800" fill="#1A232D">${nChoices}</text>` : ''}</g>`;
+        ${nChoices ? `<circle cx="23" cy="-23" r="9" fill="#F2C14E" stroke="#1A232D" stroke-width="1.5"/><text x="${(23 * k).toFixed(1)}" y="${(-23 * k + 4).toFixed(1)}" text-anchor="middle" font-size="11" font-weight="800" fill="#1A232D">${nChoices}</text>` : ''}</g>`;
     });
     return `<svg class="pl-pitch" viewBox="0 0 ${PW} ${PH}" role="img" aria-label="Where the team stands in this phase">${s}</svg>`;
   }
