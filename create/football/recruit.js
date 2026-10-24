@@ -82,18 +82,19 @@
     const head = `<thead><tr><th class="l">Player</th><th class="l">Club</th><th class="l">Pos</th><th>Age</th><th class="l">Nation</th><th title="What he is worth to a team now, out of 100">Ability</th><th title="The most he can reach, out of 100">Potential</th><th>Pace</th><th>Dri</th><th>Pas</th><th>Fin</th><th>Tac</th><th>Hea</th><th>Com</th><th>Sta</th><th>GK</th><th>Price</th><th class="l">Status</th></tr></thead>`;
     const clubIdx = rs.club === 'all' ? -1 : others.findIndex((x) => x.id === rs.club);
     const filters = `<div class="rc-search"><input id="rcSearch" type="search" value="${esc(rs.q)}" placeholder="Search by name" autocomplete="off" aria-label="Search players by name"></div><div class="rc-filters">
+        <label>Position<select id="rcPos"><option value="all">Any</option>${POSITIONS.map(([k, n]) => `<option value="${k}"${rs.pos === k ? ' selected' : ''}>${n}</option>`).join('')}</select></label>
+        <label>Sort by<select id="rcSort">${[['rating', 'Rating'], ['price', 'Price, high to low'], ['priceLow', 'Price, low to high'], ['age', 'Youngest first'], ['name', 'Name']].map(([k, n]) => `<option value="${k}"${rs.sort === k ? ' selected' : ''}>${n}</option>`).join('')}</select></label>
+        <details class="rc-more"${rs.moreOpen || rs.club !== 'all' || rs.nation !== 'all' || rs.ageMin || rs.ageMax || rs.ratingMin || rs.priceMax || rs.fit ? ' open' : ''}><summary>More filters</summary><div class="rc-filters-more">
         <div class="rc-club"><button type="button" id="rcPrev" aria-label="Previous club">‹</button>
           <select id="rcClub"><option value="all">All clubs</option>${others.map((tm) => `<option value="${tm.id}"${rs.club === tm.id ? ' selected' : ''}>${esc(tm.name)}</option>`).join('')}</select>
           <button type="button" id="rcNext" aria-label="Next club">›</button></div>
-        <label>Position<select id="rcPos"><option value="all">Any</option>${POSITIONS.map(([k, n]) => `<option value="${k}"${rs.pos === k ? ' selected' : ''}>${n}</option>`).join('')}</select></label>
         <label>Nation<select id="rcNation"><option value="all">Any</option>${nations.map((n) => `<option${rs.nation === n ? ' selected' : ''}>${esc(n)}</option>`).join('')}</select></label>
         <label>Age from<input id="rcAgeMin" type="number" min="16" max="40" value="${esc(rs.ageMin)}"></label>
         <label>to<input id="rcAgeMax" type="number" min="16" max="40" value="${esc(rs.ageMax)}"></label>
         <label>Rating at least<input id="rcRating" type="number" step="0.1" min="5" max="10" value="${esc(rs.ratingMin)}"></label>
         <label>Price up to (£m)<input id="rcPrice" type="number" step="0.5" min="0" value="${esc(rs.priceMax)}"></label>
         <label class="rc-check"><input id="rcFit" type="checkbox"${rs.fit ? ' checked' : ''}> Fit only</label>
-        <label>Sort by<select id="rcSort">${[['rating', 'Rating'], ['price', 'Price, high to low'], ['priceLow', 'Price, low to high'], ['age', 'Youngest first'], ['name', 'Name']].map(([k, n]) => `<option value="${k}"${rs.sort === k ? ' selected' : ''}>${n}</option>`).join('')}</select></label>
-        <button type="button" id="rcClear">Clear filters</button></div>`;
+        <button type="button" id="rcClear">Clear filters</button></div></details></div>`;
     void clubIdx;
 
     const shortlist = t.shortlist.map((id) => FM.findPlayer(league, id)).filter(Boolean).filter((p) => FM.clubOf(league, p) !== me);
@@ -103,7 +104,7 @@
     let body = '';
     if (rs.tab === 'players') {
       body = `${filters}<p class="rc-count">${rows.length} player${rows.length === 1 ? '' : 's'}</p>
-        <div class="tablewrap rc-table"><table class="data">${head}<tbody>${rows.slice(0, 400).map(rowHtml).join('') || '<tr><td colspan="18" class="l">No players match those filters.</td></tr>'}</tbody></table></div>`;
+        <div class="tablewrap rc-table"><table class="data">${head}<tbody>${rows.slice(0, rs.shown || 25).map(rowHtml).join('') || '<tr><td colspan="18" class="l">No players match those filters.</td></tr>'}</tbody></table></div>${rows.length > (rs.shown || 25) ? `<div class="rc-showmore"><button type="button" id="rcShowMore">Show 25 more (${rows.length - (rs.shown || 25)} not shown)</button></div>` : ''}`;
     } else if (rs.tab === 'shortlist') {
       body = shortlist.length ? `<div class="tablewrap rc-table"><table class="data">${head}<tbody>${shortlist.map((p) => rowHtml({ p, tm: FM.clubOf(league, p) })).join('')}</tbody></table></div>` : '<p class="note">Nobody on your shortlist yet. Declaring interest in a player, or approaching his club, adds him here.</p>';
     } else {
@@ -130,14 +131,16 @@
 
     // ----- events
     host.querySelectorAll('[data-rctab]').forEach((b) => b.addEventListener('click', () => { rs.tab = b.dataset.rctab; rs.offerNote = null; draw(); }));
-    const bind = (id, key, num) => { const e = host.querySelector(id); if (e) e.addEventListener('change', () => { rs[key] = e.type === 'checkbox' ? e.checked : e.value; draw(); }); void num; };
+    const bind = (id, key, num) => { const e = host.querySelector(id); if (e) e.addEventListener('change', () => { rs[key] = e.type === 'checkbox' ? e.checked : e.value; rs.shown = 25; draw(); }); void num; };
+    const sm = host.querySelector('#rcShowMore'); if (sm) sm.addEventListener('click', () => { rs.shown = (rs.shown || 25) + 25; draw(); });
+    const mf = host.querySelector('.rc-more'); if (mf) mf.addEventListener('toggle', () => { rs.moreOpen = mf.open; });
     const se = host.querySelector('#rcSearch');
     if (se) {
-      se.addEventListener('input', () => { rs.q = se.value; rs.refocus = true; clearTimeout(rs.qt); rs.qt = setTimeout(draw, 160); });
+      se.addEventListener('input', () => { rs.q = se.value; rs.shown = 25; rs.refocus = true; clearTimeout(rs.qt); rs.qt = setTimeout(draw, 160); });
       if (rs.refocus) { rs.refocus = false; se.focus(); try { se.setSelectionRange(se.value.length, se.value.length); } catch (e) { /* a search box that cannot place a caret */ } }
     }
     bind('#rcClub', 'club'); bind('#rcPos', 'pos'); bind('#rcNation', 'nation'); bind('#rcAgeMin', 'ageMin'); bind('#rcAgeMax', 'ageMax'); bind('#rcRating', 'ratingMin'); bind('#rcPrice', 'priceMax'); bind('#rcFit', 'fit'); bind('#rcSort', 'sort');
-    const step = (d) => { const ids = ['all'].concat(others.map((x) => x.id)); rs.club = ids[(ids.indexOf(rs.club) + d + ids.length) % ids.length]; draw(); };
+    const step = (d) => { const ids = ['all'].concat(others.map((x) => x.id)); rs.club = ids[(ids.indexOf(rs.club) + d + ids.length) % ids.length]; rs.shown = 25; draw(); };
     const pv = host.querySelector('#rcPrev'), nx = host.querySelector('#rcNext'); if (pv) pv.addEventListener('click', () => step(-1)); if (nx) nx.addEventListener('click', () => step(1));
     const cl = host.querySelector('#rcClear'); if (cl) cl.addEventListener('click', () => { Object.assign(rs, { q: '', club: 'all', pos: 'all', nation: 'all', ageMin: '', ageMax: '', ratingMin: '', priceMax: '', fit: false, sort: 'rating' }); draw(); });
     host.querySelectorAll('[data-open]').forEach((r) => r.addEventListener('click', () => { rs.open = r.dataset.open; rs.bid = null; draw(); const side = host.querySelector('#rcSide'); if (side && side.scrollIntoView) side.scrollIntoView({ block: 'nearest' }); }));
