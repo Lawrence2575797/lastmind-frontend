@@ -79,7 +79,8 @@
     const pl = FM.planGet(team), side = SIDE_OF[ph];
     const zs = pl.zones.filter((z) => z.phase === ph || ((!z.phase || z.phase === 'any') && (FM.PLAN_ZONE_TAG[z.tag] || {}).side === side));
     const ts = pl.triggers.filter((t) => (FM.PLAN_WHEN_BY[t.when] || {}).side === side && ((FM.PLAN_WHEN_BY[t.when] || {}).stage ? (FM.PLAN_WHEN_BY[t.when].stage === ph) : ph !== 'transAtt' && ph !== 'transDef'));
-    const row = (kind, x, text) => `<li class="${x.on === false ? 'off' : ''}"><span class="pl-sent">${esc(text)}</span><span class="pl-item-b"><button type="button" data-item-toggle="${kind}:${x.id}">${x.on === false ? 'Off' : 'On'}</button><button type="button" data-item-del="${kind}:${x.id}" aria-label="Remove">×</button></span></li>`;
+    const stat = (x) => { const st = pl.stats && pl.stats[x.id]; return st ? `<span class="pl-stat">${st.fires ? 'Came into play ' + st.fires + (st.fires === 1 ? ' time' : ' times') + ' in the last test (' + st.n + ' runs)' : 'Never came into play in the last test (' + st.n + ' runs)'}</span>` : ''; };
+    const row = (kind, x, text) => `<li class="${x.on === false ? 'off' : ''}"><span class="pl-sent">${esc(text)}${stat(x)}</span><span class="pl-item-b"><button type="button" data-item-toggle="${kind}:${x.id}">${x.on === false ? 'Off' : 'On'}</button><button type="button" data-item-del="${kind}:${x.id}" aria-label="Remove">×</button></span></li>`;
     const list = zs.map((z) => row('zone', z, FM.planZoneText(z))).concat(ts.map((t) => row('trigger', t, FM.planTriggerText(t))));
     return list.length ? `<ul class="pl-items">${list.join('')}</ul>` : '<p class="pl-empty">Nothing marked on the pitch for this phase yet.</p>';
   }

@@ -192,7 +192,7 @@
     const tables = (res.tables || []).map((t) => `<div class="wb-tbl"><div class="wb-tbl-t">${esc(t.title || '')}</div><div class="wb-scroll"><table><thead><tr>${t.cols.map((c) => `<th>${esc(c)}</th>`).join('')}</tr></thead><tbody>${t.rows.map((r) => `<tr>${r.map((v, i) => `<td class="${typeof v === 'number' ? 'n' : i ? 'n' : 'l'}">${esc(v == null ? '–' : v)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>${t.more ? `<div class="wb-more">${esc(t.more)}</div>` : ''}</div>`).join('');
     const tspec = res.tactic || res.applySpec;
     const pics = (res.pictures || []).length ? `<div class="wb-pitches${res.tactic ? ' one' : ''}">${res.pictures.map((p) => `<figure class="wb-pitch"><div class="wb-tbl-t">${esc(p.title)}</div>${p.svg}<figcaption>${esc(p.note || '')}</figcaption></figure>`).join('')}</div>${res.tactic ? '' : '<div class="wb-pkey"><span><i class="a"></i>passes forward</span><span><i class="b"></i>passes across</span><span><i class="c"></i>passes back</span><span><i class="f"></i>back and front line</span><span><i class="g"></i>players, where they stood on average</span></div>'}` : '';
-    const steps = res.tactic && (res.tactic.steps || []).length ? `<div class="wb-steps"><div class="wb-tbl-t">How the play works</div><ol>${res.tactic.steps.map((x) => `<li>${esc(x)}</li>`).join('')}</ol></div>` : '';
+    const steps = res.tactic && (res.tactic.steps || []).length ? `<div class="wb-steps"><div class="wb-tbl-t">${res.tactic.plan ? 'What changes' : 'How the play works'}</div><ol>${res.tactic.steps.map((x) => `<li>${esc(x)}</li>`).join('')}</ol></div>` : '';
     const tactBtns = tspec ? `<div class="wb-tact-btns">${res.tactic ? '<button type="button" class="primary" data-tact="test">Run the test</button>' : ''}<button type="button"${res.tactic ? '' : ' class="primary"'} data-tact="apply">${res.tactic ? 'Apply the change' : 'Keep the change'}</button></div>` : '';
     return `${pics}${steps}${tactBtns}${(res.pictures || []).length ? '' : (res.summary || []).map((s) => `<p class="wb-sum">${esc(s)}</p>`).join('')}${chartSvg(res.chart)}${tables}${res.caveats && res.caveats.length ? `<div class="wb-care"><b>Take care</b><ul>${res.caveats.map((c) => `<li>${esc(c)}</li>`).join('')}</ul></div>` : ''}${res.n != null ? `<div class="wb-foot">${esc(res.n)} rows used</div>` : ''}`;
   }
@@ -704,11 +704,16 @@
   }
   const nextOpp = () => { const lg = state.league, nx = FM.nextUserFixture && FM.nextUserFixture(lg); return nx ? FM.teamById(lg, nx.homeId === lg.userId ? nx.awayId : nx.homeId) : null; };
   const movesOf = (spec) => (spec.moves || []).map((m) => ({ number: m.number, dd: m.dx / 105, dw: m.dy / 68 }));
+  // a tactical idea is either a change to the plan, or (older ideas) players moved on the boards
+  function applySpec(team, spec, opp) {
+    if (spec.plan && spec.plan.length) { const r = FM.planChanges(team, spec.plan, true); return { count: r.done.length, plan: true }; }
+    return FM.lab.applyMoves(team, spec.phase, movesOf(spec), { opp });
+  }
   function applyTactic(cell) {
     const spec = cell && cell.res && (cell.res.tactic || cell.res.applySpec); if (!spec) return;
-    const lg = state.league, team = FM.teamById(lg, lg.userId), out = FM.lab.applyMoves(team, spec.phase, movesOf(spec), { opp: nextOpp() });
+    const lg = state.league, team = FM.teamById(lg, lg.userId), out = applySpec(team, spec, nextOpp());
     if (FM.inferShapeTactics) FM.inferShapeTactics(team);
-    save(); flash(out && out.count ? 'Applied: ' + out.count + ' player' + (out.count === 1 ? '' : 's') + ' moved on the boards' : 'Nothing to change');
+    save(); flash(out && out.count ? (out.plan ? 'Applied: ' + out.count + ' change' + (out.count === 1 ? '' : 's') + ' to your plan' : 'Applied: ' + out.count + ' player' + (out.count === 1 ? '' : 's') + ' moved on the boards') : 'Nothing to change');
   }
   // The hypothesis test, on this computer and with no Locks: the phase is played TEST_N times with the tactics as they are, the change is applied, it is played TEST_N times
   // again, and the two success rates are compared. The tactics are put back afterwards; Keep the change applies it for good.
@@ -734,7 +739,7 @@
     try {
       if (before) A = before.run.result;   // already tested: the last result stands for the current tactics
       else { state.busy = 'Running ' + N + ' ' + word + ' with your current tactics…'; chatDraw(); A = await LAB.run(lg, opts, (d) => { state.busy = 'Current tactics: ' + d + ' of ' + N + ' ' + word; chatDraw(); }); }
-      LAB.applyMoves(team, phase, movesOf(spec), { opp }); if (FM.inferShapeTactics) FM.inferShapeTactics(team);
+      applySpec(team, spec, opp); if (FM.inferShapeTactics) FM.inferShapeTactics(team);
       state.busy = 'Running ' + N + ' ' + word + ' with the change…'; chatDraw();
       Bres = await LAB.run(lg, opts, (d) => { state.busy = 'With the change: ' + d + ' of ' + N + ' ' + word; chatDraw(); });
     } catch (e) { chatPush({ role: 'agent', text: 'The test could not be run just now.' }); }
@@ -744,7 +749,7 @@
     const ok = (r) => (rev ? { k: r.n - r.beat.k, p: (r.n - r.beat.k) / r.n } : { k: r.beat.k, p: r.beat.p }), a = ok(A), b = ok(Bres), cmp = LAB.compare({ n: A.n, ok: a }, { n: Bres.n, ok: b }, 'ok');
     const pct = (v) => Math.round(v * 100) + '%', d = b.p - a.p, sig = cmp.p < 0.05;
     const verdict = sig ? (d > 0 ? 'The change helped: the gap is bigger than luck alone would usually give (p = ' + (Math.round(cmp.p * 1000) / 1000) + ').' : 'The change made it worse: the gap is bigger than luck alone would usually give (p = ' + (Math.round(cmp.p * 1000) / 1000) + ').') : 'No clear difference: a gap this size could easily be luck (p = ' + (Math.round(cmp.p * 1000) / 1000) + '). ' + (cmp.need && cmp.need <= 2000 ? 'About ' + cmp.need + ' runs of each would be needed to be sure.' : 'The two are too close to separate with a test this size: try a bigger change.');
-    const res = { ok: true, method: 'tactic-test', title: 'Test: ' + (spec.title || 'tactical idea'), summary: [verdict], caveats: ['Phase tested: ' + word + ', ' + N + ' runs each, against ' + opp.name + '. A run counts as a success when ' + (SUCCESS_WORD[phase] || 'the phase test says so') + '.', (before ? 'The first row is your own last test of this phase, so your current tactics were not tested again. ' : '') + 'Changed for the test: ' + spec.moves.map((m) => { const pl = team.players.find((q) => q.number === m.number); return pl ? pl.name.split(' ').slice(-1)[0] : '#' + m.number; }).join(', ') + ' moved on the ' + LAB.BOARDS[phase].keys.map((k) => '"' + ((FM.PHASE_NAMES && FM.PHASE_NAMES[k]) || k) + '"').filter((v, i, a2) => a2.indexOf(v) === i).join(' and ') + ' board' + (LAB.BOARDS[phase].keys[0] === LAB.BOARDS[phase].keys[1] ? '' : 's') + '. Your own tactics were put back afterwards.'],
+    const res = { ok: true, method: 'tactic-test', title: 'Test: ' + (spec.title || 'tactical idea'), summary: [verdict], caveats: ['Phase tested: ' + word + ', ' + N + ' runs each, against ' + opp.name + '. A run counts as a success when ' + (SUCCESS_WORD[phase] || 'the phase test says so') + '.', (before ? 'The first row is your own last test of this phase, so your current tactics were not tested again. ' : '') + (spec.plan && spec.plan.length ? 'Changed for the test: ' + FM.planChanges(team, spec.plan, false).done.join(' ') + ' Your own tactics were put back afterwards.' : 'Changed for the test: ' + spec.moves.map((m) => { const pl = team.players.find((q) => q.number === m.number); return pl ? pl.name.split(' ').slice(-1)[0] : '#' + m.number; }).join(', ') + ' moved on the ' + LAB.BOARDS[phase].keys.map((k) => '"' + ((FM.PHASE_NAMES && FM.PHASE_NAMES[k]) || k) + '"').filter((v, i, a2) => a2.indexOf(v) === i).join(' and ') + ' board' + (LAB.BOARDS[phase].keys[0] === LAB.BOARDS[phase].keys[1] ? '' : 's') + '. Your own tactics were put back afterwards.')],
       tables: [{ title: 'Result', cols: ['', 'Runs', 'Successful', 'Success rate'], rows: [[before ? 'Your last test' : 'Current tactics', A.n, a.k, (Math.round(a.p * 1000) / 10) + '%'], ['With the change', Bres.n, b.k, (Math.round(b.p * 1000) / 10) + '%'], ['Difference', '', b.k - a.k, (d >= 0 ? '+' : '') + (Math.round(d * 1000) / 10) + ' points']] }], applySpec: spec };
     const rc = addCell({ type: 'analysis', form: formFromSpec({ method: 'tactic' }), by: 'agent', edit: false }, { scroll: true });
     rc.res = res; rc.stamp = dataStamp(); refreshCell(rc); pushCard(rc); save();
@@ -792,7 +797,7 @@
     state.locks = 0; state.busy = bl('Thinking…'); chatDraw();
     try {
       const C = CTL();
-      const out = await FM.api('/football/workbench', { phase: 'plan', depth: state.wb.settings.depth || 'standard', messages: chatMessages().slice(-10), schema: T.digestCompact(), schemaExtra: T.digestExtra(), methods: WB.METHOD_HELP.join('\n'), controls: C ? C.helpStatic() : '', state: C ? C.state(state.league) : '', board: boardText(), summary: summaryText(2600), doc: docSummary(), level: state.league.tier, detail: detailText(), lessons: lessonList() });
+      const out = await FM.api('/football/workbench', { phase: 'plan', depth: state.wb.settings.depth || 'standard', plan: FM.planCatalogText ? FM.planCatalogText(FM.teamById(state.league, state.league.userId)) : '', messages: chatMessages().slice(-10), schema: T.digestCompact(), schemaExtra: T.digestExtra(), methods: WB.METHOD_HELP.join('\n'), controls: C ? C.helpStatic() : '', state: C ? C.state(state.league) : '', board: boardText(), summary: summaryText(2600), doc: docSummary(), level: state.league.tier, detail: detailText(), lessons: lessonList() });
       state.locks += out.locks || 0;
       const msg = chatPush({ role: 'agent', text: out.reply || 'Tell me more about what you want to learn or find out.', lesson: out.lesson || null, from });
       const actions = Array.isArray(out.actions) ? out.actions : [];

@@ -165,6 +165,13 @@
     return { svg: `<svg class="amap" viewBox="0 0 ${PW} ${PH}" role="img" aria-label="${esc(spec.title || 'Tactical idea')}">${A().pitchLines()}${svg}</svg>`, moves, team };
   }
   function tactic(league, spec) {
+    // a change to the plan (roles, choices, areas, triggers): said in words, not drawn as moves; checked against the catalogue before it is shown
+    if (spec.plan && spec.plan.length) {
+      const team = FM.teamById(league, league.userId), got = FM.planChanges(team, spec.plan, false);
+      if (!got.done.length) return fail('None of those changes could be made to the plan.');
+      const facts = 'PLAN CHANGE (' + (spec.phase || 'build') + '): ' + (spec.title || '') + '. ' + (spec.note || '') + ' Changes: ' + got.done.join(' ');
+      return { ok: true, method: 'tactic', title: spec.title || 'Tactical idea', summary: [spec.note || ''], pictures: [], caveats: [], facts, tactic: { phase: spec.phase || 'build', title: spec.title || '', note: spec.note || '', plan: spec.plan.slice(0, 8), steps: got.done } };
+    }
     const pic = tacticPicture(league, spec);
     if (!pic) return fail('That idea names players who are not in the team, so there is nothing to draw.');
     const steps = (spec.steps || []).filter(Boolean).slice(0, 5);

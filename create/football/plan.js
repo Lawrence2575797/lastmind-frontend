@@ -340,6 +340,91 @@
     return out;
   };
 
+  // ---------- how often each area and trigger was used in the last test ----------
+  // The lab plays a phase many times; while it does, rules.js counts how often each of the plan's rules came into force. That is kept with the plan, per item.
+  FM.planWatchLab = function () {
+    if (!FM.lab || FM.lab._planWatched || typeof FM.lab.run !== 'function') return;
+    const run0 = FM.lab.run; FM.lab._planWatched = true;
+    FM.lab.run = async function (lg, opts) {
+      FM._planHits = {};
+      const R = await run0.apply(this, arguments), hits = FM._planHits; FM._planHits = null;
+      try {
+        const team = lg && FM.teamById ? FM.teamById(lg, lg.userId) : null, pl = team && team.plan;
+        if (pl && R && R.n) {
+          const sum = {}; Object.keys(hits || {}).forEach((pid) => { const q = pid.split(':'); if (q[0] === 'pl' && (q[1] === 'z' || q[1] === 't')) sum[q[2]] = (sum[q[2]] || 0) + hits[pid].fires; });
+          pl.stats = pl.stats || {};
+          pl.zones.concat(pl.triggers).forEach((it) => { pl.stats[it.id] = { fires: sum[it.id] || 0, n: R.n, phase: opts && opts.phase }; });
+        }
+      } catch (e) { /* the test result matters more than the count */ }
+      return R;
+    };
+  };
+  window.addEventListener('load', () => FM.planWatchLab());
+
+  // ---------- changes proposed by the agent ----------
+  // A change is checked against the catalogue before anything is done with it, so whatever the agent sends can only ever be one of the choices above.
+  //   {kind:'team', phase, key, value}   {kind:'player', slot, phase, key, value}   {kind:'role', slot, role}
+  //   {kind:'zone', tag, cells, who, phase}   {kind:'trigger', when, group, who, do, cells}
+  const cellsOk = (cells) => (Array.isArray(cells) ? cells.slice(0, 9).filter((c) => Array.isArray(c) && Number.isInteger(c[0]) && Number.isInteger(c[1]) && c[0] >= 0 && c[0] <= 2 && c[1] >= 0 && c[1] <= 4).map((c) => [c[0], c[1]]) : []);
+  FM.planDescribeChange = function (team, ch) {
+    if (!ch || typeof ch !== 'object') return null;
+    const slotP = (sl) => team.players.find((p) => p.slotKey === sl);
+    if (ch.kind === 'team') {
+      const t = (FM.PLAN_TEAM[ch.phase] || []).find((x) => x.key === ch.key), op = t && t.opts.find((x) => x.v === ch.value); if (!op) return null;
+      return { text: FM.planPhase(ch.phase).name + ': ' + t.label.toLowerCase() + ' set to "' + op.label.toLowerCase() + '".', apply: () => { const pl = FM.planGet(team); pl.team[ch.phase] = pl.team[ch.phase] || {}; if (ch.value === 'std') delete pl.team[ch.phase][ch.key]; else pl.team[ch.phase][ch.key] = ch.value; } };
+    }
+    if (ch.kind === 'player') {
+      const p = slotP(ch.slot); if (!p || !PHASE[ch.phase]) return null;
+      const t = FM.planPlayerToggles(ch.phase, p.group).find((x) => x.key === ch.key), op = t && t.opts.find((x) => x.v === ch.value); if (!op) return null;
+      return { text: p.name + ' (' + FM.planPhase(ch.phase).name.toLowerCase() + '): "' + op.label.toLowerCase() + '".', apply: () => { const pl = FM.planGet(team); pl.player[ch.slot] = pl.player[ch.slot] || {}; pl.player[ch.slot][ch.phase] = pl.player[ch.slot][ch.phase] || {}; if (ch.value === 'std') delete pl.player[ch.slot][ch.phase][ch.key]; else pl.player[ch.slot][ch.phase][ch.key] = ch.value; } };
+    }
+    if (ch.kind === 'role') {
+      const p = slotP(ch.slot), r = FM.ROLES[ch.role]; if (!p || !r || r.groups.indexOf(p.group) < 0) return null;
+      return { text: p.name + ' plays as a ' + r.name.toLowerCase() + '.', apply: () => FM.setRole(team, p, ch.role) };
+    }
+    if (ch.kind === 'zone') {
+      const tag = FM.PLAN_ZONE_TAG[ch.tag], cells = cellsOk(ch.cells); if (!tag || !cells.length) return null;
+      const z = { tag: ch.tag, cells, who: FM.PLAN_WHO[ch.who] ? ch.who : 'everyone', phase: PHASE[ch.phase] ? ch.phase : 'any' };
+      return { text: FM.planZoneText(z), apply: () => { FM.planGet(team).zones.push(Object.assign({ id: uid(), on: true }, z)); } };
+    }
+    if (ch.kind === 'trigger') {
+      const w = FM.PLAN_WHEN_BY[ch.when], d = FM.PLAN_DO_BY[ch.do], cells = cellsOk(ch.cells); if (!w || !d || d.side !== w.side || (w.needs === 'zone' && !cells.length)) return null;
+      const t = { when: ch.when, group: w.needs === 'carrier' && w.options.some((x) => x[0] === ch.group) ? ch.group : 'FB', who: FM.PLAN_WHO[ch.who] ? ch.who : 'nearest', do: ch.do, cells };
+      return { text: FM.planTriggerText(t), apply: () => { FM.planGet(team).triggers.push(Object.assign({ id: uid(), on: true }, t)); } };
+    }
+    return null;
+  };
+  // Checks a list of changes and, when asked, makes them. Returns the plain-words list of what is (or would be) done.
+  FM.planChanges = function (team, changes, doIt) {
+    const done = []; let skipped = 0;
+    (Array.isArray(changes) ? changes : []).slice(0, 8).forEach((ch) => { const d = FM.planDescribeChange(team, ch); if (!d) { skipped++; return; } if (doIt) d.apply(); done.push(d.text); });
+    if (doIt && done.length) FM.planApply(team);
+    return { done, skipped };
+  };
+
+  // What the agent is told it can choose from, in as few words as it can be said.
+  FM.planCatalogText = function (team) {
+    const out = [];
+    out.push('SLOTS (name each by its slot key): ' + team.players.map((p) => p.slotKey + '=#' + p.number + ' ' + p.name.split(' ').slice(-1)[0] + ' (' + p.group + ', ' + (FM.ROLES[p.roleId] || {}).name + ')').join('; '));
+    out.push('TEAM CHOICES {kind:"team",phase,key,value}: ' + FM.PLAN_PHASES.map((ph) => ph.key + ' -> ' + (FM.PLAN_TEAM[ph.key] || []).map((t) => t.key + '=[' + t.opts.map((x) => x.v + ':' + x.label).join(' | ') + ']').join('; ')).join('\n  '));
+    out.push('PLAYER CHOICES {kind:"player",slot,phase,key,value}, by phase and kind of player: ' + FM.PLAN_PHASES.map((ph) => ph.key + ' -> ' + ['CB', 'FB', 'DM', 'CM', 'AM', 'WF', 'ST'].map((g) => g + ': ' + FM.planPlayerToggles(ph.key, g).map((t) => t.key + '=[' + t.opts.map((x) => x.v).join('|') + ']').join(' ')).join(' / ')).join('\n  '));
+    out.push('ROLES {kind:"role",slot,role}: ' + GROUPS.map((g) => g + ': ' + FM.rolesForGroup(g).join(',')).join(' / '));
+    out.push('PITCH GRID: depth 0 = our third, 1 = the middle, 2 = their third; channel 0 far left, 1 left, 2 central, 3 right, 4 far right; a cell is [depth,channel]. Left and right are as seen by the team attacking.');
+    out.push('ZONES {kind:"zone",tag,cells:[[d,c]..],who,phase}: tags ' + FM.PLAN_ZONE_TAGS.map((t) => t.k + '(' + t.side + ')').join(', ') + '; who one of ' + Object.keys(FM.PLAN_WHO).join(',') + '; phase one of ' + FM.PLAN_PHASES.map((p) => p.key).join(',') + ' or "any"');
+    out.push('TRIGGERS {kind:"trigger",when,group,who,do,cells}: when one of ' + FM.PLAN_WHEN.map((w) => w.k + '(' + w.side + (w.needs === 'carrier' ? ', group one of FB,CB,GK,DM,CM,WF,ST' : ', needs cells') + ')').join(', ') + '; do one of ' + FM.PLAN_DO.map((d) => d.k + '(' + d.side + ')').join(', ') + ' (do must be on the same side as when)');
+    return out.join('\n');
+  };
+
+  // a test that changes the plan must put the plan back afterwards: the lab's snapshot carries it
+  FM.planWatchSnapshot = function () {
+    if (!FM.lab || FM.lab._planSnap || typeof FM.lab.snapshot !== 'function') return;
+    FM.lab._planSnap = true;
+    const snap0 = FM.lab.snapshot, rest0 = FM.lab.restore;
+    FM.lab.snapshot = function (team) { const s0 = snap0.apply(this, arguments); if (s0 && s0.full) s0.full.plan = JSON.parse(JSON.stringify({ plan: team.plan || null, planOut: team.planOut || null })); return s0; };
+    FM.lab.restore = function (team, snap) { const ok = rest0.apply(this, arguments); if (ok && snap && snap.full && snap.full.plan) { const q = JSON.parse(JSON.stringify(snap.full.plan)); if (q.plan) team.plan = q.plan; else delete team.plan; team.planOut = q.planOut || { off: {}, n: 0 }; } return ok; };
+  };
+  window.addEventListener('load', () => FM.planWatchSnapshot());
+
   // ---------- the engine reads the plan's position offsets ----------
   const baseDefault = FM.defaultPhasePos;
   FM.defaultPhasePos = function (team, p, phase) {

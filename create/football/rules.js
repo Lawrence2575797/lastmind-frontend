@@ -144,7 +144,10 @@
     c.me = p;
     const oppId = team.oppRef ? String(team.oppRef.id || '') : '';   // an instruction for one game applies only against that opponent
     const inferred = [];
-    (team.rules || []).forEach((r) => { if (r.off || (r.game && r.game.vs && oppId && r.game.vs !== oppId) || !scopeMatches(r.scope, p) || !whenHolds(r.when, c)) return; r.effects.forEach((e) => (r.source === 'scenario' ? inferred : out).push(e)); });
+    (team.rules || []).forEach((r) => { if (r.off || (r.game && r.game.vs && oppId && r.game.vs !== oppId) || !scopeMatches(r.scope, p) || !whenHolds(r.when, c)) return;
+      // a rule from the plan counts how often it comes into force (a new spell, not every moment of one), so a test can say how often an area or trigger was used
+      if (r.pid && FM._planHits) { const h = FM._planHits[r.pid] || (FM._planHits[r.pid] = { fires: 0, last: -9 }); if (c.minute - h.last > 0.04 || c.minute < h.last) h.fires++; h.last = c.minute; }
+      r.effects.forEach((e) => (r.source === 'scenario' ? inferred : out).push(e)); });
     // What the manager wrote is certain; what was worked out from the scenarios they played is a guess. Where both speak about the same thing, the written instruction wins.
     const key = (e) => e.type + (e.type === 'position' ? ':' + e.phase : '');
     const written = new Set(out.map(key));
