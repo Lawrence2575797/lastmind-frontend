@@ -819,7 +819,7 @@
     host.innerHTML = `<div class="wb wb2">
       <div class="wb2-body">
         <section class="wb2-notes" aria-label="Your notebook"><iframe id="wbNotes" title="Your notebook" src="/learn/?embed=wbnotes"></iframe></section>
-        <aside class="wb-agent wb2-chat" id="wbAgent" aria-label="LastMind AI Agent"><div class="wb-pane-h"><b>AI Agent</b><span class="wb-agent-btns"><span class="wb-lk" id="wbLkTotal"></span><label class="wb-auto" title="During a lesson, apply the changes the agent proposes without asking"><input type="checkbox" id="wbAuto"> Auto-apply</label><button type="button" class="wb-clear" data-tool="clearchat">Clear</button></span></div><div class="wb-log" id="wbLog" role="log" aria-live="polite"></div>
+        <aside class="wb-agent wb2-chat" id="wbAgent" aria-label="LastMind AI Agent"><div class="wb-pane-h"><b>AI Agent</b><span class="wb-agent-btns"><span class="wb-lk" id="wbLkTotal"></span><button type="button" class="wb-clear" data-tool="clearchat">Clear</button></span></div><div class="wb-log" id="wbLog" role="log" aria-live="polite"></div>
           <form class="wb-form" id="wbForm"><textarea id="wbAsk" rows="2" placeholder="Ask anything, or say what you want to learn…" aria-label="Message to the agent"></textarea><button class="wb-send" id="wbSend" type="submit">Send</button></form></aside>
       </div>
       <div class="wb-legacy" hidden><div class="wb-bar" role="toolbar" aria-label="Workbook tools">
@@ -837,7 +837,7 @@
         <section class="wb-main wk-main"><div class="wk-book"><div class="wk-sheet"><div class="wk-scroll" id="wkScroll"><div class="wk-titlebar"><input id="wkTitle" class="wk-title" placeholder="Name this page" aria-label="Page title" maxlength="90"></div><div class="wk-rule"></div><div class="wk-flow" id="wbDoc"></div></div><div class="wk-foot"><button type="button" class="wk-arrow" id="wkPrev" aria-label="Previous page" title="Previous page">‹</button><span class="wk-pos" id="wkPos"></span><button type="button" class="wk-arrow" id="wkNext" aria-label="Next page" title="Next page">›</button></div></div></div><div class="wb-kb" id="wbKb" hidden></div></section>
         </div></div>
       <div class="wb-flash" id="wbFlash" role="status"></div></div>`;
-    wb.ui.agent = true; el('wbAuto').checked = !!wb.settings.auto;
+    wb.ui.agent = true; wb.settings.auto = false;
     refreshData(); renderDoc(); chatDraw(); el('wbKb').innerHTML = kbHtml(); layout();
 
     if (host._wbAbort) host._wbAbort.abort();
@@ -857,7 +857,6 @@
     }, SIG);
     host.addEventListener('change', (e) => {
       const t = e.target;
-      if (t.id === 'wbAuto') { wb.settings.auto = !!t.checked; save(); return; }
       const cell = t.closest && t.closest('[data-cell]') && findCell(t.closest('[data-cell]').dataset.cell);
       if (cell && cell.type === 'control' && t.dataset.cp) { cell.params[t.dataset.cp] = t.value; const pv = document.getElementById('prev-' + cell.id); if (pv) pv.innerHTML = previewHtml(cell); save(); return; }
       if (!cell || !cell.form) return;
