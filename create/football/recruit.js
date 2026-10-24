@@ -309,7 +309,7 @@
       }
       return;
     }
-    const list = ns.mine ? all.filter((n) => n.mine) : all;
+    const filtered = ns.mine ? all.filter((n) => n.mine) : all, list = filtered.slice(0, ns.shown || 12);
     const rounds = {}; list.forEach((n) => { (rounds[n.round] = rounds[n.round] || []).push(n); });
     const keys = Object.keys(rounds).map(Number).sort((a, b) => b - a);
     const lead = list[0];
@@ -318,8 +318,12 @@
       <div class="row"><button id="nwAll" class="${ns.mine ? '' : 'on'}">Whole league</button><button id="nwMine" class="${ns.mine ? 'on' : ''}">My club</button></div></div>
       ${lead ? `<button type="button" class="nw-lead" data-story="${esc(lead.id)}"><span class="nw-kind ${lead.mine ? 'mine' : ''}">${esc(lead.kind)}</span><strong>${esc(lead.headline)}</strong>${lead.dek ? `<em>${esc(lead.dek)}</em>` : ''}</button>` : ''}
       ${keys.length ? keys.map((r) => `<div class="card"><h2>${r < 0 ? 'Pre-season' : 'After round ' + (r + 1)}</h2><div class="nw-list">${rounds[r].map((n) => `<button type="button" class="nw-item" data-story="${esc(n.id)}"><span class="nw-kind ${n.mine ? 'mine' : ''}">${esc(n.kind)}</span><span class="nw-h">${esc(n.headline)}</span><span class="nw-d">${esc(n.dek || '')}</span></button>`).join('')}</div></div>`).join('') : '<div class="card"><p class="note">No stories yet.</p></div>'}</div>`;
-    host.querySelector('#nwAll').addEventListener('click', () => { ns.mine = false; FM.renderNews(host, league); });
-    host.querySelector('#nwMine').addEventListener('click', () => { ns.mine = true; FM.renderNews(host, league); });
+    if (filtered.length > list.length) {
+      host.firstElementChild.insertAdjacentHTML('beforeend', '<div class="rc-showmore"><button type="button" id="nwMore">Show ' + Math.min(12, filtered.length - list.length) + ' more</button></div>');
+      host.querySelector('#nwMore').addEventListener('click', () => { ns.shown = (ns.shown || 12) + 12; FM.renderNews(host, league); });
+    }
+    host.querySelector('#nwAll').addEventListener('click', () => { ns.mine = false; ns.shown = 12; FM.renderNews(host, league); });
+    host.querySelector('#nwMine').addEventListener('click', () => { ns.mine = true; ns.shown = 12; FM.renderNews(host, league); });
     host.querySelectorAll('[data-story]').forEach((b) => b.addEventListener('click', () => { ns.open = b.dataset.story; FM.renderNews(host, league); }));
   };
   // opening a particular story from elsewhere

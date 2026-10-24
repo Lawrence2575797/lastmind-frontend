@@ -1021,7 +1021,7 @@
     try {
       const hc = FM.historyCardHtml ? FM.historyCardHtml(lg, opp, fx) : '';
       const hero = host.querySelector('.preview-hero');
-      if (hc && hero) hero.insertAdjacentHTML('afterend', '<div id="previewHistory">' + hc + '</div>');
+      if (hc && hero) hero.insertAdjacentHTML('afterend', '<details id="previewHistory" class="pv-history"><summary>The story behind this fixture</summary>' + hc + '</details>');
     } catch (e) { /* the history is a nicety */ }
     host.querySelector('#previewTactics').addEventListener('click', () => { world.testing = false; world.tab = 'squad'; setView('tactics'); });
     const pt = host.querySelector('#previewTest'); if (pt) pt.addEventListener('click', () => { world.testing = true; world.tab = 'build'; setView('tactics'); });
