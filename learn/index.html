@@ -4307,7 +4307,11 @@
     .nb-toolrow.closed { display: none; }
     .nb-topbtns { display: none; } body:has(#nbCanvas) .nb-topbtns { display: contents; }
     /* the Football Workbook shows the user's notebook (this page) beside its chat: only the page and its own buttons are left */
-    html.embed-notes .sidebar, html.embed-notes .site-strip, html.embed-notes .nb-home-btn, html.embed-notes .topbar > *:not(.topbar-actions), html.embed-notes .topbar-actions > *:not(.nb-topbtns), html.embed-notes .topbar-scroll-hint, html.embed-notes .km-quick-notes-widget, html.embed-notes #minLocks { display: none !important; }
+    html.embed-notes .site-strip, html.embed-notes .nb-home-btn, html.embed-notes .topbar > *:not(.topbar-actions), html.embed-notes .topbar-actions > *:not(.nb-topbtns), html.embed-notes .topbar-scroll-hint, html.embed-notes .km-quick-notes-widget, html.embed-notes #minLocks { display: none !important; }
+    /* the notebook's own page list stays, so pages and folders can be added from the Workbook; the rest of the sidebar goes */
+    html.embed-notes .sidebar { width: 200px; }
+    html.embed-notes #notesTreeItems > [data-sec="sets"], html.embed-notes #notesTreeItems > .nt-section-empty:nth-child(2) { display: none; }
+    html.embed-notes .sidebar-header, html.embed-notes .sidebar-tabs, html.embed-notes #folderList, html.embed-notes #cortexChatList, html.embed-notes .sidebar-footer, html.embed-notes #notesNewFolderBtn { display: none !important; }
     html.embed-notes .topbar { min-height: 0; padding: 8px 10px; }
     html.embed-notes .content { padding: 4px 12px 12px; }
     .nb-canvas.nb-zoomed { pointer-events: none; user-select: none; }
@@ -24688,6 +24692,7 @@ SQIDAQAB
         page.wbNotes = true; folder.wbFolder = true;
         notes.activeId = page.id; notesPersist();
         notesRenderPage(page);
+        try { renderMyNotesTree(); } catch (_) { /* the page list is a convenience */ }
         window.addEventListener('message', (e) => {
             const d = e.data;
             if (e.origin !== location.origin || !d || d.lm !== 'wb-notes') return;
