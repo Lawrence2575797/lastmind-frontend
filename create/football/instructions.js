@@ -48,18 +48,25 @@
   };
   FM.roleInstr = (roleId) => Object.assign({}, FM.ROLE_INSTR[roleId] || {});
 
+  // When each instruction applies, from one general rule: a way of playing on the ball (running in behind, dribbling, shooting, the passing and risk, holding the ball up,
+  // how wide and how far forward he stands when the team has it) only counts while the team has the ball, and a way of working without it (closing down, tackling,
+  // marking, stepping up) only while it does not. So a mezzala's runs are not there when the team is defending, and a tackling instruction is not there in the build-up.
+  // 'both' (how freely he roams) and the set pieces hold throughout.
+  FM.INSTR_SIDE = { position: 'both', width: 'with', depth: 'with', runs: 'with', dribble: 'with', shoot: 'with', passing: 'with', risk: 'with', holdUp: 'with', distribution: 'with', closeDown: 'without', tackle: 'without', marking: 'without', stepUp: 'without', cornerAtt: 'both', cornerDef: 'both' };
   FM.instructionsFor = (group) => FM.INSTRUCTIONS.filter((i) => i.groups.indexOf(group) >= 0);
 
   // The numbers the engine uses, from a player's instructions.
-  FM.instrMods = function (p) {
+  // hasBall true: only what applies with the ball; false: only what applies without it; left out: everything (as the squad page shows it)
+  FM.instrMods = function (p, hasBall) {
     const i = p.instr || {};
-    const v = (k) => +i[k] || 0;
+    const off = hasBall === true ? 'without' : hasBall === false ? 'with' : null;
+    const v = (k) => (off && FM.INSTR_SIDE[k] === off ? 0 : +i[k] || 0);
     return {
       roam: v('position'), width: 0.07 * v('width'), depth: 0.06 * v('depth'), runs: v('runs'),
       dribble: 0.35 * v('dribble'), shoot: v('shoot') < 0 ? 0.5 : v('shoot') > 0 ? 1.6 : 1,
       passDirect: 0.25 * v('passing'), risk: 0.2 * v('risk'), holdUp: v('holdUp') > 0,
       closeDown: v('closeDown'), tackle: v('tackle'), marking: v('marking'),
-      stepUp: v('stepUp') || (p.options && p.options.stepUp ? 1 : 0),
+      stepUp: v('stepUp') || (hasBall !== true && p.options && p.options.stepUp ? 1 : 0),
       distribution: v('distribution'), cornerAtt: v('cornerAtt'), cornerDef: v('cornerDef'),
     };
   };

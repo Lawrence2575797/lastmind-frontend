@@ -240,7 +240,8 @@
     const carry = { transAttEnd: 'transAtt', transDefEnd: 'transDef' };
 
     if (carry[phase]) { const q = FM.phasePos(team, p, carry[phase]); return { d: q.d, w: q.w }; }
-    const base = FM.slotBase(team, p), role = FM.ROLES[p.roleId], m = FM.instrMods(p);
+    const withBall = ['build', 'buildEnd', 'midfield', 'final', 'transAtt', 'transAttEnd'].indexOf(FM.baseKey(phase)) >= 0;
+    const base = FM.slotBase(team, p), role = FM.ROLES[p.roleId], m = FM.instrMods(p, withBall);
     // The team's shape as the ball moves up the pitch, from a goal kick to a chance. Each group stands where a real side's would for that ball: at
     // a goal kick the side is in its own half with only the striker near halfway, and every phase on from there moves the whole shape up with the
     // ball. (The slot's own place in the formation, and the role, move a player a little either side of his group's depth.)
@@ -395,7 +396,7 @@
   FM.STANDARD_OFFSIDE = 0.8;
   FM.offsideLimit = function (opp, p, lineOverride) {
     const line = lineOverride == null ? FM.STANDARD_OFFSIDE : lineOverride;
-    const runs = p ? FM.instrMods(p).runs : 0; // a player told to run in behind may stand a little beyond it, one told to hold the line a little short
+    const runs = p ? FM.instrMods(p, true).runs : 0; // a player told to run in behind may stand a little beyond it, one told to hold the line a little short
     return Math.max(line + (runs > 0 ? 0.5 : runs < 0 ? -1.2 : 0) / L, 0.5);
   };
   FM.clampOffside = function (team, p, phase, pos, opp, lineOverride) {
@@ -641,7 +642,7 @@
   // seconds after winning it he is drawn toward his transition position, and after losing it toward his defensive one.
   const L_PITCH = 105, W_PITCH = 68;
   FM.targetFor = function (team, player, ball, hasBall) {
-    const role = FM.ROLES[player.roleId], m = FM.instrMods(player), ctx = team.phaseCtx || {};
+    const role = FM.ROLES[player.roleId], m = FM.instrMods(player, !!hasBall), ctx = team.phaseCtx || {};
     const b = toTeamSpace(team.attackDir, ball.x, ball.y);
     const mix = (a, c, t) => ({ d: a.d + (c.d - a.d) * t, w: a.w + (c.w - a.w) * t });
     // The version of a stage's end diagram that applies right now (see FM.pickPage): the default one unless an added page's condition holds.
@@ -825,7 +826,7 @@
       if (o) return o;
       const t = FM.targetFor(team, p, ball, hasBall);
       if (lim != null && p.group !== 'GK') {
-        const runs = FM.instrMods(p).runs + (FM.rulesDelta ? FM.rulesDelta(team, p, 'runs', ball, hasBall) : 0);
+        const runs = FM.instrMods(p, true).runs + (FM.rulesDelta ? FM.rulesDelta(team, p, 'runs', ball, hasBall) : 0);
         const l = lim + team.attackDir * (runs > 0 ? 0.5 : runs < 0 ? -1.2 : 0);
         t.x = team.attackDir === 1 ? Math.min(t.x, l) : Math.max(t.x, l);
       }

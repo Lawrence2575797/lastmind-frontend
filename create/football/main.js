@@ -1734,7 +1734,7 @@
     if (inMatch) (['build', 'midfield', 'final', 'organised'].indexOf(world.tab) >= 0 ? renderLiveBoard(team, world.tab) : renderBoardTab(team, world.tab));
     else if (world.testing) renderTestPhase(team, world.tab);
     else if (world.tab === 'setpieces') renderSetPieces(team);
-    else if (FM.renderPlanTab && ['build', 'midfield', 'final', 'organised', 'transdef', 'transatt'].indexOf(world.tab) >= 0) FM.renderPlanTab(el('tabBody'), team, world.tab, { save: saveSoon, opp: (key) => { const sc = scoutFor(), cells = sc && oppCellsFor(sc, key); return cells ? { cells, opp: sc.opp, kit: FM.kitAgainst(sc.opp, userTeam()) } : null; } });
+    else if (FM.renderPlanTab && ['build', 'midfield', 'final', 'organised', 'transdef', 'transatt'].indexOf(world.tab) >= 0) FM.renderPlanTab(el('tabBody'), team, world.tab, { save: saveSoon, openPlayer: (slot) => { const p = team.players.find((q) => q.slotKey === slot); if (p) { world.selSlot = p; world.selBench = null; world.tab = 'squad'; renderTactics(); } }, opp: (key) => { const sc = scoutFor(), cells = sc && oppCellsFor(sc, key); return cells ? { cells, opp: sc.opp, kit: FM.kitAgainst(sc.opp, userTeam()) } : null; } });
     else if (world.tab === 'transdef' || world.tab === 'transatt') renderTransitionTab(team, world.tab);
     else if (['build', 'midfield', 'final', 'organised'].indexOf(world.tab) >= 0 && FM.renderScenario && nextOpponent()) renderScenarioTab(team, world.tab);
     else renderBoardTab(team, world.tab);
@@ -2360,6 +2360,7 @@
         </div>
         <div class="tb-right">
           ${isShape ? '' : '<div id="phaseInstr"></div>'}
+          ${isShape ? '<div id="rolePanel"></div>' : ''}
           ${isShape ? `<div><h2 style="margin-bottom:8px">Bench</h2><div class="bench" id="bench">${bench}</div><p class="note" style="margin-top:8px">To substitute, click a bench player and the shirt he replaces, in either order.</p></div>` : ''}
           <div id="playerPanel"></div>
           <div id="warnPanel"></div>
@@ -2454,7 +2455,15 @@
       saveSoon(); if (after) after(); else renderPlayerPanel(userTeam());
     });
   }
+  // His role and instructions, above everything else on the squad page; it goes when it is closed or when he is no longer the one chosen.
+  function renderRolePanel(team) {
+    const rp = el('rolePanel'); if (!rp) return;
+    const player = world.tab === 'squad' && world.selSlot && team.players.includes(world.selSlot) ? world.selSlot : null;
+    if (!player || !FM.planPlayerPanel) { rp.innerHTML = ''; return; }
+    FM.planPlayerPanel(rp, team, player, { save: saveSoon, close: () => { world.selSlot = null; afterBoardChange(team); }, changed: () => { if (world.redrawBoards) { try { world.redrawBoards(); } catch (e) { /* the page is redrawn on the next change */ } } } });
+  }
   function renderPlayerPanel(team) {
+    renderRolePanel(team);
     const host = el('playerPanel');
     if (world.tab !== 'squad') { host.innerHTML = ''; return; }
     // A substitute picked from the bench: show his profile, with how to bring him on.

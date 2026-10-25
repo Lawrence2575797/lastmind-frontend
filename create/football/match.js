@@ -381,7 +381,7 @@
       const att = c.team.players.filter((q) => q.group !== 'GK');
       opp.players.forEach((p) => {
         if (p.group === 'GK' || ov.has(p)) return;
-        const mm = FM.instrMods(p);
+        const mm = FM.instrMods(p, false);
         let target = null, reach = 0;
         const rm = FM.rulesMark(opp, p, match.ball), rStep = FM.rulesDelta(opp, p, 'stepUp', match.ball, false) > 0;
         if (rm) { reach = rm.number != null || rm.name ? 40 : 18; target = att.filter((q) => FM.rulesAttackerOf(rm, q)); }
@@ -501,7 +501,7 @@
     // neutral setting the nearest forward now holds the block until the ball
     // is roughly ten metres away; aggressive pressing roles and instructions
     // still jump much earlier.
-    return 6 + 8 * press + bonus + 5 * (FM.instrMods(player).closeDown + (match ? FM.rulesDelta(team, player, 'closeDown', match.ball, false) : 0));
+    return 6 + 8 * press + bonus + 5 * (FM.instrMods(player, false).closeDown + (match ? FM.rulesDelta(team, player, 'closeDown', match.ball, false) : 0));
   }
   // Pressing as the manager set it, adjusted for the seconds just after losing the ball:
   // a high counter-press instruction hunts it back at once, a low one drops into shape first.
@@ -657,7 +657,7 @@
     const live = liveBallContext(match, team, carrier);
     // Which phase the ball is in decides which of the manager's instructions apply.
     const zone = ownDepth0 < 0.38 ? 'build' : ownDepth0 > 0.68 ? 'final' : 'mid';
-    const mods = FM.instrMods(carrier);
+    const mods = FM.instrMods(carrier, true);
     // A side that is well ahead plays the game out: it keeps the ball, takes fewer risks and does not keep shooting. Without this a lopsided match feeds on itself.
     const lead = (match.score[team.id] || 0) - (match.score[other(match, team).id] || 0);
     const coast = clamp((lead - 1) / 3, 0, 1) * (FM.COAST == null ? 1 : FM.COAST);
@@ -861,7 +861,7 @@
     let tempoD = 0, hold = false;
     if (team.rules && team.rules.length) { const f = FM.rulesFold(FM.rulesActive(team, carrier, FM.rulesCtx(team, match.ball, true, d < 4))); tempoD = f.tempo; hold = f.holdUp; }
     const clear = clearThrough(match, team, carrier) ? 0.3 : 1;   // one on one with the keeper there is no time to think
-    const planned = (base * clear * (1 - 0.35 * tempoD) * pressureFactor + (FM.instrMods(carrier).holdUp || hold ? 0.9 : 0)) * (0.82 + 0.36 * match.rng()) + (midfield ? 0 : 0.18);
+    const planned = (base * clear * (1 - 0.35 * tempoD) * pressureFactor + (FM.instrMods(carrier, true).holdUp || hold ? 0.9 : 0)) * (0.82 + 0.36 * match.rng()) + (midfield ? 0 : 0.18);
     // A man with a defender on top of him does not stand and think: he gets rid of it, or moves it on, within a second or two.
     if (d < 2.5) return Math.min(planned, 1.7 + 1.0 * match.rng());
     if (d < 4.5) return Math.min(planned, Math.max(2.6, planned * 0.75));
@@ -1833,7 +1833,7 @@
           // touchline. Central challenges must leave the ball in play.
           if (ok && (c.player.y < 2.5 || c.player.y > W - 2.5) && match.rng() < 0.2) { startRestart(match, 'throw', team, clamp(c.player.x, 1, L - 1), c.player.y < W / 2 ? 0.5 : W - 0.5); break; }
           if (ok) { giveBall(match, opp, d, 0.9 + delayBeforeNextDecision(match, opp, d) * 0.4); break; }
-          if (match.rng() < (0.06 + 0.1 * opp.tactics.tackleAggression + 0.002 * (60 - d.ratings.tackling) + 0.04 * FM.instrMods(d).tackle) * (inBox(team.attackDir, c.player.x, c.player.y) ? (FM.BOX_FOUL == null ? 0.35 : FM.BOX_FOUL) : 1)) { commitFoul(match, d, c.player, opp, team); break; }
+          if (match.rng() < (0.06 + 0.1 * opp.tactics.tackleAggression + 0.002 * (60 - d.ratings.tackling) + 0.04 * FM.instrMods(d, false).tackle) * (inBox(team.attackDir, c.player.x, c.player.y) ? (FM.BOX_FOUL == null ? 0.35 : FM.BOX_FOUL) : 1)) { commitFoul(match, d, c.player, opp, team); break; }
         }
       }
     }
