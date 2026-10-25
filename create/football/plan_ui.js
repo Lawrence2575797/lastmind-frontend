@@ -132,7 +132,7 @@
     };
     const again = () => { hooks.save(); draw(); };
     const bind = () => {
-      host.querySelectorAll('[data-sub]').forEach((b) => b.addEventListener('click', () => { UI.sub = b.dataset.sub; UI.mode = 'view'; UI.cells = []; draw(); }));
+      host.querySelectorAll('[data-sub]').forEach((b) => b.addEventListener('click', () => { UI.sub = b.dataset.sub; UI.mode = 'view'; UI.cells = []; UI.sel = null; FM.renderPlanTab(host, team, tab, hooks); }));   // the page is opened again for that phase (its name, choices and pitch all belong to it)
       host.querySelectorAll('[data-team-tog]').forEach((b) => b.addEventListener('click', () => { FM.planSetTeam(team, ph, b.dataset.teamTog, b.dataset.v); again(); }));
       host.querySelectorAll('[data-player-tog]').forEach((b) => b.addEventListener('click', () => { FM.planSetPlayer(team, UI.sel, ph, b.dataset.playerTog, b.dataset.v); again(); }));
       // Drag a player to where he should stand in this phase. A placed position is the one he stands in (his role and instructions still decide how he plays from it);
