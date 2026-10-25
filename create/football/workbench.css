@@ -215,8 +215,8 @@ body[data-view="workbench"] #view-workbench { animation: none !important; transf
 .wb-steps { margin: 12px 0 4px; padding: 13px 16px; border: 1px solid var(--wb-line, rgba(230, 215, 176, .22)); border-radius: 8px; background: rgba(255, 255, 255, .035); } .wb-steps ol { margin: 8px 0 0 20px; padding: 0; } .wb-steps li { margin: 7px 0; line-height: 1.55; }
 
 /* ---- the Workbook as a teaching space: the student's notebook on the left, the AI chat on the right ---- */
-.wb2-body { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(380px, .9fr); gap: 14px; height: calc(100vh - 150px); min-height: 560px; padding: 10px 0 0; }
-.wb2-notes { min-width: 0; min-height: 0; border: 1px solid var(--wb-line-2); border-radius: 10px; overflow: hidden; background: #F1EAD6; }
+.wb2-body { display: grid; grid-template-columns: var(--wb-cols, minmax(0, 1.1fr) minmax(380px, .9fr)); gap: 14px; height: calc(100vh - 150px); min-height: 560px; padding: 10px 0 0; }
+.wb2-notes { height: var(--wb-notes-h, 100%); align-self: start; min-width: 0; min-height: 0; border: 1px solid var(--wb-line-2); border-radius: 10px; overflow: hidden; background: #F1EAD6; }
 .wb2-notes iframe { display: block; width: 100%; height: 100%; border: 0; }
 .wb2 .wb2-chat { display: flex !important; position: static !important; width: auto !important; height: auto !important; max-height: none !important; grid-column: auto; grid-row: auto; flex-direction: column; min-height: 0; border: 1px solid var(--wb-line-2); border-radius: 10px; overflow: hidden; }
 .wb2 .wb-legacy { display: none !important; }
@@ -242,3 +242,17 @@ body[data-view="workbench"] #view-workbench { animation: none !important; transf
 .wb-log .frac { display: inline-flex; flex-direction: column; align-items: center; vertical-align: middle; margin: 0 .12em; line-height: 1.15; font-size: .92em; } .wb-log .frac-num { padding: 0 .2em; border-bottom: 1px solid currentColor; } .wb-log .frac-den { padding: 0 .2em; }
 
 .lw-apply { margin-top: 14px; padding: 12px 14px; border: 1px solid var(--wb-gold); background: rgba(215,184,107,.1); display: grid; gap: 10px; justify-items: start; } .lw-apply button { padding: 8px 14px; background: var(--wb-gold); color: #1A232D; border: 1px solid var(--wb-gold); font: 700 .8rem var(--wb-sans, inherit); cursor: pointer; }
+
+/* a lesson read in one go: tighter spacing, and a step's graph beside its words when the chat is wide enough */
+.wb-log { container-type: inline-size; padding: 10px 12px; gap: 8px; }
+.wb-msg { padding: 8px 11px; line-height: 1.45; max-width: 100%; }
+.wb-msg p { margin: 0 0 .4em; }
+.lw-steps { margin: 8px 0 4px; gap: 9px; } .lw-steps li { padding-left: 30px; }
+.lw-say { line-height: 1.45; } .lw-maths { margin: 4px 0 0; padding: 5px 10px; }
+.lw-plot { margin: 4px 0; max-width: 100%; max-height: 230px; }
+.lw-why { margin-top: 4px; }
+@container (min-width: 640px) {
+  .lw-steps li:has(.lw-plot) { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 280px); column-gap: 14px; align-items: start; }
+  .lw-steps li:has(.lw-plot) > .lw-plot { grid-column: 2; grid-row: 1 / span 3; margin: 0; }
+  .lw-steps li:has(.lw-plot) > .lw-say, .lw-steps li:has(.lw-plot) > .lw-maths, .lw-steps li:has(.lw-plot) > .lw-why { grid-column: 1; }
+}

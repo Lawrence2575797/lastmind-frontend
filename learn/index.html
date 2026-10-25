@@ -24642,13 +24642,18 @@ SQIDAQAB
             if (zoom < 1) canvas.style.marginBottom = '-' + Math.round(canvas.offsetHeight * (1 - zoom)) + 'px';
             canvas.classList.toggle('nb-zoomed', zoom < 1);
             zoomFit.textContent = zoom < 1 ? Math.round(zoom * 100) + '% · reset' : 'Fit page';
+            if (zoom >= 1) tellParent(null);
         };
+        // In the Workbook the notebook is shrunk to its content, so the cream around the page goes and the chat gets the room.
+        const tellParent = (w, h) => { if (document.documentElement.classList.contains('embed-notes') && window.parent !== window) window.parent.postMessage({ lm: 'wb-notes', op: 'size', width: w, height: h }, location.origin); };
+        const applyZoomKeep = () => { if (zoom < 1) canvas.style.marginBottom = '-' + Math.round(canvas.offsetHeight * (1 - zoom)) + 'px'; };
         const fitZoom = () => {
             applyZoom(1);
             if (contentScroller) contentScroller.scrollTop = 0;
-            let bottom = 0; canvas.querySelectorAll('.nb-block').forEach((b) => { bottom = Math.max(bottom, b.offsetTop + b.offsetHeight); });
-            const room = window.innerHeight - canvas.getBoundingClientRect().top - 16;
+            let bottom = 0, right = 0; canvas.querySelectorAll('.nb-block').forEach((b) => { bottom = Math.max(bottom, b.offsetTop + b.offsetHeight); right = Math.max(right, b.offsetLeft + b.offsetWidth); });
+            const cr = canvas.getBoundingClientRect(), room = window.innerHeight - cr.top - 16;
             applyZoom(bottom > 0 ? Math.min(1, room / (bottom + 40)) : 1);
+            if (bottom > 0) { canvas.style.height = (bottom + 40) + 'px'; applyZoomKeep(); tellParent(Math.round(cr.left + (right + 24) * zoom + 14), Math.round(cr.top + (bottom + 40) * zoom + 14)); }
         };
         document.getElementById('nbZoomOut').addEventListener('click', () => applyZoom(zoom - 0.1));
         document.getElementById('nbZoomIn').addEventListener('click', () => applyZoom(zoom + 0.1));

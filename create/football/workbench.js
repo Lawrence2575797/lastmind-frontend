@@ -933,7 +933,7 @@
 
     if (host._wbAbort) host._wbAbort.abort();
     const ac = new AbortController(), SIG = { signal: ac.signal }; host._wbAbort = ac;
-    window.addEventListener('message', (e) => { if (e.origin === location.origin && e.data && e.data.lm === 'wb-notes' && e.data.op === 'appended') flash(e.data.ok ? 'Copied to your notebook' : 'Could not copy to your notebook'); }, SIG);
+    window.addEventListener('message', (e) => { if (e.origin === location.origin && e.data && e.data.lm === 'wb-notes' && e.data.op === 'size') { const b = host.querySelector('.wb2-body'); if (b) { const w = +e.data.width; if (w > 0) b.style.setProperty('--wb-cols', Math.max(320, Math.min(w, Math.round(b.clientWidth * 0.62))) + 'px minmax(380px, 1fr)'); else b.style.removeProperty('--wb-cols'); const h = +e.data.height; if (h > 0) b.style.setProperty('--wb-notes-h', Math.max(300, Math.min(h, b.clientHeight)) + 'px'); else b.style.removeProperty('--wb-notes-h'); } } else if (e.origin === location.origin && e.data && e.data.lm === 'wb-notes' && e.data.op === 'appended') flash(e.data.ok ? 'Copied to your notebook' : 'Could not copy to your notebook'); }, SIG);
     host.addEventListener('keydown', wbShortcut, SIG);
     host.addEventListener('keydown', (e) => { if (e.altKey && !e.ctrlKey && !e.metaKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight') && !(e.target.closest && e.target.closest('.wb-form'))) { e.preventDefault(); goPage(wb.cur + (e.key === 'ArrowRight' ? 1 : -1)); } }, SIG);
     host.addEventListener('focusin', (e) => { if (e.target.classList && e.target.classList.contains('wb-in')) state.focus = e.target; }, SIG);
