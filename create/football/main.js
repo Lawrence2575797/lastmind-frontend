@@ -2522,7 +2522,7 @@
     if (!DEMO_MODE && world.hadSave && (world.hadSave.season * 1000 + world.hadSave.played) >= 1001) {
       if (!window.confirm('You have a single-player season in progress: ' + world.hadSave.club + ', season ' + world.hadSave.season + ', ' + world.hadSave.played + ' of 14 played. Starting a new single-player game replaces it (a multiplayer game is not affected). It is kept as a backup, and "Recover an earlier season" brings it back. Start the new game?')) return;
     }
-    if (!DEMO_MODE && FM.markReplaceNext) FM.markReplaceNext();   // the new game is meant to replace the account's save (the server backs the old one up)
+    // (the new game replaces the account's save: createLeague marks the new league for that, and the server backs the old one up)
     try { localStorage.setItem('lm_football_level', tier); } catch (e) { /* the choice is also in the game */ }
     btn.disabled = true; btn.textContent = 'Setting up the clubs...';
     await new Promise((r) => setTimeout(r, 30));

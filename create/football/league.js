@@ -79,7 +79,6 @@
   FM.WORLD_SEED = 20261004;
   FM.RATING_BASE = 58; FM.STRENGTH_SCALE = 4.5; // the league average starting eleven, and rating points per step of club strength
   FM.createLeague = function (opts) {
-    if (FM.markReplaceNext) FM.markReplaceNext();
     // Every game is the same league (same clubs, squads and fixtures), so the pre-season friendlies could be played once, in advance.
     const seed = opts.seed || FM.WORLD_SEED;
     const runSeed = opts.runSeed | 0;   // what makes one game's matches different from another's; 0 for the shared pre-made history
@@ -138,6 +137,9 @@
     league.runSeed = runSeed;
     FM.ensureTwoDivisions(league);
     FM.setBoardExpectation(league);
+    // a new game replaces the account's saved one: marked on THIS league, so that a save of the old season that happens while the new one is being set up cannot use up the
+    // replacement (and leave the new game to be refused as 'further back' than the old one)
+    if (FM.markReplaceNext) FM.markReplaceNext(league);
     return league;
   };
 
@@ -951,7 +953,8 @@
   const progressOfLeague = (lg) => (lg.season || 1) * 1000 + lg.fixtures.filter((f) => f.played && (f.homeId === lg.userId || f.awayId === lg.userId)).length;
   const progressOfText = (text) => { try { const d = JSON.parse(text); return (d.season || 1) * 1000 + (d.fixtures || []).filter((f) => f.played && (f.homeId === d.userId || f.awayId === d.userId)).length; } catch (e) { return -1; } };
   FM.leagueProgress = progressOfLeague;
-  FM.markReplaceNext = () => { replaceNext = true; lsSet(accountKey(SAVE_KEY + '_prefer'), null); };
+  let replaceLeague = null;
+  FM.markReplaceNext = (lg) => { if (lg) replaceLeague = lg; else replaceNext = true; lsSet(accountKey(SAVE_KEY + '_prefer'), null); };
   async function cloudWrite() {
     const league = cloudLeague; if (!league || DEMO_MODE || !accountUid) return false;
     if (cloudBusy) { cloudAgain = true; return false; }
@@ -968,10 +971,11 @@
       }
       const user = FM.teamById(league, league.userId), m = league.mp ? 'mp' : 'solo';
       const body = { id: lsGet(cloudIdKey(m)) || undefined, title: (m === 'mp' ? 'Multiplayer: ' : 'Be the manager: ') + (user ? user.name : 'My club'), kind: m === 'mp' ? 'football-mp' : 'football-manager', data: { href: m === 'mp' ? '/create/football/?game=mp' : '/create/football/?game=solo', meta: (m === 'mp' ? 'Multiplayer · season ' : 'Season ') + league.season, football: { save: text, savedAt: new Date().toISOString(), progress: progressOfLeague(league) } } };
-      if (replaceNext) body.replace = true;
+      const replacing = replaceNext || (replaceLeague && replaceLeague === league);
+      if (replacing) body.replace = true;
       const r = await FM.apiCall('POST', '/create/projects', body);
-      if (r && r.ok && r.json && r.json.id && r.uid === accountUid) { ok = true; lsSet(cloudIdKey(m), r.json.id); lsSet(atKey(m), r.json.updatedAt || new Date().toISOString()); replaceNext = false; }
-      else if (r && r.status === 409) { replaceNext = false; refused = true; FM.cloudRefused = true; }   // the account holds a season further on than this one: the next page open offers it
+      if (r && r.ok && r.json && r.json.id && r.uid === accountUid) { ok = true; lsSet(cloudIdKey(m), r.json.id); lsSet(atKey(m), r.json.updatedAt || new Date().toISOString()); replaceNext = false; if (replaceLeague === league) replaceLeague = null; }
+      else if (r && r.status === 409) { replaceNext = false; if (replaceLeague === league) replaceLeague = null; refused = true; FM.cloudRefused = true; }   // the account holds a season further on than this one: the next page open offers it
     } catch (e) { /* the browser copy is still saved; the next change tries again */ }
     cloudBusy = false;
     if (!ok && !refused) cloudDirty = true;   // not on the account yet: the next change, or the page being hidden, tries again
