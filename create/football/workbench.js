@@ -910,7 +910,7 @@
     host.innerHTML = `<div class="wb wb2">
       <div class="wb2-body">
         <section class="wb2-notes" aria-label="Your notebook"><iframe id="wbNotes" title="Your notebook" src="/learn/?embed=wbnotes"></iframe></section>
-        <aside class="wb-agent wb2-chat" id="wbAgent" aria-label="LastMind AI Agent"><div class="wb-pane-h"><b>AI Agent</b><span class="wb-agent-btns"><span class="wb-lk" id="wbLkTotal"></span><select id="wbDepth" class="wb-depth" aria-label="How deeply the agent teaches" title="Standard: the key ideas, quickly and cheaply. High: a fuller lesson with the reasoning behind each step, from a stronger model; it uses more Locks."><option value="standard">Standard</option><option value="high">High</option></select><button type="button" class="wb-clear" data-tool="clearchat">Clear</button></span></div><div class="wb-log" id="wbLog" role="log" aria-live="polite"></div>
+        <aside class="wb-agent wb2-chat" id="wbAgent" aria-label="LastMind AI Agent"><div class="wb-pane-h"><b>AI Agent</b><span class="wb-agent-btns"><span class="wb-lk" id="wbLkTotal"></span><select id="wbDepth" class="wb-depth" aria-label="How deeply the agent teaches" title="Standard: the key ideas, quickly and cheaply. High: a fuller lesson with the reasoning behind each step, from a stronger model; it uses more Locks."><option value="standard">Standard</option><option value="high">High</option></select><button type="button" class="wb-clear" data-tool="exportdata" title="Save your club's match statistics, finances, squad and tactics as one file you can give to any AI assistant to talk through examples. It costs no Locks.">Export</button><button type="button" class="wb-clear" data-tool="clearchat">Clear</button></span></div><div class="wb-log" id="wbLog" role="log" aria-live="polite"></div>
           <form class="wb-form" id="wbForm"><div id="wbAsk" class="wb-ask" aria-label="Message to the agent"></div><button class="wb-send" id="wbSend" type="submit">Send</button></form></aside>
       </div>
       <div class="wb-legacy" hidden><div class="wb-bar" role="toolbar" aria-label="Workbook tools">
@@ -1002,6 +1002,7 @@
       if (tool === 'dwide') { wb.ui.dwide = !wb.ui.dwide; if (wb.ui.dwide) wb.ui.data = true; layout(); save(); return; }
       if (tool === 'kb' || tool === 'data' || tool === 'agent') { wb.ui[tool] = !wb.ui[tool]; layout(); save(); return; }
       if (tool === 'copy') { copyDoc(); return; }
+      if (tool === 'exportdata') { if (FM.downloadExport) { const d = FM.downloadExport(state.league); flash('Saved ' + d.filename + ' (give it to any AI assistant)'); } return; }
       if (tool === 'clearchat') { if (confirm('Clear the whole conversation with the agent? Your pages stay.')) { wb.chat = []; save(); chatDraw(); } return; }
       if (b.dataset.kbtab) { wb.ui.kbTab = b.dataset.kbtab; el('wbKb').innerHTML = kbHtml(); save(); return; }
       if (b.dataset.key != null) { insertText(b.dataset.key); return; }
