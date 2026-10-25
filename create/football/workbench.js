@@ -633,6 +633,24 @@
       const st = FM.econ.state(d.econ); if (st) f.contentWindow.postMessage({ lm: 'wb-notes', op: 'diagram', state: st }, location.origin);
     });
   }
+  // What a lesson worked out, put in front of the student as proposals in the game: the club's own actions (with their Forecast and Apply) and a change to the plan (with
+  // its test and Apply). Nothing is changed until the student presses Apply on one.
+  async function applyFromLesson(msg) {
+    const ap = msg && msg.lesson && msg.lesson.apply; if (!ap || state.busy) return;
+    const C = CTL(), team = FM.teamById(state.league, state.league.userId); let made = 0;
+    state.pin = newPage(String(ap.title || (msg.lesson.topic ? msg.lesson.topic + ': in your game' : 'From the lesson')).slice(0, 80), { reuseBlank: true }); renderDoc();
+    (ap.controls || []).forEach((a) => { if (!C || !C.ACTIONS[a.action]) return; const cc = addCell(newControlCell(a.action, a.params || {}, 'agent'), { scroll: false }); pushCard(cc); made++; });
+    if ((ap.plan || []).length) {
+      const spec = { method: 'tactic', phase: ap.phase || 'build', title: ap.title || msg.lesson.topic || 'Change to the plan', note: ap.say || '', plan: ap.plan };
+      const form = formFromSpec(spec); if (!form.table) form.table = 'team_matches';
+      const cell = addCell({ type: 'analysis', form, by: 'agent', edit: false, running: true, progress: 'Working…', spec }, { scroll: false });
+      cell.res = await runSpec(spec); cell.running = false; cell.stamp = dataStamp(); cell.edit = !cell.res.ok; refreshCell(cell);
+      if (cell.res.ok) { pushCard(cell); made++; } else { state.pin = state.pin; }
+    }
+    state.pin = null; void team;
+    chatPush({ role: 'agent', text: made ? 'I have set that up for you to look at. Nothing in the game changes until you press Apply on it.' : 'Nothing in the game could take that change, so there is nothing to apply.' });
+    save(); chatDraw();
+  }
   // A phase played 100 times (500 for the rare ones) with the club's tactics exactly as they are, against the next opponent: the numbers a lesson can work on.
   async function runPhaseTest(phase, onProgress) {
     const lg = state.league, team = FM.teamById(lg, lg.userId), opp = nextOpp(), LAB = FM.lab;
@@ -797,7 +815,7 @@
     state.locks = 0; state.busy = bl('Thinking…'); chatDraw();
     try {
       const C = CTL();
-      const out = await FM.api('/football/workbench', { phase: 'plan', depth: state.wb.settings.depth || 'standard', plan: FM.planCatalogText ? FM.planCatalogText(FM.teamById(state.league, state.league.userId)) : '', messages: chatMessages().slice(-10), schema: T.digestCompact(), schemaExtra: T.digestExtra(), methods: WB.METHOD_HELP.join('\n'), controls: C ? C.helpStatic() : '', state: C ? C.state(state.league) : '', board: boardText(), summary: summaryText(2600), doc: docSummary(), level: state.league.tier, detail: detailText(), lessons: lessonList() });
+      const out = await FM.api('/football/workbench', { phase: 'plan', depth: state.wb.settings.depth || 'standard', controls: (FM.controls && FM.controls.helpStatic) ? FM.controls.helpStatic() : '', plan: FM.planCatalogText ? FM.planCatalogText(FM.teamById(state.league, state.league.userId)) : '', messages: chatMessages().slice(-10), schema: T.digestCompact(), schemaExtra: T.digestExtra(), methods: WB.METHOD_HELP.join('\n'), controls: C ? C.helpStatic() : '', state: C ? C.state(state.league) : '', board: boardText(), summary: summaryText(2600), doc: docSummary(), level: state.league.tier, detail: detailText(), lessons: lessonList() });
       state.locks += out.locks || 0;
       const msg = chatPush({ role: 'agent', text: out.reply || 'Tell me more about what you want to learn or find out.', lesson: out.lesson || null, from });
       const actions = Array.isArray(out.actions) ? out.actions : [];
@@ -959,6 +977,7 @@
       const msgEl = b.closest('[data-m]'), msg = msgEl && wb.chat.find((x) => String(x.at) === msgEl.dataset.m);
       if (b.dataset.explain) { state.from = (msg && msg.lesson && msg.lesson.topic) || (msg && msg.from) || null; ask("Explain '" + b.dataset.explain + "'"); return; }
       if (b.dataset.back) { ask("Carry on with '" + b.dataset.back + "'"); return; }
+      if (b.dataset.lwapply && msg) { applyFromLesson(msg); return; }
       if (b.dataset.lwnext && msg) { msg.shown = Math.min((msg.lesson.steps || []).length, (msg.shown || 1) + 1); if (msg.shown >= (msg.lesson.steps || []).length && msg.lesson.topic) FM.learn.markKnown(msg.lesson.topic); save(); chatDraw(true); return; }
       if (b.dataset.lwall && msg) { msg.shown = (msg.lesson.steps || []).length; if (msg.lesson.topic) FM.learn.markKnown(msg.lesson.topic); save(); chatDraw(true); return; }
       if (b.dataset.known && msg && msg.lesson) { FM.learn.markKnown(msg.lesson.topic); flash('Marked as learnt'); chatDraw(true); return; }

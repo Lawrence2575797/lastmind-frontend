@@ -240,3 +240,5 @@ body[data-view="workbench"] #view-workbench { animation: none !important; transf
 
 /* fractions in the chat: numerator over denominator with a bar */
 .wb-log .frac { display: inline-flex; flex-direction: column; align-items: center; vertical-align: middle; margin: 0 .12em; line-height: 1.15; font-size: .92em; } .wb-log .frac-num { padding: 0 .2em; border-bottom: 1px solid currentColor; } .wb-log .frac-den { padding: 0 .2em; }
+
+.lw-apply { margin-top: 14px; padding: 12px 14px; border: 1px solid var(--wb-gold); background: rgba(215,184,107,.1); display: grid; gap: 10px; justify-items: start; } .lw-apply button { padding: 8px 14px; background: var(--wb-gold); color: #1A232D; border: 1px solid var(--wb-gold); font: 700 .8rem var(--wb-sans, inherit); cursor: pointer; }

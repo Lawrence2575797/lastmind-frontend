@@ -151,6 +151,7 @@
     const done = !steps.length || (m.shown || 1) >= steps.length;
     if (done && l.exercise) h += '<div class="lw-ex"><b>Your turn</b><div>' + render(l.exercise) + '</div><button type="button" class="primary" data-exdone="1">I have made the change and run the test</button></div>';
     if (done && l.practice && !l.exercise) h += '<div class="lw-ex"><b>Your turn</b><div>' + render(l.practice) + '</div><p class="lw-hint">Type your answer in the box below and I will check it with you.</p></div>';
+    if (done && l.apply && ((l.apply.controls || []).length || (l.apply.plan || []).length)) h += '<div class="lw-apply"><div>' + render(l.apply.say || 'Set this up in your game.') + '</div><button type="button" class="primary" data-lwapply="1">Put this in the game</button></div>';
     if (done && l.next && l.next.say && l.next.ask) h += '<div class="lw-next"><div>' + render(l.next.say) + '</div><button type="button" data-ask="' + esc(l.next.ask) + '">Yes please</button></div>';
     return h;
   }
