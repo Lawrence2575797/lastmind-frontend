@@ -26,6 +26,7 @@
       const top = Object.keys(g).sort((a, b) => g[b].xg - g[a].xg)[0], share = g[top].xg / totalXg;
       if (g[top].n >= 2 && share >= (top === 'centre' ? 0.7 : 0.45)) {
         out.push({ id: 'exposed', kind: 'exposed', severity: share * totalXg * 4 + g[top].n * 0.1, title: 'Where we were exposed', clipKinds: ['conceded', 'chanceAgainst'],
+          note: 'This is the part of the pitch to protect: someone has to cover it, or the ball has to be stopped before it gets there.',
           text: g[top].n === theirs.length ? `All ${theirs.length} of their shots, worth ${f2(totalXg)} xG, came down our ${SIDE_NAME[top]}.` : `${Math.round(share * 100)}% of the danger came down our ${SIDE_NAME[top]}: ${g[top].n} of their ${theirs.length} shots, worth ${f2(g[top].xg)} of their ${f2(totalXg)} xG.`,
           zone: { x0: 0, x1: L * 0.4, y0: BAND[top][0], y1: BAND[top][1], label: 'Exposed: our ' + SIDE_NAME[top] }, dots, dotNote: 'Each circle is one of their shots (yellow scored); the shaded area is where we were opened up.' });
       }
@@ -39,7 +40,7 @@
         const xs = lead.map((q) => q[8] * L), ys = lead.map((q) => q[9] * W), pad = 8;
         const zone = { x0: Math.max(0, Math.min.apply(null, xs) - pad), x1: Math.min(L, Math.max.apply(null, xs) + pad), y0: Math.max(0, Math.min.apply(null, ys) - pad), y1: Math.min(W, Math.max.apply(null, ys) + pad), label: 'Where we gave it away' };
         const xgAfter = shotsAfter.reduce((a, e) => a + (e.xg || 0), 0);
-        out.push({ id: 'turnover', kind: 'turnover', severity: (shotsAfter.length / theirs.length) * xgAfter * 4 + lead.length * 0.1, title: 'Giving the ball away', clipKinds: ['turnover', 'counterAgainst', 'chanceAgainst'],
+        out.push({ id: 'turnover', kind: 'turnover', note: 'Giving the ball away here hands them a short route to goal, so the first pass needs to be safer, or there needs to be more support near the ball.', severity: (shotsAfter.length / theirs.length) * xgAfter * 4 + lead.length * 0.1, title: 'Giving the ball away', clipKinds: ['turnover', 'counterAgainst', 'chanceAgainst'],
           text: `${shotsAfter.length} of their ${theirs.length} shots came within 15 seconds of us losing the ball, and ${lead.length} of our ${losses.length} turnovers led straight to a chance.`,
           zone, dots: lead.map((q) => [q[8] * L, q[9] * W, '#FF5A36', 0.2]), dotNote: 'Each circle is a turnover that led to a shot against us; the shaded area is where most of them happened.' });
       }
@@ -50,7 +51,7 @@
       const g = { left: 0, centre: 0, right: 0 }; fails.forEach((p) => { g[CH(p.y / W)]++; });
       const top = Object.keys(g).sort((a, b) => g[b] - g[a])[0];
       if (g[top] / fails.length >= (top === 'centre' ? 0.7 : 0.45) && g[top] >= 3) {
-        out.push({ id: 'attack', kind: 'attack', severity: Math.min(1.5, g[top] * 0.06), title: 'Where our attacks stalled', clipKinds: ['chance'],
+        out.push({ id: 'attack', kind: 'attack', note: 'Our attacks keep ending here, so either the supply into this area has to change, or someone has to arrive to make a pass available.', severity: Math.min(1.5, g[top] * 0.06), title: 'Where our attacks stalled', clipKinds: ['chance'],
           text: `${g[top]} of our ${fails.length} failed passes in the final third came on our ${SIDE_NAME[top]}, so that is where our attacks kept breaking down.`,
           zone: { x0: L * 2 / 3, x1: L, y0: BAND[top][0], y1: BAND[top][1], label: 'Our attacks stalled here' }, dots: fails.map((p) => [p.x, p.y, '#FFB347', 0.15]), dotNote: 'Each circle is a pass we lost in the final third; the shaded area is where most of them were.' });
       }
@@ -87,7 +88,7 @@
     if (!facts.length) return '<article class="card rv-tac"><h3>The shape of the game</h3><p>Nothing stood out as a tactical weakness in this match: no one area of the pitch was opened up more than another, and the chances against us did not come from our own turnovers. Keep an eye on the next match.</p></article>';
     return facts.map((f) => {
       const clip = pickClip(real, f);
-      return `<article class="card rv-tac" data-fact="${esc(f.id)}"><h3>${esc(f.title)}</h3><p class="rv-tac-line">${esc(f.text)}</p><p class="rv-tac-note" data-note="${esc(f.id)}"${notes && notes[f.id] ? '' : ' hidden'}>${esc((notes && notes[f.id]) || '')}</p>
+      return `<article class="card rv-tac" data-fact="${esc(f.id)}"><h3>${esc(f.title)}</h3><p class="rv-tac-line">${esc(f.text)}</p><p class="rv-tac-note" data-note="${esc(f.id)}">${esc((notes && notes[f.id]) || f.note || '')}</p>
         <div class="rv-tac-vis">${pitchWithZone(f)}${clip ? `<figure class="rv-fig rv-small"><div class="rv-clip" data-fact-clip="${esc(f.id)}"></div><figcaption>The replay of the moment: the shaded area is where we were vulnerable${clip.kind === 'conceded' || clip.kind === 'chanceAgainst' ? ', and the star is their shot' : ''}.</figcaption></figure>` : ''}</div></article>`;
     }).join('');
   };
@@ -110,6 +111,7 @@
   };
   // Asks for the wording once per match (a few Locks, Haiku), keeps it with the match, and hands it to done. Any failure is silent: the code's lines stay.
   FM.reviewWrite = async function (c, real, facts, greet, done) {
+    return;   // the match review is written in code: wording from LastMind AI spent Locks, and only the agent chats use them
     if (!real || !FM.api) return;
     if (real.reviewNarr) { done(real.reviewNarr); return; }
     if (!facts.length || (FM.locksOut && FM.locksOut())) return;

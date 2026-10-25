@@ -92,7 +92,11 @@
 
   // ---------- Layer 2: the manager, through LastMind ----------
   const squadOf = (t) => t.players.concat(t.bench || []).map((p) => ({ number: p.number, name: p.name, group: p.group || p.natural, role: (p.roleId || '').replace(/_/g, ' ') }));
+  // The opposition manager works from the scouting alone (Layer 1). Asking LastMind AI for a plan, before a match and again at goals and check-ins, spent Locks without being asked,
+  // so it is off: only the agent chats use Locks. Set this to true to bring it back.
+  S.AI_MANAGER = false;
   S.request = async function (league, aiTeam, userTeam, ctx) {
+    if (!S.AI_MANAGER) { const e = new Error('The opposition manager works from the scouting.'); e.code = 'AI_OFF'; throw e; }
     if (FM.locksOut && FM.locksOut()) { const e = new Error('out of Locks'); e.code = 'LOCK_LIMIT_REACHED'; throw e; }   // no request is made at all while the Locks are used up
     const profile = ctx.profile || S.profile(league);
     const body = { stage: ctx.stage || 'prematch', minute: ctx.minute || 0, score: ctx.score || { us: 0, them: 0 }, scout: profile, squad: squadOf(aiTeam), opponent: squadOf(userTeam).map((p) => ({ number: p.number, name: p.name })), recent: ctx.recent || [], current: S.describe(aiTeam.rules || [], aiTeam, userTeam) };
@@ -108,7 +112,7 @@
     league.oppPlans = league.oppPlans || {};
     if (league.oppPlans[key]) return league.oppPlans[key];
     let plan = p1;
-    try { plan = await S.request(league, aiTeam, userTeam, { stage: 'prematch', profile }); }
+    if (S.AI_MANAGER) try { plan = await S.request(league, aiTeam, userTeam, { stage: 'prematch', profile }); }
     catch (err) { plan = Object.assign({}, p1, { note: err && err.code === 'LOCK_LIMIT_REACHED' ? 'You are out of Locks, so their manager used the plan from the figures alone.' : 'LastMind could not be reached, so their manager used the plan from the figures alone.' }); return plan; }
     league.oppPlans[key] = plan;
     return plan;
@@ -128,7 +132,7 @@
   // Called every frame while a match is shown; asks the manager at the moments that matter.
   S.watch = function (league, match) {
     const sc = match._sc || (match._sc = { sent: {}, busy: false, goals: 0, lastUs: 0, offline: false });
-    if (match.friendly || !match.aiTeams || !match.aiTeams.length || !match.oppLog || sc.offline || sc.busy || !FM.api) return;
+    if (!S.AI_MANAGER || match.friendly || !match.aiTeams || !match.aiTeams.length || !match.oppLog || sc.offline || sc.busy || !FM.api) return;
     const ai = match.aiTeams[0], user = match.home.id === league.userId ? match.home : match.away;
     const us = match.score[ai.id] || 0, them = match.score[user.id] || 0, minute = match.clock / 60;
     let stage = null;

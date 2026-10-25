@@ -391,7 +391,8 @@
     const kps = FM.devKeyPoints(league, p, lessonId);
     const learn = 0.88 + (learnSpeed(p) - 0.75) * 0.24;   // 0.88 to 1.12
     let res = null;
-    try {
+    // (assessed here, from the lesson's key points: sending a player's lesson to LastMind AI spent Locks, and only the agent chats use them)
+    if (FM.AI_TEACH_ASSESS) try {
       res = await FM.api('/football/teach-assess', { player: { name: p.name, age: FM.ageOf(p), position: FM.POS_NAME ? FM.POS_NAME[p.natural] : p.natural, learning: learn > 1.04 ? 'quickly' : learn < 0.96 ? 'slowly' : 'steadily' },
         lesson: lessonId, stats: FM.devFacts(league, p, lessonId), keyPoints: kps.map((k) => k.text), explanation });
       res.source = 'server';

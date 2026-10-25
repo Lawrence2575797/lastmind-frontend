@@ -111,6 +111,7 @@
       const scope = u.dataset.understand, st = stateOf(scope), ta = q('#inText_' + scope);
       const text = (ta.value || '').trim(); st.text = text; st.err = ''; st.draft = null; st.added = '';
       if (text.length < 3) { st.err = 'Write the instructions first.'; return redraw(); }
+      if (!FM.AI_WRITTEN_INSTRUCTIONS) { st.err = 'Written instructions are not available any more: set how the team plays with the roles and choices on the tactics pages.'; return redraw(); }
       st.busy = true; redraw();
       try {
         const out = await FM.api('/football/compile-instruction', { text, stage, squad: FM.squadOf(team), opponent: roster.oppTeam ? FM.squadOf(roster.oppTeam) : [], positions: opts.positions ? opts.positions() : undefined });
