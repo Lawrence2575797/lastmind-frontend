@@ -96,6 +96,8 @@
   }
   function plot(d) {
     if (!d) return '';
+    // a graph of the club's own figures: the points, the fitted curve, the revenue and its slope, drawn from the figures the lesson was built on
+    if (d.fit && FM.lessonFit) { const ff = d.fitData ? FM.lessonFit.rebuild(d.fitData) : null; d = ff ? FM.lessonFit.diagram(d.fit, ff) : null; if (!d) return ''; }
     if (d.dist && d.dist.length) return distPlot(d);
     if (d.econ && FM.econ) return FM.econ.svg(d.econ, d);
     const W = 440, H = 290, L = 46, R = 16, T = 14, B = 40, pw = W - L - R, ph = H - T - B;
@@ -138,15 +140,16 @@
   // m.lesson = { topic, needs, steps, diagram, exercise }; m.shown = how many steps are showing; render(text) draws maths text.
   function lessonHtml(m, render) {
     const l = m.lesson; if (!l) return '';
+    const dg = (x) => (x && x.fit && l.fit ? Object.assign({}, x, { fitData: l.fit }) : x);
     let h = '';
     if ((l.needs || []).length) h += '<div class="lw-needs"><span>Before this, you need:</span> ' + l.needs.map(chip).join(' ') + '</div>';
     const steps = l.steps || [];
     if (steps.length) {
       const shown = Math.max(1, Math.min(steps.length, m.shown || 1));
-      h += '<ol class="lw-steps">' + steps.slice(0, shown).map((st, n) => '<li><div class="lw-say">' + render(lines(st.say)) + '</div>' + (st.maths ? '<div class="lw-maths">' + render(st.maths) + '</div>' : '') + (st.diagram ? plot(st.diagram) : '') + (st.why ? '<div class="lw-why"><button type="button" data-ask="' + esc(st.why) + '">Explain why</button></div>' : '') + '</li>').join('') + '</ol>';
+      h += '<ol class="lw-steps">' + steps.slice(0, shown).map((st, n) => '<li><div class="lw-say">' + render(lines(st.say)) + '</div>' + (st.maths ? '<div class="lw-maths">' + render(st.maths) + '</div>' : '') + (st.diagram ? plot(dg(st.diagram)) : '') + (st.why ? '<div class="lw-why"><button type="button" data-ask="' + esc(st.why) + '">Explain why</button></div>' : '') + '</li>').join('') + '</ol>';
       if (shown < steps.length) h += '<div class="lw-more"><button type="button" class="primary" data-lwnext="1">Next step (' + (shown + 1) + ' of ' + steps.length + ')</button><button type="button" data-lwall="1">Show all</button></div>';
     }
-    if (l.diagram) h += plot(l.diagram);
+    if (l.diagram) h += plot(dg(l.diagram));
     // what comes after the working only appears once all of it has been read
     const done = !steps.length || (m.shown || 1) >= steps.length;
     if (done && l.exercise) h += '<div class="lw-ex"><b>Your turn</b><div>' + render(l.exercise) + '</div><button type="button" class="primary" data-exdone="1">I have made the change and run the test</button></div>';

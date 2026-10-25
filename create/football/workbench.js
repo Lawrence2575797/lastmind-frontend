@@ -801,6 +801,8 @@
   }
   // A message refused for personal information is removed from the chat (the chat is saved with the game, and the detail should not be kept) and the reason shown.
   function dropRefused(e) { if (e && e.code === 'PII_DETECTED') { const wb = state.wb, i = wb.chat.map((m) => m.role).lastIndexOf('manager'); if (i >= 0) wb.chat.splice(i, 1); } }
+  // a lesson built on the club's own figures keeps them with it, so its graphs can be drawn again when the page is opened later
+  function withFit(les) { if (les && FM.lessonFit && FM.lessonFit.current && JSON.stringify(les).indexOf('"fit"') >= 0) les.fit = FM.lessonFit.snapshot(FM.lessonFit.current); return les || null; }
   const aiError = (e) => (e && e.code === 'PII_DETECTED' ? e.message : e && e.code === 'NO_SESSION' ? 'Sign in to LastMind and I can plan analyses for you. The Workbook works without me: use the toolbar to build one yourself.' : e && (e.code === 'LOCK_LIMIT_REACHED' || e.code === '402') ? 'You have used all your Locks for now, so I cannot answer any more questions. Everything else in the Workbook still works.' : (e && e.message) || 'I could not answer just now. Try again in a moment.');
   // Questions about how the team plays, which should always come with a picture of the pitch.
   const IMPROVE_RE = /\b(improv\w*|better|fix|how (can|do|should|could) (i|we)|what should (i|we)|help (me|us)|more (successful|effective))\b/i;   // asking for a plan, not asking what happened
@@ -815,9 +817,9 @@
     state.locks = 0; state.busy = bl('Thinking…'); chatDraw();
     try {
       const C = CTL();
-      const out = await FM.api('/football/workbench', { phase: 'plan', depth: state.wb.settings.depth || 'standard', controls: (FM.controls && FM.controls.helpStatic) ? FM.controls.helpStatic() : '', plan: FM.planCatalogText ? FM.planCatalogText(FM.teamById(state.league, state.league.userId)) : '', messages: chatMessages().slice(-10), schema: T.digestCompact(), schemaExtra: T.digestExtra(), methods: WB.METHOD_HELP.join('\n'), controls: C ? C.helpStatic() : '', state: C ? C.state(state.league) : '', board: boardText(), summary: summaryText(2600), doc: docSummary(), level: state.league.tier, detail: detailText(), lessons: lessonList() });
+      const out = await FM.api('/football/workbench', { phase: 'plan', depth: state.wb.settings.depth || 'standard', lessonData: FM.lessonDataText ? FM.lessonDataText(state.league, text) : '', controls: (FM.controls && FM.controls.helpStatic) ? FM.controls.helpStatic() : '', plan: FM.planCatalogText ? FM.planCatalogText(FM.teamById(state.league, state.league.userId)) : '', messages: chatMessages().slice(-10), schema: T.digestCompact(), schemaExtra: T.digestExtra(), methods: WB.METHOD_HELP.join('\n'), controls: C ? C.helpStatic() : '', state: C ? C.state(state.league) : '', board: boardText(), summary: summaryText(2600), doc: docSummary(), level: state.league.tier, detail: detailText(), lessons: lessonList() });
       state.locks += out.locks || 0;
-      const msg = chatPush({ role: 'agent', text: out.reply || 'Tell me more about what you want to learn or find out.', lesson: out.lesson || null, from });
+      const msg = chatPush({ role: 'agent', text: out.reply || 'Tell me more about what you want to learn or find out.', lesson: withFit(out.lesson), from });
       const actions = Array.isArray(out.actions) ? out.actions : [];
       if (!actions.length) { msg.locks = state.locks; save(); state.busy = ''; chatDraw(); return; }
       // a question that gets worked on starts a new page, titled with the question
