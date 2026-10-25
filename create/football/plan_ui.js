@@ -49,7 +49,7 @@
     team.players.forEach((p) => {
       const q = FM.phasePos(team, p, eng), sel = UI.sel === p.slotKey, inj = FM.isInjured && FM.isInjured(p), nChoices = Object.keys(((pl.player[p.slotKey] || {})[ph]) || {}).length;
       const k = 0.72, r = 27 * k, rating = FM.playerRating ? FM.playerRating(p, p.group).toFixed(1) : '';
-      s += `<g class="pl-card" data-slot="${esc(p.slotKey)}" transform="translate(${X(q.w)},${Y(q.d)})" style="cursor:pointer"><circle r="${(46 * k).toFixed(1)}" fill="transparent"/>
+      s += `<g class="pl-card" data-slot="${esc(p.slotKey)}" transform="translate(${X(q.w)},${Y(q.d)})" style="cursor:pointer"><title>${esc(p.name + ' · ' + ((FM.ROLES[p.roleId] || {}).name || '') + ': ' + ((FM.ROLES[p.roleId] || {}).desc || ''))}</title><circle r="${(46 * k).toFixed(1)}" fill="transparent"/>
         <circle r="${r.toFixed(1)}" fill="${kit.shirt}" stroke="${sel ? '#F2C14E' : '#fff'}" stroke-width="${sel ? 4 : 2.3}"/>
         <text y="${(10 * k).toFixed(1)}" text-anchor="middle" font-size="${(25 * k).toFixed(1)}" font-weight="700" fill="${kit.number}">${p.number}</text>
         <text y="${(46 * k).toFixed(1)}" text-anchor="middle" font-size="${(20 * 0.9).toFixed(1)}" font-weight="700" fill="#fff" stroke="#000" stroke-width="3.4" style="paint-order:stroke">${esc(sname(p))}</text>
@@ -69,19 +69,21 @@
     }).join('');
   }
 
-  // ---------- the chosen player ----------
+  // ---------- the chosen player: a small panel that opens beside his shirt ----------
   function playerPanel(team, ph) {
     const p = team.players.find((q) => q.slotKey === UI.sel);
-    if (!p) return '<p class="pl-empty">Pick a player on the pitch to give him instructions for this phase.</p>';
+    if (!p) return '';
     const pl = FM.planGet(team), role = FM.ROLES[p.roleId] || {};
-    const roleOpts = FM.rolesForGroup(p.group).map((id) => `<option value="${id}"${id === p.roleId ? ' selected' : ''}>${esc(FM.ROLES[id].name)}</option>`).join('');
+    const roleBtns = FM.rolesForGroup(p.group).map((id) => { const r = FM.ROLES[id]; return `<button type="button" class="pl-rolebtn${id === p.roleId ? ' on' : ''}" data-roleid="${id}" title="${esc(r.name + ': ' + r.desc)}"><b>${esc(r.name)}</b><span>${esc(r.tag || '')}</span></button>`; }).join('');
     const toggles = FM.planPlayerToggles(ph, p.group).map((t) => {
       const cur = ((pl.player[p.slotKey] || {})[ph] || {})[t.key], def = t.opts.some((x) => x.v === 'std') ? 'std' : t.opts[0].v;
       return `<div class="pl-tog"><div class="pl-tog-h"><b>${esc(t.label)}</b></div><div class="pl-seg" role="group">${t.opts.map((op) => `<button type="button" class="${(cur == null ? def : cur) === op.v ? 'on' : ''}" data-player-tog="${esc(t.key)}" data-v="${esc(op.v)}">${esc(op.label)}</button>`).join('')}</div></div>`;
     }).join('');
-    return `<div class="pl-player-h"><div class="pl-who"><b>${esc(p.name)}</b><span>#${p.number} · ${esc(p.group)} · ${FM.playerRating ? FM.playerRating(p, p.group).toFixed(1) : ''}</span></div>
-      <label class="pl-role">Role <select data-role="1">${roleOpts}</select></label></div>
-      <p class="pl-roledesc"><b>${esc(role.tag || role.name || '')}.</b> ${esc(role.desc || '')}</p>${toggles || '<p class="pl-empty">Nothing to choose for this player in this phase.</p>'}`;
+    return `<div class="pl-pop" role="dialog" aria-label="Instructions for ${esc(p.name)}"><button type="button" class="pl-pop-x" data-close="1" aria-label="Close">×</button>
+      <div class="pl-who"><b>${esc(p.name)}</b><span>#${p.number} · ${esc(p.group)} · ${FM.playerRating ? FM.playerRating(p, p.group).toFixed(1) : ''}</span></div>
+      <h5>Role</h5><div class="pl-roles">${roleBtns}</div>
+      <p class="pl-roledesc" id="plRoleDesc"><b>${esc(role.name || '')}.</b> ${esc(role.desc || '')}</p>
+      <h5>${esc(FM.planPhase(ph).name)}</h5>${toggles || '<p class="pl-empty">Nothing to choose for this player in this phase.</p>'}</div>`;
   }
 
   // ---------- zones and triggers ----------
@@ -137,11 +139,10 @@
         ${team.legacyTactics && !pl.noticeSeen ? '<div class="pl-notice">Tactics are now set with roles and choices, not by dragging players. Your hand-placed positions from before have been cleared (they are kept as a backup) and the team now stands where its roles and choices put it. <button type="button" data-notice="1">Got it</button></div>' : ''}
         ${legacy.length ? `<div class="pl-notice">${legacy.length} written instruction${legacy.length === 1 ? '' : 's'} from before ${legacy.length === 1 ? 'is' : 'are'} still active. <button type="button" data-clear-legacy="1">Remove ${legacy.length === 1 ? 'it' : 'them'}</button></div>` : ''}
         <div class="pl-grid">
-          <section class="card pl-left"><div class="pl-pitchbar"><button type="button" class="${UI.showOpp ? 'on' : ''}" data-opp="1"${hooks.opp ? '' : ' disabled'}>${UI.showOpp ? 'Hide' : 'Show'} the opposition</button></div><div class="pl-pitchwrap${UI.mode !== 'view' ? ' picking' : ''}">${pitchSvg(team, ph, hooks)}</div>
-            <p class="pl-help pl-legend">Each circle is a player and where this phase puts him. Click one to give him instructions below. The gold number is how many instructions he has here.</p></section>
+          <section class="card pl-left"><div class="pl-pitchbar"><button type="button" class="${UI.showOpp ? 'on' : ''}" data-opp="1"${hooks.opp ? '' : ' disabled'}>${UI.showOpp ? 'Hide' : 'Show'} the opposition</button></div><div class="pl-pitchwrap${UI.mode !== 'view' ? ' picking' : ''}">${pitchSvg(team, ph, hooks)}${UI.mode === 'view' ? playerPanel(team, ph) : ''}</div>
+            <p class="pl-help pl-legend">Each circle is a player and where this phase puts him. Click one to open his role and his instructions for this phase beside him, and hover to see what his role is. The gold number is how many instructions he has here.</p></section>
           <section class="card pl-right"><h4>Team approach: ${esc(info.name.toLowerCase())}</h4>${teamPanel(team, ph)}</section>
         </div>
-        <section class="card pl-players"><h4>${UI.sel ? 'Player instructions for this phase' : 'Players'}</h4>${playerPanel(team, ph)}</section>
         <section class="card pl-plans"><h4>On the pitch: areas and triggers</h4>${planItems(team, ph)}${builder(team, ph)}</section>
         <section class="card pl-sum"><h4>The plan so far</h4>${FM.planSummary(team).map((x) => `<p><b>${esc(x.phase)}:</b> ${esc(x.text)}</p>`).join('') || '<p class="pl-empty">Everything is as the roles set it. Make a choice above and it appears here.</p>'}</section></div>`;
       bind();
@@ -153,7 +154,14 @@
       host.querySelectorAll('[data-player-tog]').forEach((b) => b.addEventListener('click', () => { FM.planSetPlayer(team, UI.sel, ph, b.dataset.playerTog, b.dataset.v); again(); }));
       host.querySelectorAll('.pl-card').forEach((g) => g.addEventListener('click', (e) => { e.stopPropagation(); if (UI.mode !== 'view') return; UI.sel = UI.sel === g.dataset.slot ? null : g.dataset.slot; draw(); }));
       host.querySelectorAll('.pl-cell').forEach((c) => c.addEventListener('click', () => { const k = c.dataset.cell.split(',').map(Number), i = UI.cells.findIndex((q) => q[0] === k[0] && q[1] === k[1]); if (i >= 0) UI.cells.splice(i, 1); else UI.cells.push(k); draw(); }));
-      const rs = host.querySelector('[data-role]'); if (rs) rs.addEventListener('change', () => { const p = team.players.find((q) => q.slotKey === UI.sel); if (p) { FM.setRole(team, p, rs.value); FM.planApply(team); again(); } });
+      host.querySelectorAll('[data-roleid]').forEach((b) => {
+        b.addEventListener('click', () => { const p = team.players.find((q) => q.slotKey === UI.sel); if (p) { FM.setRole(team, p, b.dataset.roleid); FM.planApply(team); again(); } });
+        const say = (id) => { const r = FM.ROLES[id], d = host.querySelector('#plRoleDesc'); if (r && d) d.innerHTML = '<b>' + esc(r.name) + '.</b> ' + esc(r.desc); };
+        b.addEventListener('mouseenter', () => say(b.dataset.roleid)); b.addEventListener('focus', () => say(b.dataset.roleid));
+        b.addEventListener('mouseleave', () => { const p = team.players.find((q) => q.slotKey === UI.sel); if (p) say(p.roleId); });
+      });
+      const cx = host.querySelector('[data-close]'); if (cx) cx.addEventListener('click', () => { UI.sel = null; draw(); });
+      placePop(host);
       host.querySelectorAll('[data-mode]').forEach((b) => b.addEventListener('click', () => { UI.mode = b.dataset.mode; UI.cells = []; UI.draft = {}; draw(); }));
       const rd = () => { UI.draft = { tag: (host.querySelector('#plTag') || {}).value, who: (host.querySelector('#plWho') || {}).value, when: (host.querySelector('#plWhen') || {}).value, group: (host.querySelector('#plGroup') || {}).value, do: (host.querySelector('#plDo') || {}).value }; draw(); };
       ['plTag', 'plWho', 'plWhen', 'plGroup', 'plDo'].forEach((id) => { const e = host.querySelector('#' + id); if (e) e.addEventListener('change', rd); });
@@ -169,9 +177,22 @@
       const nt = host.querySelector('[data-notice]'); if (nt) nt.addEventListener('click', () => { pl.noticeSeen = true; again(); });
       const cl = host.querySelector('[data-clear-legacy]'); if (cl) cl.addEventListener('click', () => { team.legacyTactics = team.legacyTactics || {}; team.legacyTactics.rules = (team.rules || []).filter((r) => r.source !== 'plan'); team.rules = (team.rules || []).filter((r) => r.source === 'plan'); FM.planApply(team); again(); });
     };
+    UI.redraw = draw;
+    if (!UI.escBound) { UI.escBound = true; document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && UI.sel && UI.redraw && document.getElementById('tabBody') && document.querySelector('#tabBody .pl')) { UI.sel = null; UI.redraw(); } }); }
     draw();
     return true;
   };
+  // The panel opens beside the shirt that was clicked: on the side with the most room, and kept inside the pitch.
+  function placePop(host) {
+    const pop = host.querySelector('.pl-pop'), wrap = host.querySelector('.pl-pitchwrap'), card = host.querySelector('.pl-card circle[stroke="#F2C14E"]');
+    if (!pop || !wrap || !card) return;
+    const w = wrap.getBoundingClientRect(), c = card.getBoundingClientRect(), pw = pop.offsetWidth, ph2 = pop.offsetHeight, gap = 14;
+    const cx = c.left - w.left + c.width / 2, cy = c.top - w.top + c.height / 2, room = { right: w.width - (cx + c.width / 2) - gap, left: cx - c.width / 2 - gap };
+    let left = room.right >= pw || room.right >= room.left ? cx + c.width / 2 + gap : cx - c.width / 2 - gap - pw;
+    left = Math.max(4, Math.min(w.width - pw - 4, left));
+    let top = Math.max(4, Math.min(w.height - ph2 + 220, cy - 40));   // it may run past the foot of the pitch, so it is never squeezed into it
+    pop.style.left = left + 'px'; pop.style.top = top + 'px';
+  }
 
   // First time the plan is used: hand-placed positions are cleared and kept, so the team stands where its roles and choices put it.
   function migrate(team) {
