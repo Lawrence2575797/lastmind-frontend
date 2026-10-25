@@ -38,8 +38,6 @@
         s += `<g transform="translate(${x.toFixed(1)},${y.toFixed(1)})" pointer-events="none"><circle r="14" fill="${od.kit.shirt}" fill-opacity=".9" stroke="${od.kit.number}" stroke-width="1.8" stroke-dasharray="3 2"/><text y="3.5" text-anchor="middle" font-size="10" font-weight="700" fill="${od.kit.number}">${pl2 ? pl2.number : ''}</text></g>`;
       });
     }
-    // the ball
-    const bp = FM.phaseBall(team, eng); s += `<circle cx="${X(bp.w)}" cy="${Y(bp.d)}" r="7" fill="#fff" stroke="#111" stroke-width="2"/>`;
     // the grid, when a zone is being chosen
     if (UI.mode === 'zone' || UI.mode === 'trigger') FM.PLAN_DEPTHS.forEach((dp) => FM.PLAN_CHANNELS.forEach((ch) => {
       const on = UI.cells.some((c) => c[0] === dp.k && c[1] === ch.k);
@@ -54,7 +52,7 @@
         <text y="${(10 * k).toFixed(1)}" text-anchor="middle" font-size="${(25 * k).toFixed(1)}" font-weight="700" fill="${kit.number}">${p.number}</text>
         <text y="${(46 * k).toFixed(1)}" text-anchor="middle" font-size="${(20 * 0.9).toFixed(1)}" font-weight="700" fill="#fff" stroke="#000" stroke-width="3.4" style="paint-order:stroke">${esc(sname(p))}</text>
         <text y="${(66 * k).toFixed(1)}" text-anchor="middle" font-size="${(16 * 0.9).toFixed(1)}" fill="${inj ? '#FF9A9A' : '#cfe8cf'}" stroke="#000" stroke-width="2.6" style="paint-order:stroke">${inj ? 'injured' : rating}</text>
-        ${nChoices ? `<circle cx="${(23 * k).toFixed(1)}" cy="${(-23 * k).toFixed(1)}" r="8" fill="#F2C14E" stroke="#1A232D" stroke-width="1.5"/><text x="${(23 * k).toFixed(1)}" y="${(-23 * k + 4).toFixed(1)}" text-anchor="middle" font-size="11" font-weight="800" fill="#1A232D">${nChoices}</text>` : ''}</g>`;
+        ${FM.isManual && FM.isManual(team, p, eng) ? `<circle cx="${(-23 * k).toFixed(1)}" cy="${(-23 * k).toFixed(1)}" r="6.5" fill="#fff" stroke="#1A232D" stroke-width="1.5"/>` : ''}${nChoices ? `<circle cx="${(23 * k).toFixed(1)}" cy="${(-23 * k).toFixed(1)}" r="8" fill="#F2C14E" stroke="#1A232D" stroke-width="1.5"/><text x="${(23 * k).toFixed(1)}" y="${(-23 * k + 4).toFixed(1)}" text-anchor="middle" font-size="11" font-weight="800" fill="#1A232D">${nChoices}</text>` : ''}</g>`;
     });
     return `<svg class="pl-pitch" viewBox="-26 -22 ${PW + 52} ${PH + 80}" role="img" aria-label="Where the team stands in this phase">${s}</svg>`;
   }
@@ -107,6 +105,8 @@
       <div class="pl-add"><button type="button" class="primary" data-build="trigger"${(w.needs === 'zone' && !UI.cells.length) ? ' disabled' : ''}>Add this</button><button type="button" data-mode="view">Cancel</button></div></div>`;
   }
 
+  const manualCount = (team, ph) => team.players.filter((p) => FM.planPhase(ph).eng.some((k) => FM.isManual(team, p, k))).length;
+
   // ---------- the page ----------
   FM.renderPlanTab = function (host, team, tab, hooks) {
     const phases = TAB_PHASES[tab]; if (!phases) return false;
@@ -122,8 +122,8 @@
         ${team.legacyTactics && !pl.noticeSeen ? '<div class="pl-notice">Tactics are now set with roles and choices, not by dragging players. Your hand-placed positions from before have been cleared (they are kept as a backup) and the team now stands where its roles and choices put it. <button type="button" data-notice="1">Got it</button></div>' : ''}
         ${legacy.length ? `<div class="pl-notice">${legacy.length} written instruction${legacy.length === 1 ? '' : 's'} from before ${legacy.length === 1 ? 'is' : 'are'} still active. <button type="button" data-clear-legacy="1">Remove ${legacy.length === 1 ? 'it' : 'them'}</button></div>` : ''}
         <div class="pl-grid">
-          <section class="card pl-left"><div class="pl-pitchbar"><button type="button" class="${UI.showOpp ? 'on' : ''}" data-opp="1"${hooks.opp ? '' : ' disabled'}>${UI.showOpp ? 'Hide' : 'Show'} the opposition</button></div><div class="pl-pitchwrap${UI.mode !== 'view' ? ' picking' : ''}">${pitchSvg(team, ph, hooks)}</div>
-            <p class="pl-help pl-legend">Each circle is a player and where this phase puts him. Click one to open his role and his instructions on the squad page; rest the mouse on one to see what his role is. The gold number is how many instructions he has in this phase.</p></section>
+          <section class="card pl-left"><div class="pl-pitchbar">${manualCount(team, ph) ? '<button type="button" data-resetpos="1">Put this phase\'s players back where their roles put them</button>' : ''}<button type="button" class="${UI.showOpp ? 'on' : ''}" data-opp="1"${hooks.opp ? '' : ' disabled'}>${UI.showOpp ? 'Hide' : 'Show'} the opposition</button></div><div class="pl-pitchwrap${UI.mode !== 'view' ? ' picking' : ''}">${pitchSvg(team, ph, hooks)}</div>
+            <p class="pl-help pl-legend">Each circle is a player and where he stands in this phase. Drag one to where you want him: that is where he stands, and his role and instructions decide how he plays from there. A white dot marks a player you have placed. Click one without dragging to open his role and instructions on the squad page.</p></section>
           <section class="card pl-right"><h4>Team approach: ${esc(info.name.toLowerCase())}</h4>${teamPanel(team, ph)}</section>
         </div>
         <section class="card pl-plans"><h4>On the pitch: areas and triggers</h4>${planItems(team, ph)}${builder(team, ph)}</section>
@@ -135,7 +135,27 @@
       host.querySelectorAll('[data-sub]').forEach((b) => b.addEventListener('click', () => { UI.sub = b.dataset.sub; UI.mode = 'view'; UI.cells = []; draw(); }));
       host.querySelectorAll('[data-team-tog]').forEach((b) => b.addEventListener('click', () => { FM.planSetTeam(team, ph, b.dataset.teamTog, b.dataset.v); again(); }));
       host.querySelectorAll('[data-player-tog]').forEach((b) => b.addEventListener('click', () => { FM.planSetPlayer(team, UI.sel, ph, b.dataset.playerTog, b.dataset.v); again(); }));
-      host.querySelectorAll('.pl-card').forEach((g) => g.addEventListener('click', (e) => { e.stopPropagation(); if (UI.mode !== 'view') return; if (hooks.openPlayer) hooks.openPlayer(g.dataset.slot); }));
+      // Drag a player to where he should stand in this phase. A placed position is the one he stands in (his role and instructions still decide how he plays from it);
+      // a click that does not move opens him on the squad page.
+      const svg = host.querySelector('.pl-pitch');
+      const toPos = (e) => { const pt = svg.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY; const q = pt.matrixTransform(svg.getScreenCTM().inverse()); return { w: Math.max(0.03, Math.min(0.97, q.x / PW)), d: Math.max(0.02, Math.min(0.98, 1 - q.y / PH)) }; };
+      host.querySelectorAll('.pl-card').forEach((g) => g.addEventListener('pointerdown', (e) => {
+        if (UI.mode !== 'view' || (e.pointerType === 'mouse' && e.button !== 0)) return;
+        e.preventDefault();
+        const p = team.players.find((q) => q.slotKey === g.dataset.slot), start = { x: e.clientX, y: e.clientY }; let moved = false, at = null;
+        try { g.setPointerCapture(e.pointerId); } catch (_) { /* a plain drag still works */ }
+        const mv = (ev) => { if (!moved && Math.hypot(ev.clientX - start.x, ev.clientY - start.y) < 5) return; moved = true; at = toPos(ev); g.setAttribute('transform', 'translate(' + (at.w * PW).toFixed(1) + ',' + ((1 - at.d) * PH).toFixed(1) + ')'); };
+        const up = () => {
+          g.removeEventListener('pointermove', mv); g.removeEventListener('pointerup', up); g.removeEventListener('pointercancel', up);
+          if (!moved || !at || !p) { if (!moved && hooks.openPlayer) hooks.openPlayer(g.dataset.slot); return; }
+          team.phasePos = team.phasePos || {};
+          info.eng.forEach((k) => FM.setPhasePos(team, p, k, { d: at.d, w: at.w }));
+          if (FM.inferShapeTactics) FM.inferShapeTactics(team);
+          again();
+        };
+        g.addEventListener('pointermove', mv); g.addEventListener('pointerup', up); g.addEventListener('pointercancel', up);
+      }));
+      const rp = host.querySelector('[data-resetpos]'); if (rp) rp.addEventListener('click', () => { info.eng.forEach((k) => { if (team.phasePos && team.phasePos[k]) delete team.phasePos[k]; }); if (FM.inferShapeTactics) FM.inferShapeTactics(team); again(); });
       host.querySelectorAll('.pl-cell').forEach((c) => c.addEventListener('click', () => { const k = c.dataset.cell.split(',').map(Number), i = UI.cells.findIndex((q) => q[0] === k[0] && q[1] === k[1]); if (i >= 0) UI.cells.splice(i, 1); else UI.cells.push(k); draw(); }));
 
       host.querySelectorAll('[data-mode]').forEach((b) => b.addEventListener('click', () => { UI.mode = b.dataset.mode; UI.cells = []; UI.draft = {}; draw(); }));
