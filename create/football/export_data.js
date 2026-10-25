@@ -110,7 +110,7 @@
     });
     json.squad = squad; const scols = squad.length ? Object.keys(squad[0]) : [];
     out.push(table(scols, squad.map((o) => scols.map((k) => o[k]))));
-    out.push('Key: ratings are out of 100; Overall is the player\'s rating in his own position; the nine attributes are pace, dribbling, passing, finishing, tackling, composure, heading, stamina and gk (goalkeeping).');
+    out.push('Key: Overall is the player\'s rating in his own position, out of 10; Potential is out of 100; the nine attributes (each out of 100) are pace, dribbling, passing, finishing, tackling, composure, heading, stamina and gk (goalkeeping).');
 
     out.push('## 7. Tactics');
     const tac = me.tactics || {};
