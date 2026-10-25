@@ -760,7 +760,7 @@
         if (otherDivision && !shownOther) { shownOther = true; list.insertAdjacentHTML('beforeend', '<li class="rp-head">Other division</li>'); }
         const h = FM.teamById(lg, f.homeId), a = FM.teamById(lg, f.awayId);
         list.insertAdjacentHTML('beforeend', line(h ? h.name : '', a ? a.name : '', f.hg, f.ag, false));
-        await new Promise((r) => setTimeout(r, already ? 140 : 450));   // long enough to read each one (quicker for the ones that finished while the match was on)
+        await new Promise((r) => setTimeout(r, already ? 90 : 220));   // long enough to read each one (quicker for the ones that finished while the match was on)
       };
       try { await FM.completeRound(world.league, world.fixture, world.match, onResult, world.bg); } finally { clearInterval(ticker); world.bg = null; }
       msg.textContent = 'All the results are in.';

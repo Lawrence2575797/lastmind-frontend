@@ -31,10 +31,21 @@
     });
     pl.triggers.filter((t) => t.on !== false && t.cells && t.cells.length && (FM.PLAN_WHEN_BY[t.when] || {}).side === SIDE_OF[ph]).forEach((t) => (t.cells || []).forEach((c) => { const dp = FM.PLAN_DEPTHS[c[0]], ch = FM.PLAN_CHANNELS[c[1]]; s += `<rect x="${X(ch.lo)}" y="${Y(dp.hi)}" width="${(ch.hi - ch.lo) * PW}" height="${(dp.hi - dp.lo) * PH}" fill="none" stroke="#fff" stroke-width="2" stroke-dasharray="2 5"/>`; }));
     // the opposition as scouted for the next match: where they stand in the phase that answers this one
-    if (UI.showOpp && hooks.opp) {
-      const od = hooks.opp(eng);
-      if (od) Object.keys(od.cells).forEach((slot) => {
-        const c = od.cells[slot], pl2 = od.opp.players.find((q) => q.slotKey === slot), nm = pl2 ? sname(pl2) : slot, x = (1 - c.w) * PW, y = c.d * PH;
+    const od = UI.showOpp && hooks.opp ? hooks.opp(eng) : null;
+    // Nobody is drawn offside. Where they have the ball (we are defending), their attackers stand no nearer our goal than our second-last defender (on the line, never beyond it);
+    // where we have it, our attackers stand no nearer their goal than their second-last defender. Positions placed by hand are left as they were put.
+    const theyAttack = ['without', 'withoutEnd', 'press', 'transDef', 'transDefEnd'].indexOf(eng) >= 0, weAttack = ['build', 'buildEnd', 'midfield', 'final', 'transAtt', 'transAttEnd'].indexOf(eng) >= 0;
+    let ourLine = null, theirLine = null;
+    if (od) {
+      const ours = team.players.map((p) => FM.phasePos(team, p, eng).d).sort((a, b) => a - b); ourLine = ours.length > 1 ? ours[1] : null;           // second-last of ours (our goalkeeper is the last)
+      const theirs = Object.keys(od.cells).map((k) => 1 - od.cells[k].d).sort((a, b) => b - a); theirLine = theirs.length > 1 ? theirs[1] : null;  // second-last of theirs, in our space
+    }
+    if (od) {
+      Object.keys(od.cells).forEach((slot) => {
+        let c = od.cells[slot];
+        const op = od.opp.players.find((q) => q.slotKey === slot);
+        if (theyAttack && ourLine != null && op && op.group !== 'GK' && 1 - c.d < ourLine) c = { d: 1 - Math.min(0.97, ourLine + 0.012), w: c.w };
+        const pl2 = op, nm = pl2 ? sname(pl2) : slot, x = (1 - c.w) * PW, y = c.d * PH;
         s += `<g transform="translate(${x.toFixed(1)},${y.toFixed(1)})" pointer-events="none"><circle r="14" fill="${od.kit.shirt}" fill-opacity=".9" stroke="${od.kit.number}" stroke-width="1.8" stroke-dasharray="3 2"/><text y="3.5" text-anchor="middle" font-size="10" font-weight="700" fill="${od.kit.number}">${pl2 ? pl2.number : ''}</text></g>`;
       });
     }
@@ -45,7 +56,9 @@
     }));
     // the players, as cards
     team.players.forEach((p) => {
-      const q = FM.phasePos(team, p, eng), sel = UI.sel === p.slotKey, inj = FM.isInjured && FM.isInjured(p), nChoices = Object.keys(((pl.player[p.slotKey] || {})[ph]) || {}).length;
+      let q = FM.phasePos(team, p, eng);
+      if (od && weAttack && theirLine != null && p.group !== 'GK' && !(FM.isManual && FM.isManual(team, p, eng)) && q.d > theirLine) q = { d: Math.max(0.02, theirLine - 0.012), w: q.w };
+      const sel = UI.sel === p.slotKey, inj = FM.isInjured && FM.isInjured(p), nChoices = Object.keys(((pl.player[p.slotKey] || {})[ph]) || {}).length;
       const k = 0.72, r = 27 * k, rating = FM.playerRating ? FM.playerRating(p, p.group).toFixed(1) : '';
       s += `<g class="pl-card" data-slot="${esc(p.slotKey)}" transform="translate(${X(q.w)},${Y(q.d)})" style="cursor:pointer"><title>${esc(p.name + ' · ' + ((FM.ROLES[p.roleId] || {}).name || '') + ': ' + ((FM.ROLES[p.roleId] || {}).desc || ''))}</title><circle r="${(46 * k).toFixed(1)}" fill="transparent"/>
         <circle r="${r.toFixed(1)}" fill="${kit.shirt}" stroke="${sel ? '#F2C14E' : '#fff'}" stroke-width="${sel ? 4 : 2.3}"/>

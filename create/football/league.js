@@ -631,6 +631,24 @@
     FM.finishFixture(league, fx, match);
   };
 
+  // A result for a match nobody will watch or study: the other division's games. Played properly each one costs seconds of the browser's time; this is a result worked out from how
+  // good the two squads are (their best eleven), with the usual spread of scores, in an instant. It fills in what the tables and the league page read (the score and the team figures).
+  FM.quickFixture = function (league, fx) {
+    const home = FM.teamById(league, fx.homeId), away = FM.teamById(league, fx.awayId), rng = FM.mulberry32((fx.seed || 1) + 7919);
+    const quality = (t) => { const r = (t.squad || []).filter((p) => !FM.isInjured || !FM.isInjured(p)).map((p) => FM.playerRating(p, p.group || p.natural)).sort((a, b) => b - a).slice(0, 11); return r.length ? r.reduce((a, b) => a + b, 0) / r.length : 7; };
+    const qh = quality(home), qa = quality(away), clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+    const lh = clamp(1.35 * Math.exp(0.45 * (qh - qa)), 0.3, 3.6), la = clamp(1.05 * Math.exp(0.45 * (qa - qh)), 0.25, 3.2);
+    const poisson = (lam) => { const L = Math.exp(-lam); let k = 0, p = 1; do { k++; p *= rng(); } while (p > L && k < 12); return k - 1; };
+    const hg = poisson(lh), ag = poisson(la);
+    fx.played = true; fx.hg = hg; fx.ag = ag;
+    const share = clamp(0.5 + 0.35 * (qh - qa), 0.3, 0.7);
+    fx.stats = {};
+    [[home, hg, lh, share], [away, ag, la, 1 - share]].forEach(([t, g, lam, sh]) => {
+      const shots = Math.max(g, Math.round(lam * 7 + rng() * 5)), onTarget = Math.max(g, Math.min(shots, Math.round(shots * 0.38 + rng() * 2)));
+      fx.stats[t.id] = { goals: g, shots, onTarget, possession: Math.round(5400 * sh), passes: Math.round(340 + 280 * sh + rng() * 60), passesOk: Math.round((340 + 280 * sh) * (0.74 + 0.1 * sh)), xg: Math.round(lam * 100) / 100, formation: FM.formationName ? FM.formationName(t) : t.formationKey, tactics: Object.assign({}, t.tactics), edge: 0 };
+    });
+  };
+
   // The other matches of the round, played while the user's own match is on the screen. They are the same matches, with the same seeds and the same engine, only
   // played in short slices between the live match's frames instead of one after another at the end, so there is little left to wait for at the full-time whistle.
   // A slice is a few milliseconds when the live match is running (so it stays smooth), longer when it is paused, and long once it has finished.
@@ -653,13 +671,14 @@
         while (performance.now() - t0 < ms) {
           if (!cur) {
             const t = tasks.shift(); if (!t) { ctl.finished = true; return false; }
+            if (t.other) { FM.quickFixture(t.lg, t.fx); done.push({ fx: t.fx, lg: t.lg, other: true }); continue; }
             FM.curLeague = t.lg; FM.today = t.lg.day;
             cur = { t, match: FM.startFixture(t.lg, t.fx), guard: 0 };
           }
           FM.curLeague = cur.t.lg; FM.today = cur.t.lg.day;
           for (let i = 0; i < 40 && cur.match.phase !== 'fulltime' && cur.guard++ < 200000; i++) {
             if (cur.match.phase === 'halftime') FM.startSecondHalf(cur.match);
-            FM.stepMatch(cur.match, 0.1);   // the same time step the other matches of a round have always been played with
+            FM.stepMatch(cur.match, 0.25);   // the coarser step the pre-season friendlies use: nobody is watching, and it is two and a half times as quick
           }
           if (cur.match.phase === 'fulltime' || cur.guard >= 200000) { FM.finishFixture(cur.t.lg, cur.t.fx, cur.match); done.push({ fx: cur.t.fx, lg: cur.t.lg, other: cur.t.other }); cur = null; }
         }
@@ -703,12 +722,12 @@
   FM.completeRound = async function (league, userFx, userMatch, onResult, bg) {
     FM.finishFixture(league, userFx, userMatch);
     if (bg) await bg.drain(onResult);
-    for (const fixture of league.fixtures.filter((f) => f.round === userFx.round && !f.played)) { await FM.simulateFixtureAsync(league, fixture); if (onResult) await onResult(fixture, league, false); }
+    for (const fixture of league.fixtures.filter((f) => f.round === userFx.round && !f.played)) { await FM.simulateFixtureAsync(league, fixture, 0.25); if (onResult) await onResult(fixture, league, false); }
     // The parallel division plays on the same matchday. It is simulated with
     // the same engine, but without a human-controlled club or match logs.
     const other = FM.ensureTwoDivisions(league);
     const shadow = { seed: league.seed + 44000, runSeed: league.runSeed || 0, day: league.day, userId: '__none__', teams: other.teams, fixtures: other.fixtures, news: [], friendlies: [], captains: {} };
-    for (const fixture of other.fixtures.filter((f) => f.round === userFx.round && !f.played)) { await FM.simulateFixtureAsync(shadow, fixture); if (onResult) await onResult(fixture, shadow, true); }
+    for (const fixture of other.fixtures.filter((f) => f.round === userFx.round && !f.played)) { FM.quickFixture(shadow, fixture); if (onResult) await onResult(fixture, shadow, true); }
     FM.aiAfterRound(league, userFx.round);
     FM.updateBoardApproval(league);
     if (FM.bizAfterRound) FM.bizAfterRound(league, userFx);   // the club's accounts for the matchday
