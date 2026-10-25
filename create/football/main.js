@@ -756,13 +756,13 @@
       const line = (home, away, hg, ag, mineRow) => `<li class="${mineRow ? 'me' : ''}"><span>${esc(home)}</span><b>${hg} - ${ag}</b><span>${esc(away)}</span></li>`;
       list.insertAdjacentHTML('beforeend', line(m.home.name, m.away.name, m.score[m.home.id], m.score[m.away.id], true));
       let shownOther = false;
-      const onResult = async (f, lg, otherDivision) => {
+      const onResult = async (f, lg, otherDivision, already) => {
         if (otherDivision && !shownOther) { shownOther = true; list.insertAdjacentHTML('beforeend', '<li class="rp-head">Other division</li>'); }
         const h = FM.teamById(lg, f.homeId), a = FM.teamById(lg, f.awayId);
         list.insertAdjacentHTML('beforeend', line(h ? h.name : '', a ? a.name : '', f.hg, f.ag, false));
-        await new Promise((r) => setTimeout(r, 450));   // long enough to read each one
+        await new Promise((r) => setTimeout(r, already ? 140 : 450));   // long enough to read each one (quicker for the ones that finished while the match was on)
       };
-      try { await FM.completeRound(world.league, world.fixture, world.match, onResult); } finally { clearInterval(ticker); }
+      try { await FM.completeRound(world.league, world.fixture, world.match, onResult, world.bg); } finally { clearInterval(ticker); world.bg = null; }
       msg.textContent = 'All the results are in.';
       await new Promise((r) => setTimeout(r, 700));
       box.hidden = true;
@@ -811,6 +811,9 @@
     if (!fx || fx.played) return;
     world.fixture = fx;
     world.match = FM.startFixture(world.league, fx, { interactive: true });
+    // the other matches of the round are played in the background while this one is on the screen
+    if (world.bg) world.bg.stop(); world.bg = null;
+    if (!world.league.mp && !fx.friendly && FM.roundBackground) { const mref = world.match; world.bg = FM.roundBackground(world.league, fx); world.bg.start(() => ({ alive: world.match === mref, paused: !world.running, over: mref.phase === 'fulltime' })); }
     world.startSig = shapeSig(FM.teamById(world.league, world.league.userId));
     { const t0 = FM.teamById(world.league, world.league.userId); world.matchSnap = JSON.parse(JSON.stringify({ phasePos: t0.phasePos || {}, shape: t0.shape || {}, phaseBall: t0.phaseBall || {}, tactics: t0.tactics })); world.liveMoved = {}; }
     world.renderPos.clear(); world.renderBall = null;

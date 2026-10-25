@@ -629,9 +629,78 @@
     FM.finishFixture(league, fx, match);
   };
 
-  // After the user's match: record it, then play the rest of that round in the background.
-  FM.completeRound = async function (league, userFx, userMatch, onResult) {
+  // The other matches of the round, played while the user's own match is on the screen. They are the same matches, with the same seeds and the same engine, only
+  // played in short slices between the live match's frames instead of one after another at the end, so there is little left to wait for at the full-time whistle.
+  // A slice is a few milliseconds when the live match is running (so it stays smooth), longer when it is paused, and long once it has finished.
+  FM.roundBackground = function (league, userFx) {
+    const tasks = [], done = [];
+    league.fixtures.filter((f) => f.round === userFx.round && !f.played && f !== userFx).forEach((f) => tasks.push({ lg: league, fx: f, other: false }));
+    let shadow = null;
+    try {
+      const od = FM.ensureTwoDivisions(league);
+      shadow = { seed: league.seed + 44000, runSeed: league.runSeed || 0, day: league.day, userId: '__none__', teams: od.teams, fixtures: od.fixtures, news: [], friendlies: [], captains: {} };
+      od.fixtures.filter((f) => f.round === userFx.round && !f.played).forEach((f) => tasks.push({ lg: shadow, fx: f, other: true }));
+    } catch (e) { shadow = null; }
+    let cur = null, timer = 0, stopped = false;
+    const ctl = { done, shadow, finished: false };
+    // steps whatever is being played for about ms milliseconds; returns true while there is more to do
+    const pump = (ms) => {
+      if (stopped || ctl.finished) return false;
+      const t0 = performance.now(), keep = [FM.curLeague, FM.today];
+      try {
+        while (performance.now() - t0 < ms) {
+          if (!cur) {
+            const t = tasks.shift(); if (!t) { ctl.finished = true; return false; }
+            FM.curLeague = t.lg; FM.today = t.lg.day;
+            cur = { t, match: FM.startFixture(t.lg, t.fx), guard: 0 };
+          }
+          FM.curLeague = cur.t.lg; FM.today = cur.t.lg.day;
+          for (let i = 0; i < 40 && cur.match.phase !== 'fulltime' && cur.guard++ < 200000; i++) {
+            if (cur.match.phase === 'halftime') FM.startSecondHalf(cur.match);
+            FM.stepMatch(cur.match, 0.1);   // the same time step the other matches of a round have always been played with
+          }
+          if (cur.match.phase === 'fulltime' || cur.guard >= 200000) { FM.finishFixture(cur.t.lg, cur.t.fx, cur.match); done.push({ fx: cur.t.fx, lg: cur.t.lg, other: cur.t.other }); cur = null; }
+        }
+      } finally { FM.curLeague = keep[0]; FM.today = keep[1]; }
+      return true;
+    };
+    // state() says how the live match is doing: { alive, paused, over }
+    let looping = false;
+    ctl.start = function (state) {
+      looping = true;
+      // the browser's idle time: between two frames of the live match there is nearly always a few milliseconds nobody is using
+      // (a page nobody is looking at gets no idle callbacks and no frames, so there a plain timer is used, with longer slices)
+      const later = (f) => (window.requestIdleCallback && !document.hidden ? window.requestIdleCallback(f, { timeout: 150 }) : setTimeout(() => f({ timeRemaining: () => (document.hidden ? 40 : 7) }), document.hidden ? 20 : 30));
+      const loop = () => later((d) => {
+        if (!looping || stopped || ctl.finished) return;
+        const s = state() || {};
+        if (!s.alive) { ctl.stop(); return; }
+        const room = Math.max(0, (d.timeRemaining ? d.timeRemaining() : 7) - 1.5);
+        pump(s.over ? 50 : Math.min(room, s.paused ? 40 : 12));
+        loop();
+      });
+      loop();
+    };
+    ctl.stop = function () { stopped = true; looping = false; clearInterval(timer); };
+    // plays whatever is left (the match in progress, then the rest), each one reported as it finishes
+    ctl.drain = async function (onResult) {
+      looping = false; clearInterval(timer); stopped = false;
+      for (let n = 0; n < done.length; n++) if (onResult) await onResult(done[n].fx, done[n].lg, done[n].other, true);
+      let shown = done.length;
+      while (pump(document.hidden ? 200 : 25)) {
+        while (shown < done.length) { if (onResult) await onResult(done[shown].fx, done[shown].lg, done[shown].other, false); shown++; }
+        await new Promise((r) => setTimeout(r, 0));
+      }
+      while (shown < done.length) { if (onResult) await onResult(done[shown].fx, done[shown].lg, done[shown].other, false); shown++; }
+      stopped = true;
+    };
+    return ctl;
+  };
+
+  // After the user's match: record it, then play the rest of that round (most of it has usually been played already, see roundBackground).
+  FM.completeRound = async function (league, userFx, userMatch, onResult, bg) {
     FM.finishFixture(league, userFx, userMatch);
+    if (bg) await bg.drain(onResult);
     for (const fixture of league.fixtures.filter((f) => f.round === userFx.round && !f.played)) { await FM.simulateFixtureAsync(league, fixture); if (onResult) await onResult(fixture, league, false); }
     // The parallel division plays on the same matchday. It is simulated with
     // the same engine, but without a human-controlled club or match logs.
