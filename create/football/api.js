@@ -39,9 +39,9 @@
       return { ok: resp.ok, status: resp.status, json, uid };
     } catch (e) { return null; }
   };
-  // The football manager is free for a limited time (the backend's FOOTBALL_FREE switch). While this is true the purchase button just takes the person into the game;
-  // the checkout code below is untouched. Set it to false, with FOOTBALL_FREE=false on the backend, to bring the paywall back.
-  FM.FREE_FOR_NOW = true;
+  // The full season is £8.99 a month (the backend's FOOTBALL_FREE switch is off): the purchase button opens the Stripe checkout. The demo, with everything in it and the
+  // 1,000 Locks every account has, stays open. Set this to true, with FOOTBALL_FREE=true on the backend, to make the game free again.
+  FM.FREE_FOR_NOW = false;
   FM.purchaseFootball = async function () {
     if (!window.supabase || !window.supabase.createClient) throw new Error('The sign-in could not load. Check your connection and try again.');
     if (!client) client = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);

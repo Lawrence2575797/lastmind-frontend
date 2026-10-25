@@ -10827,8 +10827,8 @@ SQIDAQAB
             renderCareerHome(contentInner); return;
         }
         if (/^doctor-(gcse|alevel|psych)$/.test(view)) { renderDoctorCareer(contentInner, view.slice(7)); return; }
-        // what each project costs: the law and football projects are £4.99 a month; the biology and psychology ones are free
-        const CREATE_PRICES = { 'criminal-trial': '£4.99 / month', 'criminal-lawyer-career': '£4.99 / month', 'football-demo': 'Free', 'football-manager': '£4.99 / month', 'doctor-gcse': 'Free', 'doctor-alevel': 'Free', 'doctor-psych': 'Free' };
+        // what each project costs: the law projects are £4.99 a month and the football manager is £8.99 (with 30,000 Locks a month across the whole site); the biology and psychology ones are free
+        const CREATE_PRICES = { 'criminal-trial': '£4.99 / month', 'criminal-lawyer-career': '£4.99 / month', 'football-demo': 'Free', 'football-manager': '£8.99 / month', 'doctor-gcse': 'Free', 'doctor-alevel': 'Free', 'doctor-psych': 'Free' };
         const card = (t, attrs = '') => `
                         <article class="create-card${attrs ? ' create-card-link' : ''}" ${attrs}>
                             <h3>${escapeHtml(t.title)}</h3>
@@ -10918,9 +10918,9 @@ SQIDAQAB
 
     // ─── Paid projects ───
     // Asks the server whether this account has the project (the answer is never taken from the browser). If not, opens the Stripe checkout for it.
-    // The football manager is free for a limited time. The £4.99 price stays on its card (struck through) and the checkout code is untouched: the backend
-    // says yes to football for everyone signed in while its FOOTBALL_FREE switch is on. Set this to false, and FOOTBALL_FREE=false on the backend, to bring the paywall back.
-    window.LM_FOOTBALL_FREE = true;
+    // The football manager is £8.99 a month. Set this to true, with FOOTBALL_FREE=true on the backend, to make it free for a limited time again (the card then shows its
+    // price struck through).
+    window.LM_FOOTBALL_FREE = false;
     async function lmEnsureProject(project) {
         try {
             const client = window.supabaseClient;
