@@ -1734,7 +1734,7 @@
     if (inMatch) (['build', 'midfield', 'final', 'organised'].indexOf(world.tab) >= 0 ? renderLiveBoard(team, world.tab) : renderBoardTab(team, world.tab));
     else if (world.testing) renderTestPhase(team, world.tab);
     else if (world.tab === 'setpieces') renderSetPieces(team);
-    else if (FM.renderPlanTab && ['build', 'midfield', 'final', 'organised', 'transdef', 'transatt'].indexOf(world.tab) >= 0) FM.renderPlanTab(el('tabBody'), team, world.tab, { save: saveSoon, openPlayer: (slot) => { const p = team.players.find((q) => q.slotKey === slot); if (p) { world.selSlot = p; world.selBench = null; world.tab = 'squad'; renderTactics(); } }, opp: (key) => { const sc = scoutFor(), cells = sc && oppCellsFor(sc, key); return cells ? { cells, opp: sc.opp, kit: FM.kitAgainst(sc.opp, userTeam()) } : null; } });
+    else if (FM.renderPlanTab && ['build', 'midfield', 'final', 'organised', 'transdef', 'transatt'].indexOf(world.tab) >= 0) FM.renderPlanTab(el('tabBody'), team, world.tab, { save: saveSoon, openPlayer: (slot) => { const p = team.players.find((q) => q.slotKey === slot); if (p) { world.selSlot = p; world.selBench = null; world.tab = 'squad'; renderTactics(); } }, opp: (key) => { const sc = scoutFor(), cells = sc && oppCellsFor(sc, key); return cells ? { cells, opp: sc.opp, kit: FM.kitAgainst(sc.opp, userTeam()) } : null; }, report: (key) => { const sc = scoutFor(); if (!sc || !FM.tacticsPhaseReportHtml) return ''; const base = FM.baseKey(key), cells = oppCellsFor(sc, key); let cond = pageCondOf(key); if (cond === 'opp_press') cond = 'opp_high'; else if (cond === 'opp_sit') cond = 'opp_low'; if (cond === 'always') cond = oppTacticCond(sc.opp, base) || (base === 'build' ? 'opp_mid' : null); return FM.tacticsPhaseReportHtml(world.league, sc.opp.id, base, { cells: cells || undefined, tacticValue: sc.opp.tactics && OPP_TACTIC_FOR[base] ? sc.opp.tactics[OPP_TACTIC_FOR[base]] : undefined, label: cond ? COND_LABEL[cond] : '', why: cond ? oppWhy(sc.opp, base, cond) : '' }); } });
     else if (world.tab === 'transdef' || world.tab === 'transatt') renderTransitionTab(team, world.tab);
     else if (['build', 'midfield', 'final', 'organised'].indexOf(world.tab) >= 0 && FM.renderScenario && nextOpponent()) renderScenarioTab(team, world.tab);
     else renderBoardTab(team, world.tab);
@@ -2065,6 +2065,25 @@
   }
   // How the opposition stand on a page's diagram. Their scouted shape is the starting point; a page that applies when they press us shows them
   // pressed up the pitch, and one that applies when they sit off shows a compact, deep block. (d: 0 their own goal, 1 ours.)
+  // The opposition's own tactics decide how they stand. For the phase of ours that is on the page, one of their settings says whether they are high or deep (or direct or short):
+  // when you build, how hard they press your build-up; when you attack, how high their line is; when you press them, how directly they build; when you lose the ball, how fast they counter.
+  const OPP_TACTIC_FOR = { build: 'pressBuildUp', midfield: 'lineHeight', final: 'lineHeight', press: 'buildDirect', transDef: 'counterAttack' };
+  function oppTacticCond(opp, base) {
+    const k = OPP_TACTIC_FOR[base], v = k && opp && opp.tactics ? opp.tactics[k] : null;
+    if (typeof v !== 'number') return null;
+    if (base === 'press') return v >= 0.62 ? 'opp_direct' : v <= 0.38 ? 'opp_short' : null;
+    if (base === 'transDef') return v >= 0.62 ? 'opp_direct' : null;
+    return v >= 0.62 ? 'opp_high' : v <= 0.38 ? 'opp_low' : null;
+  }
+  const COND_LABEL = { opp_high: 'High press, high line', opp_mid: 'Mid block', opp_low: 'Low block', opp_direct: 'Direct and quick', opp_short: 'Short and patient' };
+  function oppWhy(opp, base, cond) {
+    const t = opp.tactics || {}, pc = (v) => Math.round(100 * v) + '%';
+    if (base === 'build') return cond === 'opp_high' ? `${opp.name} press your build-up hard (${pc(t.pressBuildUp)}): they step up onto your centre-backs and leave space behind them.` : cond === 'opp_low' ? `${opp.name} rarely press your build-up (${pc(t.pressBuildUp)}): they stay compact in their own half and let you play out.` : `${opp.name} press your build-up some of the time (${pc(t.pressBuildUp)}): they hold a block around the halfway line.`;
+    if (base === 'midfield' || base === 'final') return cond === 'opp_high' ? `${opp.name} defend with a high line (${pc(t.lineHeight)}): they squeeze the pitch and leave space in behind.` : cond === 'opp_low' ? `${opp.name} defend with a deep line (${pc(t.lineHeight)}): a compact block with little space behind, but a lot of room in front of it.` : `${opp.name} hold a middling line (${pc(t.lineHeight)}).`;
+    if (base === 'press') return cond === 'opp_direct' ? `${opp.name} build directly (${pc(t.buildDirect)}): their front players start high to receive long balls.` : cond === 'opp_short' ? `${opp.name} build short and patiently (${pc(t.buildDirect)}): their players stay close to the ball.` : `${opp.name} mix short and long build-up (${pc(t.buildDirect)}).`;
+    if (base === 'transDef') return cond === 'opp_direct' ? `${opp.name} counter-attack quickly (${pc(t.counterAttack)}): their front players are already moving forward as you lose it.` : `${opp.name} counter at a measured pace (${pc(t.counterAttack)}).`;
+    return '';
+  }
   const shapeCache = new Map();
   function oppCellsFor(sc, key) {
     const cells = sc.shape.phases[OPP_PHASE[FM.baseKey(key)]];
@@ -2075,7 +2094,8 @@
     let cond = pageCondOf(key);
     const kick = base === 'buildEnd' || base === 'build';
     if (cond === 'opp_press') cond = 'opp_high'; else if (cond === 'opp_sit') cond = 'opp_low';
-    if (cond === 'always' && kick) cond = 'opp_mid';
+    // with no condition chosen on the page, they stand as their own tactics put them (a side that presses high is drawn pressing high up the pitch)
+    if (cond === 'always') { const tc = oppTacticCond(sc.opp, base); if (tc) cond = tc; else if (kick) cond = 'opp_mid'; }
     const block = { opp_high: 1, opp_mid: 1, opp_low: 1 }[cond];
     const special = block || cond === 'opp_direct' || cond === 'opp_short';
     const finalThird = base === 'final';

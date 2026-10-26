@@ -112,11 +112,13 @@
 
   // A compact, phase-specific analyst report for the tactics page. Every number comes from the opponent's
   // completed matches; the matching opposing phase is used (their press while the user is building, and so on).
-  FM.tacticsPhaseReportHtml = function (league, teamId, ownPhase) {
+  // `extra` (optional): { cells, label, why } puts the report beside a diagram that shows the opposition as their tactics set them up (their structure), so the front line
+  // and width quoted are the ones drawn, with a label for the structure and one line on why.
+  FM.tacticsPhaseReportHtml = function (league, teamId, ownPhase, extra) {
     const rep = FM.opponentReport(league, teamId), sh = FM.scoutedShape(league, teamId), phase = OPP_PHASE[ownPhase];
     if (!rep.team) return '';
     if (!rep.n || !sh) return `<section class="phase-report"><div class="phase-report-kicker">Opposition analysis</div><h3>${esc(OPP_HEADLINE[ownPhase] || 'The matching opposition phase')}</h3><p>There is no match evidence yet, so there is nothing reliable to say about how ${esc(rep.team.name)} will behave.</p></section>`;
-    const cells = sh.phases[phase] || {}, entries = Object.keys(cells).map((slot) => ({ slot, ...cells[slot] }));
+    const cells = (extra && extra.cells) || sh.phases[phase] || {}, entries = Object.keys(cells).map((slot) => ({ slot, ...cells[slot] }));
     const outfield = entries.filter((x) => !/^GK/.test(x.slot));
     const front = outfield.filter((x) => /ST|CF|AM|WF|LW|RW/.test(x.slot));
     const measured = front.length ? front : outfield;
@@ -124,13 +126,14 @@
     const sampleN = entries.length ? Math.max.apply(null, entries.map((x) => x.n || 0)) : 0;
     const frontFromGoal = fin(avg(measured, 'd')) ? Math.round((1 - avg(measured, 'd')) * 105) : null;
     const spread = outfield.length ? Math.round((Math.max.apply(null, outfield.map((x) => x.w)) - Math.min.apply(null, outfield.map((x) => x.w))) * 68) : null;
-    const press = pct(tacticOf(rep, ownPhase === 'build' ? 'pressBuildUp' : ownPhase === 'press' ? 'beatPress' : ownPhase === 'transAtt' ? 'counterPress' : ownPhase === 'transDef' ? 'counterAttack' : ownPhase === 'final' || ownPhase === 'midfield' ? 'lineHeight' : 'risk'));
+    const press = extra && typeof extra.tacticValue === 'number' ? Math.round(extra.tacticValue * 100) : pct(tacticOf(rep, ownPhase === 'build' ? 'pressBuildUp' : ownPhase === 'press' ? 'beatPress' : ownPhase === 'transAtt' ? 'counterPress' : ownPhase === 'transDef' ? 'counterAttack' : ownPhase === 'final' || ownPhase === 'midfield' ? 'lineHeight' : 'risk'));
     const metricLabel = ownPhase === 'build' ? 'Press intensity' : ownPhase === 'press' ? 'Long-ball tendency' : ownPhase === 'transAtt' ? 'Counter-press' : ownPhase === 'transDef' ? 'Counter speed' : ownPhase === 'final' || ownPhase === 'midfield' ? 'Defensive line' : 'Attacking risk';
     const metricRead = ownPhase === 'build' ? reading(press, 'usually allow the first pass', 'mix pressing with holding shape', 'usually press the first pass') : reading(press, 'generally patient', 'change their approach', 'usually act quickly');
     const form = rep.formations.length ? rep.formations[0][0] : sh.formation;
     return `<section class="phase-report">
-      <div class="phase-report-kicker">Opposition analysis</div>
+      <div class="phase-report-kicker">Opposition analysis${extra && extra.label ? ` <span class="phase-report-chip">${esc(extra.label)}</span>` : ''}</div>
       <h3>${esc(OPP_HEADLINE[ownPhase] || 'The matching opposition phase')}</h3>
+      ${extra && extra.why ? `<p class="phase-report-why">${esc(extra.why)}</p>` : ''}
       <p>Across ${rep.n} recorded match${rep.n === 1 ? '' : 'es'}, ${esc(rep.team.name)} have most often used a ${esc(form)}. In this phase they ${esc(metricRead)}.</p>
       <div class="phase-report-data">
         <div><b>${press == null ? '—' : press + '%'}</b><span>${metricLabel}</span></div>
@@ -138,7 +141,7 @@
         <div><b>${spread == null ? '—' : spread + 'm'}</b><span>Outfield width</span></div>
         <div><b>${sampleN || '—'}</b><span>Position samples per player</span></div>
       </div>
-      <p class="phase-report-note">The dashed shirts on the pitch are their weighted average positions in ${esc(FM.PHASE_NAMES[phase].toLowerCase())}. Newer matches count more; pre-season friendlies count half.</p>
+      <p class="phase-report-note">${extra && extra.cells ? 'The dashed shirts on the pitch show how they are set up in this phase, from their tactics and their scouted shape' : 'The dashed shirts on the pitch are their weighted average positions in ' + esc(FM.PHASE_NAMES[phase].toLowerCase())}. Newer matches count more; pre-season friendlies count half.</p>
     </section>`;
   };
   function miniPitch(cells, kit) {
