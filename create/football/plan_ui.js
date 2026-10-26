@@ -1,4 +1,4 @@
-// The tactics pages for the plan (plan.js): one page for each phase of play. Nothing on them is dragged. Each page has
+// The tactics pages for the plan (plan.js): one page for each phase of play. Players can be dragged on them to where they should stand. Each page has
 //   the pitch        the players as cards where this phase puts them; pick a card to give that player instructions for the phase
 //   team approach    a few plain choices for the whole team in this phase
 //   player           that player's role and his choices for this phase
@@ -132,7 +132,7 @@
       host.innerHTML = `<div class="pl">
         ${phases.length > 1 ? `<div class="pl-sub">${phases.map((k) => `<button type="button" class="${k === ph ? 'on' : ''}" data-sub="${k}">${esc(FM.planPhase(k).name)}</button>`).join('')}</div>` : ''}
         <div class="pl-head"><h3>${esc(info.name)}</h3><p>${esc(info.blurb)}</p></div>
-        ${team.legacyTactics && !pl.noticeSeen ? '<div class="pl-notice">Tactics are now set with roles and choices, not by dragging players. Your hand-placed positions from before have been cleared (they are kept as a backup) and the team now stands where its roles and choices put it. <button type="button" data-notice="1">Got it</button></div>' : ''}
+        ${team.legacyTactics && !pl.noticeSeen ? '<div class="pl-notice">Tactics are now set with choices and roles as well as by placing players. Where you drag a player is where he stands in that phase, and his role and instructions decide how he plays from there. Your hand-placed positions from before are kept. <button type="button" data-notice="1">Got it</button></div>' : ''}
         ${legacy.length ? `<div class="pl-notice">${legacy.length} written instruction${legacy.length === 1 ? '' : 's'} from before ${legacy.length === 1 ? 'is' : 'are'} still active. <button type="button" data-clear-legacy="1">Remove ${legacy.length === 1 ? 'it' : 'them'}</button></div>` : ''}
         <div class="pl-grid">
           <section class="card pl-left"><div class="pl-pitchbar">${manualCount(team, ph) ? '<button type="button" data-resetpos="1">Put this phase\'s players back where their roles put them</button>' : ''}<button type="button" class="${UI.showOpp ? 'on' : ''}" data-opp="1"${hooks.opp ? '' : ' disabled'}>${UI.showOpp ? 'Hide' : 'Show'} the opposition</button></div><div class="pl-pitchwrap${UI.mode !== 'view' ? ' picking' : ''}">${pitchSvg(team, ph, hooks)}</div>
@@ -229,13 +229,10 @@
     const cx = host.querySelector('[data-close]'); if (cx) cx.addEventListener('click', () => { if (hooks && hooks.close) hooks.close(); else host.innerHTML = ''; });
   };
 
-  // First time the plan is used: hand-placed positions are cleared and kept, so the team stands where its roles and choices put it.
+  // First time the plan is used: hand-placed positions are kept (where a player was dragged is where he stands; roles and choices decide how he plays), with a backup copy.
   function migrate(team) {
     const man = team.phasePos && Object.keys(team.phasePos).some((k) => Object.keys(team.phasePos[k] || {}).length);
-    if (man) {
-      team.legacyTactics = { phasePos: team.phasePos || {}, rules: [] };
-      team.phasePos = {}; delete team.scenarioEnd;
-    }
+    if (man) team.legacyTactics = { phasePos: JSON.parse(JSON.stringify(team.phasePos || {})), rules: [] };
     FM.planApply(team);
   }
 })();
