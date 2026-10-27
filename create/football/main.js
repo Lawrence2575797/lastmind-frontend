@@ -933,6 +933,19 @@
   };
   // the side agent has become the Workbook's agent: anything that used to open it now opens the Workbook (with a first question, if it has one)
   let wbStarter = null;
+  // the lesson that falls due before the next match, as a line on the club overview
+  function lessonLine(lg) {
+    try {
+      const st = FM.knowledgeStatus ? FM.knowledgeStatus(lg) : null; if (!st || (!st.due.length && !st.overdue.length)) return '';
+      const names = st.overdue.map((x) => x.t + ' (overdue by ' + x.late + ')').concat(st.due.map((x) => x.t + ' (due)')).slice(0, 3);
+      return `<p class="desc"><b>Lesson:</b> ${esc(names.join('; '))}. <a href="#" data-golesson="1">Open the Workbook</a>. Its question changes your club for this match, and nothing is forced.</p>`;
+    } catch (e) { return ''; }
+  }
+  document.addEventListener('click', (e) => {
+    const a = e.target.closest && e.target.closest('[data-golesson]'); if (!a) return; e.preventDefault();
+    FM.goWorkbench();
+    setTimeout(() => { try { const st = FM.knowledgeStatus(world.league), first = (st.overdue[0] || st.due[0]); if (window.wbPanels) { window.wbPanels.show('sug'); if (first && FM.knowledgeUI) FM.knowledgeUI.open(first.id); } } catch (x) { /* the Workbook is open either way */ } }, 300);
+  });
   FM.goWorkbench = (arg) => { wbStarter = typeof arg === 'string' ? { starter: arg } : (arg || null); setView('workbench'); wbStarter = null; };
   function setView(v) {
     if (v === 'develop') v = 'squad';   // the Development page is gone: potential and growth are on the Squad page
@@ -1115,6 +1128,7 @@
       try {
         const me = lg.userId, rows = FM.tableRows(lg), nf = FM.nextUserFixture(lg);
         if (nf) { const h = FM.teamById(lg, nf.homeId), a = FM.teamById(lg, nf.awayId); body += `<div class="card"><h2>Next match</h2><div class="fixture-big">${esc(h ? h.name : '?')} <span style="opacity:.6">v</span> ${esc(a ? a.name : '?')}</div><p class="desc">Round ${nf.round + 1} of 14. Work through the preparation flow above, then play from Match preview.</p></div>`; }
+        { const ll = lessonLine(lg); if (ll) body += `<div class="card"><h2>Maths lesson</h2>${ll}</div>`; }
         body += `<div class="card"><h2>League table</h2><div class="tablewrap"><table class="data"><thead><tr><th class="l">#</th><th class="l">Club</th><th>P</th><th>W</th><th>D</th><th>L</th><th>Pts</th></tr></thead><tbody>${rows.map((r, i) => `<tr class="${r.id === me ? 'me' : ''}"><td class="l">${i + 1}</td><td class="l">${esc(r.name)}</td><td>${r.p}</td><td>${r.w}</td><td>${r.d}</td><td>${r.l}</td><td>${r.pts}</td></tr>`).join('')}</tbody></table></div></div>`;
       } catch (e3) { /* the note below is all there is */ }
       host.innerHTML = `<div style="display:grid;gap:16px;max-width:900px">${body}<p class="note">Part of the home page could not be drawn (${esc(e && e.message ? e.message : 'unknown error')}). Your game is safe and the other pages work. If this keeps happening, tell me this message.</p></div>`;
@@ -1141,7 +1155,7 @@
       next = `<h2>Next match</h2>
         <div class="fixture-big">${esc(home.name)} <span style="opacity:.6">v</span> ${esc(away.name)}</div>
         <p class="desc">${when} · Round ${nextFx.round + 1} of 14 · ${home.id === me ? 'Home' : 'Away'} against ${esc(opp.name)}</p>
-        ${today && !today.played ? '' : '<p class="note">Work through the preparation flow above. The match begins from Match preview.</p>'}`;
+        ${today && !today.played ? '' : '<p class="note">Work through the preparation flow above. The match begins from Match preview.</p>'}${lessonLine(lg)}`;
     }
     const played = lg.fixtures.filter((f) => f.played && (f.homeId === me || f.awayId === me)).sort((a, b) => b.round - a.round);
     const myFriendlies = (lg.friendlies || []).filter((f) => f.played && (f.homeId === me || f.awayId === me));

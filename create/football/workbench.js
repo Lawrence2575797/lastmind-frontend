@@ -910,14 +910,14 @@
     FM.richHtml = richHtml;
     host.innerHTML = `<div class="wb wb2">
       <div class="wb2-bar" role="toolbar" aria-label="Open or close panels"><span class="wb2-lab">Show</span>
-        <button type="button" class="wb2-tog" data-panel="notes" aria-pressed="true">Notes</button><button type="button" class="wb2-tog" data-panel="agent" aria-pressed="true">AI agent</button><button type="button" class="wb2-tog" data-panel="map" aria-pressed="false">Knowledge map</button><button type="button" class="wb2-tog" data-panel="sug" aria-pressed="false">Suggested lessons</button><button type="button" class="wb2-tog" data-panel="lesson" aria-pressed="false">Lesson</button>
+        <button type="button" class="wb2-tog" data-panel="notes" aria-pressed="true">Notes</button><button type="button" class="wb2-tog" data-panel="agent" aria-pressed="true">AI agent</button><button type="button" class="wb2-tog" data-panel="map" aria-pressed="false">Knowledge map</button><button type="button" class="wb2-tog" data-panel="sug" aria-pressed="false">Schedule</button><button type="button" class="wb2-tog" data-panel="lesson" aria-pressed="false">Lesson</button>
         <span class="wb2-hint">Open as many as you like side by side.</span></div>
       <div class="wb2-body">
         <section class="wb2-notes wb2-panel" data-panel="notes" aria-label="Your notebook"><div class="wb2-ph"><b>Notes</b><button type="button" class="wb-clear" data-close="notes" aria-label="Close the notes" title="Close the notes">×</button></div><iframe id="wbNotes" title="Your notebook" src="/learn/?embed=wbnotes"></iframe></section>
         <aside class="wb-agent wb2-chat wb2-panel" id="wbAgent" data-panel="agent" aria-label="LastMind AI Agent"><div class="wb-pane-h"><b>AI Agent</b><span class="wb-agent-btns"><span class="wb-lk" id="wbLkTotal"></span><select id="wbDepth" class="wb-depth" aria-label="How deeply the agent teaches" title="Standard: the key ideas, quickly and cheaply. High: a fuller lesson with the reasoning behind each step, from a stronger model; it uses more Locks."><option value="standard">Standard</option><option value="high">High</option></select><button type="button" class="wb-clear" data-tool="exportdata" title="Save your club's match statistics, finances, squad and tactics as one file you can give to any AI assistant to talk through examples. It costs no Locks.">Export</button><button type="button" class="wb-clear" data-tool="clearchat">Clear</button><button type="button" class="wb-clear" data-close="agent" aria-label="Close the agent" title="Close the agent">×</button></span></div><div class="wb-log" id="wbLog" role="log" aria-live="polite"></div>
           <form class="wb-form" id="wbForm"><div id="wbAsk" class="wb-ask" aria-label="Message to the agent"></div><button class="wb-send" id="wbSend" type="submit">Send</button></form></aside>
         <section class="wb2-panel kn-panel" data-panel="map" aria-label="Knowledge map" hidden><div class="wb2-ph"><b>Knowledge map</b><button type="button" class="wb-clear" data-close="map" aria-label="Close the knowledge map" title="Close the knowledge map">×</button></div><div class="wb2-pb" id="knMap"></div></section>
-        <section class="wb2-panel kn-panel" data-panel="sug" aria-label="Suggested lessons" hidden><div class="wb2-ph"><b>Suggested lessons</b><button type="button" class="wb-clear" data-close="sug" aria-label="Close the suggestions" title="Close the suggestions">×</button></div><div class="wb2-pb" id="knSug"></div></section>
+        <section class="wb2-panel kn-panel" data-panel="sug" aria-label="Lesson schedule" hidden><div class="wb2-ph"><b>Lesson schedule</b><button type="button" class="wb-clear" data-close="sug" aria-label="Close the schedule" title="Close the schedule">×</button></div><div class="wb2-pb" id="knSug"></div></section>
         <section class="wb2-panel kn-panel" data-panel="lesson" aria-label="Lesson" hidden><div class="wb2-ph"><b>Lesson</b><button type="button" class="wb-clear" data-close="lesson" aria-label="Close the lesson" title="Close the lesson">×</button></div><div class="wb2-pb" id="knLesson"></div></section>
       </div>
       <div class="wb-legacy" hidden><div class="wb-bar" role="toolbar" aria-label="Workbook tools">
@@ -941,10 +941,11 @@
       // Panels: each can be opened or closed on its own, and any number can be open at once. What is open is remembered with the game.
       const PANELS = ['notes', 'agent', 'map', 'sug', 'lesson'], on = () => (wb.ui.panels = wb.ui.panels || { notes: true, agent: true, map: false, sug: false, lesson: false });
       const mountKn = () => { if (FM.knowledgeUI) FM.knowledgeUI.mount({ map: on().map ? el('knMap') : null, sug: on().sug ? el('knSug') : null, lesson: on().lesson ? el('knLesson') : null }, league, { save: state.opts.save, onOpen: () => { if (!on().lesson) { on().lesson = true; apply(true); } } }); };
+      function badge() { const b = host.querySelector('.wb2-tog[data-panel="sug"]'); if (!b || !FM.knowledgeStatus) return; const st = FM.knowledgeStatus(league), n = st.due.length + st.overdue.length; b.innerHTML = 'Schedule' + (n ? ' <span class="wb2-badge' + (st.overdue.length ? ' late' : '') + '">' + (st.overdue.length ? st.overdue.length + ' overdue' : st.due.length + ' due') + '</span>' : ''); }
       function apply(remount) {
         const p = on(); host.querySelectorAll('.wb2-body [data-panel]').forEach((x) => { x.hidden = !p[x.dataset.panel]; });
         host.querySelectorAll('.wb2-tog').forEach((b) => b.setAttribute('aria-pressed', String(!!p[b.dataset.panel])));
-        const body = host.querySelector('.wb2-body'); body.dataset.open = String(PANELS.filter((k) => p[k]).length);
+        const body = host.querySelector('.wb2-body'); body.dataset.open = String(PANELS.filter((k) => p[k]).length); badge();
         if (remount !== false && (p.map || p.sug || p.lesson)) mountKn();
         save();
       }

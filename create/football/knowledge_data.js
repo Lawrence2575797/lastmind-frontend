@@ -22,7 +22,7 @@
     d.crowds = homes.map((e) => ({ round: e.round, total: e.attTotal, att: e.att, prices: e.prices }));
     if (d.crowds.length < 3) { d.crowdSeries = [d.crowd * 0.93, d.crowd * 1.04, d.crowd, d.crowd * 0.97, d.crowd * 1.02].map(Math.round); d.example.series = true; } else d.crowdSeries = d.crowds.slice(-8).map((c) => c.total);
     d.gate = last && last.inflow ? last.inflow.tickets : d.stands.reduce((a, s) => a + s.sold * s.price, 0); if (!last) d.example.gate = true;
-    d.cash = b ? b.cash : 8000000;
+    d.cash = b ? b.cash : 8000000; d.marketing = b ? (b.marketing || 0) : 8000;
     // ---- the results and the numbers behind them
     const fx = lg ? lg.fixtures.filter((f) => f.played && (f.homeId === lg.userId || f.awayId === lg.userId)).sort((a, c) => a.round - c.round) : [];
     d.results = fx.map((f) => { const home = f.homeId === lg.userId; return { round: f.round + 1, home, gf: home ? f.hg : f.ag, ga: home ? f.ag : f.hg, opp: FM.teamById(lg, home ? f.awayId : f.homeId).name }; });

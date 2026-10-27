@@ -310,3 +310,15 @@ body[data-view="workbench"] #view-workbench { animation: none !important; transf
 @media (max-width: 960px) { .wb2 .wb2-body { flex-direction: column; height: auto; overflow: visible; } .wb2 .wb2-body > [data-panel] { flex: none; min-width: 0; height: 78vh; } }
 
 .wb2 { min-width: 0; max-width: 100%; } .wb2 .wb2-body { min-width: 0; width: 100%; max-width: 100%; box-sizing: border-box; }
+/* the schedule: due, overdue, upcoming */
+.kn-sched { display: grid; gap: 12px; } .kn-stat2 { font-size: .82rem; color: var(--wb-mute, #9db0a4); } .kn-stat2 b { color: var(--wb-gold, #deb862); }
+.kn-sg { display: grid; gap: 6px; } .kn-row { text-align: left; font: inherit; color: inherit; background: rgba(255,255,255,.04); border: 1px solid var(--wb-line-2, rgba(255,255,255,.18)); padding: 8px 11px; cursor: pointer; display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; align-items: baseline; } .kn-row:hover { background: rgba(255,255,255,.09); } .kn-row.sel { outline: 2px solid rgba(240,237,227,.8); }
+.kn-row b { font-size: .9rem; } .kn-row i { grid-column: 2; font-style: normal; font-size: .74rem; color: var(--wb-mute, #9db0a4); }
+.kn-st { font-size: .66rem; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; padding: 2px 7px; border: 1px solid currentColor; } .kn-st.due { color: #deb862; } .kn-st.overdue { color: #ee7a70; } .kn-st.upcoming { color: #8ea093; } .kn-st.done { color: #62d092; }
+.kn-row.due { border-color: rgba(222,184,98,.6); background: rgba(222,184,98,.07); } .kn-row.overdue { border-color: rgba(238,122,112,.65); background: rgba(238,122,112,.07); }
+.kn-when { display: inline-block; margin-top: 6px; font-size: .76rem; font-weight: 800; letter-spacing: .04em; padding: 3px 9px; border: 1px solid currentColor; } .kn-when.due { color: #deb862; } .kn-when.overdue { color: #ee7a70; } .kn-when.upcoming { color: #8ea093; } .kn-when.done { color: #62d092; }
+.kn-node.due { box-shadow: 0 0 0 2px #deb862; } .kn-node.overdue { box-shadow: 0 0 0 2px #ee7a70; } .kn-node.sel { box-shadow: 0 0 0 3px rgba(240,237,227,.85); }
+.kn-legend .due { color: #deb862; } .kn-legend .overdue { color: #ee7a70; } .kn-legend .due::before, .kn-legend .overdue::before { background: currentColor; }
+.wb2-badge { margin-left: 6px; font-size: .68rem; font-weight: 800; padding: 1px 7px; background: #deb862; color: #1a1710; } .wb2-badge.late { background: #ee7a70; }
+.wb2-tog[aria-pressed="true"] .wb2-badge { background: #1a1710; color: #deb862; }
+.kn-imp { margin: 8px 0 0; font-size: .8rem; color: #e8dcb4; line-height: 1.45; }
