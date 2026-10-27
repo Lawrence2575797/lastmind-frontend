@@ -16,15 +16,15 @@
   L['p-quadratics'] = (d) => {
     const s = d.big, dm = demand(s), A = dm.A, k = dm.k, h = A / (2 * k), top = A * A / (4 * k);
     return {
-      why: 'The takings from a stand follow a quadratic in the price, and completing the square shows where they peak.',
+      why: 'The revenue from a stand follows a quadratic in the price, and completing the square shows where they peak.',
       steps: [
         { say: ['Take ' + s.name + ': at £' + s.price + ' you sold ' + d.num(s.sold) + ' seats.', 'Suppose every extra £1 on the price loses about ' + m2(k) + ' fans. Then the crowd at price $p$ is $q = ' + m2(A) + ' - ' + m2(k) + 'p$.'].concat(d.example.crowds ? ['(Example figures until you have home matches.)'] : []) },
-        { say: ['Takings are price times crowd.'], maths: '$R = p(' + m2(A) + ' - ' + m2(k) + 'p) = -' + m2(k) + 'p^2 + ' + m2(A) + 'p$' },
+        { say: ['Revenue are price times crowd.'], maths: '$R = p(' + m2(A) + ' - ' + m2(k) + 'p) = -' + m2(k) + 'p^2 + ' + m2(A) + 'p$' },
         { say: ['That is a quadratic with a negative $p^2$ term, so its graph is an upside-down U: it has a highest point.', 'Completing the square finds that point without any calculus.'] },
         { say: ['Take out the coefficient of $p^2$: $R = -' + m2(k) + '\\left(p^2 - \\frac{' + m2(A) + '}{' + m2(k) + '}p\\right)$.', 'Half the coefficient of $p$ is ' + m2(h) + ', so complete the square inside the bracket.'], maths: '$R = -' + m2(k) + '\\left[(p - ' + m2(h) + ')^2 - ' + m2(h * h) + '\\right] = ' + m2(top) + ' - ' + m2(k) + '(p - ' + m2(h) + ')^2$' },
-        { say: ['A square is never negative, so the takings are largest when the bracket is zero: when $p = ' + m2(h) + '$.', 'The maximum takings are £' + d.num(top) + '.'] },
+        { say: ['A square is never negative, so the revenue is largest when the bracket is zero: when $p = ' + m2(h) + '$.', 'The maximum revenue is £' + d.num(top) + '.'] },
       ],
-      ask: { q: 'For $R = -' + m2(k) + 'p^2 + ' + m2(A) + 'p$, which price (to the nearest pound) gives the greatest takings from ' + s.name + '?', kind: 'number', answer: h, unit: '£', tol: 0.5, rubric: 'Correct £' + m2(h) + ', so accept £' + Math.round(h) + '. The vertex of the quadratic, at p = A/(2k).', worked: ['Complete the square: $R = ' + m2(top) + ' - ' + m2(k) + '(p - ' + m2(h) + ')^2$.', 'The maximum is where $p = ' + m2(h) + '$.'], apply: price(s, h) },
+      ask: { q: 'For $R = -' + m2(k) + 'p^2 + ' + m2(A) + 'p$, which price (to the nearest pound) gives the greatest revenue from ' + s.name + '?', kind: 'number', answer: h, unit: '£', tol: 0.5, rubric: 'Correct £' + m2(h) + ', so accept £' + Math.round(h) + '. The vertex of the quadratic, at p = A/(2k).', worked: ['Complete the square: $R = ' + m2(top) + ' - ' + m2(k) + '(p - ' + m2(h) + ')^2$.', 'The maximum is where $p = ' + m2(h) + '$.'], apply: price(s, h) },
       next: 'There is a quicker way to find that peak: differentiate. Shall we try it?',
     };
   };
@@ -32,16 +32,16 @@
   L['p-diffpowers'] = (d) => {
     const s = d.big, dm = demand(s), p = s.price, slope = dm.A - 2 * dm.k * p;
     return {
-      why: 'The slope of the takings curve tells you whether a price rise helps or hurts, and differentiation gives it.',
+      why: 'The slope of the revenue curve tells you whether a price rise helps or hurts, and differentiation gives it.',
       steps: [
-        { say: ['The takings from ' + s.name + ' were $R = -' + m2(dm.k) + 'p^2 + ' + m2(dm.A) + 'p$.', 'The question the board asks is: "if we add £1 to the price, do takings go up or down, and by how much?"', 'That is a rate of change, and the rate of change of a curve at a point is its gradient.'] },
+        { say: ['The revenue from ' + s.name + ' were $R = -' + m2(dm.k) + 'p^2 + ' + m2(dm.A) + 'p$.', 'The question the board asks is: "if we add £1 to the price, does revenue goes up or down, and by how much?"', 'That is a rate of change, and the rate of change of a curve at a point is its gradient.'] },
         { say: ['The derivative $\\frac{dR}{dp}$ is the gradient function. For powers there is one rule to learn:'], maths: '$\\frac{d}{dp}(p^n) = np^{n-1}$' },
         { say: ['Multiply by the power, then reduce the power by one.', 'So $p^2$ becomes $2p$, and $p$ (which is $p^1$) becomes $1$.', 'A constant disappears, and a number multiplying a term just stays.'] },
-        { say: ['Apply it term by term to the takings.'], maths: '$\\frac{dR}{dp} = -2 \\times ' + m2(dm.k) + 'p + ' + m2(dm.A) + ' = ' + m2(dm.A) + ' - ' + m2(2 * dm.k) + 'p$' },
+        { say: ['Apply it term by term to the revenue.'], maths: '$\\frac{dR}{dp} = -2 \\times ' + m2(dm.k) + 'p + ' + m2(dm.A) + ' = ' + m2(dm.A) + ' - ' + m2(2 * dm.k) + 'p$' },
         { say: ['Now put in the price you charge today, $p = ' + p + '$.'], maths: '$\\frac{dR}{dp} = ' + m2(dm.A) + ' - ' + m2(2 * dm.k) + ' \\times ' + p + ' = ' + m2(slope) + '$' },
-        { say: [slope > 0 ? 'The gradient is positive, so takings are still rising: another £1 on the price would bring in about £' + m2(slope) + ' more.' : 'The gradient is negative, so takings are falling: another £1 would cost you about £' + m2(-slope) + '.', 'Where the gradient is zero, you are at the top.'] },
+        { say: [slope > 0 ? 'The gradient is positive, so revenue is still rising: another £1 on the price would bring in about £' + m2(slope) + ' more.' : 'The gradient is negative, so revenue is falling: another £1 would cost you about £' + m2(-slope) + '.', 'Where the gradient is zero, you are at the top.'] },
       ],
-      ask: { q: 'Differentiate $R = -' + m2(dm.k) + 'p^2 + ' + m2(dm.A) + 'p$ and find $\\frac{dR}{dp}$ at $p = ' + p + '$ (the current price of ' + s.name + ').', kind: 'number', answer: slope, unit: '£ per £1', tol: 0.06, rubric: 'Correct ' + m2(slope) + ' (A − 2kp). Accept within 0.06.', worked: ['$\\frac{dR}{dp} = ' + m2(dm.A) + ' - ' + m2(2 * dm.k) + 'p$.', 'At $p = ' + p + '$ this is ' + m2(slope) + '.'], apply: price(s, p + (slope > 0 ? 1 : -1), (slope > 0 ? 'Takings are rising with price: raise ' : 'Takings are falling with price: cut ') + s.name + ' by £1') },
+      ask: { q: 'Differentiate $R = -' + m2(dm.k) + 'p^2 + ' + m2(dm.A) + 'p$ and find $\\frac{dR}{dp}$ at $p = ' + p + '$ (the current price of ' + s.name + ').', kind: 'number', answer: slope, unit: '£ per £1', tol: 0.06, rubric: 'Correct ' + m2(slope) + ' (A − 2kp). Accept within 0.06.', worked: ['$\\frac{dR}{dp} = ' + m2(dm.A) + ' - ' + m2(2 * dm.k) + 'p$.', 'At $p = ' + p + '$ this is ' + m2(slope) + '.'], apply: price(s, p + (slope > 0 ? 1 : -1), (slope > 0 ? 'Revenue is rising with price: raise ' : 'Revenue is falling with price: cut ') + s.name + ' by £1') },
       next: 'If the gradient is zero at the top, can you find the price where that happens? That is optimisation.',
     };
   };
@@ -49,16 +49,16 @@
   L['p-optimise'] = (d) => {
     const s = d.big, dm = demand(s), ps = dm.pStar, top = dm.R(ps);
     return {
-      why: 'The best ticket price is where takings stop rising and start falling: a stationary point.',
+      why: 'The best ticket price is where revenue stops rising and start falling: a stationary point.',
       steps: [
-        { say: ['For ' + s.name + ' the takings are $R = -' + m2(dm.k) + 'p^2 + ' + m2(dm.A) + 'p$, and the gradient is $\\frac{dR}{dp} = ' + m2(dm.A) + ' - ' + m2(2 * dm.k) + 'p$.', 'At the top of the curve the gradient is zero. Set it to zero.'], maths: '$' + m2(dm.A) + ' - ' + m2(2 * dm.k) + 'p = 0$' },
+        { say: ['For ' + s.name + ' the revenue is $R = -' + m2(dm.k) + 'p^2 + ' + m2(dm.A) + 'p$, and the gradient is $\\frac{dR}{dp} = ' + m2(dm.A) + ' - ' + m2(2 * dm.k) + 'p$.', 'At the top of the curve the gradient is zero. Set it to zero.'], maths: '$' + m2(dm.A) + ' - ' + m2(2 * dm.k) + 'p = 0$' },
         { say: ['Solve for $p$.'], maths: '$p = \\frac{' + m2(dm.A) + '}{' + m2(2 * dm.k) + '} = ' + m2(ps) + '$' },
         { say: ['A gradient of zero could be a top or a bottom, so check with the second derivative.', 'Differentiate again: $\\frac{d^2R}{dp^2} = -' + m2(2 * dm.k) + '$.'], maths: '$\\frac{d^2R}{dp^2} = -' + m2(2 * dm.k) + ' < 0$' },
         { say: ['Negative means the curve is bending downwards, so it is a maximum. Good: that is a peak, not a dip.'] },
-        { say: ['The takings at that price:'], maths: '$R(' + m2(ps) + ') = ' + m2(ps) + '(' + m2(dm.A) + ' - ' + m2(dm.k) + ' \\times ' + m2(ps) + ') = ' + d.num(top) + '$' },
+        { say: ['The revenue at that price:'], maths: '$R(' + m2(ps) + ') = ' + m2(ps) + '(' + m2(dm.A) + ' - ' + m2(dm.k) + ' \\times ' + m2(ps) + ') = ' + d.num(top) + '$' },
         { say: ['Compare with today: at £' + s.price + ' the same model gives £' + d.num(dm.R(s.price)) + '.', 'So the best price is worth ' + (top > dm.R(s.price) ? 'about £' + d.num(top - dm.R(s.price)) + ' more per match' : 'the same, you are already at the top') + '.'] },
       ],
-      ask: { q: 'Find the ticket price for ' + s.name + ' that maximises the takings $R = -' + m2(dm.k) + 'p^2 + ' + m2(dm.A) + 'p$, to the nearest pound.', kind: 'number', answer: ps, unit: '£', tol: 0.5, rubric: 'Correct £' + m2(ps) + ' (accept £' + Math.round(ps) + '): set dR/dp = 0 and solve; ideally with a check that d²R/dp² < 0.', worked: ['$\\frac{dR}{dp} = ' + m2(dm.A) + ' - ' + m2(2 * dm.k) + 'p = 0$ gives $p = ' + m2(ps) + '$.', 'The second derivative is $-' + m2(2 * dm.k) + ' < 0$, so it is a maximum.'], apply: price(s, ps, 'Set ' + s.name + ' tickets to the best price, £' + Math.round(ps)) },
+      ask: { q: 'Find the ticket price for ' + s.name + ' that maximises the revenue $R = -' + m2(dm.k) + 'p^2 + ' + m2(dm.A) + 'p$, to the nearest pound.', kind: 'number', answer: ps, unit: '£', tol: 0.5, rubric: 'Correct £' + m2(ps) + ' (accept £' + Math.round(ps) + '): set dR/dp = 0 and solve; ideally with a check that d²R/dp² < 0.', worked: ['$\\frac{dR}{dp} = ' + m2(dm.A) + ' - ' + m2(2 * dm.k) + 'p = 0$ gives $p = ' + m2(ps) + '$.', 'The second derivative is $-' + m2(2 * dm.k) + ' < 0$, so it is a maximum.'], apply: price(s, ps, 'Set ' + s.name + ' tickets to the best price, £' + Math.round(ps)) },
       next: 'Would you like to see how the real game found the best price from your three matches, using an exponential curve instead of a straight line?',
     };
   };

@@ -1,0 +1,33 @@
+// The "football analogy" introduction shown above each pre-made lesson: what part of the sim the maths is about, and what its letters mean.
+(function () {
+  const FM = (window.FM = window.FM || {});
+  const I = (FM.knowledgeIntros = FM.knowledgeIntros || {});
+  const T = 'Every lesson in this course uses your own club. The Ticket prices screen is the main source: each stand has a price you set and a crowd that answers it, and price times seats sold is the revenue. ';
+  const M = 'The Match centre is the other source: every match you play gives shots, expected goals, possession and a score. ';
+  const set = (id, f) => { I[id] = f; };
+  set('g-ops', (d) => [T + 'Here the marketing budget is the sum.', 'A budget is built from several parts, and the order you work them out in matters, so we start with the rules for that order.']);
+  set('g-frac', (d) => [T + 'Each stand is a fraction of the whole ground: seats filled out of seats available.', 'Reading how full a stand is, and comparing two stands, is exactly what fractions are for.']);
+  set('g-pct', (d) => [T + 'A discount on tickets is a percentage of the price.', 'You will work out what a discount really costs the club and what it does to the revenue.']);
+  set('g-pctchange', (d) => [T + 'Crowds go up and down from one home match to the next, and the size of that move is a percentage change.', 'Clubs report it that way because it lets you compare a small stand and a big one fairly.']);
+  set('g-reversepct', (d) => ['Sometimes a number comes with the percentage already applied: a ticket price after a discount, a crowd after a fall. ' + T, 'Working back to the original is the reverse percentage problem.']);
+  set('g-ratio', (d) => ['A sponsor pays a lump sum that has to be shared: between the academy, the first team and the ground. A ratio is how you say how it splits. ' + T]);
+  set('g-rates', (d) => [T + 'Revenue per fan, and revenue per seat, are rates: money for each one of something.', 'A rate tells you whether your prices are working better than another stand\'s.']);
+  set('g-directprop', (d) => [T + 'At a fixed price, doubling the crowd doubles the revenue. That is direct proportion.', 'The price is the constant that turns a crowd into money.']);
+  set('g-lineareq', (d) => [T + 'A club has costs to cover. Finding the number of fans, or the price, that just covers them is an equation.', 'Solving it means undoing steps in the right order.']);
+  set('g-formulae', (d) => [T + 'The revenue formula links price, fans and money. Three letters, three questions.', 'Rearranging the formula lets one equation answer "how much money?", "what price?" and "how many fans?"']);
+  set('g-inequal', (d) => ['The marketing budget on the Finance screen has a ceiling set by what the club can afford each matchday. A ceiling is an inequality: spend at most this much.', 'Inequalities say a range of answers is allowed, not just one.']);
+  set('g-averages', (d) => [M + 'Your results so far are a list of numbers.', 'An average is how you say what a typical match looks like, and there are three different averages that answer slightly different questions.']);
+  set('g-scatter', (d) => [M + 'Every match has shots and goals. Do more shots really mean more goals?', 'A scatter graph puts one against the other so you can see whether they are linked, and how strongly.']);
+  set('g-probbasic', (d) => [M + 'Your record so far gives an estimate of how likely a win is next time.', 'Probability is the language for that, and the numbers must always add up to 1.']);
+  set('g-probtree', (d) => ['Two matches in a row are two chances, and what happens in the second can depend on the first. ' + M, 'A tree diagram keeps track of every path.']);
+  set('g-box', (d) => [T + 'Crowds vary from match to match.', 'The median and quartiles show what is typical and how spread out the crowds are, and a box plot draws them.']);
+  set('p-quadratics', (d) => [T + 'Here price is $p$, seats sold is $q$ and revenue is $R = pq$.', 'Because the crowd falls as the price rises, the revenue is a quadratic in the price: an upside-down U with a peak at the best ticket price.']);
+  set('p-optimise', (d) => [T + 'We use the same model as before: price $p$, seats sold $q = A - kp$, revenue $R = pq$.', 'The ticket price that earns the most is the peak of the revenue curve, and calculus finds it.']);
+  set('p-exp', (d) => [T + 'Here the thing that changes is the crowd across a season.', 'If good results lift the crowd by a fixed percentage each home match, the growth is exponential.']);
+  set('p-logs', (d) => [T + 'The question this time is "how many matches until the ground is full?"', 'That means solving for an unknown power, and logarithms are the tool that does it.']);
+  set('s-measures', (d) => [T + 'Crowds wobble from match to match. The mean says where they centre, the standard deviation says how much they wobble.', 'A club needs both to trust a revenue forecast.']);
+  set('s-binom', (d) => [M + 'Take the next five matches. Each is a win or not a win, with the same chance each time.', 'The number of wins is a binomial random variable.']);
+  set('s-hypbinom', (d) => [M + 'You change the tactics and win more. Was that skill or luck?', 'A hypothesis test asks how surprising the result would be if nothing had changed.']);
+  set('s-normal', (d) => [T + 'Crowds cluster around a typical size, with fewer very small and very large ones.', 'The normal distribution is the bell curve that describes that, and lets you ask "how likely is a sell-out?"']);
+  set('m-suvat', (d) => ['On the pitch, your fastest winger accelerates down the touchline. In the Match centre this is the pace rating in action.', 'Constant-acceleration motion has five quantities (distance, start speed, end speed, acceleration, time) and five formulas that link them.']);
+})();

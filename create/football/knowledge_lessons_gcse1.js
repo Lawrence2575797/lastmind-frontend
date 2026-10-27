@@ -163,10 +163,10 @@
   L['g-formulae'] = (d) => {
     const s = d.big, target = 150000, c = s.sold, p = Math.ceil(target / c);
     return {
-      why: 'The takings formula links price, fans and money, and rearranging it answers three different questions.',
+      why: 'The revenue formula links price, fans and money, and rearranging it answers three different questions.',
       steps: [
-        { say: ['The ' + s.name + ' takings follow a formula:'], maths: '$T = n \\times p$' },
-        { say: ['$T$ is the takings, $n$ is the number of fans and $p$ is the ticket price.', 'As it stands, it is a formula for $T$: the subject of the formula is $T$.', 'But the board asks a different question: "What price do we need?"'] },
+        { say: ['The ' + s.name + ' revenue follows a formula:'], maths: '$T = n \\times p$' },
+        { say: ['$T$ is the revenue, $n$ is the number of fans and $p$ is the ticket price.', 'As it stands, it is a formula for $T$: the subject of the formula is $T$.', 'But the board asks a different question: "What price do we need?"'] },
         { say: ['Rearranging means getting the letter you want on its own, doing the same to both sides.', '$p$ is multiplied by $n$, so divide both sides by $n$.'], maths: '$p = \\frac{T}{n}$' },
         { say: ['Now the same formula answers a new question without starting again.', 'And if the question is "how many fans do we need at this price?":'], maths: '$n = \\frac{T}{p}$' },
         { say: ['You are using the same relationship three ways. That is the power of a formula.', 'With a target of £' + d.num(target) + ' and ' + d.num(c) + ' fans, the price is $p = \\frac{' + target + '}{' + c + '} = ' + m(target / c) + '$.'] },
