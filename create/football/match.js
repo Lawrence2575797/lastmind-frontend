@@ -39,7 +39,7 @@
   };
   // Tackle: the defender's tackling against the carrier's dribbling.
   FM.tackleProb = function (defender, carrier, edge) {
-    return clampP(sig(-0.35 + 0.05 * (SK(defender, 'tackling') - SK(carrier, 'dribbling')) + 0.35 * (edge || 0)), 0.08, 0.88);
+    return clampP(sig((FM.TACKLE_BASE == null ? -0.1 : FM.TACKLE_BASE) + 0.05 * (SK(defender, 'tackling') - SK(carrier, 'dribbling')) + 0.35 * (edge || 0)), 0.08, 0.88);
   };
   // Expected goals from a shooting position: the wider the goal looks from there, the better the chance.
   FM.shotAngle = function (x, y, attackDir) {
@@ -1854,7 +1854,7 @@
           // touchline. Central challenges must leave the ball in play.
           if (ok && (c.player.y < 2.5 || c.player.y > W - 2.5) && match.rng() < 0.2) { startRestart(match, 'throw', team, clamp(c.player.x, 1, L - 1), c.player.y < W / 2 ? 0.5 : W - 0.5); break; }
           if (ok) { const lost = c.player; giveBall(match, opp, d, 0.9 + delayBeforeNextDecision(match, opp, d) * 0.4); match.regain = { player: lost, team, target: d, from: match.clock, until: match.clock + 2.6, count: 1 }; break; }
-          if (match.rng() < (0.06 + 0.1 * opp.tactics.tackleAggression + 0.002 * (60 - d.ratings.tackling) + 0.04 * FM.instrMods(d, false).tackle) * (inBox(team.attackDir, c.player.x, c.player.y) ? (FM.BOX_FOUL == null ? 0.35 : FM.BOX_FOUL) : 1)) { commitFoul(match, d, c.player, opp, team); break; }
+          if (match.rng() < (FM.FOUL_K == null ? 2.2 : FM.FOUL_K) * (0.06 + 0.1 * opp.tactics.tackleAggression + 0.002 * (60 - d.ratings.tackling) + 0.04 * FM.instrMods(d, false).tackle) * (inBox(team.attackDir, c.player.x, c.player.y) ? (FM.BOX_FOUL == null ? 0.35 : FM.BOX_FOUL) : 1)) { commitFoul(match, d, c.player, opp, team); break; }
         }
       }
     }

@@ -301,11 +301,13 @@
     }
     look.x += (tx - look.x) * k; look.z += (tz - look.z) * k; cam.x += (cx - cam.x) * k; cam.y += (cy - cam.y) * k; cam.z += (cz - cam.z) * k;
     camera.position.set(cam.x, cam.y, cam.z); camera.lookAt(look.x, ty, look.z);
+    if (FM.view3d && FM.view3d.debugCam) { const d = FM.view3d.debugCam; camera.position.set(d.x, d.y, d.z); camera.lookAt(d.lx, d.ly, d.lz); }   // a fixed camera for looking at one thing
     sun.position.set(look.x - 30, 70, look.z + 46); sun.target.position.set(look.x, 0, look.z);
   }
 
   FM.view3d = {
-    get ball() { return ballMesh; }, get cameraObj() { return camera; },
+    poseFor(m, teamId, number, type, dur, dir) { const e = findBy(m, teamId, number); setPose(e, type, dur || 1, dir || 1); return !!e; },   // for trying out the animations
+    get playersMap() { return players; }, get ball() { return ballMesh; }, get cameraObj() { return camera; },
     get ready() { return ready; }, get failed() { return failed; }, get mode() { return mode; },
     ensure(container) { host = container; if (ready) { if (renderer.domElement.parentElement !== host) host.appendChild(renderer.domElement); size(); return Promise.resolve(); } return load().then(() => { if (!ready) build(); size(); }); },
     setMode(m) { mode = m === 'stands' ? 'stands' : 'touchline'; size(); },
