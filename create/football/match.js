@@ -356,7 +356,7 @@
       }
       // Whatever the moment, a man with the ball is never sent back to his usual position: past the last defender he goes on, otherwise he holds.
       // A man clear through on goal runs on at the keeper; he is never sent back toward his usual position into the men chasing him.
-      if (!FM.NO_LATE && !ov.has(c.player) && clearThrough(match, c.team, c.player)) ov.set(c.player, { x: clamp(c.player.x + c.team.attackDir * 3, 1, L - 1), y: clamp(c.player.y + (W / 2 - c.player.y) * 0.08, 1, W - 1) });
+      if (!FM.NO_LATE && !ov.has(c.player) && clearThrough(match, c.team, c.player)) ov.set(c.player, { x: clamp(c.player.x + c.team.attackDir * (FM.THROUGH_RUN == null ? 9 : FM.THROUGH_RUN), 1, L - 1), y: clamp(c.player.y + (W / 2 - c.player.y) * 0.08, 1, W - 1) });
       // The carrier keeps possession where he is while turning or weighing a
       // pass. His generic phase position must never pull him backwards with
       // the ball simply because the rest of the team is resetting its shape.
@@ -846,6 +846,13 @@
       });
       if (dribbleOption) dribbleOption.score += (FM.FINAL_DRIB == null ? 0 : FM.FINAL_DRIB);
     }
+    // Clear through on goal (nobody between him and the keeper): he runs at goal and shoots. Laying it off sideways or back is not on.
+    if (through && carrier.group !== 'GK' && ownDepth0 > 0.6 && !options.some((o) => o.kind === 'carry')) options.push({ kind: 'carry', nearD, drive: true, score: 0.9 });   // even with a man on his heels he runs on at goal
+    if (through && carrier.group !== 'GK' && ownDepth0 > 0.6) options.forEach((o) => {
+      if (o.kind === 'pass' && (o.tx - carrier.x) * team.attackDir < 8) o.score -= 3;
+      else if (o.kind === 'carry') o.score += 1.5;
+      else if (o.kind === 'shoot') o.score += 0.6;
+    });
     if (RE && dribbleOption) dribbleOption.score += 0.35 * RE.dribble;
     // In his own third with a defender close, taking the man on is the last thing a defender wants to do.
     if (dribbleOption && zone === 'build' && nearD < 3.5) dribbleOption.score -= 0.5 * (1 - nearD / 3.5) * (1 + (1 - risk)) * (['GK', 'CB', 'FB'].indexOf(carrier.group) >= 0 ? 2.4 : ['DM', 'CM'].indexOf(carrier.group) >= 0 ? 1.5 : 1) * (FM.DRIBBLE_BUILD_PEN == null ? 1 : FM.DRIBBLE_BUILD_PEN);
@@ -872,7 +879,7 @@
     if (nearNow > 4 && !through && !drive) options.push({ kind: 'hold', score: .48 + .55 * live.patience - .4 * live.urgency - .2 * directness });
 
     if (coast > 0) options.forEach((o) => { if (o.kind === 'shoot' && o.score > 0) o.score *= 1 - 0.45 * coast; });
-    options.forEach((o) => { if (o.kind === 'shoot' && o.score > 0) o.score *= (FM.SHOT_K == null ? 0.75 : FM.SHOT_K); });
+    options.forEach((o) => { if (o.kind === 'shoot' && o.score > 0) o.score *= (FM.SHOT_K == null ? 0.68 : FM.SHOT_K); });
     if (RE && RE.shoot) options.forEach((o) => { if (o.kind === 'shoot' && o.score > 0) o.score *= clamp(1 + 0.9 * RE.shoot, 0.1, 2); });
 
     // Softmax: the manager's settings favour an action, but nothing is certain.
@@ -1918,6 +1925,10 @@
     if (pa) {
       if (pa.ang != null && match.clock >= pa.turnEnd && pa.player.turnTo !== undefined) pa.player.turnTo = undefined;   // turned: the wind-up goes on facing the target
       if (!match.carrier || match.carrier.player !== pa.player) { pa.player.turnTo = undefined; match.pendingAct = null; }
+      // He was lining up a sideways or back pass, but the last defender has been beaten while he did: he is through, so the pass is off and he decides again.
+      else if (pa.opt.kind === 'pass' && !match.forcePass && !match.restart && pa.player.group !== 'GK' && (pa.opt.tx - pa.player.x) * pa.team.attackDir < 8 && FM.toTeamSpace(pa.team.attackDir, pa.player.x, pa.player.y).d > 0.6 && !other(match, pa.team).players.some((o) => o.group !== 'GK' && (o.x - pa.player.x) * pa.team.attackDir > -1 && Math.abs(o.y - pa.player.y) < 24)) {
+        pa.player.turnTo = undefined; match.pendingAct = null; match.nextDecision = match.clock;
+      }
       else if (match.clock >= pa.release) {
         pa.player.turnTo = undefined; match.pendingAct = null;
         const o = pa.opt, lag = match.clock - pa.start;

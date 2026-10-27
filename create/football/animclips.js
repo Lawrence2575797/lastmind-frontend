@@ -56,7 +56,7 @@
 
   // ---- one-shot actions
   const ACT = {
-    kick: (e, dir) => ['kick1', 'kick2'], control: () => ['receive'], tackle: () => ['tackle3'], slide: () => ['tackle1'], challenge: () => ['tackle3'], stumble: () => ['transition'], header: () => ['header1', 'header2'], fall: () => ['trip'],
+    kick: (e, dir) => ['kick1', 'kick2'], control: () => ['receive'], slide: () => ['tackle1'], stumble: () => ['transition'], header: () => ['header1', 'header2'], fall: () => ['trip'],
   };
   const LEN = { receive: 0.95, tackle3: 1.0, tackle2: 1.0, tackle1: 1.7, header1: 1.1, header2: 1.1, gkDive1: 1.9, gkDive2: 1.9, transition: 0.7, trip: 1.5, kick1: 0.62, kick2: 0.55, strike: 0.7, penalty: 1.1, gkDropKick: 2.2, gkPass: 1.2, gkThrow: 2.0 };
   const ROOT = { tackle1: 1, tackle2: 1, trip: 1, gkDive1: 1, gkDive2: 1, standUp: 0 };   // clips whose own travel is used (a slide goes somewhere)
@@ -94,14 +94,14 @@
     // DIR is ordered from forward around through left; convert the angle to that order: 0 -> F, +45 -> Fd2 (left) ...
     const ang = th < 0 ? th + Math.PI * 2 : th, k = ang / (Math.PI / 4), j0 = Math.floor(k) % 8, j1 = (j0 + 1) % 8, u = k - Math.floor(k);
     const c0 = A.clips[DIR[j0]], c1 = A.clips[DIR[j1]], v0 = natSpeed(DIR[j0]), v1 = natSpeed(DIR[j1]), vn = v0 * (1 - u) + v1 * u, durB = c0.dur * (1 - u) + c1.dur * u;
-    const rate = clamp(sp / Math.max(0.5, vn), 0.2, 2.3);
+    const rate = clamp(sp / Math.max(0.5, vn), 0.2, 1.7);
     if (sp > 0.12) f.lp = ((f.lp || 0) + dt * rate / durB) % 1;
     const wLoco = smooth(0.2, 1.3, sp), idleName = gk ? 'gkIdle1' : 'idle', ci = A.clips[idleName];
     f.it = (f.it || Math.random() * 10) + dt;
     reset(L1); const acc = L1;
     if (wLoco > 0.001) { sampleInto(L2, c0, f.lp * c0.dur, true); accum(acc, L2, wLoco * (1 - u)); sampleInto(L2, c1, f.lp * c1.dur, true); accum(acc, L2, wLoco * u); }
     if (wLoco < 0.999) { sampleInto(L2, ci, f.it, true); accum(acc, L2, 1 - wLoco); }
-    finish(acc);
+    finish(acc); acc.hy *= (A.BOB == null ? 0.45 : A.BOB);   // the captured jog bobs more than a footballer running with purpose
     // one-shot actions blend over the top
     let wOS = 0, root = 0;
     if (e && e.os) {
