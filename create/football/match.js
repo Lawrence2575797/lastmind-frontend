@@ -326,7 +326,7 @@
       if (o.group === 'GK') continue;
       const dx = (o.x - p.x) * dir;
       if (dx < -1.5 || dx > reach) continue;
-      if (Math.abs(o.y - p.y) < 3 + 0.55 * Math.max(dx, 0)) return false;
+      if (Math.abs(o.y - p.y) < (FM.CONE_BASE == null ? 2.5 : FM.CONE_BASE) + (FM.CONE_SLOPE == null ? 0.42 : FM.CONE_SLOPE) * Math.max(dx, 0)) return false;
     }
     return true;
   }
@@ -668,7 +668,20 @@
     return { pressure, forwardOpening, chase, counter, directBoost, urgency, patience };
   }
 
+  // a record of what players in the final third chose, for tuning (FM.DBG = {} switches it on)
   function chooseAction(match, team, carrier) {
+    const opt = chooseActionInner(match, team, carrier);
+    if (FM.DBG) {
+      const depth = FM.toTeamSpace(team.attackDir, carrier.x, carrier.y).d;
+      if (depth > 0.72 && carrier.group !== 'GK') {
+        const clr = clearAhead(match, team, carrier, 9), nd = nearestOpponent(match, team, carrier).d;
+        const k = opt.kind + (opt.kind === 'pass' ? ((opt.tx - carrier.x) * team.attackDir < 5 ? ':side/back' : ':forward') : '');
+        const key = (clr ? 'clear' : 'covered') + '|' + (nd > 2.2 ? 'free' : 'pressed') + '|' + k; FM.DBG[key] = (FM.DBG[key] || 0) + 1;
+      }
+    }
+    return opt;
+  }
+  function chooseActionInner(match, team, carrier) {
     const tac = team.tactics;
     const rng = match.rng;
     const role = carrier.roleId;
@@ -822,6 +835,17 @@
     }
 
     if (drive && ownDepth0 > 0.7) options.forEach((o) => { if (o.kind === 'pass' && (o.tx - carrier.x) * team.attackDir < 5) o.score -= (FM.DRIVE_PASS_PEN == null ? 1.3 : FM.DRIVE_PASS_PEN); });
+    // In the final third a pass sideways or back is the safe choice and the one a player makes when he has run out of ideas; a forward player is
+    // expected to try something: take the man on, play it forward, shoot. So sideways and back passes there lose a little, and a take-on gains a little.
+    if (ownDepth0 > 0.72 && carrier.group !== 'GK') {
+      // free: nobody within a few metres, so there is time and room to run at them; pressed: he is being closed down and may need to lay it off
+      const freeK = nearD > (FM.FREE_ND == null ? 3.2 : FM.FREE_ND) ? 1 : 0;
+      options.forEach((o) => {
+        if (o.kind === 'pass' && (o.tx - carrier.x) * team.attackDir < 5 && !through) o.score -= (FM.FINAL_SIDE_PEN == null ? 0.15 : FM.FINAL_SIDE_PEN) + freeK * (FM.FREE_SIDE_PEN == null ? 0.5 : FM.FREE_SIDE_PEN);
+        if (o.kind === 'carry' && freeK) o.score += (FM.FREE_CARRY == null ? 0.4 : FM.FREE_CARRY);
+      });
+      if (dribbleOption) dribbleOption.score += (FM.FINAL_DRIB == null ? 0 : FM.FINAL_DRIB);
+    }
     if (RE && dribbleOption) dribbleOption.score += 0.35 * RE.dribble;
     // In his own third with a defender close, taking the man on is the last thing a defender wants to do.
     if (dribbleOption && zone === 'build' && nearD < 3.5) dribbleOption.score -= 0.5 * (1 - nearD / 3.5) * (1 + (1 - risk)) * (['GK', 'CB', 'FB'].indexOf(carrier.group) >= 0 ? 2.4 : ['DM', 'CM'].indexOf(carrier.group) >= 0 ? 1.5 : 1) * (FM.DRIBBLE_BUILD_PEN == null ? 1 : FM.DRIBBLE_BUILD_PEN);
@@ -848,6 +872,7 @@
     if (nearNow > 4 && !through && !drive) options.push({ kind: 'hold', score: .48 + .55 * live.patience - .4 * live.urgency - .2 * directness });
 
     if (coast > 0) options.forEach((o) => { if (o.kind === 'shoot' && o.score > 0) o.score *= 1 - 0.45 * coast; });
+    options.forEach((o) => { if (o.kind === 'shoot' && o.score > 0) o.score *= (FM.SHOT_K == null ? 0.75 : FM.SHOT_K); });
     if (RE && RE.shoot) options.forEach((o) => { if (o.kind === 'shoot' && o.score > 0) o.score *= clamp(1 + 0.9 * RE.shoot, 0.1, 2); });
 
     // Softmax: the manager's settings favour an action, but nothing is certain.

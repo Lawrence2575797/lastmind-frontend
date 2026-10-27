@@ -227,41 +227,60 @@
   // Standing, walking, jogging, sprinting: one blend. Idle is an athletic stance (knees soft, arms loose, weight shifting), the run leans into its
   // speed and its turns, the arms drive against the legs, the shoulders turn against the hips, and the head stays on the ball.
   function animate(f, st, dt, t) {
-    const sp = st.speed, amp = Math.min(sp / 5.2, 1.3), run = clamp(sp / 1.4, 0, 1);
-    f.phase += dt * (sp < 0.25 ? 0 : 2.4 + sp * 1.05);
-    const s = Math.sin(f.phase), c = Math.cos(f.phase), A = 0.8 * amp, sw = Math.sin(t * 0.7 + f.sway);
+    // Stepping is tied to ground covered: each step is as long as the speed needs (a walk is short steps, a sprint long ones), so the feet are not left
+    // sliding, and the leg swing is the size that step needs. Each player has his own stride, so a team does not run in step.
+    const vf = st.vf, vs = st.vs, sp = Math.hypot(vf, vs), spg = Math.max(sp, clamp(Math.abs(st.turn) * 0.28, 0, 1.2));   // turning on the spot shuffles the feet
+    const run = smooth(0.12, 1.1, spg), sK = f.strideK || 1;
+    const stepLen = clamp(0.42 + 0.14 * spg, 0.45, 1.55) * sK;
+    if (spg > 0.12) f.phase += dt * Math.PI * spg / stepLen;
+    const s = Math.sin(f.phase), c = Math.cos(f.phase), sw = Math.sin(t * 0.7 + f.sway);
+    const fwdF = sp > 0.05 ? Math.abs(vf) / sp : (spg > 0.12 ? 1 : 1), sideF = 1 - fwdF, dirS = vf >= 0 ? 1 : -1, latS = vs >= 0 ? 1 : -1;
+    const A = Math.asin(clamp(stepLen / 1.7, 0, 0.92)) * (vf >= 0 ? 1 : 0.62) * (0.4 + 0.6 * fwdF);
+    const B = 0.46 * sideF * Math.min(sp / 2.2, 1);
+    const brake = clamp(-st.accel - 1, 0, 6), launch = clamp(st.accel - 1, 0, 6);
     // legs
-    const hipL = -s * A, hipR = s * A, kneeL = Math.max(0, Math.sin(f.phase + 1.6)) * (1.05 * amp) + 0.04, kneeR = Math.max(0, Math.sin(f.phase + 1.6 + Math.PI)) * (1.05 * amp) + 0.04;
-    f.L.hip.rotation.x = mix(0.07 + 0.02 * sw, hipL, run); f.R.hip.rotation.x = mix(-0.03 - 0.02 * sw, hipR, run);
+    const kBase = clamp(0.35 + 0.2 * spg, 0.35, 1.45) * (0.45 + 0.55 * fwdF), kneeL = Math.max(0, Math.sin(f.phase + 1.6)) * kBase + 0.06 + brake * 0.05, kneeR = Math.max(0, Math.sin(f.phase + 1.6 + Math.PI)) * kBase + 0.06 + brake * 0.05;
+    f.L.hip.rotation.x = mix(0.07 + 0.02 * sw, -s * A * dirS, run); f.R.hip.rotation.x = mix(-0.03 - 0.02 * sw, s * A * dirS, run);
     f.L.knee.rotation.x = mix(0.14, kneeL, run); f.R.knee.rotation.x = mix(0.1, kneeR, run);
-    f.L.hip.rotation.z = mix(0.05, 0, run); f.R.hip.rotation.z = mix(-0.05, 0, run);
+    // sideways steps (a defender shuffling across): the leading leg opens out, the trailing one follows in
+    f.L.hip.rotation.z = mix(0.05, 0.03 + latS * B * Math.max(0, -s), run); f.R.hip.rotation.z = mix(-0.05, -0.03 + latS * B * Math.max(0, s), run);
     // arms
-    f.L.arm.rotation.x = mix(0.12 + 0.03 * sw, s * 0.78 * amp, run); f.R.arm.rotation.x = mix(0.12 - 0.03 * sw, -s * 0.78 * amp, run);
-    f.L.arm.rotation.z = mix(0.1, 0.05, run); f.R.arm.rotation.z = mix(-0.1, -0.05, run);
+    const swing = clamp(0.12 + 0.1 * spg, 0.12, 0.88) * (0.4 + 0.6 * fwdF);
+    f.L.arm.rotation.x = mix(0.12 + 0.03 * sw, s * swing * dirS, run); f.R.arm.rotation.x = mix(0.12 - 0.03 * sw, -s * swing * dirS, run);
+    f.L.arm.rotation.z = mix(0.1, 0.05 + 0.1 * sideF, run); f.R.arm.rotation.z = mix(-0.1, -0.05 - 0.1 * sideF, run);
+    const bend = mix(0.35, clamp(0.3 + 0.07 * spg * 5, 0.5, 1.25), run);
+    f.L.elbow.rotation.x = -(bend + 0.1 * Math.max(0, -s) * run); f.R.elbow.rotation.x = -(bend + 0.1 * Math.max(0, s) * run);
     // feet: toe up as the leg swings through, toe down as it pushes off; hands loosely closed
     f.L.ankle.rotation.x = run * (0.35 * Math.sin(f.phase + 0.8) - 0.08); f.R.ankle.rotation.x = run * (-0.35 * Math.sin(f.phase + 0.8) - 0.08);
     f.L.hand.rotation.x = -0.25 * run; f.R.hand.rotation.x = -0.25 * run;
-    const bend = mix(0.35, 0.65 + 0.55 * Math.min(amp, 1), run);
-    f.L.elbow.rotation.x = -(bend + 0.1 * Math.max(0, -s) * run); f.R.elbow.rotation.x = -(bend + 0.1 * Math.max(0, s) * run);
-    // trunk: lean into speed and acceleration, bank into a turn, twist against the hips
-    const lean = 0.05 + 0.2 * Math.min(amp, 1.1) + clamp(st.accel, -3, 3) * 0.018;
-    f.bank += (clamp(-st.turn * 0.06, -0.3, 0.3) * Math.min(amp, 1) - f.bank) * Math.min(1, dt * 8);
-    f.body.rotation.x = lean; f.body.rotation.z = f.bank + s * 0.03 * amp * run; f.body.rotation.y = s * 0.11 * amp * run; f.body.position.set(0.015 * sw * (1 - run), Math.abs(c) * 0.055 * amp + Math.sin(t * 1.7 + f.phase) * 0.004 * (1 - run), 0);
-    f.torso.rotation.y = -s * 0.2 * amp * run; f.torso.rotation.z = -f.bank * 0.4; f.torso.rotation.x = 0;
+    // trunk: lean into speed and into a push-off, back when braking, bank into a turn, shoulders twist against the hips
+    const lean = (0.02 + clamp(0.03 * sp, 0, 0.27)) * fwdF * dirS + (dirS < 0 ? -0.03 : 0) + launch * 0.022 - brake * 0.024;
+    f.bank += (clamp(-st.turn * 0.06, -0.3, 0.3) * Math.min(sp / 4, 1) - f.bank) * Math.min(1, dt * 8);
+    const bob = Math.abs(c) * clamp(0.011 * spg, 0, 0.065) * run;
+    f.body.rotation.x = lean; f.body.rotation.z = f.bank + s * clamp(0.006 * spg, 0, 0.035) * run; f.body.rotation.y = s * clamp(0.025 * spg, 0, 0.13) * run;
+    f.body.position.set(0.015 * sw * (1 - run) + s * 0.012 * run, bob + Math.sin(t * 1.7 + f.phase) * 0.004 * (1 - run) - brake * 0.012, 0);
+    f.torso.rotation.y = -s * clamp(0.045 * spg, 0, 0.22) * run; f.torso.rotation.z = -f.bank * 0.4; f.torso.rotation.x = 0;
     f.body.scale.y = 1;
-    // head: looks at the ball within what a neck allows, and up from the lean
+    // head: on the ball within what a neck allows, with now and then a glance away when standing
     f.look += (clamp(st.look, -1.25, 1.25) - f.look) * Math.min(1, dt * 9);
-    f.headG.rotation.y = -f.look + s * 0.03 * amp; f.headG.rotation.x = -lean * 0.8 + 0.04; f.headG.rotation.z = 0;
+    const scan = Math.sin(t * 0.45 + f.sway * 2) * Math.max(0, Math.sin(t * 0.13 + f.sway)) * 0.32 * (1 - run);
+    f.headG.rotation.y = -f.look + scan + s * 0.025 * run; f.headG.rotation.x = -lean * 0.8 + 0.04; f.headG.rotation.z = 0;
   }
   const ease = (k) => 1 - Math.pow(1 - clamp(k, 0, 1), 2);
   function applyPose(f, type, t, dur, dir) {
     const k = Math.min(1, t / dur), s = Math.sin(Math.PI * k), e = Math.min(1, k * 3);
     if (type === 'kick') {
-      // plant, wind up, strike through the ball, follow through
+      // plant, wind up, strike through the ball, follow through; with the left foot for a left-footed player
+      const Kf = dir < 0 ? f.L : f.R, Pf = dir < 0 ? f.R : f.L, sg = dir < 0 ? -1 : 1;
       const kk = Math.min(1, t / 0.42), back = kk < 0.3 ? kk / 0.3 : 1 - Math.min(1, (kk - 0.3) / 0.12), strike = kk < 0.3 ? 0 : Math.min(1, (kk - 0.3) / 0.16), fol = kk < 0.46 ? 0 : Math.min(1, (kk - 0.46) / 0.54);
-      f.R.hip.rotation.x = 0.85 * back - 1.35 * strike * (1 - 0.35 * fol); f.R.knee.rotation.x = 1.5 * back * (1 - strike) + 0.12 + 0.5 * fol;
-      f.L.knee.rotation.x = 0.32; f.L.hip.rotation.x = 0.1; f.torso.rotation.y = -0.4 * Math.sin(Math.PI * Math.min(1, kk * 1.2));
+      Kf.hip.rotation.x = 0.85 * back - 1.35 * strike * (1 - 0.35 * fol); Kf.knee.rotation.x = 1.5 * back * (1 - strike) + 0.12 + 0.5 * fol;
+      Pf.knee.rotation.x = 0.32; Pf.hip.rotation.x = 0.1; f.torso.rotation.y = -0.4 * sg * Math.sin(Math.PI * Math.min(1, kk * 1.2));
       f.body.rotation.x = -0.05 + 0.1 * strike; f.L.arm.rotation.z = 0.7 * s; f.R.arm.rotation.z = -0.55 * s; f.L.arm.rotation.x = -0.4 * s; f.R.arm.rotation.x = 0.3 * s;
+    } else if (type === 'control') {
+      // a cushioned first touch: the foot goes out to meet the ball and gives with it, the head drops to watch it, the arms balance
+      const Kf = dir < 0 ? f.L : f.R, Pf = dir < 0 ? f.R : f.L, h = Math.sin(Math.PI * Math.min(1, k * 1.15));
+      Kf.hip.rotation.x = -0.6 * h; Kf.knee.rotation.x = 0.5 * h + 0.1; Pf.knee.rotation.x += 0.25 * h; f.body.rotation.x -= 0.06 * h; f.headG.rotation.x += 0.28 * h;
+      f.L.arm.rotation.z = 0.35 * h; f.R.arm.rotation.z = -0.35 * h; f.body.position.y -= 0.03 * h;
     } else if (type === 'tackle') {
       f.R.hip.rotation.x = -1.0 * s; f.R.knee.rotation.x = 0.15; f.L.knee.rotation.x = 0.55 * s + 0.1; f.body.rotation.x = 0.28 * s; f.body.position.y -= 0.06 * s; f.L.arm.rotation.z = 0.6 * s; f.R.arm.rotation.z = -0.6 * s;
     } else if (type === 'slide') {
@@ -339,7 +358,7 @@
         if (e) scene.remove(e.fig.root);
         const kit = kitOf(team, p.group === 'GK'), h = (p.number * 37) % 9;
         const fig = makeFigure({ ...kit, num: p.number, skin: SKIN[(p.number * 5 + ti * 2) % SKIN.length], hair: HAIR[(p.number * 3 + ti) % HAIR.length], style: STYLE[(p.number * 7 + ti * 3) % 8], height: 0.96 + h / 100, build: 0.95 + ((p.number * 13) % 7) / 55 });
-        e = { fig, team, p, pose: null, speed: 0, turn: 0, accel: 0, lastF: null, lastSp: 0, kitKey: (team.kit && team.kit.shirt) + (p.group === 'GK') }; players.set(p.id, e); scene.add(fig.root);
+        fig.strideK = 0.93 + ((p.number * 29) % 13) / 100; e = { fig, team, p, pose: null, speed: 0, vx: 0, vz: 0, hd: null, wasC: false, foot: (p.number * 7) % 4 === 0 ? -1 : 1, turn: 0, accel: 0, lastF: null, lastSp: 0, kitKey: (team.kit && team.kit.shirt) + (p.group === 'GK') }; players.set(p.id, e); scene.add(fig.root);
       }
       e.team = team; e.p = p; e.fig.root.visible = true;
     }));
@@ -352,7 +371,7 @@
     if (ev.length < lastEvLen || ev[ev.length - 1].t < lastEv - 5) { lastEv = ev[ev.length - 1].t; lastEvLen = ev.length; return; }
     for (let i = Math.max(0, ev.length - 12); i < ev.length; i++) {
       const e = ev[i]; if (e.t <= lastEv || e.t < m.clock - 8) continue;
-      const k = e.type; if (k === 'pass' || k === 'shot' || k === 'cross') setPose(findBy(m, e.team, e.from || e.player), 'kick', 0.42);
+      const k = e.type; if (k === 'pass' || k === 'shot' || k === 'cross') { const ke = findBy(m, e.team, e.from || e.player); setPose(ke, 'kick', 0.42, ke ? ke.foot : 1); }
       if (k === 'shot') { const shooterT = m.teams.find((t) => t.id === e.team), def = m.teams.find((t) => t.id !== e.team), gk = def && def.players.find((p) => p.group === 'GK'), ge = gk && players.get(gk.id); if (ge && (e.outcome === 'saved' || e.outcome === 'goal')) { const lat = (e.ey != null ? e.ey : m.ball.y) - gk.y; setPose(ge, 'dive', 0.9, lat >= 0 ? -1 : 1); } void shooterT; }
       if (k === 'tackle') {
         // a scrap is shoulder to shoulder; a man at speed may go to ground for it; otherwise a standing challenge. The loser of it stumbles.
@@ -416,13 +435,23 @@
       ensurePlayers(m); readEvents(m);
       m.teams.forEach((team) => team.players.forEach((p) => {
         const e = players.get(p.id); if (!e) return; const rp = (ctx && ctx.renderPos && ctx.renderPos.get(p.id)) || { x: p.x, y: p.y, facing: p.facing || 0 };
-        const x = rp.x - HL, z = rp.y - HW, lp = lastPos.get(p.id), sp = lp ? Math.hypot(x - lp.x, z - lp.z) / Math.max(dt, 0.001) : 0; lastPos.set(p.id, { x, z });
-        e.speed += (sp - e.speed) * Math.min(1, dt * 8); e.fig.root.position.set(x, 0, z); e.fig.root.scale.setScalar(1.3);   // the players are drawn larger than life so they read at this distance
-        e.fig.root.rotation.y = Math.PI / 2 - (Number.isFinite(rp.facing) ? rp.facing : 0);
-        { const fc = Number.isFinite(rp.facing) ? rp.facing : 0, dF = e.lastF == null ? 0 : angDiff(e.lastF, fc); e.lastF = fc;
+        const x = rp.x - HL, z = rp.y - HW, lp = lastPos.get(p.id), k8 = Math.min(1, dt * 8);
+        const rvx = lp ? (x - lp.x) / Math.max(dt, 0.001) : 0, rvz = lp ? (z - lp.z) / Math.max(dt, 0.001) : 0; lastPos.set(p.id, { x, z });
+        e.vx += (clamp(rvx, -12, 12) - e.vx) * k8; e.vz += (clamp(rvz, -12, 12) - e.vz) * k8; e.speed += (Math.hypot(e.vx, e.vz) - e.speed) * k8;
+        e.fig.root.position.set(x, 0, z); e.fig.root.scale.setScalar(1.3);   // the players are drawn larger than life so they read at this distance
+        // Which way he faces. Running, he faces where he is going; jogging or walking without the ball he keeps the ball in front of him and moves
+        // sideways or back as he needs to, as a defender does. With the ball he faces his run.
+        const isC = !!(m.carrier && m.carrier.player === p), fc = Number.isFinite(rp.facing) ? rp.facing : 0, ab = Math.atan2(lastBall.z - z, lastBall.x - x);
+        const wBall = isC ? 0 : 0.72 * (1 - smooth(1.6, 4.6, e.speed)), target = fc + angDiff(fc, ab) * wBall;
+        e.hd = e.hd == null ? target : e.hd + angDiff(e.hd, target) * Math.min(1, dt * 9);
+        e.fig.root.rotation.y = Math.PI / 2 - e.hd;
+        { const dF = e.lastF == null ? 0 : angDiff(e.lastF, e.hd); e.lastF = e.hd;
           e.turn += (clamp(dF / Math.max(dt, 0.001), -9, 9) - e.turn) * Math.min(1, dt * 6);
           e.accel += (clamp((e.speed - e.lastSp) / Math.max(dt, 0.001), -12, 12) - e.accel) * Math.min(1, dt * 5); e.lastSp = e.speed;
-          animate(e.fig, { speed: Math.min(e.speed, 9), turn: e.turn, accel: e.accel, look: angDiff(fc, Math.atan2(lastBall.z - z, lastBall.x - x)) }, dt, clock); }
+          const ch = Math.cos(e.hd), sh = Math.sin(e.hd);
+          animate(e.fig, { vf: e.vx * ch + e.vz * sh, vs: e.vx * sh - e.vz * ch, turn: e.turn, accel: e.accel, look: angDiff(e.hd, ab) }, dt, clock); }
+        // the first touch: a man who has just received the ball cushions it
+        if (isC && !e.wasC && e.speed < 8) setPose(e, 'control', 0.5, e.foot); e.wasC = isC;
         if (e.pose) { e.pose.t += dt; if (e.pose.t >= e.pose.dur) e.pose = null; else applyPose(e.fig, e.pose.type, e.pose.t, e.pose.dur, e.pose.dir); }
       }));
       let bx = ((ctx && ctx.renderBall) || m.ball).x - HL, bz = ((ctx && ctx.renderBall) || m.ball).y - HW, by = ballHeight(m, bx, bz);
