@@ -10,6 +10,7 @@
 
   let uid = 0;
   FM.knowledgeDiagram = function (s) {
+    if (s.pitch && FM.knowledgePitch) return FM.knowledgePitch(s);
     const cid = 'kdc' + (++uid);
     const W = s.w || 560, H = s.h || 300, ml = 58, mr = 18, mt = 16, mb = 42, pw = W - ml - mr, ph = H - mt - mb;
     const [x0, x1] = s.x, [y0, y1] = s.y;

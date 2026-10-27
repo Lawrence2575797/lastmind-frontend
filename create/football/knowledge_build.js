@@ -37,6 +37,8 @@
     plan: (phase, key, value, say) => ({ kind: 'plan', phase, key, value, say }),
     // a tactical dial moved to a value (metres, or a 0-1 setting); say explains why
     dial: (id, value, say) => ({ kind: 'control', action: 'setDial', params: { dial: id, value }, say }),
+    // several changes from one answer: tactical dials and club business together; note is the expected effect in words
+    both: (say, note, acts) => ({ kind: 'multi', say, note, acts }),
     when: (cond, ifYes, ifNo) => (cond ? ifYes : ifNo),
   };
   // ----- the shape of a question

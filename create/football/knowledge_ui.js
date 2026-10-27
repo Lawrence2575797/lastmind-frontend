@@ -93,6 +93,8 @@
 
   // What a ticket-price change is worth on the model the lessons use (about 9% fewer fans for every 10% on the price): revenue from the stand per home match
   function impactOf(ap) {
+    if (ap && ap.kind === 'multi') return [ap.note || ''].concat(ap.acts.map(impactOf)).filter(Boolean).join(' ');
+    if (ap && ap.kind === 'dial') return ap.note || '';
     if (!ap || ap.kind !== 'control' || ap.action !== 'setTicketPrice' || !S || !S.d) return '';
     const st = S.d.stands.find((x) => x.id === ap.params.stand); if (!st) return '';
     const pm = FM.knowledgePriceModel ? FM.knowledgePriceModel(st) : null, k = 0.9 * st.sold / st.price, A = st.sold + k * st.price, R = pm ? pm.revenue : (p) => Math.max(0, p * (A - k * p)), now = R(st.price), then = R(ap.params.price), dd = then - now;
@@ -102,6 +104,7 @@
   // ---------- applying an answer to the game ----------
   function applyAction(ap) {
     const lg = S.lg;
+    if (ap && ap.kind === 'multi') { const rs = ap.acts.map(applyAction); return { ok: rs.every((r) => r.ok), text: rs.map((r) => r.text).join(' ') }; }
     try {
       if (ap.kind === 'control') { const r = FM.controls.run(lg, ap.action, ap.params, 'lesson'); if (S.opts.save) S.opts.save(); return { ok: r.ok, text: r.text || (r.ok ? 'Done.' : 'That could not be done.') }; }
       if (ap.kind === 'plan') {
