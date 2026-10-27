@@ -136,7 +136,7 @@
       thighU: new THREE.CylinderGeometry(0.083, 0.07, 0.22, 12), thighL: new THREE.CylinderGeometry(0.07, 0.056, 0.2, 12), shin: new THREE.CylinderGeometry(0.052, 0.04, 0.4, 12), boot: new THREE.BoxGeometry(0.1, 0.07, 0.27),
       upper: new THREE.CylinderGeometry(0.054, 0.047, 0.29, 10), fore: new THREE.CylinderGeometry(0.044, 0.036, 0.26, 10), sph: new THREE.SphereGeometry(1, 16, 12), torso: new THREE.CylinderGeometry(0.205, 0.165, 0.56, 16), shorts: new THREE.CylinderGeometry(0.175, 0.19, 0.2, 16), neck: new THREE.CylinderGeometry(0.045, 0.052, 0.1, 10),
     };
-    renderer = new THREE.WebGLRenderer({ antialias: true });
+    try { renderer = new THREE.WebGLRenderer({ antialias: true }); } catch (e1) { renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'low-power' }); }
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2)); renderer.outputEncoding = THREE.sRGBEncoding; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.08;
     renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap; host.appendChild(renderer.domElement); renderer.domElement.style.cssText = 'display:block;width:100%;height:100%';
     scene = new THREE.Scene(); scene.background = new THREE.Color(0x0a100d); scene.fog = new THREE.Fog(0x0a100d, 150, 330);

@@ -321,11 +321,11 @@
   try { world.viewMode = localStorage.getItem('lm_football_view') || '2d'; } catch (e) { world.viewMode = '2d'; }
   function applyViewMode() {
     const v = world.viewMode, three = v === 'touchline' || v === 'stands', host = el('pitch3d'), sel = el('viewMode');
-    if (sel) sel.value = v;
+    if (sel) sel.value = v; { const note = el('viewNote'); if (note) note.textContent = ''; }
     canvas.hidden = three; if (host) host.hidden = !three;
     if (!three || !FM.view3d || !host) return;
     resize();
-    FM.view3d.ensure(host).then(() => { FM.view3d.setMode(v); world.view3dSnap = true; }).catch(() => { world.viewMode = '2d'; canvas.hidden = false; host.hidden = true; if (sel) sel.value = '2d'; });
+    FM.view3d.ensure(host).then(() => { FM.view3d.setMode(v); world.view3dSnap = true; }).catch((e) => { world.viewMode = '2d'; canvas.hidden = false; host.hidden = true; if (sel) sel.value = '2d'; const note = el('viewNote'); if (note) note.textContent = '3D could not start here (' + ((e && e.message) || 'unknown error') + '), so the 2D pitch is showing.'; try { console.error('3D view failed', e); } catch (x) { /* nothing to log to */ } });
   }
   function draw() {
     if ((world.viewMode === 'touchline' || world.viewMode === 'stands') && FM.view3d && FM.view3d.ready) {
