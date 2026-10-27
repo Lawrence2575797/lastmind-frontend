@@ -259,6 +259,18 @@
     const hipX_ = -(al + th1), kneeX = Math.PI - gam;
     return { hip: hipX_, knee: kneeX, ankle: -(th + hipX_ + kneeX) + toe, abd: clamp(Math.atan2(lx, -dy), -0.5, 0.5) };
   }
+  // A small note in the corner of the 3D view saying which movement is in use, so a failure to load the motion-captured clips is never silent.
+  let badge = null, badgeT = 0, badgeD = 0;
+  function motionBadge() {
+    const now = performance.now(); if (now - badgeT < 500 || !host) return; badgeT = now;
+    if (!badge || badge.parentElement !== host) { badge = document.createElement('div'); badge.id = 'motionBadge'; badge.style.cssText = 'position:absolute;left:8px;bottom:8px;z-index:5;padding:4px 9px;font:600 11.5px system-ui,sans-serif;border-radius:4px;pointer-events:none;max-width:70%'; host.appendChild(badge); }
+    const A = FM.anim; let txt, bad = false, good = false;
+    if (!A) { txt = 'Motion capture: animation script did not load. Using basic movement. Try a hard refresh (Ctrl+Shift+R).'; bad = true; }
+    else if (A.failed) { txt = 'Motion capture failed to load (' + (A.error || 'unknown error') + '). Using basic movement. Try a hard refresh (Ctrl+Shift+R).'; bad = true; }
+    else if (!A.ready) txt = 'Loading motion capture...';
+    else { const n = (A.drove || 0) - badgeD; badgeD = A.drove || 0; if (n > 0 || now - (A.droveAt || 0) < 1500) { txt = 'Motion capture on (' + Object.keys(A.clips || {}).length + ' Mixamo clips)'; good = true; } else { txt = 'Motion capture loaded but not driving the players. Using basic movement.'; bad = true; } }
+    badge.textContent = txt; badge.style.background = bad ? 'rgba(160,40,30,.92)' : 'rgba(10,20,16,.72)'; badge.style.color = bad ? '#fff' : good ? '#8fe0a8' : '#e8dcb8';
+  }
   function animate(f, st, dt, t) {
     if (FM.anim && FM.anim.ready && st.e) { FM.anim.step(f, st, dt, t); return; }   // the motion-captured clips, if they loaded
     // Stepping is tied to ground covered: each step is as long as the speed needs (a walk is short steps, a sprint long ones), so the feet are not left
@@ -490,6 +502,7 @@
     resize: size,
     render(m, ctx) {
       if (!ready || !m) return;
+      motionBadge();
       const dt = Math.min(0.1, (ctx && ctx.dt) || 0.016); clock += dt; netT += dt;
       const nowT = performance.now(), rdt = clamp(lastT == null ? dt : (nowT - lastT) / 1000, 0.004, 0.25); lastT = nowT;
       ensurePlayers(m); readEvents(m);

@@ -15,7 +15,7 @@
       A.fps = j.fps; A.clips = {};
       Object.keys(j.clips).forEach((k) => { const c = j.clips[k]; A.clips[k] = { n: c.n, dur: c.dur, q: Float32Array.from(c.q), hy: Float32Array.from(c.hy), hx: Float32Array.from(c.hx), hz: Float32Array.from(c.hz), vf: c.vf, vs: c.vs, travel: c.travel, peak: c.peak || 0 }; });
       A.ready = true; return true;
-    }).catch((e) => { A.failed = true; try { console.warn('The motion clips did not load; using the built-in movement.', e); } catch (x) { /* nothing to log to */ } return false; });
+    }).catch((e) => { A.failed = true; A.error = String(e && e.message ? e.message : e); try { console.warn('The motion clips did not load; using the built-in movement.', e); } catch (x) { /* nothing to log to */ } return false; });
     return A.loading;
   };
 
@@ -87,6 +87,7 @@
 
   // ---- the per-frame step for one figure; st carries velocity in the body frame (vf forward, vs toward his left), turn rate, acceleration, look angle and the entity
   A.step = function (f, st, dt, t) {
+    A.drove = (A.drove || 0) + 1; A.droveAt = performance.now();
     const e = st.e, sp = Math.hypot(st.vf, st.vs), gk = !!st.gk;
     // locomotion: the two nearest of eight directional jogs, run at the speed that matches the ground he is covering
     const th = Math.atan2(st.vs, st.vf), pos = (th + Math.PI) / (Math.PI / 4), i0 = Math.floor(pos) % 8, a = pos - Math.floor(pos);
