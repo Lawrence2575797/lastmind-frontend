@@ -11,10 +11,9 @@
   function load() {
     if (window.THREE) { THREE = window.THREE; return Promise.resolve(); }
     if (loading) return loading;
-    loading = new Promise((res, rej) => {
-      const s = document.createElement('script'); s.src = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js'; s.async = true;
-      s.onload = () => { THREE = window.THREE; res(); }; s.onerror = () => { failed = true; rej(new Error('three.js did not load')); }; document.head.appendChild(s);
-    });
+    const get = (src) => new Promise((res, rej) => { const s = document.createElement('script'); s.src = src; s.async = true; s.onload = () => (window.THREE ? res() : rej(new Error('three.js loaded empty'))); s.onerror = () => rej(new Error('three.js did not load')); document.head.appendChild(s); });
+    // our own copy first (a school or work network that blocks CDNs still allows it), the CDN second
+    loading = get('/create/football/vendor/three.min.js?v=r128').catch(() => get('https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js')).then(() => { THREE = window.THREE; }, (e) => { failed = true; loading = null; throw e; });
     return loading;
   }
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
