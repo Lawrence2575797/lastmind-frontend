@@ -232,7 +232,10 @@
       tx = clamp(bx * 0.45, -26, 26); tz = 0; cx = tx * 0.5; cy = 23; cz = HW + 14; ty = 0;
     } else {
       // from the touchline, where the manager stands: a steady wide view that slides along the line with the ball
-      tx = clamp(bx, -HL + 14, HL - 14); tz = bz * 0.25 - 6; cx = tx * 0.9; cy = 4.2; cz = HW + 5.5; ty = 0.7;
+      // It follows the ball all the way to the corner flags. With the ball on the near touchline the camera rises and backs off a little and looks at it,
+      // otherwise the ball would be below the bottom of the picture.
+      const near = clamp((bz - 6) / 22, 0, 1);
+      tx = clamp(bx, -HL + 2, HL - 2); tz = (bz * 0.25 - 6) * (1 - near) + bz * 0.85 * near; cx = tx * 0.9; cy = 4.2 + 4.8 * near; cz = HW + 5.5 + 3.5 * near; ty = 0.7;
     }
     look.x += (tx - look.x) * k; look.z += (tz - look.z) * k; cam.x += (cx - cam.x) * k; cam.y += (cy - cam.y) * k; cam.z += (cz - cam.z) * k;
     camera.position.set(cam.x, cam.y, cam.z); camera.lookAt(look.x, ty, look.z);
@@ -240,6 +243,7 @@
   }
 
   FM.view3d = {
+    get ball() { return ballMesh; }, get cameraObj() { return camera; },
     get ready() { return ready; }, get failed() { return failed; }, get mode() { return mode; },
     ensure(container) { host = container; if (ready) { if (renderer.domElement.parentElement !== host) host.appendChild(renderer.domElement); size(); return Promise.resolve(); } return load().then(() => { if (!ready) build(); size(); }); },
     setMode(m) { mode = m === 'stands' ? 'stands' : 'touchline'; size(); },
@@ -256,6 +260,16 @@
         if (e.pose) { e.pose.t += dt; if (e.pose.t >= e.pose.dur) e.pose = null; else applyPose(e.fig, e.pose.type, e.pose.t, e.pose.dur, e.pose.dir); }
       }));
       let bx = ((ctx && ctx.renderBall) || m.ball).x - HL, bz = ((ctx && ctx.renderBall) || m.ball).y - HW, by = ballHeight(m, bx, bz);
+      // A man running with the ball does not carry it glued to his boots: he pushes it ahead a stride at a time, and the further and faster he goes the
+      // further ahead it runs between touches.
+      if (m.carrier && m.ball.state === 'carried' && !goalFx) {
+        const ce = players.get(m.carrier.player.id), rp = ce && ((ctx && ctx.renderPos && ctx.renderPos.get(m.carrier.player.id)) || null);
+        if (ce && rp && Number.isFinite(rp.facing)) {
+          const k = clamp(ce.speed / 7, 0, 1), ahead = 0.42 + k * 0.5 * (0.5 + 0.5 * Math.sin(ce.fig.phase * 2 - 1.2)), side = 0.1 * Math.sin(ce.fig.phase);
+          bx = rp.x - HL + Math.cos(rp.facing) * ahead - Math.sin(rp.facing) * side; bz = rp.y - HW + Math.sin(rp.facing) * ahead + Math.cos(rp.facing) * side;
+          by = 0.115 + k * 0.05 * Math.max(0, Math.sin(ce.fig.phase * 2 - 1.2));
+        }
+      }
       if (goalFx) {
         // after a goal the ball runs on into the net, hits it, and drops
         goalFx.t += dt; const g = goalFx, t = Math.min(g.t, 0.5), run = 1.9 * (1 - Math.pow(1 - t / 0.5, 2));
@@ -263,8 +277,10 @@
         if (!g.hit && g.t > 0.1) { g.hit = true; hitNet(g.side, 0, 22, bx, by, bz); }
         if (g.t > 4) goalFx = null;
       }
-      ballMesh.position.set(bx, by, bz); ballMesh.rotation.z -= dt * 6; updateNets();
       setCamera(dt, bx, bz, !ctx || ctx.snap);
+      // The ball is drawn bigger than a real one so it can be followed, and bigger again the further it is from the camera.
+      const bs = 1.5 * clamp(camera.position.distanceTo(ballMesh.position) / 20, 1, 4);
+      ballMesh.scale.setScalar(bs); ballMesh.position.set(bx, by + 0.115 * (bs - 1), bz); ballMesh.rotation.z -= dt * 6; updateNets();
       renderer.render(scene, camera);
     },
     dispose() { /* the scene is kept for the next time a 3D view is chosen */ },

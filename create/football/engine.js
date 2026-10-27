@@ -851,13 +851,14 @@
       const dx = t.x - p.x, dy = t.y - p.y;
       const rawDist = Math.hypot(dx, dy);
       const dist = rawDist || 1e-6;
-      const speed = Math.min(p.maxSpeed, dist * 1.4);
-      const wanted = rawDist < 0.05 && Number.isFinite(p.facing) ? p.facing : Math.atan2(dy, dx);
+      const turning = Number.isFinite(p.turnTo);   // a man turning on the spot to play the ball: he turns faster than he runs and goes nowhere much
+      const speed = turning ? Math.min(p.maxSpeed, dist * 1.4, 1.8) : Math.min(p.maxSpeed, dist * 1.4);
+      const wanted = turning ? p.turnTo : rawDist < 0.05 && Number.isFinite(p.facing) ? p.facing : Math.atan2(dy, dx);
       if (!Number.isFinite(p.facing)) p.facing = wanted;
       let turn = wanted - p.facing;
       while (turn > Math.PI) turn -= Math.PI * 2;
       while (turn < -Math.PI) turn += Math.PI * 2;
-      const maxTurn = (p.group === 'GK' ? 3.2 : 2.5) * dt;
+      const maxTurn = (turning ? 5.2 : p.group === 'GK' ? 3.2 : 2.5) * dt;
       p.facing += clamp(turn, -maxTurn, maxTurn);
       const alignment = clamp(1 - Math.abs(turn) / Math.PI, .18, 1);
       // How quickly a player changes his velocity toward the one he wants. Written so that it gives the same response however long a step is:

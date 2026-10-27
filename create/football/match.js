@@ -727,13 +727,19 @@
       // (when he is being closed down hard) rather than the usual choice.
       const back = (carrier.x - t.x) * team.attackDir;
       let adj = 0;
-      if (zone !== 'final' && nearNow > 4) adj += (FM.CIRC == null ? 1.4 : FM.CIRC) * p * (back > 3 ? 0.8 : back > -3 ? 1 : 0.1);   // a safe pass to keep the ball when nobody is on him
+      if (zone !== 'final' && nearNow > 4) adj += (FM.CIRC == null ? 1.4 : FM.CIRC) * p * (back > 3 ? (ownDepth0 > 0.45 ? 0.3 : 0.8) : back > -3 ? 1 : 0.1);   // a safe pass to keep the ball when nobody is on him
       // The free man. A teammate with no defender near him is the pass a real player looks for, so an open receiver (nearest defender
       // well away) is favoured, more so for a pass that goes forward or across than one that goes back; a marked one is not.
       adj += (FM.OPEN_BONUS == null ? 0.5 : FM.OPEN_BONUS) * clamp((press - 3) / 9, 0, 1) * (back < -3 ? 1 : back < 3 ? 0.7 : 0.3);
       if (through && back > 3) adj = -2.0;
       else if (through && back > -3) adj = -(FM.SQUARE_PEN == null ? 1.4 : FM.SQUARE_PEN);   // past the last defender he goes on, he does not square it
       else if (ownDepth0 > 0.66 && back > 8) adj = (nearNow < 2.5 ? 0.45 : 1) * -(FM.BACK_PEN == null ? 0 : FM.BACK_PEN);
+      if (!through && back > 6 && ownDepth0 > 0.42) {
+        // Being closed down is a reason to lay it off, and a short lay-off to a midfielder is fine; a long ball back to a centre-back from the
+        // attacking half is not what a player does with a team-mate beside him, so the longer the pass back to a defender the less he wants it.
+        const toDef = t.group === 'CB' || t.group === 'GK';
+        adj -= (FM.BACKPASS_K == null ? 1.5 : FM.BACKPASS_K) * (clamp((back - 6) / 14, 0.25, 1) * (toDef ? 1.6 : 1) * clamp((ownDepth0 - 0.42) / 0.3, 0.3, 1)) * (nearNow > 2.0 ? 1 : 0.55) + (toDef ? (FM.BACKLONG_K == null ? 1.0 : FM.BACKLONG_K) * clamp((d - 18) / 18, 0, 1) : 0);
+      }
       // Playing out short. A team set to build patiently does not send the ball a long way when it has a shorter pass: the longer the pass, and the
       // more patient the setting, the less the player wants it. (A team set to go long has no such penalty.)
       if (zone === 'build' && tac.buildDirect < 0.5) adj -= Math.pow(0.5 - tac.buildDirect, 2) * (FM.SHORT_PREF == null ? 14 : FM.SHORT_PREF) * clamp((d - 12) / 20, 0, 1);
@@ -784,7 +790,7 @@
     // A carry into empty grass is not a take-on. Previously both used the
     // dribble duel, producing hundreds of apparent one-v-ones per match.
     const carrySpace = clamp((nearD - 3.5) / 8, 0, 1);
-    if (nearD > 3.5 && carrier.group !== 'GK') options.push({ kind: 'carry', nearD, score: .38 + .4 * carrySpace + .22 * directness + .18 * counter - .22 * (zone === 'build' && carrier.group === 'CB' ? 1 : 0) });
+    if (nearD > 3.5 && carrier.group !== 'GK') options.push({ kind: 'carry', nearD, score: .38 + (.4 + (FM.CARRY_BONUS == null ? .3 : FM.CARRY_BONUS)) * carrySpace + .22 * directness + .18 * counter - .22 * (zone === 'build' && carrier.group === 'CB' ? 1 : 0) });
     let dribbleOption = null;
     const willingDribbler = ['WF', 'AM', 'ST', 'CM'].includes(carrier.group) || mods.dribble > 0 || tac.dribbleFreedom > .65;
     if (nearD < 3.1 && willingDribbler && (zone === 'final' || mods.dribble > 0 || tac.dribbleFreedom > .72)) {
@@ -962,8 +968,8 @@
     const gx = team.attackDir === 1 ? L : 0;
     const dx = gx - carrier.x, dy = (W / 2 - carrier.y) * (carrier.group === 'WF' ? .55 : .18);
     const len = Math.hypot(dx, dy) || 1;
-    match.carry = { player: carrier, until: match.clock + .75, dx: dx / len, dy: dy / len };
-    match.nextDecision = match.clock + 1.1 + .9 * match.rng();
+    match.carry = { player: carrier, until: match.clock + (FM.CARRY_T == null ? 1.3 : FM.CARRY_T), dx: dx / len, dy: dy / len };
+    match.nextDecision = match.clock + 1.5 + 1.3 * match.rng();
   }
 
   function doHold(match, team, carrier) {
@@ -1842,19 +1848,50 @@
       match.possessionMinPressure = Math.min(match.possessionMinPressure == null ? currentPressure : match.possessionMinPressure, currentPressure);
     }
     reassessDecisionTiming(match, dt);
-    if (match.carrier && match.clock >= match.nextDecision) {
+    // A pass or a shot is played with the body pointing at it. A player facing one way who wants to play the ball the other way has to turn first, and
+    // that takes time (about 0.3 s for a quarter turn, over half a second for a full one) in which he can be closed down: nobody plays it backwards
+    // while running forwards.
+    const pa = match.pendingAct;
+    if (pa) {
+      if (!match.carrier || match.carrier.player !== pa.player) { pa.player.turnTo = undefined; match.pendingAct = null; }
+      else if (match.clock >= pa.release || Math.abs(angleDiff(pa.player.facing, pa.ang)) < 0.35) {
+        pa.player.turnTo = undefined; match.pendingAct = null;
+        const o = pa.opt, lag = match.clock - pa.start;
+        if (o.target) { o.tx = clamp(o.tx + (o.target.vx || 0) * lag * 0.6, 1, L - 1); o.ty = clamp(o.ty + (o.target.vy || 0) * lag * 0.6, 1, W - 1); }
+        runAction(match, pa.team, pa.player, o);
+      }
+    }
+    if (match.carrier && !match.pendingAct && match.clock >= match.nextDecision) {
       const { team, player } = match.carrier;
       const opt = chooseAction(match, team, player);
-      if (opt.kind === 'pass') doPass(match, team, player, opt);
-      else if (opt.kind === 'shoot') doShot(match, team, player, opt);
-      else if (opt.kind === 'dribble') doDribble(match, team, player, opt);
-      else if (opt.kind === 'carry') doCarry(match, team, player);
-      else if (opt.kind === 'clear') doClear(match, team, player, opt);
-      else doHold(match, team, player);
-      match.forcePass = false; match.noOffside = false;
+      const aim = aimOf(team, opt);
+      const need = aim && !match.forcePass && Number.isFinite(player.facing) ? Math.abs(angleDiff(player.facing, Math.atan2(aim.y - player.y, aim.x - player.x))) : 0;
+      if (need > (FM.TURN_FREE == null ? 0.9 : FM.TURN_FREE)) {
+        const ang = Math.atan2(aim.y - player.y, aim.x - player.x);
+        match.pendingAct = { opt, team, player, ang, start: match.clock, release: match.clock + Math.min(0.9, need / (FM.TURN_RATE == null ? 5.2 : FM.TURN_RATE)) };
+        player.turnTo = ang; match.carry = null;
+      } else runAction(match, team, player, opt);
     }
 
     checkEnd(match);
+  }
+
+  const angleDiff = (a, b) => { let d = b - a; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; return d; };
+  // where the ball is going to be sent, for the kinds of action that need the body turned to it
+  function aimOf(team, opt) {
+    if (opt.kind === 'pass') return { x: opt.tx, y: opt.ty };
+    if (opt.kind === 'clear' && opt.pass) return { x: opt.pass.tx, y: opt.pass.ty };
+    if (opt.kind === 'shoot') return { x: team.attackDir === 1 ? L : 0, y: W / 2 };
+    return null;
+  }
+  function runAction(match, team, player, opt) {
+    if (opt.kind === 'pass') doPass(match, team, player, opt);
+    else if (opt.kind === 'shoot') doShot(match, team, player, opt);
+    else if (opt.kind === 'dribble') doDribble(match, team, player, opt);
+    else if (opt.kind === 'carry') doCarry(match, team, player);
+    else if (opt.kind === 'clear') doClear(match, team, player, opt);
+    else doHold(match, team, player);
+    match.forcePass = false; match.noOffside = false;
   }
 
   // All callers advance the same 0.1-second simulation. Rendering, fast
