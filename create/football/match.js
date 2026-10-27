@@ -342,13 +342,17 @@
       if (match.carry && match.carry.player === c.player && match.clock < match.carry.until) {
         const reach = FM.toTeamSpace(c.team.attackDir, c.player.x, c.player.y).d > 0.66 ? 9 * (FM.CARRY_FINAL == null ? 0.7 : FM.CARRY_FINAL) : 9;   // in the final third the cover is close: a touch past the man, not a run past the whole defence
         ov.set(c.player, { x: clamp(c.player.x + match.carry.dx * reach, 1, L - 1), y: clamp(c.player.y + match.carry.dy * reach, 1, W - 1) });
-      } else if (!match.forcePass && match.nextDecision - match.clock > 0.3) {
+      } else if (!match.forcePass && match.nextDecision - match.clock > (FM.BRAKE_T == null ? -1 : FM.BRAKE_T)) {   // he keeps moving right up to the moment he plays it: he does not brake for the last third of a second
         // Waiting to decide: a man with room keeps moving with the ball (a jog, toward goal and a little toward the middle) instead of standing
         // still holding it. Closed down, or already in the box, he holds the ball where he is (a man backing away from a defender can never be
         // tackled, which breaks the game: 30+ goals a match).
         const nd = nearestOpponent(match, c.team, c.player).d, toward = FM.toTeamSpace(c.team.attackDir, c.player.x, c.player.y).d;
         if (nd > 3.5 && toward > 0.5 && toward < 0.97 && c.player.group !== 'GK' && ['AM', 'WF', 'ST', 'CM', 'FB', 'DM'].includes(c.player.group) && clearAhead(match, c.team, c.player, 14)) ov.set(c.player, { x: clamp(c.player.x + c.team.attackDir * (FM.DRIVE_RUN == null ? 2.5 : FM.DRIVE_RUN), 1, L - 1), y: clamp(c.player.y + (W / 2 - c.player.y) * 0.22, 1, W - 1) });
-        else if (nd > 5 && toward < 0.84 && c.player.group !== 'GK') ov.set(c.player, { x: clamp(c.player.x + c.team.attackDir * (nd > 10 ? 8 * (FM.JOG_K == null ? .34 : FM.JOG_K) : 3.2), 1, L - 1), y: clamp(c.player.y + (W / 2 - c.player.y) * 0.04, 1, W - 1) });
+        else if (nd > (FM.JOG_ND == null ? 0 : FM.JOG_ND) && toward < 0.84 && c.player.group !== 'GK') {
+          // moving on with the ball while he decides, but across the pitch as much as up it, so territory is gained by passing and carrying, not by drifting
+          const dj = nd > 10 ? 8 * (FM.JOG_K == null ? .34 : FM.JOG_K) : 3.2, fw = FM.JOG_FWD == null ? 0.15 : FM.JOG_FWD, side = ((c.player.number + Math.floor(match.clock / 5)) % 2 ? 1 : -1) * (c.player.y < 9 ? -1 : c.player.y > W - 9 ? 1 : 1) * (c.player.y < 9 ? -1 : 1);
+          ov.set(c.player, { x: clamp(c.player.x + c.team.attackDir * dj * fw, 1, L - 1), y: clamp(c.player.y + (W / 2 - c.player.y) * 0.04 * fw + side * dj * (1 - fw), 1, W - 1) });
+        }
       }
       // Whatever the moment, a man with the ball is never sent back to his usual position: past the last defender he goes on, otherwise he holds.
       // A man clear through on goal runs on at the keeper; he is never sent back toward his usual position into the men chasing him.
@@ -356,6 +360,10 @@
       // The carrier keeps possession where he is while turning or weighing a
       // pass. His generic phase position must never pull him backwards with
       // the ball simply because the rest of the team is resetting its shape.
+      if (!ov.has(c.player) && !match.forcePass && c.player.group !== 'GK' && !match.pendingAct) {
+        const sp = Math.hypot(c.player.vx || 0, c.player.vy || 0);
+        if (sp > 1.5 && nearestOpponent(match, c.team, c.player).d > (FM.MOM_ND == null ? 4.2 : FM.MOM_ND) && FM.toTeamSpace(c.team.attackDir, c.player.x, c.player.y).d < (FM.MOM_DEPTH == null ? 0.75 : FM.MOM_DEPTH)) { const J = FM.MOM_DIST == null ? 2.4 : FM.MOM_DIST; ov.set(c.player, { x: clamp(c.player.x + c.player.vx / sp * J, 1, L - 1), y: clamp(c.player.y + c.player.vy / sp * J, 1, W - 1) }); }   // on at a jog, not stopped, not at a sprint
+      }
       if (!ov.has(c.player)) ov.set(c.player, { x: c.player.x, y: c.player.y });
       // Defending the man on the ball. Most of the time one defender goes to him, and he closes down rather than charging in: how
       // tightly depends on the team's pressing instruction (a hard press gets right on top of him, a soft one holds off and jockeys).
@@ -804,8 +812,8 @@
     const carrySpace = clamp((nearD - 3.5) / 8, 0, 1);
     // With open grass ahead in the attacking half a forward runs at goal instead of standing and passing: he drives until a defender engages him or
     // he is in range to shoot.
-    const drive = ownDepth0 > 0.5 && nearD > 2.2 && ['AM', 'WF', 'ST', 'CM', 'FB', 'DM'].includes(carrier.group) && clearAhead(match, team, carrier, 14);
-    if ((nearD > 3.5 || drive) && carrier.group !== 'GK') options.push({ kind: 'carry', nearD, drive, score: .38 + (.4 + (FM.CARRY_BONUS == null ? .3 : FM.CARRY_BONUS)) * carrySpace + .22 * directness + .18 * counter - .22 * (zone === 'build' && carrier.group === 'CB' ? 1 : 0) + (drive ? (FM.DRIVE_K == null ? 0.5 : FM.DRIVE_K) * (['WF', 'ST', 'AM'].includes(carrier.group) ? 1 : .7) : 0) });
+    const drive = ownDepth0 > 0.5 && nearD > 2.2 && ['AM', 'WF', 'ST', 'CM', 'FB', 'DM'].includes(carrier.group) && clearAhead(match, team, carrier, ownDepth0 > 0.72 ? 9 : 14);
+    if ((nearD > 3.5 || drive) && carrier.group !== 'GK') options.push({ kind: 'carry', nearD, drive, score: .38 + (.4 + (FM.CARRY_BONUS == null ? .3 : FM.CARRY_BONUS)) * carrySpace + .22 * directness + .18 * counter - .22 * (zone === 'build' && carrier.group === 'CB' ? 1 : 0) + (drive ? (FM.DRIVE_K == null ? 0.5 : FM.DRIVE_K) * (ownDepth0 > 0.72 ? 1.7 : 1) * (['WF', 'ST', 'AM'].includes(carrier.group) ? 1 : .7) : 0) });
     let dribbleOption = null;
     const willingDribbler = ['WF', 'AM', 'ST', 'CM'].includes(carrier.group) || mods.dribble > 0 || tac.dribbleFreedom > .65;
     if (nearD < 3.1 && willingDribbler && (zone === 'final' || mods.dribble > 0 || tac.dribbleFreedom > .72)) {
@@ -813,6 +821,7 @@
       options.push(dribbleOption);
     }
 
+    if (drive && ownDepth0 > 0.7) options.forEach((o) => { if (o.kind === 'pass' && (o.tx - carrier.x) * team.attackDir < 5) o.score -= (FM.DRIVE_PASS_PEN == null ? 1.3 : FM.DRIVE_PASS_PEN); });
     if (RE && dribbleOption) dribbleOption.score += 0.35 * RE.dribble;
     // In his own third with a defender close, taking the man on is the last thing a defender wants to do.
     if (dribbleOption && zone === 'build' && nearD < 3.5) dribbleOption.score -= 0.5 * (1 - nearD / 3.5) * (1 + (1 - risk)) * (['GK', 'CB', 'FB'].indexOf(carrier.group) >= 0 ? 2.4 : ['DM', 'CM'].indexOf(carrier.group) >= 0 ? 1.5 : 1) * (FM.DRIBBLE_BUILD_PEN == null ? 1 : FM.DRIBBLE_BUILD_PEN);
@@ -1838,9 +1847,10 @@
       for (const d of opp.players) {
         if (d.group === 'GK') continue;
         if (c.player.group === 'GK') continue;   // a goalkeeper with the ball is not tackled: he has it in his hands or is protected by the referee, and the ball is cleared from him
-        if (dist(d, c.player) > 1.8) continue;
+        const cSpeed = Math.hypot(c.player.vx || 0, c.player.vy || 0);   // a man running with the ball is in contact for less time but is easier to catch and hit
+        if (dist(d, c.player) > 1.8 + (FM.MOVE_REACH == null ? 0.25 : FM.MOVE_REACH) * cSpeed) continue;
         if (!FM.TACKLE_ANY && (d.x - c.player.x) * team.attackDir < -0.6 && c.player.vx * team.attackDir > 1.5) continue;   // beaten: a defender chasing a man who is running on cannot tackle him from behind
-        const rate = .65 * (opp.tacticalFactor || 1) * (0.05 + 0.08 * opp.tactics.pressing + (d.roleId === 'ball_winning_midfielder' ? 0.06 : 0)) * (0.6 + 0.8 * opp.tactics.tackleAggression) * ((FM.CLOSE_TACKLE == null ? 1 : FM.CLOSE_TACKLE) > 1 && dist(c.player, { x: opp.attackDir === 1 ? 0 : L, y: W / 2 }) < 24 ? (FM.CLOSE_TACKLE == null ? 1 : FM.CLOSE_TACKLE) : 1) * (1 + 0.35 * (FM.instrMods(d).tackle + FM.rulesDelta(opp, d, 'tackle', match.ball, false)));
+        const rate = (1 + (FM.MOVE_TACKLE == null ? 0.5 : FM.MOVE_TACKLE) * cSpeed / 3) * .65 * (opp.tacticalFactor || 1) * (0.05 + 0.08 * opp.tactics.pressing + (d.roleId === 'ball_winning_midfielder' ? 0.06 : 0)) * (0.6 + 0.8 * opp.tactics.tackleAggression) * ((FM.CLOSE_TACKLE == null ? 1 : FM.CLOSE_TACKLE) > 1 && dist(c.player, { x: opp.attackDir === 1 ? 0 : L, y: W / 2 }) < 24 ? (FM.CLOSE_TACKLE == null ? 1 : FM.CLOSE_TACKLE) : 1) * (1 + 0.35 * (FM.instrMods(d).tackle + FM.rulesDelta(opp, d, 'tackle', match.ball, false)));
         if (match.clock >= (match.tackleLock || 0) && match.rng() < rate * dt) {
           match.tackleLock = match.clock + 1.2;
           const p = FM.tackleProb(d, c.player, FM.edgeFor(match, opp)) * (opp.tacticalFactor || 1);
@@ -1894,7 +1904,7 @@
       const opt = chooseAction(match, team, player);
       const aim = aimOf(team, opt);
       const need = aim && !match.forcePass && Number.isFinite(player.facing) ? Math.abs(angleDiff(player.facing, Math.atan2(aim.y - player.y, aim.x - player.x))) : 0;
-      if (need > (FM.TURN_FREE == null ? 0.9 : FM.TURN_FREE)) {
+      if (need > (FM.TURN_FREE == null ? 1.75 : FM.TURN_FREE)) {
         const ang = Math.atan2(aim.y - player.y, aim.x - player.x);
         match.pendingAct = { opt, team, player, ang, start: match.clock, release: match.clock + Math.min(0.9, need / (FM.TURN_RATE == null ? 5.2 : FM.TURN_RATE)) };
         player.turnTo = ang; match.carry = null;

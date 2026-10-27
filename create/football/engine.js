@@ -852,7 +852,7 @@
       const rawDist = Math.hypot(dx, dy);
       const dist = rawDist || 1e-6;
       const turning = Number.isFinite(p.turnTo);   // a man turning on the spot to play the ball: he turns faster than he runs and goes nowhere much
-      const speed = turning ? Math.min(p.maxSpeed, dist * 1.4, 1.8) : Math.min(p.maxSpeed, dist * 1.4);
+      const speed = turning ? Math.min(p.maxSpeed, dist * 1.4, 4.2) : Math.min(p.maxSpeed, dist * 1.4);
       const wanted = turning ? p.turnTo : rawDist < 0.05 && Number.isFinite(p.facing) ? p.facing : Math.atan2(dy, dx);
       if (!Number.isFinite(p.facing)) p.facing = wanted;
       let turn = wanted - p.facing;
