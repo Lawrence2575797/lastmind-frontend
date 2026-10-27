@@ -246,8 +246,9 @@
     }
     if (world.view === 'match' && m) {
       if (FM.scout && world.league) FM.scout.watch(world.league, m);
-      if (world.skipTo) { skipSlice(m); if (!world.skipTo) world.trails = []; }
+      if (world.skipTo) { m.skipFx = true; m.wantReplay = false; skipSlice(m); if (!world.skipTo) world.trails = []; }
       else if (world.running && m.phase !== 'halftime' && m.phase !== 'fulltime') {
+        m.skipFx = !!world.highlightsOnly; m.wantReplay = !world.highlightsOnly && !world.hl && (world.viewMode === 'touchline' || world.viewMode === 'stands') && !!(FM.view3d && FM.view3d.ready);
         if (world.highlightsOnly && !isImportantMoment(m)) seekHighlight(m);
         else { advanceMatch(dt * MATCH_SPEED * world.speed); world.highlightSearching = false; }
         world.vt += dt;

@@ -1403,6 +1403,7 @@
   }
 
   function runRestart(match, dt) {
+    if (match.restart.kind === 'penalty') { runPenalty(match, dt); return; }
     const r = match.restart;
     match.teams.forEach((t) => { t.offsideLine = null; t.phaseCtx = {}; });
     const ov = restartOverrides(match);
@@ -1513,8 +1514,90 @@
     else if (rng() < 0.55) { outcome = 'saved'; st.onTarget++; } else outcome = 'off';
     const ey = outcome === 'off' ? W / 2 + (rng() < 0.5 ? -1 : 1) * 4.5 : W / 2 + (rng() - 0.5) * 6;
     record(match, { type: 'shot', team: team.id, player: taker.number, xg: 0.78, outcome, defDist: 11, x: taker.x, y: taker.y, setPiece: 'penalty' });
-    match.flight = { kind: 'shot', team, shooter: taker, speed: 28, target: null, ex: goalX, ey, outcome, gk, blocker: null };
+    match.flight = { kind: 'shot', team, shooter: taker, speed: 28, target: null, ex: outcome === 'off' ? goalX + team.attackDir * 2.5 : goalX, ey, outcome, gk, blocker: null, penalty: true };
     match.ball.state = 'flight';
+  }
+
+  // A penalty is taken properly: the taker walks back from the ball, waits, runs up and strikes it. The ball is on the spot for all of it, and the kick is cued
+  // (match.kickCue) so the picture can time the swing of the leg to the moment the ball goes.
+  const PEN_RUN = 1.3;
+  function runPenalty(match, dt) {
+    const r = match.restart, team = r.team, taker = r.taker, inward = team.attackDir === 1 ? -1 : 1;
+    match.teams.forEach((t) => { t.offsideLine = null; t.phaseCtx = {}; });
+    const ov = restartOverrides(match), start = { x: r.x + inward * 5.5, y: r.y + 1.4 };
+    if (!r.run) ov.set(taker, start);
+    match.teams.forEach((t) => FM.stepTeam(t, match.ball, t === r.team, dt, ov));
+    fitnessTick(match, dt);
+    r.timer -= dt;
+    if (!r.run && r.timer <= PEN_RUN && Math.hypot(taker.x - start.x, taker.y - start.y) < 1.2) {
+      r.run = { t: 0, from: { x: taker.x, y: taker.y } };
+      match.kickCue = { player: taker, team, release: match.clock + PEN_RUN, penalty: true };
+    }
+    // a run-up that starts slowly and gathers pace: the ball is struck as he arrives at the spot
+    if (r.run) {
+      r.run.t += dt; const u = Math.min(1, r.run.t / PEN_RUN), s = Math.pow(u, 1.5), px = taker.x, py = taker.y;
+      taker.x = r.run.from.x + (r.x - r.run.from.x) * s; taker.y = r.run.from.y + (r.y - r.run.from.y) * s;
+      taker.vx = (taker.x - px) / Math.max(dt, 1e-3); taker.vy = (taker.y - py) / Math.max(dt, 1e-3); taker.facing = Math.atan2(W / 2 - taker.y, (team.attackDir === 1 ? L : 0) - taker.x);
+      if (u >= 1) { match.kickCue = null; execRestart(match); }
+    } else if (r.timer < -6) { match.kickCue = null; execRestart(match); }
+  }
+
+  // After a goal: the scorer sprints to the corner flag and slides on his knees, the rest of his side run to join him and the other side walk back; only then the
+  // kick-off. The movement is scripted (the picture plays the sprint-to-backslide clip when the stage turns to 'slide') so the slide ends exactly at the flag.
+  const CELEB = { run: 6.8, slide: 2.07, hold: 2.4 };
+  // how far the sprint-to-backslide clip carries him, every tenth of a second (metres on the pitch): in the clip he is already diving as it starts, slides on his back,
+  // gets up and walks on, so the clip starts at a sprint and ends about nine metres on
+  const SLIDE_TRAVEL = [0, 0.53, 1.05, 1.7, 2.4, 2.93, 3.45, 3.92, 4.32, 4.68, 5.05, 5.41, 5.83, 6.36, 6.81, 7.22, 7.56, 7.92, 8.28, 8.7, 9.13, 9.26];
+  const slideAt = (t) => { const k = Math.max(0, Math.min(t, CELEB.slide)) * 10, i = Math.min(SLIDE_TRAVEL.length - 2, Math.floor(k)); return SLIDE_TRAVEL[i] + (SLIDE_TRAVEL[i + 1] - SLIDE_TRAVEL[i]) * Math.min(1, k - i); };
+  function beginCelebration(match, team, shooter, opp, goalSpec) {
+    const goalX = team.attackDir === 1 ? L : 0, fy = shooter.y < W / 2 ? 0 : W, inw = -team.attackDir;
+    const end = { x: goalX + inw * 1.5, y: fy === 0 ? 1.6 : W - 1.6 };
+    const dx = end.x - shooter.x, dy = end.y - shooter.y, dist = Math.hypot(dx, dy) || 1, ux = dx / dist, uy = dy / dist;
+    // the slide follows the clip's own travel; close to the flag it is scaled down
+    const slideLen = Math.min(SLIDE_TRAVEL[SLIDE_TRAVEL.length - 1], dist * 0.75), v0 = 0;
+    const S = { x: end.x - ux * slideLen, y: end.y - uy * slideLen };
+    // where everybody goes for the kick-off, found by borrowing the kick-off set-up and putting everybody back
+    const keep = match.teams.map((t) => t.players.map((p) => [p, p.x, p.y, p.vx, p.vy, p.facing]));
+    match.teams.forEach((t) => FM.resetToKickoff(t));
+    const ko = new Map(); match.teams.forEach((t) => t.players.forEach((p) => ko.set(p, { x: p.x, y: p.y })));
+    keep.forEach((l) => l.forEach((k) => { k[0].x = k[1]; k[0].y = k[2]; k[0].vx = k[3]; k[0].vy = k[4]; k[0].facing = k[5]; }));
+    const join = new Map(); let i = 0;
+    team.players.forEach((p) => { if (p === shooter || p.group === 'GK') return; const ring = i++; join.set(p, { x: end.x - ux * (4.5 + (ring % 4) * 1.6) + (ring % 2 ? 1 : -1) * uy * (1.2 + (ring % 3) * 1.1), y: end.y - uy * (4.5 + (ring % 4) * 1.6) - (ring % 2 ? 1 : -1) * ux * (1.2 + (ring % 3) * 1.1) }); });
+    match.celeb = { team, opp, shooter, goalSpec, stage: 'run', t: 0, from: { x: shooter.x, y: shooter.y }, S, end, ux, uy, slideLen, v0, runDist: dist - slideLen, ran: 0, st: 0, ht: 0, ko, join, goalClock: match.clock };
+    match.phase = 'celebration'; match.flight = null; match.carrier = null; match.carry = null; match.restart = null; match.pendingAct = null; match.hold = null; match.kickCue = null; match.ball.state = 'dead';
+  }
+  function moveTo(p, tx, ty, speed, dt) {
+    const dx = tx - p.x, dy = ty - p.y, d = Math.hypot(dx, dy), step = Math.min(d, speed * dt);
+    if (d > 0.05) { p.x += dx / d * step; p.y += dy / d * step; p.vx = dx / d * (step / Math.max(dt, 1e-3)); p.vy = dy / d * (step / Math.max(dt, 1e-3)); p.facing = Math.atan2(dy, dx); } else { p.vx = 0; p.vy = 0; }
+  }
+  function stepCelebration(match, dt) {
+    const c = match.celeb, sc = c.shooter; c.t += dt;
+    if (c.stage === 'run') {
+      c.ran = Math.min(c.runDist, c.ran + CELEB.run * dt); const px = sc.x, py = sc.y;
+      sc.x = c.from.x + (c.S.x - c.from.x) * (c.runDist > 0.01 ? c.ran / c.runDist : 1); sc.y = c.from.y + (c.S.y - c.from.y) * (c.runDist > 0.01 ? c.ran / c.runDist : 1);
+      sc.vx = (sc.x - px) / Math.max(dt, 1e-3); sc.vy = (sc.y - py) / Math.max(dt, 1e-3); sc.facing = Math.atan2(c.uy, c.ux);
+      if (c.ran >= c.runDist - 1e-6) { c.stage = 'slide'; c.st = 0; }
+    } else if (c.stage === 'slide') {
+      const px = sc.x, py = sc.y; c.st = Math.min(CELEB.slide, c.st + dt);
+      const T = CELEB.slide, s = slideAt(c.st) * c.slideLen / SLIDE_TRAVEL[SLIDE_TRAVEL.length - 1];
+      sc.x = c.S.x + c.ux * s; sc.y = c.S.y + c.uy * s; sc.vx = (sc.x - px) / Math.max(dt, 1e-3); sc.vy = (sc.y - py) / Math.max(dt, 1e-3); sc.facing = Math.atan2(c.uy, c.ux);
+      if (c.st >= T - 1e-6) { c.stage = 'hold'; c.ht = 0; }
+    } else { c.ht += dt; sc.vx = 0; sc.vy = 0; }
+    match.teams.forEach((t) => t.players.forEach((p) => {
+      if (p === sc) return;
+      if (t === c.team && c.join.has(p)) { const j = c.join.get(p); moveTo(p, j.x, j.y, c.stage === 'run' ? 6.2 : 5, dt); }
+      else if (t === c.team) moveTo(p, c.ko.get(p).x, c.ko.get(p).y, 2.2, dt);
+      else moveTo(p, c.ko.get(p).x, c.ko.get(p).y, 1.7, dt);
+    }));
+    if (c.stage === 'hold' && c.ht >= CELEB.hold) {
+      if (match.wantReplay) { match.phase = 'replay'; match.replayWait = 0; match.replayDone = false; }
+      else endCelebration(match);
+    }
+  }
+  function endCelebration(match) {
+    const c = match.celeb; match.celeb = null;
+    FM.beginKickoff(match, c.opp);
+    if (c.goalSpec) c.goalSpec.tail = goalTail(match, c.goalSpec, c.team, c.shooter);
   }
 
   // ---------- clips ----------
@@ -1826,6 +1909,9 @@
     if (match.phase === 'halftime' || match.phase === 'fulltime') return;
     if (match.injuryPause) return;
 
+    if (match.phase === 'celebration') { stepCelebration(match, dt); return; }
+    if (match.phase === 'replay') { match.replayWait += dt; if (match.replayDone || !match.wantReplay || match.replayWait > 40) endCelebration(match); return; }
+    if (match.hold) { match.hold.t -= dt; match.teams.forEach((t) => FM.stepTeam(t, match.ball, false, dt)); if (match.hold.t <= 0) { const fn = match.hold.fn; match.hold = null; fn(); } return; }
     if (match.phase === 'kickoff') {
       const poss = match.kickoffTeam;
       match.teams.forEach((t) => FM.stepTeam(t, match.ball, t === poss, dt));
@@ -1975,6 +2061,7 @@
   // All callers advance the same 0.1-second simulation. Rendering, fast
   // forwarding and background fixtures may request different chunks, but no
   // longer change the number or ordering of random decisions.
+  FM.debugRestart = (m, kind, team, x, y) => startRestart(m, kind, team, x, y);
   FM.stepMatch = function (match, dt) {
     if (!(dt > 0)) return;
     if (FM.computeEdges && match.clock >= (match.edgeAt || 0)) { FM.computeEdges(match); match.edgeAt = match.clock + 60; }
@@ -2053,23 +2140,26 @@
     // Shot
     match.flight = null;
     const team = f.team, opp = other(match, team);
+    const after = (fn) => { if (f.penalty) { match.hold = { t: 2, fn }; match.ball.state = 'dead'; } else fn(); };   // a penalty miss or save stays on screen for a moment
     if (f.outcome === 'goal') {
       const st = statsOf(match, team); st.goals++;
       match.score[team.id]++;
       record(match, { type: 'goal', team: team.id, player: f.shooter.number });
       const goalSpec = match.rec ? clipGoal(match, team, f.shooter) : null;
       if (goalSpec) { goalSpec.pre = snapTeams(match); goalSpec.ballAt = [match.ball.x, match.ball.y]; }
-      FM.beginKickoff(match, opp);
-      if (goalSpec) goalSpec.tail = goalTail(match, goalSpec, team, f.shooter);
+      if (match.skipFx) { FM.beginKickoff(match, opp); if (goalSpec) goalSpec.tail = goalTail(match, goalSpec, team, f.shooter); }
+      else beginCelebration(match, team, f.shooter, opp, goalSpec);
     } else if (f.outcome === 'saved') {
-      if (match.rng() < 0.45) startRestart(match, 'corner', team, team.attackDir === 1 ? L - 0.5 : 0.5, f.ey < W / 2 ? 0.5 : W - 0.5);
-      else giveBall(match, opp, f.gk, 1.6);
+      after(() => {
+        if (match.rng() < 0.45) startRestart(match, 'corner', team, team.attackDir === 1 ? L - 0.5 : 0.5, f.ey < W / 2 ? 0.5 : W - 0.5);
+        else giveBall(match, opp, f.gk, 1.6);
+      });
     } else if (f.outcome === 'blocked') {
       if (match.rng() < 0.45) startRestart(match, 'corner', team, team.attackDir === 1 ? L - 0.5 : 0.5, f.ey < W / 2 ? 0.5 : W - 0.5);
       else { match.ball.state = 'loose'; match.lastTeam = opp; }
     } else {
       // Off target: goal kick.
-      startRestart(match, 'goalkick', opp, opp.attackDir === 1 ? 5.5 : L - 5.5, W / 2);
+      after(() => startRestart(match, 'goalkick', opp, opp.attackDir === 1 ? 5.5 : L - 5.5, W / 2));
     }
   }
 

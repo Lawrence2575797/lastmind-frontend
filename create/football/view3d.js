@@ -426,10 +426,49 @@
     players.forEach((e, id) => { if (!seen.has(id)) e.fig.root.visible = false; });
   }
   const findBy = (m, teamId, number) => { const t = m.teams.find((x) => x.id === teamId); const p = t && t.players.find((q) => q.number === number); return p ? players.get(p.id) : null; };
+  // ---------- replays ----------
+  // Every frame that is drawn is also kept (where each man and the ball were, which way he faced) for the last twenty seconds, together with the kicks, tackles and
+  // the net bulging; after a goal and its celebration the seconds before it are drawn again, slower, from a lower camera, with a REPLAY label on the pitch.
+  const REC_KEEP = 24, REPLAY_SPEED = 0.7, PRE = 7, POST = 1.6;
+  let recT = 0, recLast = -1, recIds = null, goalMark = null, rp = null, replayBox = null, snapCam = false;
+  const recBuf = [], recLog = [];
+  function logAct(o) { o.t = o.t == null ? recT : o.t; recLog.push(o); while (recLog.length && recLog[0].t < recT - REC_KEEP - 2) recLog.shift(); }
+  function idOf(e) { let id = null; players.forEach((v, k) => { if (v === e) id = k; }); return id; }
+  function recordFrame(m, ctx, bx, by, bz) {
+    if (recT - recLast < 1 / 30) return; recLast = recT;
+    const ids = []; m.teams.forEach((t) => t.players.forEach((p) => ids.push(p)));
+    const f = { t: recT, b: [bx, by, bz], ids: recIds, d: new Float32Array(ids.length * 3) };
+    ids.forEach((p, i) => { const rpos = (ctx && ctx.renderPos && ctx.renderPos.get(p.id)) || { x: p.x, y: p.y, facing: p.facing || 0 }; f.d[i * 3] = rpos.x; f.d[i * 3 + 1] = rpos.y; f.d[i * 3 + 2] = Number.isFinite(rpos.facing) ? rpos.facing : 0; });
+    f.ids = ids.map((p) => p.id); recBuf.push(f);
+    while (recBuf.length && recBuf[0].t < recT - REC_KEEP) recBuf.shift();
+  }
+  function replayBoxEl() {
+    if (replayBox && replayBox.parentElement === host) return replayBox;
+    replayBox = document.createElement('div'); replayBox.id = 'replayBox';
+    replayBox.style.cssText = 'position:absolute;left:12px;top:12px;z-index:6;display:flex;gap:8px;align-items:center;pointer-events:none';
+    replayBox.innerHTML = '<span style="background:#d62828;color:#fff;font:800 15px system-ui,sans-serif;letter-spacing:.14em;padding:6px 14px;border-radius:3px;box-shadow:0 2px 8px rgba(0,0,0,.4)"><i style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#fff;margin-right:9px;animation:rpl 1s infinite"></i>REPLAY</span><span style="background:rgba(10,20,16,.72);color:#e8dcb8;font:600 12px system-ui,sans-serif;padding:5px 9px;border-radius:3px">0.7x</span><button type="button" id="replaySkip" style="pointer-events:auto;cursor:pointer;background:rgba(10,20,16,.78);color:#fff;border:1px solid rgba(255,255,255,.35);font:600 12px system-ui,sans-serif;padding:5px 11px;border-radius:3px">Skip replay</button><style>@keyframes rpl{50%{opacity:.25}}</style>';
+    host.appendChild(replayBox); return replayBox;
+  }
+  function startReplay(m) {
+    const t1 = (goalMark == null ? recT : goalMark) + POST, t0 = (goalMark == null ? recT : goalMark) - PRE, frames = recBuf.filter((f) => f.t >= t0 && f.t <= t1 + 0.05);
+    if (frames.length < 6) { m.replayDone = true; return; }
+    rp = { m, frames, t: frames[0].t, end: frames[frames.length - 1].t, log: recLog.filter((o) => o.t >= frames[0].t && o.t <= t1).slice(), li: 0, lastT: null };
+    goalFx = null; snapCam = true; replayBoxEl().style.display = 'flex'; const sk = replayBox.querySelector('#replaySkip'); if (sk) sk.onclick = () => { m.replayDone = true; };
+  }
+  function stopReplay(m) { rp = null; snapCam = true; if (replayBox) replayBox.style.display = 'none'; m.replayDone = true; goalMark = null; recBuf.length = 0; recLog.length = 0; }
+  // the frame to draw at replay time t, as the renderPos map and ball the live code expects
+  function replayAt(r) {
+    const fr = r.frames; let k = 0; while (k < fr.length - 2 && fr[k + 1].t <= r.t) k++;
+    const a = fr[k], b = fr[Math.min(k + 1, fr.length - 1)], u = b.t > a.t ? clamp((r.t - a.t) / (b.t - a.t), 0, 1) : 0, pos = new Map();
+    a.ids.forEach((id, i) => { const j = b.ids === a.ids ? i : b.ids.indexOf(id); let fa = a.d[i * 3 + 2], fb = j >= 0 ? b.d[j * 3 + 2] : fa; const dA = Math.atan2(Math.sin(fb - fa), Math.cos(fb - fa)); pos.set(id, { x: a.d[i * 3] + ((j >= 0 ? b.d[j * 3] : a.d[i * 3]) - a.d[i * 3]) * u, y: a.d[i * 3 + 1] + ((j >= 0 ? b.d[j * 3 + 1] : a.d[i * 3 + 1]) - a.d[i * 3 + 1]) * u, facing: fa + dA * u }); });
+    return { pos, ball: [a.b[0] + (b.b[0] - a.b[0]) * u, a.b[1] + (b.b[1] - a.b[1]) * u, a.b[2] + (b.b[2] - a.b[2]) * u] };
+  }
+
   function setPose(e, type, dur, dir) {
     if (!e) return;
+    if (!rp) { const id = idOf(e); if (id) logAct({ id, pose: type, dur, dir }); }
     if (FM.anim && FM.anim.ready) {
-      if (type === 'kick') { if (e.kickAt && performance.now() - e.kickAt < 1200) return; if (FM.anim.kick(e, 0.12, {})) return; }
+      if (type === 'kick') { if (e.kickAt && performance.now() - e.kickAt < 1200) return; if (FM.anim.kick(e, 0.12, {})) { const id = idOf(e); if (id && !rp) logAct({ id, kick: 1, t: recT - 0.0, rem: 0.12 }); return; } }
       else if (type === 'dive') { if (FM.anim.dive(e, dir)) return; }
       else if (type !== 'celebrate' && FM.anim.trigger(e, type, dir)) return;
     }
@@ -452,7 +491,7 @@
       if (k === 'shot' && e.setPiece === 'header') setPose(findBy(m, e.team, e.player), 'header', 0.85);
       if (k === 'clearance' && e.x == null) setPose(findBy(m, e.team, e.player), 'header', 0.85);   // a defender heading a cross away
       if (k === 'foul') { const vt = m.teams.find((t) => t.id !== e.team); if (vt) setPose(findBy(m, vt.id, e.vs), 'fall', 1.1); }
-      if (k === 'goal') { const dir = (m.teams.find((t) => t.id === e.team) || {}).attackDir || 1; setPose(findBy(m, e.team, e.player), 'celebrate', 3.2); goalFx = { side: dir, t: 0, y: 0.5 + Math.random() * 0.8, z: clamp(m.ball.y - HH(), -3.2, 3.2), hit: false }; }
+      if (k === 'goal') { const dir = (m.teams.find((t) => t.id === e.team) || {}).attackDir || 1; setPose(findBy(m, e.team, e.player), 'celebrate', 1.8); goalFx = { side: dir, t: 0, y: 0.5 + Math.random() * 0.8, z: clamp(m.ball.y - HH(), -3.2, 3.2), hit: false }; }
     }
     lastEv = ev[ev.length - 1].t; lastEvLen = ev.length;
   }
@@ -477,7 +516,10 @@
   function setCamera(dt, bx, bz, snap) {
     const k = snap ? 1 : 1 - Math.exp(-dt * (mode === 'stands' ? 3.4 : 2.6));
     let tx, tz, cx, cy, cz, ty = 0.8;
-    if (mode === 'stands') {
+    if (rp) {
+      // a replay: low and close on the touchline, with the ball well in the picture
+      tx = clamp(bx, -HL + 4, HL - 4); tz = bz * 0.5; cx = tx * 0.95 - 4; cy = 3.4; cz = HW + 3.2 + 4 * clamp(bz / 28, 0, 1); ty = 0.9;
+    } else if (mode === 'stands') {
       // from the middle of the main stand, higher up: the whole width of the pitch and a long stretch of it, so the shape of both teams can be read
       tx = clamp(bx, -HL + 12, HL - 12); tz = clamp(bz * 0.55, -16, 16); cx = tx * 0.92; cy = 21; cz = HW + 13; ty = 0.4;
     } else {
@@ -505,7 +547,24 @@
       motionBadge();
       const dt = Math.min(0.1, (ctx && ctx.dt) || 0.016); clock += dt; netT += dt;
       const nowT = performance.now(), rdt = clamp(lastT == null ? dt : (nowT - lastT) / 1000, 0.004, 0.25); lastT = nowT;
-      ensurePlayers(m); readEvents(m);
+      ensurePlayers(m);
+      // a replay: the recorded frames stand in for the live positions, and the live match waits
+      if (m.phase === 'replay' && !rp && !m.replayDone) startReplay(m);
+      if (rp && rp.m !== m) { rp = null; }
+      if (rp) {
+        rp.t += rdt * REPLAY_SPEED; const at = replayAt(rp);
+        while (rp.li < rp.log.length && rp.log[rp.li].t <= rp.t) { const o = rp.log[rp.li++], e = players.get(o.id); if (o.net) hitNet(o.net[0], o.net[1], o.net[2], o.net[3], o.net[4], o.net[5]); else if (e && o.pose && o.pose !== 'kick') setPose(e, o.pose, o.dur, o.dir); else if (e && o.kick) FM.anim && FM.anim.ready && FM.anim.kick(e, 0.12 / REPLAY_SPEED, {}); }
+        ctx = { dt, renderPos: at.pos, renderBall: { x: at.ball[0] + HL, y: at.ball[2] + HW }, replayBy: at.ball[1], snap: snapCam };
+        if (rp.t >= rp.end) { stopReplay(m); }
+      } else {
+        if (m.phase === 'celebration' && goalMark == null) goalMark = recT;
+        if (m.phase !== 'celebration' && m.phase !== 'replay' && goalMark != null && recT - goalMark > 30) goalMark = null;
+        readEvents(m);
+      }
+      const replay = !!rp; if (!replay) recT += dt;
+      if (snapCam) { ctx = Object.assign({}, ctx, { snap: true }); snapCam = false; }
+      // the scorer's slide: the clip starts as the scripted slide does
+      if (m.celeb && m.celeb.stage === 'slide' && !m.celeb.fx) { m.celeb.fx = true; const ce = players.get(m.celeb.shooter.id); if (ce && !(FM.anim && FM.anim.ready && FM.anim.celebrate(ce, 2.07))) setPose(ce, 'celebrate', 2.1, 1); }
       m.teams.forEach((team) => team.players.forEach((p) => {
         const e = players.get(p.id); if (!e) return; const rp = (ctx && ctx.renderPos && ctx.renderPos.get(p.id)) || { x: p.x, y: p.y, facing: p.facing || 0 };
         const x = rp.x - HL, z = rp.y - HW, lp = lastPos.get(p.id), k8 = Math.min(1, dt * 8);
@@ -524,15 +583,16 @@
           const ch = Math.cos(e.hd), sh = Math.sin(e.hd);
           animate(e.fig, { vf: e.vx * ch + e.vz * sh, vs: e.vx * sh - e.vz * ch, turn: e.turn, accel: e.accel, look: angDiff(e.hd, ab), px: x, pz: z, hd: e.hd, sc: 1.3, vx: e.vx, vz: e.vz, e, gk: p.group === 'GK' }, dt, clock);
           // the kick: the engine holds the ball for the turn and the backswing, and the clip is timed so the foot meets it as it leaves
-          { const pa = m.pendingAct; if (FM.anim && FM.anim.ready && pa && pa.player === p && e.kickTag !== pa && (pa.opt.kind === 'pass' || pa.opt.kind === 'shoot' || pa.opt.kind === 'clear')) { const rem = pa.release - m.clock; if (rem <= 0.6) { e.kickTag = pa; e.kickAt = performance.now(); FM.anim.kick(e, rem, { shot: pa.opt.kind === 'shoot', gk: p.group === 'GK' }); } } } }
+          { const pa = m.pendingAct; if (FM.anim && FM.anim.ready && pa && pa.player === p && e.kickTag !== pa && (pa.opt.kind === 'pass' || pa.opt.kind === 'shoot' || pa.opt.kind === 'clear')) { const rem = pa.release - m.clock; if (rem <= 0.6) { e.kickTag = pa; e.kickAt = performance.now(); FM.anim.kick(e, rem, { shot: pa.opt.kind === 'shoot', gk: p.group === 'GK' }); logAct({ id: p.id, kick: 1, t: recT + rem - 0.12, rem: 0.12 }); } } } }
+        { const kc = m.kickCue; if (!rp && FM.anim && FM.anim.ready && kc && kc.player === p && e.kickTag !== kc) { const rem = kc.release - m.clock; if (rem <= 0.55) { e.kickTag = kc; e.kickAt = performance.now(); FM.anim.kick(e, Math.max(0.12, rem), {}); logAct({ id: p.id, kick: 1, t: recT + Math.max(0.12, rem) - 0.12, rem: 0.12 }); } } }
         // the first touch: a man who has just received the ball cushions it
         if (isC && !e.wasC && e.speed < 8) setPose(e, 'control', 0.5, e.foot); e.wasC = isC;
         if (e.pose) { e.pose.t += dt; if (e.pose.t >= e.pose.dur) e.pose = null; else applyPose(e.fig, e.pose.type, e.pose.t, e.pose.dur, e.pose.dir); }
       }));
-      let bx = ((ctx && ctx.renderBall) || m.ball).x - HL, bz = ((ctx && ctx.renderBall) || m.ball).y - HW, by = ballHeight(m, bx, bz);
+      let bx = ((ctx && ctx.renderBall) || m.ball).x - HL, bz = ((ctx && ctx.renderBall) || m.ball).y - HW, by = replay ? ctx.replayBy : ballHeight(m, bx, bz);
       // A man running with the ball does not carry it glued to his boots: he pushes it ahead a stride at a time, and the further and faster he goes the
       // further ahead it runs between touches.
-      if (m.carrier && m.ball.state === 'carried' && !goalFx) {
+      if (!replay && m.carrier && m.ball.state === 'carried' && !goalFx) {
         const ce = players.get(m.carrier.player.id), rp = ce && ((ctx && ctx.renderPos && ctx.renderPos.get(m.carrier.player.id)) || null);
         if (ce && rp && Number.isFinite(rp.facing)) {
           const k = clamp(ce.speed / 7, 0, 1), ahead = 0.42 + k * 0.5 * (0.5 + 0.5 * Math.sin(ce.fig.phase * 2 - 1.2)), side = 0.1 * Math.sin(ce.fig.phase);
@@ -544,11 +604,14 @@
         // after a goal the ball runs on into the net, hits it, and drops
         goalFx.t += dt; const g = goalFx, t = Math.min(g.t, 0.5), run = 1.9 * (1 - Math.pow(1 - t / 0.5, 2));
         bx = g.side * (HL + 0.1 + run); bz = g.z; by = Math.max(0.115, g.y * (1 - t / 0.5) + 0.115);
-        if (!g.hit && g.t > 0.1) { g.hit = true; hitNet(g.side, 0, 22, bx, by, bz); }
+        if (!g.hit && g.t > 0.1) { g.hit = true; hitNet(g.side, 0, 22, bx, by, bz); logAct({ net: [g.side, 0, 22, bx, by, bz] }); }
         if (g.t > 4) goalFx = null;
       }
       lastBall.x = bx; lastBall.z = bz;
-      setCamera(dt, bx, bz, !ctx || ctx.snap);
+      if (!replay) recordFrame(m, ctx, bx, by, bz);
+      // after a goal the camera goes with the scorer to the corner flag
+      let camX = bx, camZ = bz; if (m.celeb && !replay) { const se = players.get(m.celeb.shooter.id); if (se) { camX = se.fig.root.position.x; camZ = se.fig.root.position.z; } }
+      setCamera(dt, camX, camZ, !ctx || ctx.snap);
       // The ball is drawn bigger than a real one so it can be followed, and bigger again the further it is from the camera.
       const bs = 1.05 * clamp(camera.position.distanceTo(ballMesh.position) / 32, 1, 2.4);
       ballMesh.scale.setScalar(bs); ballMesh.position.set(bx, by + 0.115 * (bs - 1), bz); ballRing.position.set(bx, 0.03, bz); ballRing.scale.setScalar(bs * 0.9); ballRing.material.opacity = clamp(0.62 - by * 0.25, 0.25, 0.62); ballMesh.rotation.z -= dt * 6; updateNets();

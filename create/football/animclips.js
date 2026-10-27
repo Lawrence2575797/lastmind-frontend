@@ -77,6 +77,8 @@
     if (type === 'fall') return A.play(e, nm, { len: 1.6, next: { name: 'fallen', len: 1.0, fi: 0.1, fo: 0.5 } });
     return A.play(e, nm, o);
   };
+  // the goal celebration: the sprint to a backslide, started as the scripted slide begins (match.js, stepCelebration)
+  A.celebrate = function (e, dur) { return A.play(e, 'sprintBackslide', { len: dur || 2.07, fi: 0.1, fo: 0.35 }); };
   A.dive = function (e, dir) { const nm = (dir > 0 ? 'gkDive2' : 'gkDive1'); return A.play(e, A.clips[nm] ? nm : 'gkDive1', { len: 1.9 }); };
   // a kick timed so that the ball leaves the foot at `remaining` seconds from now
   A.kick = function (e, remaining, o) {
@@ -88,6 +90,8 @@
   // ---- the per-frame step for one figure; st carries velocity in the body frame (vf forward, vs toward his left), turn rate, acceleration, look angle and the entity
   A.step = function (f, st, dt, t) {
     A.drove = (A.drove || 0) + 1; A.droveAt = performance.now();
+    // a hard turn at full pace is the sprint-turn clip, not a swerve of the jog
+    if (st.e && !st.e.os && A.clips.sprintTurn && Math.hypot(st.vf, st.vs) > 4.8 && Math.abs(st.turn) > 4.5 && t > (st.e.stCool || 0)) { st.e.stCool = t + 2.5; A.play(st.e, 'sprintTurn', { fi: 0.08, fo: 0.25, len: 0.85 }); }
     const e = st.e, sp = Math.hypot(st.vf, st.vs), gk = !!st.gk;
     // locomotion: the two nearest of eight directional jogs, run at the speed that matches the ground he is covering
     const th = Math.atan2(st.vs, st.vf), pos = (th + Math.PI) / (Math.PI / 4), i0 = Math.floor(pos) % 8, a = pos - Math.floor(pos);
@@ -99,7 +103,12 @@
     const wLoco = smooth(0.2, 1.3, sp), idleName = gk ? 'gkIdle1' : 'idle', ci = A.clips[idleName];
     f.it = (f.it || Math.random() * 10) + dt;
     reset(L1); const acc = L1;
-    if (wLoco > 0.001) { sampleInto(L2, c0, f.lp * c0.dur, true); accum(acc, L2, wLoco * (1 - u)); sampleInto(L2, c1, f.lp * c1.dur, true); accum(acc, L2, wLoco * u); }
+    // above a jog, running forward, the sprint clip takes over (its own cadence, matched to the ground he covers)
+    const csp = A.clips.sprint, ws = csp && !gk ? smooth(3.6, 5.0, sp) * smooth(0.55, 0.85, Math.cos(th)) : 0;
+    if (ws > 0.001) { f.spp = ((f.spp || 0) + dt * clamp(sp / Math.max(1, natSpeed('sprint')), 0.7, 1.5) / csp.dur) % 1; }
+    const wJ = wLoco * (1 - ws);
+    if (wJ > 0.001) { sampleInto(L2, c0, f.lp * c0.dur, true); accum(acc, L2, wJ * (1 - u)); sampleInto(L2, c1, f.lp * c1.dur, true); accum(acc, L2, wJ * u); }
+    if (ws > 0.001) { sampleInto(L2, csp, f.spp * csp.dur, true); accum(acc, L2, wLoco * ws); }
     if (wLoco < 0.999) { sampleInto(L2, ci, f.it, true); accum(acc, L2, 1 - wLoco); }
     finish(acc); acc.hy *= (A.BOB == null ? 0.45 : A.BOB);   // the captured jog bobs more than a footballer running with purpose
     // one-shot actions blend over the top
