@@ -17,6 +17,8 @@
     return loading;
   }
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const angDiff = (a, b) => { let d = b - a; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; return d; };
+  const lastBall = { x: 0, z: 0 };
   const mkCanvas = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; };
   const tex = (c, srgb) => { const t = new THREE.CanvasTexture(c); if (srgb !== false) t.encoding = THREE.sRGBEncoding; t.anisotropy = renderer.capabilities.getMaxAnisotropy(); return t; };
 
@@ -83,49 +85,100 @@
   const SKIN = [0xf0c9a4, 0xe2ad84, 0xc98b62, 0x9b6440, 0x6e4529, 0xf3d2b3], HAIR = [0x1b1511, 0x3a2a1c, 0x6a4a2a, 0x141414, 0x8a6a3a, 0x2a1d14], STYLE = ['short', 'short', 'buzz', 'long', 'afro', 'bald', 'short', 'buzz'];
   function makeFigure(o) {
     const root = new THREE.Group(), body = new THREE.Group(); root.add(body);
-    const hip = 0.88, skin = M(o.skin, 0.6), Lh = {}, Rh = {};
-    const sh = mesh(GEO.shorts, M(o.shorts), 0, hip + 0.03, 0); sh.scale.z = 0.74; body.add(sh);
-    const to = mesh(GEO.torso, M(o.shirt, 0.65), 0, hip + 0.35, 0); to.scale.z = 0.62; body.add(to);
-    const st = mesh(GEO.shorts, M(o.trim, 0.65), 0, hip + 0.58, 0); st.scale.set(1.18, 0.12, 0.8); body.add(st);
-    const num = new THREE.Mesh(new THREE.PlaneGeometry(0.34, 0.34), new THREE.MeshBasicMaterial({ map: numberTexture(o.num, o.numColor), transparent: true })); num.position.set(0, hip + 0.4, -0.132); num.rotation.y = Math.PI; body.add(num);
+    const hip = 0.9, skin = M(o.skin, 0.55), Lh = {}, Rh = {};
+    // a soft contact shadow so the feet sit on the grass
+    if (!matCache.blob) { const c = mkCanvas(64, 64), g = c.getContext('2d'), gr = g.createRadialGradient(32, 32, 2, 32, 32, 31); gr.addColorStop(0, 'rgba(0,0,0,.55)'); gr.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = gr; g.fillRect(0, 0, 64, 64); matCache.blob = new THREE.MeshBasicMaterial({ map: tex(c, false), transparent: true, depthWrite: false }); }
+    const blob = new THREE.Mesh(new THREE.PlaneGeometry(1.15, 0.85), matCache.blob); blob.rotation.x = -Math.PI / 2; blob.position.y = 0.012; root.add(blob);
+    const pelvis = mesh(GEO.shorts, M(o.shorts), 0, hip + 0.02, 0); pelvis.scale.set(1.08, 1, 0.78); body.add(pelvis);
+    // the upper body turns on its own against the hips
+    const torso = new THREE.Group(); torso.position.y = hip + 0.12; body.add(torso);
+    const chest = mesh(GEO.torso, M(o.shirt, 0.65), 0, 0.28, 0); chest.scale.set(1.14, 1, 0.64); torso.add(chest);
+    const yoke = mesh(GEO.sph, M(o.shirt, 0.65), 0, 0.53, 0); yoke.scale.set(0.285, 0.07, 0.125); torso.add(yoke);
+    const hem = mesh(GEO.shorts, M(o.trim, 0.65), 0, 0.02, 0); hem.scale.set(1.2, 0.1, 0.8); torso.add(hem);
+    const collar = new THREE.Mesh(new THREE.TorusGeometry(0.058, 0.016, 6, 16), M(o.trim, 0.6)); collar.rotation.x = Math.PI / 2; collar.position.set(0, 0.585, 0.004); torso.add(collar);
+    const num = new THREE.Mesh(new THREE.PlaneGeometry(0.34, 0.34), new THREE.MeshBasicMaterial({ map: numberTexture(o.num, o.numColor), transparent: true })); num.position.set(0, 0.3, -0.142); num.rotation.y = Math.PI; torso.add(num);
     [[-1, Lh], [1, Rh]].forEach(([side, r]) => {
-      r.hip = new THREE.Group(); r.hip.position.set(side * 0.095, hip, 0); body.add(r.hip);
-      r.hip.add(mesh(GEO.thighU, M(o.shorts), 0, -0.11, 0)); r.hip.add(mesh(GEO.thighL, skin, 0, -0.32, 0));
-      r.knee = new THREE.Group(); r.knee.position.y = -0.42; r.hip.add(r.knee); r.knee.add(mesh(GEO.shin, M(o.sock), 0, -0.2, 0)); r.knee.add(mesh(GEO.boot, M(o.boot, 0.45), 0, -0.405, 0.055));
-      r.arm = new THREE.Group(); r.arm.position.set(side * 0.245, hip + 0.56, 0); body.add(r.arm);
-      const sd = mesh(GEO.sph, M(o.shirt, 0.65), 0, 0, 0); sd.scale.setScalar(0.07); r.arm.add(sd); r.arm.add(mesh(GEO.upper, M(o.sleeve, 0.65), 0, -0.15, 0));
+      r.hip = new THREE.Group(); r.hip.position.set(side * 0.1, hip, 0); body.add(r.hip);
+      const th = mesh(GEO.thighU, M(o.shorts), 0, -0.11, 0); th.scale.set(1.08, 1, 1.05); r.hip.add(th); r.hip.add(mesh(GEO.thighL, skin, 0, -0.32, 0));
+      r.knee = new THREE.Group(); r.knee.position.y = -0.42; r.hip.add(r.knee);
+      r.knee.add(mesh(GEO.shin, M(o.sock), 0, -0.2, 0));
+      const band = mesh(GEO.cuff, M(o.trim, 0.6), 0, -0.07, 0); r.knee.add(band);
+      const shoe = mesh(GEO.sph, M(o.boot, 0.42), 0, -0.415, 0.05); shoe.scale.set(0.052, 0.042, 0.135); r.knee.add(shoe);
+      r.arm = new THREE.Group(); r.arm.position.set(side * 0.275, 0.52, 0); torso.add(r.arm);
+      const sd = mesh(GEO.sph, M(o.shirt, 0.65), 0, 0, 0); sd.scale.setScalar(0.075); r.arm.add(sd); r.arm.add(mesh(GEO.upper, M(o.sleeve, 0.65), 0, -0.15, 0));
       r.elbow = new THREE.Group(); r.elbow.position.y = -0.3; r.arm.add(r.elbow); r.elbow.add(mesh(GEO.fore, skin, 0, -0.13, 0));
-      const hd = mesh(GEO.sph, skin, 0, -0.28, 0); hd.scale.setScalar(0.045); r.elbow.add(hd); r.arm.rotation.z = -side * 0.07;
+      const hd = mesh(GEO.sph, skin, 0, -0.28, 0); hd.scale.set(0.045, 0.055, 0.04); r.elbow.add(hd); r.arm.rotation.z = -side * 0.08;
     });
-    body.add(mesh(GEO.neck, skin, 0, hip + 0.69, 0.005));
-    const head = mesh(GEO.sph, skin, 0, hip + 0.81, 0.012); head.scale.set(0.103, 0.118, 0.11); body.add(head);
-    [-1, 1].forEach((s) => { const e = mesh(GEO.sph, M(0x1a1410, 0.4), s * 0.037, hip + 0.825, 0.1); e.scale.setScalar(0.011); e.castShadow = false; body.add(e); const ear = mesh(GEO.sph, skin, s * 0.105, hip + 0.8, 0); ear.scale.set(0.014, 0.03, 0.022); body.add(ear); });
-    const nose = mesh(GEO.sph, skin, 0, hip + 0.795, 0.112); nose.scale.set(0.017, 0.02, 0.02); body.add(nose);
+    // the head turns on the neck, so a player can look at the ball while running another way
+    const headG = new THREE.Group(); headG.position.set(0, 0.62, 0.004); torso.add(headG);
+    headG.add(mesh(GEO.neck, skin, 0, -0.05, 0.004));
+    const head = mesh(GEO.sph, skin, 0, 0.07, 0.01); head.scale.set(0.103, 0.12, 0.112); headG.add(head);
+    [-1, 1].forEach((s) => {
+      const e = mesh(GEO.sph, M(0x1a1410, 0.4), s * 0.037, 0.085, 0.1); e.scale.setScalar(0.011); e.castShadow = false; headG.add(e);
+      const br = mesh(GEO.sph, M(o.hair, 0.9), s * 0.037, 0.112, 0.098); br.scale.set(0.024, 0.006, 0.01); br.castShadow = false; headG.add(br);
+      const ear = mesh(GEO.sph, skin, s * 0.104, 0.06, 0); ear.scale.set(0.014, 0.03, 0.022); headG.add(ear);
+    });
+    const nose = mesh(GEO.sph, skin, 0, 0.055, 0.113); nose.scale.set(0.017, 0.022, 0.022); headG.add(nose);
     const hairM = M(o.hair, 0.9);
     if (o.style !== 'bald') {
-      const rr = o.style === 'afro' ? 0.135 : 0.113, cap = new THREE.Mesh(new THREE.SphereGeometry(rr, 16, 12, 0, Math.PI * 2, 0, Math.PI * (o.style === 'buzz' ? 0.5 : o.style === 'afro' ? 0.66 : 0.58)), hairM);
-      cap.position.set(0, hip + 0.83, -0.004); cap.scale.set(1, 1.04, 1.02); cap.rotation.x = -0.12; cap.castShadow = true; body.add(cap);
-      if (o.style === 'long') { const bk = mesh(GEO.sph, hairM, 0, hip + 0.76, -0.07); bk.scale.set(0.1, 0.12, 0.07); body.add(bk); }
+      const rr = o.style === 'afro' ? 0.135 : 0.115, cap = new THREE.Mesh(new THREE.SphereGeometry(rr, 16, 12, 0, Math.PI * 2, 0, Math.PI * (o.style === 'buzz' ? 0.5 : o.style === 'afro' ? 0.66 : 0.58)), hairM);
+      cap.position.set(0, 0.095, -0.004); cap.scale.set(1, 1.04, 1.02); cap.rotation.x = -0.12; cap.castShadow = true; headG.add(cap);
+      if (o.style === 'long') { const bk = mesh(GEO.sph, hairM, 0, 0.0, -0.07); bk.scale.set(0.1, 0.13, 0.07); headG.add(bk); }
     }
     root.scale.setScalar(o.height || 1);
-    return { root, body, L: Lh, R: Rh, phase: Math.random() * 6 };
+    return { root, body, torso, headG, L: Lh, R: Rh, phase: Math.random() * 6, look: 0, bank: 0, sway: Math.random() * 6 };
   }
-  function runCycle(f, speed, dt, t) {
-    const amp = Math.min(speed / 5.2, 1.25); f.phase += dt * (2.6 + speed * 1.15);
-    const s = Math.sin(f.phase), A = 0.72 * amp;
-    f.L.hip.rotation.x = -s * A; f.R.hip.rotation.x = s * A;
-    f.L.knee.rotation.x = Math.max(0, Math.sin(f.phase + 1.5)) * amp + 0.04; f.R.knee.rotation.x = Math.max(0, Math.sin(f.phase + 1.5 + Math.PI)) * amp + 0.04;
-    f.L.arm.rotation.x = s * 0.62 * amp; f.R.arm.rotation.x = -s * 0.62 * amp; f.L.elbow.rotation.x = -(0.25 + 0.5 * amp); f.R.elbow.rotation.x = -(0.25 + 0.5 * amp);
-    f.body.position.y = Math.abs(s) * 0.045 * amp; f.body.rotation.x = 0.13 * amp; f.body.rotation.z = 0; f.body.scale.y = 1 + Math.sin(t * 1.6 + f.phase) * 0.004;
+  const mix = (a, b, k) => a + (b - a) * k;
+  // Standing, walking, jogging, sprinting: one blend. Idle is an athletic stance (knees soft, arms loose, weight shifting), the run leans into its
+  // speed and its turns, the arms drive against the legs, the shoulders turn against the hips, and the head stays on the ball.
+  function animate(f, st, dt, t) {
+    const sp = st.speed, amp = Math.min(sp / 5.2, 1.3), run = clamp(sp / 1.4, 0, 1);
+    f.phase += dt * (sp < 0.25 ? 0 : 2.4 + sp * 1.05);
+    const s = Math.sin(f.phase), c = Math.cos(f.phase), A = 0.8 * amp, sw = Math.sin(t * 0.7 + f.sway);
+    // legs
+    const hipL = -s * A, hipR = s * A, kneeL = Math.max(0, Math.sin(f.phase + 1.6)) * (1.05 * amp) + 0.04, kneeR = Math.max(0, Math.sin(f.phase + 1.6 + Math.PI)) * (1.05 * amp) + 0.04;
+    f.L.hip.rotation.x = mix(0.07 + 0.02 * sw, hipL, run); f.R.hip.rotation.x = mix(-0.03 - 0.02 * sw, hipR, run);
+    f.L.knee.rotation.x = mix(0.14, kneeL, run); f.R.knee.rotation.x = mix(0.1, kneeR, run);
+    f.L.hip.rotation.z = mix(0.05, 0, run); f.R.hip.rotation.z = mix(-0.05, 0, run);
+    // arms
+    f.L.arm.rotation.x = mix(0.12 + 0.03 * sw, s * 0.78 * amp, run); f.R.arm.rotation.x = mix(0.12 - 0.03 * sw, -s * 0.78 * amp, run);
+    f.L.arm.rotation.z = mix(0.1, 0.05, run); f.R.arm.rotation.z = mix(-0.1, -0.05, run);
+    const bend = mix(0.35, 0.65 + 0.55 * Math.min(amp, 1), run);
+    f.L.elbow.rotation.x = -(bend + 0.1 * Math.max(0, -s) * run); f.R.elbow.rotation.x = -(bend + 0.1 * Math.max(0, s) * run);
+    // trunk: lean into speed and acceleration, bank into a turn, twist against the hips
+    const lean = 0.05 + 0.2 * Math.min(amp, 1.1) + clamp(st.accel, -3, 3) * 0.018;
+    f.bank += (clamp(-st.turn * 0.06, -0.3, 0.3) * Math.min(amp, 1) - f.bank) * Math.min(1, dt * 8);
+    f.body.rotation.x = lean; f.body.rotation.z = f.bank; f.body.rotation.y = 0; f.body.position.set(0.015 * sw * (1 - run), Math.abs(c) * 0.055 * amp + Math.sin(t * 1.7 + f.phase) * 0.004 * (1 - run), 0);
+    f.torso.rotation.y = -s * 0.2 * amp * run; f.torso.rotation.z = -f.bank * 0.4; f.torso.rotation.x = 0;
+    f.body.scale.y = 1;
+    // head: looks at the ball within what a neck allows, and up from the lean
+    f.look += (clamp(st.look, -1.25, 1.25) - f.look) * Math.min(1, dt * 9);
+    f.headG.rotation.y = -f.look + s * 0.03 * amp; f.headG.rotation.x = -lean * 0.8 + 0.04; f.headG.rotation.z = 0;
   }
+  const ease = (k) => 1 - Math.pow(1 - clamp(k, 0, 1), 2);
   function applyPose(f, type, t, dur, dir) {
     const k = Math.min(1, t / dur), s = Math.sin(Math.PI * k), e = Math.min(1, k * 3);
-    if (type === 'kick') { const kk = Math.min(1, t / 0.34); f.R.hip.rotation.x = -1.35 * Math.sin(Math.PI * kk); f.R.knee.rotation.x = 0.15; f.body.rotation.x = -0.1 * s; f.L.arm.rotation.z = 0.45 * s; f.R.arm.rotation.z = -0.45 * s; }
-    else if (type === 'tackle') { f.R.hip.rotation.x = -1.25 * s; f.R.knee.rotation.x = 0.1; f.L.knee.rotation.x = 0.7 * s; f.body.rotation.x = 0.3 * s; f.body.position.y = -0.1 * s; }
-    else if (type === 'dive') { const ex = k < 0.75 ? e : Math.max(0, 1 - (k - 0.75) / 0.25); f.body.rotation.z = dir * -1.35 * ex; f.body.position.y = 0.5 * s + 0.1 * ex; f.L.arm.rotation.x = -2.7 * ex; f.R.arm.rotation.x = -2.7 * ex; f.L.hip.rotation.x = 0.35 * ex; f.R.hip.rotation.x = -0.45 * ex; }
+    if (type === 'kick') {
+      // plant, wind up, strike through the ball, follow through
+      const kk = Math.min(1, t / 0.42), back = kk < 0.3 ? kk / 0.3 : 1 - Math.min(1, (kk - 0.3) / 0.12), strike = kk < 0.3 ? 0 : Math.min(1, (kk - 0.3) / 0.16), fol = kk < 0.46 ? 0 : Math.min(1, (kk - 0.46) / 0.54);
+      f.R.hip.rotation.x = 0.85 * back - 1.35 * strike * (1 - 0.35 * fol); f.R.knee.rotation.x = 1.5 * back * (1 - strike) + 0.12 + 0.5 * fol;
+      f.L.knee.rotation.x = 0.32; f.L.hip.rotation.x = 0.1; f.torso.rotation.y = -0.4 * Math.sin(Math.PI * Math.min(1, kk * 1.2));
+      f.body.rotation.x = -0.05 + 0.1 * strike; f.L.arm.rotation.z = 0.7 * s; f.R.arm.rotation.z = -0.55 * s; f.L.arm.rotation.x = -0.4 * s; f.R.arm.rotation.x = 0.3 * s;
+    } else if (type === 'tackle') {
+      f.R.hip.rotation.x = -1.0 * s; f.R.knee.rotation.x = 0.15; f.L.knee.rotation.x = 0.55 * s + 0.1; f.body.rotation.x = 0.28 * s; f.body.position.y -= 0.06 * s; f.L.arm.rotation.z = 0.6 * s; f.R.arm.rotation.z = -0.6 * s;
+    } else if (type === 'slide') {
+      const down = e, up = k > 0.78 ? (k - 0.78) / 0.22 : 0, g = down * (1 - up);
+      f.body.position.y = -0.46 * g + 0.02; f.body.position.z = 1.5 * ease(k); f.body.rotation.x = -1.25 * g; f.R.hip.rotation.x = -1.45 * g; f.R.knee.rotation.x = 0.05; f.L.hip.rotation.x = -0.35 * g; f.L.knee.rotation.x = 1.7 * g;
+      f.L.arm.rotation.z = 1.0 * g; f.R.arm.rotation.z = -1.0 * g; f.L.arm.rotation.x = -0.6 * g; f.R.arm.rotation.x = -0.6 * g;
+    } else if (type === 'challenge') {
+      // a shoulder-to-shoulder contest: low, wide, leaning into the other man, arms tucked
+      f.body.rotation.z += dir * 0.22 * s; f.torso.rotation.y += dir * 0.45 * s; f.body.rotation.x += 0.12 * s; f.body.position.y -= 0.05 * s;
+      f.L.hip.rotation.z = 0.2 * s; f.R.hip.rotation.z = -0.2 * s; f.L.knee.rotation.x += 0.35 * s; f.R.knee.rotation.x += 0.35 * s;
+      f.L.arm.rotation.z = 0.5 * s; f.R.arm.rotation.z = -0.5 * s; f.L.elbow.rotation.x = -1.2 * s; f.R.elbow.rotation.x = -1.2 * s;
+    } else if (type === 'dive') { const ex = k < 0.75 ? e : Math.max(0, 1 - (k - 0.75) / 0.25); f.body.rotation.z = dir * -1.35 * ex; f.body.position.y = 0.5 * s + 0.1 * ex; f.L.arm.rotation.x = -2.7 * ex; f.R.arm.rotation.x = -2.7 * ex; f.L.hip.rotation.x = 0.35 * ex; f.R.hip.rotation.x = -0.45 * ex; }
     else if (type === 'fall') { const ex = k < 0.55 ? Math.min(1, k * 5) : Math.max(0, 1 - (k - 0.55) / 0.45); f.body.rotation.x = -1.28 * ex; f.body.position.y = 0.04; f.L.arm.rotation.x = -1.4 * ex; f.R.arm.rotation.x = -1.4 * ex; }
-    else if (type === 'stumble') { f.body.rotation.x = 0.45 * s; f.L.arm.rotation.z = 0.9 * s; f.R.arm.rotation.z = -0.9 * s; }
-    else if (type === 'celebrate') { f.L.arm.rotation.x = -2.9; f.R.arm.rotation.x = -2.9; f.L.arm.rotation.z = 0.25; f.R.arm.rotation.z = -0.25; f.body.position.y = Math.abs(Math.sin(t * 9)) * 0.12; }
+    else if (type === 'stumble') { f.body.rotation.x += 0.4 * s; f.torso.rotation.y += 0.3 * s * dir; f.L.arm.rotation.z = 0.95 * s; f.R.arm.rotation.z = -0.95 * s; f.L.knee.rotation.x += 0.5 * s; }
+    else if (type === 'celebrate') { f.L.arm.rotation.x = -2.9; f.R.arm.rotation.x = -2.9; f.L.arm.rotation.z = 0.25; f.R.arm.rotation.z = -0.25; f.body.position.y = Math.abs(Math.sin(t * 9)) * 0.12; f.headG.rotation.x = -0.25; }
     else if (type === 'header') { f.body.position.y = 0.5 * s; f.body.rotation.x = 0.5 * Math.sin(Math.PI * Math.min(1, k * 1.6)); f.L.arm.rotation.x = -1.0 * s; f.R.arm.rotation.x = -1.0 * s; f.L.knee.rotation.x = 1.0 * s; }
   }
 
@@ -133,12 +186,15 @@
   function build() {
     GEO = {
       thighU: new THREE.CylinderGeometry(0.083, 0.07, 0.22, 12), thighL: new THREE.CylinderGeometry(0.07, 0.056, 0.2, 12), shin: new THREE.CylinderGeometry(0.052, 0.04, 0.4, 12), boot: new THREE.BoxGeometry(0.1, 0.07, 0.27),
-      upper: new THREE.CylinderGeometry(0.054, 0.047, 0.29, 10), fore: new THREE.CylinderGeometry(0.044, 0.036, 0.26, 10), sph: new THREE.SphereGeometry(1, 16, 12), torso: new THREE.CylinderGeometry(0.205, 0.165, 0.56, 16), shorts: new THREE.CylinderGeometry(0.175, 0.19, 0.2, 16), neck: new THREE.CylinderGeometry(0.045, 0.052, 0.1, 10),
+      upper: new THREE.CylinderGeometry(0.054, 0.047, 0.29, 10), fore: new THREE.CylinderGeometry(0.044, 0.036, 0.26, 10), sph: new THREE.SphereGeometry(1, 16, 12), torso: new THREE.CylinderGeometry(0.205, 0.165, 0.56, 16), shorts: new THREE.CylinderGeometry(0.175, 0.19, 0.2, 16), neck: new THREE.CylinderGeometry(0.045, 0.052, 0.1, 10), cuff: new THREE.CylinderGeometry(0.057, 0.057, 0.05, 12),
     };
     try { renderer = new THREE.WebGLRenderer({ antialias: true }); } catch (e1) { renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'low-power' }); }
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2)); renderer.outputEncoding = THREE.sRGBEncoding; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.08;
     renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap; host.appendChild(renderer.domElement); renderer.domElement.style.cssText = 'display:block;width:100%;height:100%';
-    scene = new THREE.Scene(); scene.background = new THREE.Color(0x0a100d); scene.fog = new THREE.Fog(0x0a100d, 150, 330);
+    scene = new THREE.Scene(); scene.background = new THREE.Color(0x0a100d); scene.fog = new THREE.Fog(0x16222a, 150, 330);
+    // an evening sky behind the stands: deep blue overhead, a glow of floodlight at the rim, so the ground is not floating in a black void
+    { const c = mkCanvas(8, 256), g = c.getContext('2d'), gr = g.createLinearGradient(0, 0, 0, 256); gr.addColorStop(0, '#060d1c'); gr.addColorStop(0.45, '#0d2236'); gr.addColorStop(0.8, '#2a4a58'); gr.addColorStop(1, '#4d6f78'); g.fillStyle = gr; g.fillRect(0, 0, 8, 256);
+      const dome = new THREE.Mesh(new THREE.SphereGeometry(420, 24, 16, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshBasicMaterial({ map: tex(c, true), side: THREE.BackSide, fog: false, depthWrite: false })); dome.scale.y = 0.55; dome.position.y = -8; dome.rotation.y = 0; scene.add(dome); }
     camera = new THREE.PerspectiveCamera(46, 1.7, 0.5, 600);
     scene.add(new THREE.HemisphereLight(0xcfe0ff, 0x1d3b24, 0.62));
     sun = new THREE.DirectionalLight(0xfff1d6, 1.15); sun.position.set(-30, 70, 46); sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
@@ -185,7 +241,7 @@
         if (e) scene.remove(e.fig.root);
         const kit = kitOf(team, p.group === 'GK'), h = (p.number * 37) % 9;
         const fig = makeFigure({ ...kit, num: p.number, skin: SKIN[(p.number * 5 + ti * 2) % SKIN.length], hair: HAIR[(p.number * 3 + ti) % HAIR.length], style: STYLE[(p.number * 7 + ti * 3) % 8], height: 0.96 + h / 100 });
-        e = { fig, team, p, pose: null, speed: 0, kitKey: (team.kit && team.kit.shirt) + (p.group === 'GK') }; players.set(p.id, e); scene.add(fig.root);
+        e = { fig, team, p, pose: null, speed: 0, turn: 0, accel: 0, lastF: null, lastSp: 0, kitKey: (team.kit && team.kit.shirt) + (p.group === 'GK') }; players.set(p.id, e); scene.add(fig.root);
       }
       e.team = team; e.p = p; e.fig.root.visible = true;
     }));
@@ -200,7 +256,13 @@
       const e = ev[i]; if (e.t <= lastEv || e.t < m.clock - 8) continue;
       const k = e.type; if (k === 'pass' || k === 'shot' || k === 'cross') setPose(findBy(m, e.team, e.from || e.player), 'kick', 0.42);
       if (k === 'shot') { const shooterT = m.teams.find((t) => t.id === e.team), def = m.teams.find((t) => t.id !== e.team), gk = def && def.players.find((p) => p.group === 'GK'), ge = gk && players.get(gk.id); if (ge && (e.outcome === 'saved' || e.outcome === 'goal')) { const lat = (e.ey != null ? e.ey : m.ball.y) - gk.y; setPose(ge, 'dive', 0.9, lat >= 0 ? -1 : 1); } void shooterT; }
-      if (k === 'tackle') { setPose(findBy(m, e.team, e.player), 'tackle', 0.5); const vt = m.teams.find((t) => t.id !== e.team); if (vt) setPose(findBy(m, vt.id, e.vs), e.ok ? 'stumble' : 'tackle', 0.6); }
+      if (k === 'tackle') {
+        // a scrap is shoulder to shoulder; a man at speed may go to ground for it; otherwise a standing challenge. The loser of it stumbles.
+        const te = findBy(m, e.team, e.player), vt = m.teams.find((t) => t.id !== e.team), ve = vt && findBy(m, vt.id, e.vs), side = e.player % 2 ? 1 : -1;
+        const slide = !!te && te.speed > 4.2 && !e.duel && Math.random() < 0.3;
+        setPose(te, e.duel ? 'challenge' : slide ? 'slide' : 'tackle', slide ? 0.95 : e.duel ? 0.7 : 0.55, side);
+        if (ve) setPose(ve, e.ok ? 'stumble' : 'challenge', 0.7, -side);
+      }
       if (k === 'foul') { const vt = m.teams.find((t) => t.id !== e.team); if (vt) setPose(findBy(m, vt.id, e.vs), 'fall', 1.1); }
       if (k === 'goal') { const dir = (m.teams.find((t) => t.id === e.team) || {}).attackDir || 1; setPose(findBy(m, e.team, e.player), 'celebrate', 3.2); goalFx = { side: dir, t: 0, y: 0.5 + Math.random() * 0.8, z: clamp(m.ball.y - HH(), -3.2, 3.2), hit: false }; }
     }
@@ -222,7 +284,7 @@
 
   function size() {
     if (!host || !renderer) return; const w = host.clientWidth || 800, h = host.clientHeight || 450; renderer.setSize(w, h, false);
-    camera.aspect = w / h; const hfov = (mode === 'stands' ? 70 : 82) * Math.PI / 180; camera.fov = 2 * Math.atan(Math.tan(hfov / 2) / camera.aspect) * 180 / Math.PI; camera.updateProjectionMatrix();
+    camera.aspect = w / h; const hfov = (mode === "stands" ? 70 : 74) * Math.PI / 180; camera.fov = 2 * Math.atan(Math.tan(hfov / 2) / camera.aspect) * 180 / Math.PI; camera.updateProjectionMatrix();
   }
   function setCamera(dt, bx, bz, snap) {
     const k = snap ? 1 : 1 - Math.exp(-dt * 2.6);
@@ -257,7 +319,10 @@
         const x = rp.x - HL, z = rp.y - HW, lp = lastPos.get(p.id), sp = lp ? Math.hypot(x - lp.x, z - lp.z) / Math.max(dt, 0.001) : 0; lastPos.set(p.id, { x, z });
         e.speed += (sp - e.speed) * Math.min(1, dt * 8); e.fig.root.position.set(x, 0, z); e.fig.root.scale.setScalar(1.3);   // the players are drawn larger than life so they read at this distance
         e.fig.root.rotation.y = Math.PI / 2 - (Number.isFinite(rp.facing) ? rp.facing : 0);
-        runCycle(e.fig, Math.min(e.speed, 9), dt, clock);
+        { const fc = Number.isFinite(rp.facing) ? rp.facing : 0, dF = e.lastF == null ? 0 : angDiff(e.lastF, fc); e.lastF = fc;
+          e.turn += (clamp(dF / Math.max(dt, 0.001), -9, 9) - e.turn) * Math.min(1, dt * 6);
+          e.accel += (clamp((e.speed - e.lastSp) / Math.max(dt, 0.001), -12, 12) - e.accel) * Math.min(1, dt * 5); e.lastSp = e.speed;
+          animate(e.fig, { speed: Math.min(e.speed, 9), turn: e.turn, accel: e.accel, look: angDiff(fc, Math.atan2(lastBall.z - z, lastBall.x - x)) }, dt, clock); }
         if (e.pose) { e.pose.t += dt; if (e.pose.t >= e.pose.dur) e.pose = null; else applyPose(e.fig, e.pose.type, e.pose.t, e.pose.dur, e.pose.dir); }
       }));
       let bx = ((ctx && ctx.renderBall) || m.ball).x - HL, bz = ((ctx && ctx.renderBall) || m.ball).y - HW, by = ballHeight(m, bx, bz);
@@ -278,6 +343,7 @@
         if (!g.hit && g.t > 0.1) { g.hit = true; hitNet(g.side, 0, 22, bx, by, bz); }
         if (g.t > 4) goalFx = null;
       }
+      lastBall.x = bx; lastBall.z = bz;
       setCamera(dt, bx, bz, !ctx || ctx.snap);
       // The ball is drawn bigger than a real one so it can be followed, and bigger again the further it is from the camera.
       const bs = 1.05 * clamp(camera.position.distanceTo(ballMesh.position) / 32, 1, 2.4);
