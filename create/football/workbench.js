@@ -907,7 +907,9 @@
     // tables made by earlier experiments come back with the document
     state.wb.extra.forEach((x) => { try { T.register(x.name, x.desc, x.cols, x.rows); } catch (e) { /* fine */ } });
     const wb = state.wb, tier = league.tier || 'gcse';
+    FM.richHtml = richHtml;
     host.innerHTML = `<div class="wb wb2">
+      <div class="wb2-modes" role="tablist"><button type="button" role="tab" data-wbmode="work" class="on">Notebook and agent</button><button type="button" role="tab" data-wbmode="learn">Learn</button></div>
       <div class="wb2-body">
         <section class="wb2-notes" aria-label="Your notebook"><iframe id="wbNotes" title="Your notebook" src="/learn/?embed=wbnotes"></iframe></section>
         <aside class="wb-agent wb2-chat" id="wbAgent" aria-label="LastMind AI Agent"><div class="wb-pane-h"><b>AI Agent</b><span class="wb-agent-btns"><span class="wb-lk" id="wbLkTotal"></span><select id="wbDepth" class="wb-depth" aria-label="How deeply the agent teaches" title="Standard: the key ideas, quickly and cheaply. High: a fuller lesson with the reasoning behind each step, from a stronger model; it uses more Locks."><option value="standard">Standard</option><option value="high">High</option></select><button type="button" class="wb-clear" data-tool="exportdata" title="Save your club's match statistics, finances, squad and tactics as one file you can give to any AI assistant to talk through examples. It costs no Locks.">Export</button><button type="button" class="wb-clear" data-tool="clearchat">Clear</button></span></div><div class="wb-log" id="wbLog" role="log" aria-live="polite"></div>
@@ -927,9 +929,16 @@
         <aside class="wb-data" id="wbData" aria-label="Data and controls"><div class="wb-pane-h"><span class="wb-dtabs"><button type="button" data-dtab="data">Data</button><button type="button" data-dtab="controls">Controls</button></span><span class="wb-dbtns"><button type="button" class="wb-dx" data-tool="dwide" aria-label="Make the data panel wider or narrower" title="Wider / narrower">⇔</button><button type="button" class="wb-dx" data-tool="data" aria-label="Fold the data panel away" title="Fold away">‹</button></span></div><div class="wb-dlist"></div><button type="button" class="wb-drail" data-tool="data" aria-label="Open the data panel">DATA ›</button></aside>
         <section class="wb-main wk-main"><div class="wk-book"><div class="wk-sheet"><div class="wk-scroll" id="wkScroll"><div class="wk-titlebar"><input id="wkTitle" class="wk-title" placeholder="Name this page" aria-label="Page title" maxlength="90"></div><div class="wk-rule"></div><div class="wk-flow" id="wbDoc"></div></div><div class="wk-foot"><button type="button" class="wk-arrow" id="wkPrev" aria-label="Previous page" title="Previous page">‹</button><span class="wk-pos" id="wkPos"></span><button type="button" class="wk-arrow" id="wkNext" aria-label="Next page" title="Next page">›</button></div></div></div><div class="wb-kb" id="wbKb" hidden></div></section>
         </div></div>
+      <div class="kn-host" id="knHost" hidden></div>
       <div class="wb-flash" id="wbFlash" role="status"></div></div>`;
     wb.ui.agent = true; wb.settings.auto = false; { const dp = el('wbDepth'); if (dp) { dp.value = wb.settings.depth === 'high' ? 'high' : 'standard'; dp.addEventListener('change', () => { wb.settings.depth = dp.value === 'high' ? 'high' : 'standard'; save(); }); } }
     refreshData(); renderDoc(); chatDraw(); el('wbKb').innerHTML = kbHtml(); layout();
+    {
+      const body = host.querySelector('.wb2-body'), kn = el('knHost'), tabs = host.querySelectorAll('[data-wbmode]');
+      const setMode = (mode) => { wb.ui.mode = mode; body.hidden = mode === 'learn'; kn.hidden = mode !== 'learn'; tabs.forEach((b) => b.classList.toggle('on', b.dataset.wbmode === mode)); if (mode === 'learn' && FM.knowledgeUI) FM.knowledgeUI.mount(kn, league, { save: state.opts.save }); };
+      tabs.forEach((b) => b.addEventListener('click', () => { setMode(b.dataset.wbmode); save(); }));
+      if (wb.ui.mode === 'learn') setMode('learn');
+    }
 
     if (host._wbAbort) host._wbAbort.abort();
     const ac = new AbortController(), SIG = { signal: ac.signal }; host._wbAbort = ac;
