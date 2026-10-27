@@ -260,6 +260,7 @@
     return { hip: hipX_, knee: kneeX, ankle: -(th + hipX_ + kneeX) + toe, abd: clamp(Math.atan2(lx, -dy), -0.5, 0.5) };
   }
   function animate(f, st, dt, t) {
+    if (FM.anim && FM.anim.ready && st.e) { FM.anim.step(f, st, dt, t); return; }   // the motion-captured clips, if they loaded
     // Stepping is tied to ground covered: each step is as long as the speed needs (a walk is short steps, a sprint long ones), so the feet are not left
     // sliding. Each player has his own stride, so a team does not run in step.
     const vf = st.vf, vs = st.vs, sp = Math.hypot(vf, vs), spg = Math.max(sp, clamp(Math.abs(st.turn) * 0.28, 0, 1.2));   // turning on the spot shuffles the feet
@@ -413,7 +414,15 @@
     players.forEach((e, id) => { if (!seen.has(id)) e.fig.root.visible = false; });
   }
   const findBy = (m, teamId, number) => { const t = m.teams.find((x) => x.id === teamId); const p = t && t.players.find((q) => q.number === number); return p ? players.get(p.id) : null; };
-  function setPose(e, type, dur, dir) { if (e) e.pose = { type, t: 0, dur, dir: dir || 1 }; }
+  function setPose(e, type, dur, dir) {
+    if (!e) return;
+    if (FM.anim && FM.anim.ready) {
+      if (type === 'kick') { if (e.kickAt && performance.now() - e.kickAt < 1200) return; if (FM.anim.kick(e, 0.12, {})) return; }
+      else if (type === 'dive') { if (FM.anim.dive(e, dir)) return; }
+      else if (type !== 'celebrate' && FM.anim.trigger(e, type, dir)) return;
+    }
+    e.pose = { type, t: 0, dur, dir: dir || 1 };
+  }
   function readEvents(m) {
     const ev = m.events; if (!ev || !ev.length) { lastEv = 0; lastEvLen = 0; return; }
     if (ev.length < lastEvLen || ev[ev.length - 1].t < lastEv - 5) { lastEv = ev[ev.length - 1].t; lastEvLen = ev.length; return; }
@@ -476,7 +485,7 @@
     poseFor(m, teamId, number, type, dur, dir) { const e = findBy(m, teamId, number); setPose(e, type, dur || 1, dir || 1); return !!e; },   // for trying out the animations
     get playersMap() { return players; }, get ball() { return ballMesh; }, get cameraObj() { return camera; },
     get ready() { return ready; }, get failed() { return failed; }, get mode() { return mode; },
-    ensure(container) { host = container; if (ready) { if (renderer.domElement.parentElement !== host) host.appendChild(renderer.domElement); size(); return Promise.resolve(); } return load().then(() => { if (!ready) build(); size(); }); },
+    ensure(container) { host = container; if (FM.anim) FM.anim.load(); if (ready) { if (renderer.domElement.parentElement !== host) host.appendChild(renderer.domElement); size(); return Promise.resolve(); } return load().then(() => { if (!ready) build(); size(); }); },
     setMode(m) { mode = m === 'stands' ? 'stands' : 'touchline'; size(); },
     resize: size,
     render(m, ctx) {
@@ -500,7 +509,9 @@
           e.turn += (clamp(dF / Math.max(dt, 0.001), -9, 9) - e.turn) * Math.min(1, dt * 6);
           e.accel += (clamp((e.speed - e.lastSp) / Math.max(dt, 0.001), -12, 12) - e.accel) * Math.min(1, dt * 5); e.lastSp = e.speed;
           const ch = Math.cos(e.hd), sh = Math.sin(e.hd);
-          animate(e.fig, { vf: e.vx * ch + e.vz * sh, vs: e.vx * sh - e.vz * ch, turn: e.turn, accel: e.accel, look: angDiff(e.hd, ab), px: x, pz: z, hd: e.hd, sc: 1.3, vx: e.vx, vz: e.vz }, dt, clock); }
+          animate(e.fig, { vf: e.vx * ch + e.vz * sh, vs: e.vx * sh - e.vz * ch, turn: e.turn, accel: e.accel, look: angDiff(e.hd, ab), px: x, pz: z, hd: e.hd, sc: 1.3, vx: e.vx, vz: e.vz, e, gk: p.group === 'GK' }, dt, clock);
+          // the kick: the engine holds the ball for the turn and the backswing, and the clip is timed so the foot meets it as it leaves
+          { const pa = m.pendingAct; if (FM.anim && FM.anim.ready && pa && pa.player === p && e.kickTag !== pa && (pa.opt.kind === 'pass' || pa.opt.kind === 'shoot' || pa.opt.kind === 'clear')) { const rem = pa.release - m.clock; if (rem <= 0.6) { e.kickTag = pa; e.kickAt = performance.now(); FM.anim.kick(e, rem, { shot: pa.opt.kind === 'shoot', gk: p.group === 'GK' }); } } } }
         // the first touch: a man who has just received the ball cushions it
         if (isC && !e.wasC && e.speed < 8) setPose(e, 'control', 0.5, e.foot); e.wasC = isC;
         if (e.pose) { e.pose.t += dt; if (e.pose.t >= e.pose.dur) e.pose = null; else applyPose(e.fig, e.pose.type, e.pose.t, e.pose.dur, e.pose.dir); }

@@ -360,7 +360,7 @@
       // The carrier keeps possession where he is while turning or weighing a
       // pass. His generic phase position must never pull him backwards with
       // the ball simply because the rest of the team is resetting its shape.
-      if (!ov.has(c.player) && !match.forcePass && c.player.group !== 'GK' && !match.pendingAct) {
+      if (!ov.has(c.player) && !match.forcePass && c.player.group !== 'GK' && (!match.pendingAct || match.pendingAct.ang == null)) {
         const sp = Math.hypot(c.player.vx || 0, c.player.vy || 0);
         if (sp > 1.5 && nearestOpponent(match, c.team, c.player).d > (FM.MOM_ND == null ? 4.2 : FM.MOM_ND) && FM.toTeamSpace(c.team.attackDir, c.player.x, c.player.y).d < (FM.MOM_DEPTH == null ? 0.75 : FM.MOM_DEPTH)) { const J = FM.MOM_DIST == null ? 2.4 : FM.MOM_DIST; ov.set(c.player, { x: clamp(c.player.x + c.player.vx / sp * J, 1, L - 1), y: clamp(c.player.y + c.player.vy / sp * J, 1, W - 1) }); }   // on at a jog, not stopped, not at a sprint
       }
@@ -1916,8 +1916,9 @@
     // while running forwards.
     const pa = match.pendingAct;
     if (pa) {
+      if (pa.ang != null && match.clock >= pa.turnEnd && pa.player.turnTo !== undefined) pa.player.turnTo = undefined;   // turned: the wind-up goes on facing the target
       if (!match.carrier || match.carrier.player !== pa.player) { pa.player.turnTo = undefined; match.pendingAct = null; }
-      else if (match.clock >= pa.release || Math.abs(angleDiff(pa.player.facing, pa.ang)) < 0.35) {
+      else if (match.clock >= pa.release) {
         pa.player.turnTo = undefined; match.pendingAct = null;
         const o = pa.opt, lag = match.clock - pa.start;
         if (o.target) { o.tx = clamp(o.tx + (o.target.vx || 0) * lag * 0.6, 1, L - 1); o.ty = clamp(o.ty + (o.target.vy || 0) * lag * 0.6, 1, W - 1); }
@@ -1929,10 +1930,13 @@
       const opt = chooseAction(match, team, player);
       const aim = aimOf(team, opt);
       const need = aim && !match.forcePass && Number.isFinite(player.facing) ? Math.abs(angleDiff(player.facing, Math.atan2(aim.y - player.y, aim.x - player.x))) : 0;
-      if (need > (FM.TURN_FREE == null ? 1.75 : FM.TURN_FREE)) {
-        const ang = Math.atan2(aim.y - player.y, aim.x - player.x);
-        match.pendingAct = { opt, team, player, ang, start: match.clock, release: match.clock + Math.min(0.9, need / (FM.TURN_RATE == null ? 5.2 : FM.TURN_RATE)) };
-        player.turnTo = ang; match.carry = null;
+      if (aim && !match.forcePass) {
+        // A pass or a shot takes a moment: turn if he has to, then the backswing and the strike, and the ball leaves the foot at the end of it. (The
+        // motion-captured kick in the 3D view is timed to this.)
+        const turnT = need > (FM.TURN_FREE == null ? 1.75 : FM.TURN_FREE) ? Math.min(0.9, need / (FM.TURN_RATE == null ? 5.2 : FM.TURN_RATE)) : 0, wind = (FM.WIND == null ? 0.3 : FM.WIND) * (turnT > 0 ? 0.65 : 1);
+        const ang = turnT > 0 ? Math.atan2(aim.y - player.y, aim.x - player.x) : null;
+        match.pendingAct = { opt, team, player, ang, start: match.clock, turnEnd: match.clock + turnT, release: match.clock + turnT + wind, kick: true };
+        if (ang != null) player.turnTo = ang; match.carry = null;
       } else runAction(match, team, player, opt);
     }
 
