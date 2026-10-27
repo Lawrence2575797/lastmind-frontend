@@ -255,7 +255,8 @@
       m.teams.forEach((team) => team.players.forEach((p) => {
         const e = players.get(p.id); if (!e) return; const rp = (ctx && ctx.renderPos && ctx.renderPos.get(p.id)) || { x: p.x, y: p.y, facing: p.facing || 0 };
         const x = rp.x - HL, z = rp.y - HW, lp = lastPos.get(p.id), sp = lp ? Math.hypot(x - lp.x, z - lp.z) / Math.max(dt, 0.001) : 0; lastPos.set(p.id, { x, z });
-        e.speed += (sp - e.speed) * Math.min(1, dt * 8); e.fig.root.position.set(x, 0, z); e.fig.root.rotation.y = Math.PI / 2 - (Number.isFinite(rp.facing) ? rp.facing : 0);
+        e.speed += (sp - e.speed) * Math.min(1, dt * 8); e.fig.root.position.set(x, 0, z); e.fig.root.scale.setScalar(1.3);   // the players are drawn larger than life so they read at this distance
+        e.fig.root.rotation.y = Math.PI / 2 - (Number.isFinite(rp.facing) ? rp.facing : 0);
         runCycle(e.fig, Math.min(e.speed, 9), dt, clock);
         if (e.pose) { e.pose.t += dt; if (e.pose.t >= e.pose.dur) e.pose = null; else applyPose(e.fig, e.pose.type, e.pose.t, e.pose.dur, e.pose.dir); }
       }));
@@ -279,7 +280,7 @@
       }
       setCamera(dt, bx, bz, !ctx || ctx.snap);
       // The ball is drawn bigger than a real one so it can be followed, and bigger again the further it is from the camera.
-      const bs = 1.5 * clamp(camera.position.distanceTo(ballMesh.position) / 20, 1, 4);
+      const bs = 1.05 * clamp(camera.position.distanceTo(ballMesh.position) / 32, 1, 2.4);
       ballMesh.scale.setScalar(bs); ballMesh.position.set(bx, by + 0.115 * (bs - 1), bz); ballMesh.rotation.z -= dt * 6; updateNets();
       renderer.render(scene, camera);
     },

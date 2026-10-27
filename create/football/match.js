@@ -35,7 +35,7 @@
   // Dribble past the nearest defender.
   FM.dribbleProb = function (carrier, defDist, defender, edge) {
     const dfn = defender ? 0.03 * SK(defender, 'tackling') : 0;
-    return clampP(sig(1.4 + 0.05 * SK(carrier, 'dribbling') - 1.8 * Math.exp(-defDist / 2.5) - dfn + 0.35 * (edge || 0)), 0.05, 0.9);
+    return clampP(sig((FM.TAKEON_BASE == null ? 0.25 : FM.TAKEON_BASE) + 0.05 * SK(carrier, 'dribbling') - 1.8 * Math.exp(-defDist / 2.5) - dfn + 0.35 * (edge || 0)), 0.05, 0.85);
   };
   // Tackle: the defender's tackling against the carrier's dribbling.
   FM.tackleProb = function (defender, carrier, edge) {
@@ -319,6 +319,17 @@
   }
 
   // Clear through on goal: close to goal, in the middle of the pitch, with every outfield defender at least 2.5 m behind him.
+  // Nobody between him and goal: no defender (the keeper aside) in the corridor ahead of him, so he can run at it.
+  function clearAhead(match, team, p, reach) {
+    const dir = team.attackDir;
+    for (const o of other(match, team).players) {
+      if (o.group === 'GK') continue;
+      const dx = (o.x - p.x) * dir;
+      if (dx < -1.5 || dx > reach) continue;
+      if (Math.abs(o.y - p.y) < 3 + 0.55 * Math.max(dx, 0)) return false;
+    }
+    return true;
+  }
   function clearThrough(match, team, p) {
     return p.group !== 'GK' && FM.toTeamSpace(team.attackDir, p.x, p.y).d > (FM.CLEAR_D == null ? 0.92 : FM.CLEAR_D) && Math.abs(p.y - W / 2) < 24 && !other(match, team).players.some((o) => o.group !== 'GK' && (o.x - p.x) * team.attackDir > -(FM.CLEAR_GAP == null ? 4 : FM.CLEAR_GAP));
   }
@@ -336,7 +347,8 @@
         // still holding it. Closed down, or already in the box, he holds the ball where he is (a man backing away from a defender can never be
         // tackled, which breaks the game: 30+ goals a match).
         const nd = nearestOpponent(match, c.team, c.player).d, toward = FM.toTeamSpace(c.team.attackDir, c.player.x, c.player.y).d;
-        if (nd > 5 && toward < 0.84 && c.player.group !== 'GK') ov.set(c.player, { x: clamp(c.player.x + c.team.attackDir * (nd > 10 ? 8 * (FM.JOG_K == null ? .34 : FM.JOG_K) : 3.2), 1, L - 1), y: clamp(c.player.y + (W / 2 - c.player.y) * 0.04, 1, W - 1) });
+        if (nd > 3.5 && toward > 0.5 && toward < 0.97 && c.player.group !== 'GK' && ['AM', 'WF', 'ST', 'CM', 'FB', 'DM'].includes(c.player.group) && clearAhead(match, c.team, c.player, 14)) ov.set(c.player, { x: clamp(c.player.x + c.team.attackDir * (FM.DRIVE_RUN == null ? 2.5 : FM.DRIVE_RUN), 1, L - 1), y: clamp(c.player.y + (W / 2 - c.player.y) * 0.22, 1, W - 1) });
+        else if (nd > 5 && toward < 0.84 && c.player.group !== 'GK') ov.set(c.player, { x: clamp(c.player.x + c.team.attackDir * (nd > 10 ? 8 * (FM.JOG_K == null ? .34 : FM.JOG_K) : 3.2), 1, L - 1), y: clamp(c.player.y + (W / 2 - c.player.y) * 0.04, 1, W - 1) });
       }
       // Whatever the moment, a man with the ball is never sent back to his usual position: past the last defender he goes on, otherwise he holds.
       // A man clear through on goal runs on at the keeper; he is never sent back toward his usual position into the men chasing him.
@@ -790,7 +802,10 @@
     // A carry into empty grass is not a take-on. Previously both used the
     // dribble duel, producing hundreds of apparent one-v-ones per match.
     const carrySpace = clamp((nearD - 3.5) / 8, 0, 1);
-    if (nearD > 3.5 && carrier.group !== 'GK') options.push({ kind: 'carry', nearD, score: .38 + (.4 + (FM.CARRY_BONUS == null ? .3 : FM.CARRY_BONUS)) * carrySpace + .22 * directness + .18 * counter - .22 * (zone === 'build' && carrier.group === 'CB' ? 1 : 0) });
+    // With open grass ahead in the attacking half a forward runs at goal instead of standing and passing: he drives until a defender engages him or
+    // he is in range to shoot.
+    const drive = ownDepth0 > 0.5 && nearD > 2.2 && ['AM', 'WF', 'ST', 'CM', 'FB', 'DM'].includes(carrier.group) && clearAhead(match, team, carrier, 14);
+    if ((nearD > 3.5 || drive) && carrier.group !== 'GK') options.push({ kind: 'carry', nearD, drive, score: .38 + (.4 + (FM.CARRY_BONUS == null ? .3 : FM.CARRY_BONUS)) * carrySpace + .22 * directness + .18 * counter - .22 * (zone === 'build' && carrier.group === 'CB' ? 1 : 0) + (drive ? (FM.DRIVE_K == null ? 0.5 : FM.DRIVE_K) * (['WF', 'ST', 'AM'].includes(carrier.group) ? 1 : .7) : 0) });
     let dribbleOption = null;
     const willingDribbler = ['WF', 'AM', 'ST', 'CM'].includes(carrier.group) || mods.dribble > 0 || tac.dribbleFreedom > .65;
     if (nearD < 3.1 && willingDribbler && (zone === 'final' || mods.dribble > 0 || tac.dribbleFreedom > .72)) {
@@ -821,7 +836,7 @@
 
     // Keeping the ball is a real decision. It is most attractive in settled,
     // unpressured possession and prevents every decision clock becoming an action.
-    if (nearNow > 4 && !through) options.push({ kind: 'hold', score: .48 + .55 * live.patience - .4 * live.urgency - .2 * directness });
+    if (nearNow > 4 && !through && !drive) options.push({ kind: 'hold', score: .48 + .55 * live.patience - .4 * live.urgency - .2 * directness });
 
     if (coast > 0) options.forEach((o) => { if (o.kind === 'shoot' && o.score > 0) o.score *= 1 - 0.45 * coast; });
     if (RE && RE.shoot) options.forEach((o) => { if (o.kind === 'shoot' && o.score > 0) o.score *= clamp(1 + 0.9 * RE.shoot, 0.1, 2); });
@@ -950,8 +965,8 @@
       giveBall(match, other(match, team), opt.nearOpp, 0.6);
       return;
     }
-    st.dribblesWon++;
-    record(match, { type: 'dribble', team: team.id, player: carrier.number, p: opt.p, ok: true, defDist: opt.nearD, x: carrier.x, y: carrier.y });
+    if (ok) st.dribblesWon++;   // a take-on that goes wrong but costs him nothing (the man was already beaten) is still not a take-on won
+    record(match, { type: 'dribble', team: team.id, player: carrier.number, p: opt.p, ok, defDist: opt.nearD, x: carrier.x, y: carrier.y });
     const goalY = W / 2;
     const gx = team.attackDir === 1 ? L : 0;
     // Wide attackers drive diagonally towards goal after beating a player,
@@ -1838,7 +1853,7 @@
           // A tackle can only force a throw when it happens right beside a
           // touchline. Central challenges must leave the ball in play.
           if (ok && (c.player.y < 2.5 || c.player.y > W - 2.5) && match.rng() < 0.2) { startRestart(match, 'throw', team, clamp(c.player.x, 1, L - 1), c.player.y < W / 2 ? 0.5 : W - 0.5); break; }
-          if (ok) { giveBall(match, opp, d, 0.9 + delayBeforeNextDecision(match, opp, d) * 0.4); break; }
+          if (ok) { const lost = c.player; giveBall(match, opp, d, 0.9 + delayBeforeNextDecision(match, opp, d) * 0.4); match.regain = { player: lost, team, target: d, from: match.clock, until: match.clock + 2.6, count: 1 }; break; }
           if (match.rng() < (0.06 + 0.1 * opp.tactics.tackleAggression + 0.002 * (60 - d.ratings.tackling) + 0.04 * FM.instrMods(d, false).tackle) * (inBox(team.attackDir, c.player.x, c.player.y) ? (FM.BOX_FOUL == null ? 0.35 : FM.BOX_FOUL) : 1)) { commitFoul(match, d, c.player, opp, team); break; }
         }
       }
@@ -1846,6 +1861,19 @@
     if (match.carrier) {
       const currentPressure = nearestOpponent(match, match.carrier.team, match.carrier.player).d;
       match.possessionMinPressure = Math.min(match.possessionMinPressure == null ? currentPressure : match.possessionMinPressure, currentPressure);
+    }
+    // Winning the ball is not the end of it. The man who has just lost it goes straight back in, and if he gets a foot in the ball is his again:
+    // a scrap of tackle and counter-tackle, three at most, before somebody gets away with it.
+    const rg = match.regain;
+    if (rg) {
+      if (!match.carrier || match.carrier.player !== rg.target || match.clock > rg.until || rg.count > 3) match.regain = null;
+      else if (match.clock - rg.from > 0.3 && match.clock >= (match.tackleLock || 0) && dist(rg.player, rg.target) < 1.9 && match.rng() < 2.4 * dt) {
+        match.tackleLock = match.clock + 0.8;
+        const p = FM.tackleProb(rg.player, rg.target, FM.edgeFor(match, rg.team)) * 0.9 * (rg.team.tacticalFactor || 1), ok = match.rng() < p, st = statsOf(match, rg.team);
+        st.tackles++; if (ok) st.tacklesWon++;
+        record(match, { type: 'tackle', team: rg.team.id, player: rg.player.number, vs: rg.target.number, p, ok, x: rg.target.x, y: rg.target.y, depth: FM.toTeamSpace(rg.team.attackDir, rg.target.x, rg.target.y).d, cover: 20, duel: rg.count });
+        if (ok) { const t0 = rg.target, t1 = rg.player, tm = rg.team; giveBall(match, tm, t1, 0.7); match.regain = { player: t0, team: other(match, tm), target: t1, from: match.clock, until: match.clock + 2.2, count: rg.count + 1 }; }
+      }
     }
     reassessDecisionTiming(match, dt);
     // A pass or a shot is played with the body pointing at it. A player facing one way who wants to play the ball the other way has to turn first, and
