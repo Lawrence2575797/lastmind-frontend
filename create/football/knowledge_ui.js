@@ -31,7 +31,7 @@
     while (order.length < items.length) {
       let rdy = items.filter((x) => !placed[x.nd.id] && Array.from(need[x.nd.id]).every((q) => placed[q]));
       if (!rdy.length) rdy = items.filter((x) => !placed[x.nd.id]);   // a loop in the data: carry on rather than stop
-      rdy.sort((p1, p2) => (FM.knowledgeDepth(p1.nd.id) - FM.knowledgeDepth(p2.nd.id)) || (((p1.mi - lastMi - 1 + maps.length) % maps.length) - ((p2.mi - lastMi - 1 + maps.length) % maps.length)) || p1.nd.spec.localeCompare(p2.nd.spec));
+      rdy.sort((p1, p2) => (FM.knowledgeDepth(p1.nd.id) - FM.knowledgeDepth(p2.nd.id)) || (((p1.mi - lastMi - 1 + maps.length) % maps.length) - ((p2.mi - lastMi - 1 + maps.length) % maps.length)) || (items.indexOf(p1) - items.indexOf(p2)));   // then in the order the specification lists them
       const pick = rdy[0]; placed[pick.nd.id] = 1; order.push(pick.nd.id); lastMi = pick.mi;
     }
     const idx = {}; order.forEach((id, i) => { idx[id] = i; });
