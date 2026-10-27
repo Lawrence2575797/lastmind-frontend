@@ -290,3 +290,4 @@ body[data-view="workbench"] #view-workbench { animation: none !important; transf
 .kn-node span, .kn-node i { flex: 0 0 auto; }
 .kn-p { margin: 0 0 6px; line-height: 1.55; } .kn-p p { margin: 0; } .kn-q p, .kn-why p, .kn-next p, .kn-maths p { margin: 0; }
 .kn-ana { margin: 14px 0 4px; padding: 12px 16px; border: 1px solid rgba(127,214,255,.35); border-left: 4px solid #7FD6FF; background: rgba(127,214,255,.06); } .kn-ana .kn-kicker { color: #7FD6FF; margin-bottom: 4px; } .kn-ana .kn-p { line-height: 1.55; margin: 0 0 6px; }
+.kn-fig { margin: 10px 0 2px; padding: 8px 10px 6px; background: rgba(0,0,0,.22); border: 1px solid var(--wb-line-2, rgba(255,255,255,.14)); } .kn-fig svg { display: block; width: 100%; height: auto; max-width: 640px; } .kn-fig figcaption { margin-top: 4px; font-size: .76rem; color: var(--wb-mute, #9db0a4); line-height: 1.4; }

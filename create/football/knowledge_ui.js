@@ -81,7 +81,7 @@
     const ana = les.analogy || (FM.knowledgeIntros && FM.knowledgeIntros[nd.id] ? FM.knowledgeIntros[nd.id](S.d) : '');
     if (ana) h += '<section class="kn-ana"><div class="kn-kicker">The football analogy</div>' + [].concat(ana).map((l) => '<div class="kn-p">' + rich(l) + '</div>').join('') + '</section>';
     if (les.why) h += '<div class="kn-why">' + rich(les.why) + '</div>';
-    h += '<ol class="kn-steps">' + steps.slice(0, shown).map((st) => '<li>' + st.say.map((l) => '<div class="kn-p">' + rich(l) + '</div>').join('') + [].concat(st.maths || []).map((mm) => '<div class="kn-maths">' + rich(mm) + '</div>').join('') + '</li>').join('') + '</ol>';
+    h += '<ol class="kn-steps">' + steps.slice(0, shown).map((st) => '<li>' + st.say.map((l) => '<div class="kn-p">' + rich(l) + '</div>').join('') + [].concat(st.maths || []).map((mm) => '<div class="kn-maths">' + rich(mm) + '</div>').join('') + (st.diagram && FM.knowledgeDiagram ? FM.knowledgeDiagram(st.diagram) : '') + '</li>').join('') + '</ol>';
     if (shown < steps.length) return h + '<div class="kn-more"><button type="button" class="primary" data-act="next">Next step (' + (shown + 1) + ' of ' + steps.length + ')</button><button type="button" data-act="all">Show all</button></div>';
     const a = les.ask, r = S.result;
     h += '<section class="kn-ask"><div class="kn-kicker">Your turn</div><div class="kn-q">' + rich(a.q) + '</div>' +

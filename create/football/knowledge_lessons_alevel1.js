@@ -19,7 +19,7 @@
       why: 'The revenue from a stand follows a quadratic in the price, and completing the square shows where they peak.',
       steps: [
         { say: ['Take ' + s.name + ': at £' + s.price + ' you sold ' + d.num(s.sold) + ' seats.', 'Suppose every extra £1 on the price loses about ' + m2(k) + ' fans. Then the crowd at price $p$ is $q = ' + m2(A) + ' - ' + m2(k) + 'p$.'].concat(d.example.crowds ? ['(Example figures until you have home matches.)'] : []) },
-        { say: ['Revenue are price times crowd.'], maths: '$R = p(' + m2(A) + ' - ' + m2(k) + 'p) = -' + m2(k) + 'p^2 + ' + m2(A) + 'p$' },
+        { say: ['Revenue is price times crowd.'], maths: '$R = p(' + m2(A) + ' - ' + m2(k) + 'p) = -' + m2(k) + 'p^2 + ' + m2(A) + 'p$' },
         { say: ['That is a quadratic with a negative $p^2$ term, so its graph is an upside-down U: it has a highest point.', 'Completing the square finds that point without any calculus.'] },
         { say: ['Take out the coefficient of $p^2$: $R = -' + m2(k) + '\\left(p^2 - \\frac{' + m2(A) + '}{' + m2(k) + '}p\\right)$.', 'Half the coefficient of $p$ is ' + m2(h) + ', so complete the square inside the bracket.'], maths: '$R = -' + m2(k) + '\\left[(p - ' + m2(h) + ')^2 - ' + m2(h * h) + '\\right] = ' + m2(top) + ' - ' + m2(k) + '(p - ' + m2(h) + ')^2$' },
         { say: ['A square is never negative, so the revenue is largest when the bracket is zero: when $p = ' + m2(h) + '$.', 'The maximum revenue is £' + d.num(top) + '.'] },
