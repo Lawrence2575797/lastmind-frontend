@@ -241,6 +241,7 @@
   .pitch-play { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 5; padding: 18px 34px; font-size: 1.35rem; font-weight: 800; border-radius: 0; background: var(--gold, #f1c04f); color: #14181a; border: 3px solid rgba(255,255,255,.85); box-shadow: 0 10px 40px rgba(0,0,0,.55); cursor: pointer; }
   .pitch-play[hidden] { display: none; }
   .view-note { font-size: .85rem; font-weight: 700; margin-left: 10px; } .view-note.busy { color: #deb862; } .view-note.busy::before { content: ''; display: inline-block; width: 11px; height: 11px; margin-right: 7px; border: 2px solid #deb862; border-right-color: transparent; border-radius: 50%; vertical-align: -1px; animation: vnspin .8s linear infinite; } .view-note.bad { color: #ee7a70; } @keyframes vnspin { to { transform: rotate(360deg); } }
+  .pitch3d { position: relative; } .pitch3d::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse at 50% 55%, rgba(0,0,0,0) 55%, rgba(0,0,0,.38) 100%); }
   #pitch[hidden], .pitch3d[hidden] { display: none; } .ng-select { font: inherit; font-size: 1rem; padding: 11px 12px; min-width: 260px; max-width: 100%; background: rgba(255,255,255,.06); color: inherit; border: 1px solid var(--line, rgba(255,255,255,.25)); } .pitch3d { width: 100%; background: #0a100d; position: relative; overflow: hidden; } .view-pick { display: inline-flex; align-items: center; gap: 8px; margin-right: 6px; font-size: .8rem; color: var(--cream-soft, #cfc9b4); } .view-pick select { font: inherit; padding: 8px 10px; background: rgba(255,255,255,.06); color: inherit; border: 1px solid var(--line, rgba(255,255,255,.2)); }
   .pitch-pause { position: absolute; right: 18px; top: 18px; z-index: 5; padding: 10px 20px; font-size: 1rem; font-weight: 800; border-radius: 0; background: var(--gold, #f1c04f); color: #14181a; border: 2px solid rgba(255,255,255,.85); box-shadow: 0 6px 24px rgba(0,0,0,.5); cursor: pointer; } .pitch-pause[hidden] { display: none; }
   .lab-how { border: 1px solid rgba(244,237,218,.16); border-radius: 0; padding: 12px 14px; display: grid; gap: 4px; } .lab-how p { margin: 0; }
@@ -1158,7 +1159,7 @@
 <script src="/create/football/knowledge_lessons_calculus.js?v=20261027q"></script>
 <script src="/create/football/knowledge_lesson_graphs.js?v=20261027q"></script>
 <script src="/create/football/knowledge_lesson_graphs2.js?v=20261027q"></script>
-<script src="/create/football/knowledge_impact.js?v=20261027u"></script>
+<script src="/create/football/knowledge_impact.js?v=20261027v"></script>
 <script src="/create/football/knowledge_intros.js?v=20261027q"></script>
 <script src="/create/football/knowledge_ui.js?v=20261027q"></script>
 <script src="/create/football/workbench_econ.js?v=20261214a"></script>

@@ -4,7 +4,7 @@
   const FM = (window.FM = window.FM || {});
   const { L, W } = FM.PITCH, HL = L / 2, HW = W / 2, G = 9.81;
   let THREE = null, ready = false, loading = null, failed = false;
-  let host = null, renderer, scene, camera, sun, players = new Map(), ballMesh, nets = { '-1': [], '1': [] }, netT = 0, clock = 0;
+  let host = null, renderer, scene, camera, sun, players = new Map(), ballMesh, ballRing, nets = { '-1': [], '1': [] }, netT = 0, clock = 0;
   let mode = 'touchline', lastEv = 0, lastEvLen = 0, flightRec = null, goalFx = null, look = { x: 0, z: 0 }, cam = { x: 0, y: 4, z: HW + 5 };
   const lastPos = new Map();
 
@@ -26,8 +26,8 @@
   function pitchTexture() {
     const PPM = 16, mx = 8, mz = 6, cw = (L + 2 * mx) * PPM, ch = (W + 2 * mz) * PPM, c = mkCanvas(cw, ch), g = c.getContext('2d');
     const X = (m) => cw / 2 + m * PPM, Z = (m) => ch / 2 + m * PPM;
-    g.fillStyle = '#2b6b38'; g.fillRect(0, 0, cw, ch);
-    const n = 15, sw = L / n; for (let i = 0; i < n; i++) { g.fillStyle = i % 2 ? '#38883f' : '#307b39'; g.fillRect(X(-HL + i * sw), Z(-HW), sw * PPM + 1, W * PPM); }
+    g.fillStyle = '#2a6234'; g.fillRect(0, 0, cw, ch);
+    const n = 15, sw = L / n; for (let i = 0; i < n; i++) { g.fillStyle = i % 2 ? '#34763c' : '#2d6a36'; g.fillRect(X(-HL + i * sw), Z(-HW), sw * PPM + 1, W * PPM); }
     for (let i = 0; i < 14000; i++) { g.fillStyle = Math.random() < 0.5 ? 'rgba(255,255,255,' + Math.random() * 0.035 + ')' : 'rgba(0,0,0,' + Math.random() * 0.05 + ')'; g.fillRect(Math.random() * cw, Math.random() * ch, 2 + Math.random() * 5, 1 + Math.random() * 2); }
     g.strokeStyle = 'rgba(248,248,240,.95)'; g.fillStyle = 'rgba(248,248,240,.95)'; g.lineWidth = 3.2;
     const rect = (x0, z0, x1, z1) => g.strokeRect(X(x0), Z(z0), (x1 - x0) * PPM, (z1 - z0) * PPM);
@@ -353,15 +353,15 @@
       upper: new THREE.CylinderGeometry(0.054, 0.047, 0.29, 10), fore: new THREE.CylinderGeometry(0.044, 0.036, 0.26, 10), sph: new THREE.SphereGeometry(1, 16, 12), torso: new THREE.CylinderGeometry(0.205, 0.165, 0.56, 16), shorts: new THREE.CylinderGeometry(0.175, 0.19, 0.2, 16), neck: new THREE.CylinderGeometry(0.045, 0.052, 0.1, 10), cuff: new THREE.CylinderGeometry(0.057, 0.057, 0.05, 12),
     };
     try { renderer = new THREE.WebGLRenderer({ antialias: true }); } catch (e1) { renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'low-power' }); }
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2)); renderer.outputEncoding = THREE.sRGBEncoding; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.08;
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2)); renderer.outputEncoding = THREE.sRGBEncoding; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 0.97;
     renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap; host.appendChild(renderer.domElement); renderer.domElement.style.cssText = 'display:block;width:100%;height:100%';
     scene = new THREE.Scene(); scene.background = new THREE.Color(0x0a100d); scene.fog = new THREE.Fog(0x16222a, 150, 330);
     // an evening sky behind the stands: deep blue overhead, a glow of floodlight at the rim, so the ground is not floating in a black void
     { const c = mkCanvas(8, 256), g = c.getContext('2d'), gr = g.createLinearGradient(0, 0, 0, 256); gr.addColorStop(0, '#060d1c'); gr.addColorStop(0.45, '#0d2236'); gr.addColorStop(0.8, '#2a4a58'); gr.addColorStop(1, '#4d6f78'); g.fillStyle = gr; g.fillRect(0, 0, 8, 256);
       const dome = new THREE.Mesh(new THREE.SphereGeometry(420, 24, 16, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshBasicMaterial({ map: tex(c, true), side: THREE.BackSide, fog: false, depthWrite: false })); dome.scale.y = 0.55; dome.position.y = -8; dome.rotation.y = 0; scene.add(dome); }
     camera = new THREE.PerspectiveCamera(46, 1.7, 0.5, 600);
-    scene.add(new THREE.HemisphereLight(0xcfe0ff, 0x1d3b24, 0.62));
-    sun = new THREE.DirectionalLight(0xfff1d6, 1.15); sun.position.set(-30, 70, 46); sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
+    scene.add(new THREE.HemisphereLight(0xcfe0ff, 0x1d3b24, 0.5));
+    sun = new THREE.DirectionalLight(0xfff1d6, 1.0); sun.position.set(-30, 70, 46); sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
     const sc = sun.shadow.camera; sc.left = -62; sc.right = 62; sc.top = 40; sc.bottom = -40; sc.near = 10; sc.far = 220; sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.04; scene.add(sun); scene.add(sun.target);
     const pt = pitchTexture(); const pitch = new THREE.Mesh(new THREE.PlaneGeometry(pt.w, pt.h), new THREE.MeshStandardMaterial({ map: pt.t, roughness: 0.95 })); pitch.rotation.x = -Math.PI / 2; pitch.receiveShadow = true; scene.add(pitch);
     const ground = new THREE.Mesh(new THREE.PlaneGeometry(600, 600), new THREE.MeshStandardMaterial({ color: 0x0d1511, roughness: 1 })); ground.rotation.x = -Math.PI / 2; ground.position.y = -0.03; scene.add(ground);
@@ -381,6 +381,7 @@
     board(L + 8, 0, HW + 3.4, 0); board(L + 8, 0, -HW - 3.4, Math.PI); board(W + 6, HL + 4.2, 0, -Math.PI / 2); board(W + 6, -HL - 4.2, 0, Math.PI / 2);
     [[-74, -52], [74, -52], [-74, 52], [74, 52]].forEach((p) => { const pole = cyl(0.5, 30, new THREE.MeshStandardMaterial({ color: 0x28332d })); pole.position.set(p[0], 15, p[1]); scene.add(pole); const head = new THREE.Mesh(new THREE.BoxGeometry(7, 3.2, 1), new THREE.MeshStandardMaterial({ color: 0xfff6dc, emissive: 0xfff0c8, emissiveIntensity: 1.2 })); head.position.set(p[0], 30.4, p[1]); head.lookAt(0, 20, 0); scene.add(head); });
     ballMesh = new THREE.Mesh(new THREE.SphereGeometry(0.115, 24, 16), new THREE.MeshStandardMaterial({ map: ballTexture(), roughness: 0.45 })); ballMesh.castShadow = true; scene.add(ballMesh);
+    ballRing = new THREE.Mesh(new THREE.RingGeometry(0.34, 0.42, 40), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5, depthWrite: false, side: THREE.DoubleSide })); ballRing.rotation.x = -Math.PI / 2; scene.add(ballRing);
     ready = true;
   }
   function ballTexture() {
@@ -450,14 +451,14 @@
 
   function size() {
     if (!host || !renderer) return; const w = host.clientWidth || 800, h = host.clientHeight || 450; renderer.setSize(w, h, false);
-    camera.aspect = w / h; const hfov = (mode === "stands" ? 70 : 74) * Math.PI / 180; camera.fov = 2 * Math.atan(Math.tan(hfov / 2) / camera.aspect) * 180 / Math.PI; camera.updateProjectionMatrix();
+    camera.aspect = w / h; const hfov = (mode === "stands" ? 44 : 74) * Math.PI / 180; camera.fov = 2 * Math.atan(Math.tan(hfov / 2) / camera.aspect) * 180 / Math.PI; camera.updateProjectionMatrix();
   }
   function setCamera(dt, bx, bz, snap) {
-    const k = snap ? 1 : 1 - Math.exp(-dt * 2.6);
+    const k = snap ? 1 : 1 - Math.exp(-dt * (mode === 'stands' ? 3.4 : 2.6));
     let tx, tz, cx, cy, cz, ty = 0.8;
     if (mode === 'stands') {
       // from the middle of the main stand, higher up: the whole width of the pitch and a long stretch of it, so the shape of both teams can be read
-      tx = clamp(bx * 0.45, -26, 26); tz = 0; cx = tx * 0.5; cy = 23; cz = HW + 14; ty = 0;
+      tx = clamp(bx, -HL + 12, HL - 12); tz = clamp(bz * 0.55, -16, 16); cx = tx * 0.92; cy = 21; cz = HW + 13; ty = 0.4;
     } else {
       // from the touchline, where the manager stands: a steady wide view that slides along the line with the ball
       // It follows the ball all the way to the corner flags. With the ball on the near touchline the camera rises and backs off a little and looks at it,
@@ -526,7 +527,7 @@
       setCamera(dt, bx, bz, !ctx || ctx.snap);
       // The ball is drawn bigger than a real one so it can be followed, and bigger again the further it is from the camera.
       const bs = 1.05 * clamp(camera.position.distanceTo(ballMesh.position) / 32, 1, 2.4);
-      ballMesh.scale.setScalar(bs); ballMesh.position.set(bx, by + 0.115 * (bs - 1), bz); ballMesh.rotation.z -= dt * 6; updateNets();
+      ballMesh.scale.setScalar(bs); ballMesh.position.set(bx, by + 0.115 * (bs - 1), bz); ballRing.position.set(bx, 0.03, bz); ballRing.scale.setScalar(bs * 0.9); ballRing.material.opacity = clamp(0.62 - by * 0.25, 0.25, 0.62); ballMesh.rotation.z -= dt * 6; updateNets();
       renderer.render(scene, camera);
     },
     dispose() { /* the scene is kept for the next time a 3D view is chosen */ },
