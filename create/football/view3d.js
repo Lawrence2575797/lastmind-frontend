@@ -97,84 +97,129 @@
     return g;
   }
   const lerpSecs = (list) => list.map((r) => ({ y: r[0], a: r[1], b: r[2], ox: r[3] || 0, oz: r[4] || 0 }));
-  let G2 = null;
-  function bodyGeo() {
-    if (G2) return G2;
-    G2 = {
-      // trunk from the waist to the base of the neck: waist, ribs, chest, the line of the shoulders, the slope of the trapezius
-      torso: loft(lerpSecs([[0, 0.138, 0.092], [0.07, 0.15, 0.098], [0.16, 0.168, 0.108], [0.27, 0.185, 0.118, 0, 0.004], [0.39, 0.198, 0.118, 0, 0.004], [0.48, 0.205, 0.105], [0.54, 0.165, 0.088], [0.585, 0.095, 0.07], [0.61, 0.058, 0.056]]), 22),
-      pelvis: loft(lerpSecs([[-0.02, 0.165, 0.105], [0.04, 0.178, 0.112], [0.12, 0.158, 0.1]]), 20),
-      // a leg: the thigh swells from the hip and narrows into the knee; the calf bulges below it
-      thighTop: loft(lerpSecs([[0, 0.092, 0.095], [-0.08, 0.098, 0.1], [-0.2, 0.085, 0.088]]), 16),
-      thighLow: loft(lerpSecs([[0, 0.085, 0.088], [-0.1, 0.07, 0.074], [-0.2, 0.058, 0.06]]), 16),
-      calf: loft(lerpSecs([[0, 0.058, 0.06], [-0.05, 0.062, 0.07, 0, -0.01], [-0.14, 0.055, 0.064, 0, -0.012], [-0.28, 0.04, 0.045], [-0.38, 0.034, 0.036]]), 14),
-      sockTop: loft(lerpSecs([[0, 0.062, 0.066], [-0.045, 0.062, 0.066]]), 14),
-      shoe: (() => { const g = loft(lerpSecs([[-0.05, 0.036, 0.04], [0.02, 0.046, 0.05], [0.12, 0.048, 0.052], [0.2, 0.044, 0.045], [0.255, 0.03, 0.03]]), 14); g.rotateX(Math.PI / 2); g.scale(1, 1, 1); return g; })(),
-      knee: new THREE.SphereGeometry(0.058, 12, 10),
-      // an arm: shoulder, biceps, elbow, forearm, wrist
-      upper: loft(lerpSecs([[0, 0.05, 0.05], [-0.06, 0.056, 0.054], [-0.18, 0.047, 0.047], [-0.29, 0.04, 0.04]]), 14),
-      sleeve: loft(lerpSecs([[0.01, 0.054, 0.054], [-0.06, 0.06, 0.058], [-0.15, 0.054, 0.054]]), 14),
-      fore: loft(lerpSecs([[0, 0.04, 0.04], [-0.07, 0.044, 0.042], [-0.18, 0.033, 0.03], [-0.27, 0.027, 0.024]]), 12),
-      palm: loft(lerpSecs([[0, 0.026, 0.012], [-0.05, 0.034, 0.015], [-0.095, 0.026, 0.011]]), 10),
-      sph: new THREE.SphereGeometry(1, 16, 12),
-      neck: loft(lerpSecs([[-0.02, 0.052, 0.05], [0.04, 0.047, 0.046], [0.09, 0.044, 0.046]]), 12),
-      // a head: chin, jaw, cheek, brow, crown
-      head: loft(lerpSecs([[-0.125, 0.012, 0.03, 0, 0.012], [-0.115, 0.04, 0.05, 0, 0.014], [-0.09, 0.062, 0.075, 0, 0.008], [-0.05, 0.074, 0.093, 0, 0.004], [0, 0.078, 0.1], [0.05, 0.076, 0.097], [0.09, 0.066, 0.086, 0, -0.004], [0.12, 0.044, 0.062, 0, -0.01], [0.135, 0.016, 0.026, 0, -0.012]]), 22),
-    };
-    return G2;
-  }
+  // ---------------------------------------------------------------- a skinned footballer
+  // One continuous mesh per material (shirt, shorts, skin, socks, boots, trim, face, hair), all bound to one 15-bone skeleton and skinned with smooth weights,
+  // so the knees, elbows, shoulders, waist and neck bend as a body does instead of as separate parts. The mesh is made here, in code, from lofted
+  // cross-sections of a real figure's proportions (1.8 m, head about 1/7.5 of the height), so there is no model file to license or to load.
   const SHADE = (c, k) => { const col = new THREE.Color(c); col.multiplyScalar(k); return col.getHex(); };
+  const smooth = (e0, e1, x) => { const t = clamp((x - e0) / (e1 - e0), 0, 1); return t * t * (3 - 2 * t); };
+  const down = (y, j, r) => 1 - smooth(j - r, j + r, y);   // 0 above a joint, 1 below it, easing across the joint
+  // bone order: 0 body, 1 torso, 2 head, 3-5 left arm/elbow/hand, 6-8 right arm/elbow/hand, 9-11 left hip/knee/ankle, 12-14 right hip/knee/ankle
+  const BN = { body: 0, torso: 1, head: 2, arm: [3, 6], elbow: [4, 7], hand: [5, 8], hip: [9, 12], knee: [10, 13], ankle: [11, 14] };
+  const JY = { torso: 1.0, shoulder: 1.5, elbow: 1.215, wrist: 0.945, hip: 0.89, knee: 0.46, ankle: 0.07, head: 1.69 };
+  let SKP = null;
+  function skinParts() {
+    if (SKP) return SKP;
+    const GEO = {}, push = (region, geo, fn, col) => {
+      const p = geo.attributes.position, n = p.count, si = new Uint16Array(n * 4), sw = new Float32Array(n * 4);
+      for (let i = 0; i < n; i++) { const w = fn(p.getX(i), p.getY(i), p.getZ(i)); for (let k = 0; k < w.length && k < 4; k++) { si[i * 4 + k] = w[k][0]; sw[i * 4 + k] = w[k][1]; } }
+      geo.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(si, 4)); geo.setAttribute('skinWeight', new THREE.Float32BufferAttribute(sw, 4));
+      if (col != null) { const c = new THREE.Color(col), arr = new Float32Array(n * 3); for (let i = 0; i < n; i++) { arr[i * 3] = c.r; arr[i * 3 + 1] = c.g; arr[i * 3 + 2] = c.b; } geo.setAttribute('color', new THREE.Float32BufferAttribute(arr, 3)); }
+      (GEO[region] = GEO[region] || []).push(geo);
+    };
+    const S = [-1, 1], side = (s) => (s < 0 ? 0 : 1);
+    // weight functions
+    const fCore = (x, y) => { const t = smooth(JY.torso, JY.torso + 0.09, y); return [[BN.body, 1 - t], [BN.torso, t]]; };
+    const fBody = () => [[BN.body, 1]], fHead = () => [[BN.head, 1]], fTorso = () => [[BN.torso, 1]];
+    const fNeck = (x, y) => { const t = smooth(1.6, 1.68, y); return [[BN.torso, 1 - t], [BN.head, t]]; };
+    const fLeg = (s) => (x, y) => { const t1 = down(y, JY.knee, 0.07), t2 = down(y, JY.ankle, 0.035); return [[BN.hip[side(s)], 1 - t1], [BN.knee[side(s)], t1 * (1 - t2)], [BN.ankle[side(s)], t1 * t2]]; };
+    const fArm = (s) => (x, y) => { const ts = 0.5 * smooth(JY.shoulder, JY.shoulder + 0.08, y), t1 = down(y, JY.elbow, 0.06), t2 = down(y, JY.wrist, 0.03), k = 1 - ts; return [[BN.torso, ts], [BN.arm[side(s)], k * (1 - t1)], [BN.elbow[side(s)], k * t1 * (1 - t2)], [BN.hand[side(s)], k * t1 * t2]]; };
+    const T = (geo, x, y, z) => { geo.translate(x || 0, y || 0, z || 0); return geo; };
+    const sc = (geo, x, y, z) => { geo.scale(x, y, z); return geo; };
+    // ---- trunk: waist, ribs, chest, shoulder line, trapezius slope
+    push('shirt', T(loft(lerpSecs([[0, 0.138, 0.092], [0.07, 0.15, 0.098], [0.16, 0.168, 0.108], [0.27, 0.185, 0.118, 0, 0.004], [0.39, 0.198, 0.118, 0, 0.004], [0.48, 0.205, 0.105], [0.54, 0.165, 0.088], [0.585, 0.095, 0.07], [0.61, 0.058, 0.056]]), 26), 0, JY.torso, 0), fCore);
+    push('shorts', T(loft(lerpSecs([[-0.02, 0.165, 0.105], [0.04, 0.178, 0.112], [0.12, 0.158, 0.1]]), 22), 0, JY.hip, 0), fBody);
+    push('skin', T(loft(lerpSecs([[-0.02, 0.052, 0.05], [0.04, 0.047, 0.046], [0.09, 0.044, 0.046]]), 14), 0, 1.6, 0.008), fNeck);
+    const col = new THREE.Mesh(new THREE.TorusGeometry(0.06, 0.014, 6, 20)); col.geometry.rotateX(Math.PI / 2); col.geometry.scale(1, 1.15, 1);
+    push('trim', T(col.geometry, 0, 1.606, 0.006), fTorso);
+    push('trim', T(sc(loft(lerpSecs([[0, 0.062, 0.066], [-0.045, 0.062, 0.066]]), 20), 2.3, 0.5, 1.55), 0, 1.012, 0), fCore);
+    // ---- the head: chin, jaw, cheek, brow, crown; ears and nose; the face's eyes, brows and mouth
+    const hx = 0, hy = JY.head, hz = 0.006;
+    push('skin', T(loft(lerpSecs([[-0.125, 0.012, 0.03, 0, 0.012], [-0.115, 0.04, 0.05, 0, 0.014], [-0.09, 0.062, 0.075, 0, 0.008], [-0.05, 0.074, 0.093, 0, 0.004], [0, 0.078, 0.1], [0.05, 0.076, 0.097], [0.09, 0.066, 0.086, 0, -0.004], [0.12, 0.044, 0.062, 0, -0.01], [0.135, 0.016, 0.026, 0, -0.012]]), 26), hx, hy + 0.09, hz), fHead);
+    const sph = (r, ws, hs) => new THREE.SphereGeometry(r, ws || 12, hs || 8);
+    S.forEach((s) => push('skin', T(sc(sph(1, 10, 8), 0.011, 0.028, 0.019), s * 0.08, hy + 0.09, hz - 0.004), fHead));
+    push('skin', T(sc(sph(1, 10, 8), 0.014, 0.024, 0.02), 0, hy + 0.074, hz + 0.1), fHead);
+    S.forEach((s) => {
+      push('face', T(sc(sph(1, 10, 8), 0.0165, 0.011, 0.01), s * 0.034, hy + 0.108, hz + 0.088), fHead, 0xf4f1ea);
+      push('face', T(sc(sph(1, 8, 6), 0.0064, 0.0064, 0.0064), s * 0.034, hy + 0.108, hz + 0.0955), fHead, 0x3a2a1c);
+      const br = sc(sph(1, 8, 6), 0.024, 0.0045, 0.01); br.rotateZ(s * -0.18); push('face', T(br, s * 0.036, hy + 0.132, hz + 0.088), fHead, 0x2a1d14);
+    });
+    push('face', T(sc(sph(1, 10, 6), 0.022, 0.0045, 0.01), 0, hy + 0.034, hz + 0.093), fHead, 0x8a4a42);
+    // ---- limbs, one pair at a time
+    S.forEach((s) => {
+      const lx = s * 0.092, ax = s * 0.215, inn = -s, FL = fLeg(s), FA = fArm(s);
+      // legs: shorts over the thigh, bare lower thigh, knee, calf in a sock with a band, rounded boot
+      push('shorts', sc(T(loft(lerpSecs([[0, 0.092, 0.095], [-0.08, 0.098, 0.1], [-0.2, 0.085, 0.088]]), 18), lx, JY.hip, 0), 1, 1, 1), FL);
+      push('skin', T(loft(lerpSecs([[0, 0.085, 0.088], [-0.1, 0.07, 0.074], [-0.2, 0.058, 0.06]]), 16), lx, 0.69, 0), FL);
+      push('skin', T(sph(0.058, 14, 10), lx, JY.knee, 0.004), FL);
+      push('socks', T(loft(lerpSecs([[0, 0.058, 0.06], [-0.05, 0.062, 0.07, 0, -0.01], [-0.14, 0.055, 0.064, 0, -0.012], [-0.28, 0.04, 0.045], [-0.38, 0.034, 0.036]]), 16), lx, 0.45, 0), FL);
+      push('trim', T(sc(loft(lerpSecs([[0, 0.062, 0.066], [-0.045, 0.062, 0.066]]), 16), 1.02, 1, 1.02), lx, 0.44, 0), FL);
+      const shoe = loft(lerpSecs([[-0.05, 0.036, 0.04], [0.02, 0.046, 0.05], [0.12, 0.048, 0.052], [0.2, 0.044, 0.045], [0.255, 0.03, 0.03]]), 16); shoe.rotateX(Math.PI / 2);
+      push('boots', T(shoe, lx, 0.058, -0.002), () => [[BN.ankle[side(s)], 1]]);
+      // arms: shoulder cap and short sleeve over the biceps, bare upper arm and forearm, elbow, hand with palm, four fingers and a thumb
+      push('shirt', T(sph(0.062, 14, 10), ax, JY.shoulder, 0), FA);
+      push('shirt', T(loft(lerpSecs([[0.01, 0.054, 0.054], [-0.06, 0.06, 0.058], [-0.15, 0.054, 0.054]]), 16), ax, JY.shoulder, 0), FA);
+      push('trim', T(sc(loft(lerpSecs([[0, 0.057, 0.057], [-0.03, 0.057, 0.057]]), 16), 1, 1, 1), ax, JY.shoulder - 0.125, 0), FA);
+      push('skin', T(loft(lerpSecs([[0, 0.05, 0.05], [-0.06, 0.056, 0.054], [-0.18, 0.047, 0.047], [-0.29, 0.04, 0.04]]), 16), ax, JY.shoulder, 0), FA);
+      push('skin', T(sph(0.042, 12, 10), ax, JY.elbow, 0), FA);
+      push('skin', T(loft(lerpSecs([[0, 0.04, 0.04], [-0.07, 0.044, 0.042], [-0.18, 0.033, 0.03], [-0.27, 0.027, 0.024]]), 14), ax, JY.elbow, 0), FA);
+      push('skin', T(loft(lerpSecs([[0.005, 0.026, 0.012], [-0.05, 0.034, 0.015], [-0.095, 0.03, 0.012]]), 12), ax, JY.wrist, 0), FA);
+      [[-0.0225, 0.052], [-0.0075, 0.062], [0.0075, 0.058], [0.0225, 0.046]].forEach(([fx, len]) => {
+        const f = loft(lerpSecs([[0, 0.0078, 0.0078], [-len * 0.5, 0.0072, 0.0072, 0, 0.003], [-len, 0.0058, 0.0058, 0, 0.009]]), 8);
+        push('skin', T(f, ax + fx, JY.wrist - 0.093, 0.0), FA);
+      });
+      const th = loft(lerpSecs([[0, 0.0095, 0.0095], [-0.025, 0.0088, 0.0088, 0, 0.004], [-0.048, 0.0065, 0.0065, 0, 0.012]]), 8); th.rotateZ(inn * 0.5);
+      push('skin', T(th, ax + inn * 0.03, JY.wrist - 0.03, 0.008), FA);
+    });
+    // ---- hair, one shape per style
+    const hair = {};
+    ['short', 'buzz', 'long', 'afro'].forEach((st) => {
+      const big = st === 'afro', g = new THREE.SphereGeometry(1, 20, 14, 0, Math.PI * 2, 0, Math.PI * (st === 'buzz' ? 0.38 : big ? 0.62 : 0.44));
+      g.scale(big ? 0.115 : 0.087, big ? 0.125 : 0.105, big ? 0.12 : 0.108); g.rotateX(-0.08); g.translate(0, hy + (big ? 0.12 : 0.13), hz - 0.004);
+      const parts = [g];
+      if (st === 'long') { const b = new THREE.SphereGeometry(1, 12, 10); b.scale(0.082, 0.12, 0.06); b.translate(0, hy + 0.03, hz - 0.065); parts.push(b); }
+      parts.forEach((p) => { const n = p.attributes.position.count, si = new Uint16Array(n * 4), sw = new Float32Array(n * 4); for (let i = 0; i < n; i++) { si[i * 4] = BN.head; sw[i * 4] = 1; } p.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(si, 4)); p.setAttribute('skinWeight', new THREE.Float32BufferAttribute(sw, 4)); });
+      hair[st] = mergeSkinned(parts);
+    });
+    SKP = { hair };
+    Object.keys(GEO).forEach((r) => { SKP[r] = mergeSkinned(GEO[r]); });
+    return SKP;
+  }
+  // join several skinned geometries (all sharing the same attributes) into one
+  function mergeSkinned(list) {
+    let n = 0, ni = 0; list.forEach((g) => { n += g.attributes.position.count; ni += g.index.count; });
+    const hasCol = !!list[0].attributes.color, pos = new Float32Array(n * 3), nor = new Float32Array(n * 3), si = new Uint16Array(n * 4), sw = new Float32Array(n * 4), colr = hasCol ? new Float32Array(n * 3) : null, idx = new Uint32Array(ni);
+    let o = 0, oi = 0;
+    list.forEach((g) => {
+      const c = g.attributes.position.count; pos.set(g.attributes.position.array, o * 3); nor.set(g.attributes.normal.array, o * 3); si.set(g.attributes.skinIndex.array, o * 4); sw.set(g.attributes.skinWeight.array, o * 4); if (hasCol) colr.set(g.attributes.color.array, o * 3);
+      const gi = g.index.array; for (let i = 0; i < gi.length; i++) idx[oi + i] = gi[i] + o; o += c; oi += gi.length;
+    });
+    const m = new THREE.BufferGeometry(); m.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); m.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3)); m.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(si, 4)); m.setAttribute('skinWeight', new THREE.Float32BufferAttribute(sw, 4));
+    if (hasCol) m.setAttribute('color', new THREE.Float32BufferAttribute(colr, 3)); m.setIndex(new THREE.BufferAttribute(idx, 1)); m.computeBoundingSphere(); return m;
+  }
+  const skinMat = {};
+  const MS = (color, rough, opts) => { const k = color + '|' + (rough || 0.7) + '|' + (opts ? JSON.stringify(opts) : ''); return skinMat[k] || (skinMat[k] = new THREE.MeshStandardMaterial(Object.assign({ color, roughness: rough || 0.7, skinning: true }, opts || {}))); };
   function makeFigure(o) {
-    const GG = bodyGeo(), root = new THREE.Group(), body = new THREE.Group(); root.add(body);
-    const hip = 0.9, skin = M(o.skin, 0.58), skinD = M(SHADE(o.skin, 0.82), 0.6), Lh = {}, Rh = {};
-    const part = (geo, mat, x, y, z) => { const m = new THREE.Mesh(geo, mat); m.position.set(x || 0, y || 0, z || 0); m.castShadow = true; return m; };
+    const SKR = skinParts(), root = new THREE.Group();
+    const bone = (parent, x, y, z) => { const b = new THREE.Bone(); b.position.set(x, y, z); parent.add(b); return b; };
+    const body = new THREE.Bone(); root.add(body);
+    const torso = bone(body, 0, JY.torso, 0), headG = bone(torso, 0, 0.69, 0.006), Lh = {}, Rh = {};
+    [[-1, Lh], [1, Rh]].forEach(([s, r]) => {
+      r.arm = bone(torso, s * 0.215, JY.shoulder - JY.torso, 0); r.elbow = bone(r.arm, 0, -0.285, 0); r.hand = bone(r.elbow, 0, -0.27, 0);
+      r.hip = bone(body, s * 0.092, JY.hip, 0); r.knee = bone(r.hip, 0, -0.43, 0); r.ankle = bone(r.knee, 0, -0.39, 0);
+    });
+    const bones = [body, torso, headG, Lh.arm, Lh.elbow, Lh.hand, Rh.arm, Rh.elbow, Rh.hand, Lh.hip, Lh.knee, Lh.ankle, Rh.hip, Rh.knee, Rh.ankle];
+    root.updateMatrixWorld(true);
+    const skeleton = new THREE.Skeleton(bones);
+    const add = (geo, mat, cast) => { const m = new THREE.SkinnedMesh(geo, mat); m.castShadow = !!cast; m.frustumCulled = false; root.add(m); root.updateMatrixWorld(true); m.bind(skeleton); return m; };
+    add(SKR.skin, MS(o.skin, 0.58), true); add(SKR.shirt, MS(o.shirt, 0.68), true); add(SKR.shorts, MS(o.shorts, 0.72), true); add(SKR.socks, MS(o.sock, 0.8), true); add(SKR.trim, MS(o.trim, 0.65), false); add(SKR.boots, MS(o.boot, 0.42), true);
+    add(SKR.face, MS(0xffffff, 0.45, { vertexColors: true }), false);
+    if (o.style !== 'bald' && SKR.hair[o.style]) add(SKR.hair[o.style], MS(o.hair, 0.88), true);
+    // the number on the back, carried by the trunk
+    const num = new THREE.Mesh(new THREE.PlaneGeometry(0.3, 0.3), new THREE.MeshBasicMaterial({ map: numberTexture(o.num, o.numColor), transparent: true })); num.position.set(0, 0.3, -0.126); num.rotation.y = Math.PI; torso.add(num);
     // a soft contact shadow so the feet sit on the grass
     if (!matCache.blob) { const c = mkCanvas(64, 64), g = c.getContext('2d'), gr = g.createRadialGradient(32, 32, 2, 32, 32, 31); gr.addColorStop(0, 'rgba(0,0,0,.55)'); gr.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = gr; g.fillRect(0, 0, 64, 64); matCache.blob = new THREE.MeshBasicMaterial({ map: tex(c, false), transparent: true, depthWrite: false }); }
     const blob = new THREE.Mesh(new THREE.PlaneGeometry(1.15, 0.85), matCache.blob); blob.rotation.x = -Math.PI / 2; blob.position.y = 0.012; root.add(blob);
-    // the hips and shorts
-    body.add(part(GG.pelvis, M(o.shorts, 0.7), 0, hip, 0));
-    // the upper body turns on its own against the hips
-    const torso = new THREE.Group(); torso.position.y = hip + 0.1; body.add(torso);
-    torso.add(part(GG.torso, M(o.shirt, 0.66), 0, 0, 0));
-    const hem = part(GG.sockTop, M(o.trim, 0.65), 0, 0.012, 0); hem.scale.set(2.3, 0.5, 1.55); torso.add(hem);
-    const num = new THREE.Mesh(new THREE.PlaneGeometry(0.3, 0.3), new THREE.MeshBasicMaterial({ map: numberTexture(o.num, o.numColor), transparent: true })); num.position.set(0, 0.3, -0.126); num.rotation.y = Math.PI; torso.add(num);
-    // the neck and collar
-    const neck = part(GG.neck, skinD, 0, 0.6, 0.008); torso.add(neck);
-    const collar = new THREE.Mesh(new THREE.TorusGeometry(0.06, 0.014, 6, 18), M(o.trim, 0.6)); collar.rotation.x = Math.PI / 2; collar.position.set(0, 0.606, 0.006); collar.scale.set(1, 1.15, 1); torso.add(collar);
-    [[-1, Lh], [1, Rh]].forEach(([side, r]) => {
-      // leg: hip joint, thigh (shorts over skin), knee, calf in the sock, ankle, boot
-      r.hip = new THREE.Group(); r.hip.position.set(side * 0.092, hip - 0.01, 0); body.add(r.hip);
-      const tt = part(GG.thighTop, M(o.shorts, 0.7), 0, 0, 0); tt.scale.set(1.04, 1, 1.03); r.hip.add(tt); r.hip.add(part(GG.thighLow, skin, 0, -0.2, 0));
-      r.knee = new THREE.Group(); r.knee.position.y = -0.43; r.hip.add(r.knee);
-      r.knee.add(part(GG.knee, skin, 0, 0, 0.004)); r.knee.add(part(GG.calf, M(o.sock, 0.8), 0, -0.01, 0)); const band = part(GG.sockTop, M(o.trim, 0.6), 0, -0.02, 0); band.scale.set(1.02, 1, 1.02); r.knee.add(band);
-      r.ankle = new THREE.Group(); r.ankle.position.y = -0.39; r.knee.add(r.ankle); r.ankle.add(part(GG.shoe, M(o.boot, 0.42), 0, -0.012, -0.002));
-      // arm: shoulder, short sleeve, upper arm, elbow, forearm, hand
-      r.arm = new THREE.Group(); r.arm.position.set(side * 0.215, 0.5, 0); torso.add(r.arm);
-      const cap = part(GG.sph, M(o.sleeve, 0.66), 0, 0, 0); cap.scale.setScalar(0.062); r.arm.add(cap);
-      r.arm.add(part(GG.upper, skin, 0, 0, 0)); r.arm.add(part(GG.sleeve, M(o.sleeve, 0.66), 0, 0, 0));
-      r.elbow = new THREE.Group(); r.elbow.position.y = -0.285; r.arm.add(r.elbow);
-      const el = part(GG.sph, skin, 0, 0, 0); el.scale.setScalar(0.042); r.elbow.add(el); r.elbow.add(part(GG.fore, skin, 0, 0, 0));
-      r.hand = new THREE.Group(); r.hand.position.y = -0.27; r.elbow.add(r.hand);
-      const palm = part(GG.palm, skinD, 0, 0, 0.0); r.hand.add(palm); const th = part(GG.sph, skinD, side * -0.03, -0.035, 0.012); th.scale.set(0.014, 0.03, 0.014); r.hand.add(th);
-      r.arm.rotation.z = -side * 0.08;
-    });
-    // the head turns on the neck, so a player can look at the ball while running another way
-    const headG = new THREE.Group(); headG.position.set(0, 0.69, 0.006); torso.add(headG);
-    const head = part(GG.head, skin, 0, 0.09, 0); headG.add(head);
-    [-1, 1].forEach((s) => {
-      const w = part(GG.sph, M(0xf4f1ea, 0.35), s * 0.034, 0.108, 0.088); w.scale.set(0.0165, 0.011, 0.01); w.castShadow = false; headG.add(w);
-      const ir = part(GG.sph, M(o.eye || 0x3a2a1c, 0.3), s * 0.034, 0.108, 0.0955); ir.scale.setScalar(0.0064); ir.castShadow = false; headG.add(ir);
-      const br = part(GG.sph, M(o.hair, 0.9), s * 0.036, 0.132, 0.088); br.scale.set(0.024, 0.0045, 0.01); br.rotation.z = s * -0.18; br.castShadow = false; headG.add(br);
-      const ear = part(GG.sph, skinD, s * 0.08, 0.09, -0.004); ear.scale.set(0.011, 0.028, 0.019); headG.add(ear);
-    });
-    const nose = part(GG.sph, skin, 0, 0.074, 0.1); nose.scale.set(0.014, 0.024, 0.02); nose.rotation.x = -0.3; headG.add(nose);
-    const mouth = part(GG.sph, M(SHADE(o.skin, 0.55), 0.6), 0, 0.034, 0.093); mouth.scale.set(0.022, 0.0045, 0.01); mouth.castShadow = false; headG.add(mouth);
-    const hairM = M(o.hair, 0.88);
-    if (o.style !== 'bald') {
-      const big = o.style === 'afro', cap = new THREE.Mesh(new THREE.SphereGeometry(1, 18, 12, 0, Math.PI * 2, 0, Math.PI * (o.style === 'buzz' ? 0.38 : big ? 0.62 : 0.44)), hairM);
-      cap.position.set(0, big ? 0.12 : 0.13, -0.004); cap.scale.set(big ? 0.115 : 0.087, big ? 0.125 : 0.105, big ? 0.12 : 0.108); cap.rotation.x = -0.08; cap.castShadow = true; headG.add(cap);
-      if (o.style === 'long') { const bk = part(GG.sph, hairM, 0, 0.03, -0.065); bk.scale.set(0.082, 0.12, 0.06); headG.add(bk); }
-    }
     root.scale.set((o.height || 1) * (o.build || 1), o.height || 1, (o.height || 1) * (o.build || 1));
     return { root, body, torso, headG, L: Lh, R: Rh, phase: Math.random() * 6, look: 0, bank: 0, sway: Math.random() * 6 };
   }
