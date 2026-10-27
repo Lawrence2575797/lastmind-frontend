@@ -321,17 +321,20 @@
   try { world.viewMode = localStorage.getItem('lm_football_view') || '2d'; } catch (e) { world.viewMode = '2d'; }
   function applyViewMode() {
     const v = world.viewMode, three = v === 'touchline' || v === 'stands', host = el('pitch3d'), sel = el('viewMode');
-    if (sel) sel.value = v; { const note = el('viewNote'); if (note) note.textContent = ''; }
-    canvas.hidden = three; if (host) host.hidden = !three;
-    if (!three || !FM.view3d || !host) return;
+    const note = el('viewNote'), say = (t, bad) => { if (note) { note.textContent = t; note.className = 'view-note' + (t ? (bad ? ' bad' : ' busy') : ''); } };
+    if (sel) sel.value = v; say('');
+    if (!three) { canvas.hidden = false; if (host) host.hidden = true; return; }
+    if (!FM.view3d || !host) { say('The 3D view is not available in this version.', true); return; }
+    say(FM.view3d.ready ? 'Switching to ' + (v === 'stands' ? 'the stands view' : 'the touchline view') + '...' : 'Loading the 3D view, this takes a few seconds the first time...');
     resize();
-    FM.view3d.ensure(host).then(() => { FM.view3d.setMode(v); world.view3dSnap = true; }).catch((e) => { world.viewMode = '2d'; canvas.hidden = false; host.hidden = true; if (sel) sel.value = '2d'; const note = el('viewNote'); if (note) note.textContent = '3D could not start here (' + ((e && e.message) || 'unknown error') + '), so the 2D pitch is showing.'; try { console.error('3D view failed', e); } catch (x) { /* nothing to log to */ } });
+    FM.view3d.ensure(host).then(() => { canvas.hidden = true; host.hidden = false; resize(); FM.view3d.setMode(v); world.view3dSnap = true; say(''); }).catch((e) => { world.viewMode = '2d'; canvas.hidden = false; host.hidden = true; if (sel) sel.value = '2d'; say('3D could not start on this browser (' + ((e && e.message) || 'unknown error') + '). Showing the 2D pitch instead.', true); try { console.error('3D view failed', e); } catch (x) { /* nothing to log to */ } });
   }
   function draw() {
     if ((world.viewMode === 'touchline' || world.viewMode === 'stands') && FM.view3d && FM.view3d.ready) {
-      stepRender(world.match); FM.view3d.render(world.match, { dt: world.frameDt, renderPos: world.renderPos, renderBall: world.renderBall, snap: world.view3dSnap }); world.view3dSnap = false; return;
+      stepRender(world.match);
+      try { FM.view3d.render(world.match, { dt: world.frameDt, renderPos: world.renderPos, renderBall: world.renderBall, snap: world.view3dSnap }); world.view3dSnap = false; return; }
+      catch (e) { const sel = el('viewMode'), note = el('viewNote'); world.viewMode = '2d'; canvas.hidden = false; if (el('pitch3d')) el('pitch3d').hidden = true; if (sel) sel.value = '2d'; if (note) { note.className = 'view-note bad'; note.textContent = '3D stopped working (' + ((e && e.message) || 'unknown error') + '). Back to the 2D pitch.'; } try { console.error('3D render failed', e); } catch (x) { /* nothing to log to */ } }
     }
-    if (world.viewMode !== '2d' && world.viewMode) { stepRender(world.match); return; }   // 3D is still loading
     drawPitch(); drawTrails(); drawImpacts(); drawPlayers(); drawGoalFx();
   }
 

@@ -121,12 +121,12 @@
       steps: [
         { say: ['Say each match is a win with probability ' + pp + ', and the matches do not affect one another.', 'How many wins in the next 5? We cannot know, but we can give the chance of each number.'] },
         { say: ['This is a binomial situation: a fixed number of trials $n$, two outcomes, a constant chance $p$ of a win, and independent trials.', 'We write $X \\sim B(' + n + ', ' + pp + ')$, where $X$ is the number of wins.'] },
-        { say: ['The probability of exactly $k$ wins:'], maths: '$P(X = k) = \\binom{n}{k}p^k(1-p)^{n-k}$' },
-        { say: ['The pieces: $p^k$ is the chance of the wins, $(1-p)^{n-k}$ is the chance of the other matches not being wins, and $\\binom{n}{k}$ counts the different orders in which the wins can happen.'] },
-        { say: ['For exactly 3 wins in 5 matches:'], maths: '$P(X = 3) = \\binom{5}{3}(' + pp + ')^3(' + m2(1 - pp) + ')^2 = 10 \\times ' + m(Math.pow(pp, 3)) + ' \\times ' + m(Math.pow(1 - pp, 2)) + ' = ' + m(pr) + '$' },
+        { say: ['The probability of exactly $k$ wins:'], maths: '$P(X = k) = \{}^{n}C_{k}p^k(1-p)^{n-k}$' },
+        { say: ['The pieces: $p^k$ is the chance of the wins, $(1-p)^{n-k}$ is the chance of the other matches not being wins, and $\{}^{n}C_{k}$ counts the different orders in which the wins can happen.'] },
+        { say: ['For exactly 3 wins in 5 matches:'], maths: '$P(X = 3) = \{}^{5}C_{3}(' + pp + ')^3(' + m2(1 - pp) + ')^2 = 10 \\times ' + m(Math.pow(pp, 3)) + ' \\times ' + m(Math.pow(1 - pp, 2)) + ' = ' + m(pr) + '$' },
         { say: ['The mean number of wins is $np = ' + m2(n * pp) + '$.', 'And the variance is $np(1-p) = ' + m2(n * pp * (1 - pp)) + '$.'] },
       ],
-      ask: { q: 'With $X \\sim B(5, ' + pp + ')$, find $P(X = 3)$ to 3 decimal places.', kind: 'number', answer: pr, unit: '', tol: 0.0015, rubric: 'Correct ' + m(pr) + '. Method: 10 × p³ × (1−p)².', worked: ['$\\binom{5}{3} = 10$.', '$P(X = 3) = 10 \\times ' + pp + '^3 \\times ' + m2(1 - pp) + '^2 = ' + m(pr) + '$.'], apply: { kind: 'plan', phase: 'press', key: 'intensity', value: pr < 0.2 ? 'high' : 'std', say: pr < 0.2 ? 'Three wins in five is unlikely at this rate, so raise the pressing to Heavy to lift your chance' : 'Three wins in five is a realistic target; keep the pressing at Medium' } },
+      ask: { q: 'With $X \\sim B(5, ' + pp + ')$, find $P(X = 3)$ to 3 decimal places.', kind: 'number', answer: pr, unit: '', tol: 0.0015, rubric: 'Correct ' + m(pr) + '. Method: 10 × p³ × (1−p)².', worked: ['$\{}^{5}C_{3} = 10$.', '$P(X = 3) = 10 \\times ' + pp + '^3 \\times ' + m2(1 - pp) + '^2 = ' + m(pr) + '$.'], apply: { kind: 'plan', phase: 'press', key: 'intensity', value: pr < 0.2 ? 'high' : 'std', say: pr < 0.2 ? 'Three wins in five is unlikely at this rate, so raise the pressing to Heavy to lift your chance' : 'Three wins in five is a realistic target; keep the pressing at Medium' } },
       next: 'Do you want to use this to decide whether a new tactic has genuinely improved your results, a hypothesis test?',
     };
   };
