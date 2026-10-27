@@ -8,8 +8,8 @@
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const world = { league: null, view: 'home', match: null, fixture: null, running: true, speed: 1, highlightsOnly: false, highlightUntil: 0, highlightSearching: false, highlightRevealFrom: 0, shownEvents: 0, lastStats: '', trails: [], impacts: [], vt: 0, commentaryUntil: 0, commentaryTurns: {}, tab: 'squad', selSlot: null, selBench: null, saveTimer: null, renderPos: new Map(), renderBall: null, frameDt: .016 };
   FM.debugWorld = world;   // a handle for testing the match view from the console
-  const REAL_SECONDS_FOR_MATCH = 600; // a full 90 minutes takes about ten real minutes at 1x
-  const MATCH_SPEED = 5400 / REAL_SECONDS_FOR_MATCH / 6 * 1.5;   // speeds are shown against a pace six times slower than the first version's
+  const REAL_SECONDS_FOR_MATCH = 5400; // a full 90 minutes takes 90 real minutes at 1x (real time); the faster buttons and "Sim to end" are for getting through it
+  const MATCH_SPEED = 1;   // 1x is real time: a second of play is a second on the clock, so passes, runs and build-up look as they do in a real match (the faster buttons are for skipping)
   const SUBSTEP = 0.1;
   const TIER_NAMES = { gcse: 'GCSE Maths', alevel: 'A-level Maths', above: 'Beyond A-level' };
 

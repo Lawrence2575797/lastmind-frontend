@@ -2001,7 +2001,10 @@
       const ty = f.target ? f.target.y + f.target.vy * 0.15 : f.ey;
       const dx = tx - ball.x, dy = ty - ball.y;
       const d = Math.hypot(dx, dy);
+      // A ground pass leaves the foot fast and slows on the grass: it does not travel at one speed and stop dead at the receiver.
+      if (f.kind === 'pass' && f.v0 == null) { f.v0 = f.speed; f.speed *= (FM.PASS_BOOST == null ? 1.25 : FM.PASS_BOOST); }
       const move = f.speed * dt;
+      if (f.kind === 'pass' && f.v0 != null) f.speed = Math.max(f.v0 * 0.62, f.speed * Math.exp(-(FM.PASS_DECAY == null ? 0.45 : FM.PASS_DECAY) * dt));
       if (d <= move + 0.4) { ball.x = tx; ball.y = ty; arrive(match, f); }
       else { ball.x += dx / d * move; ball.y += dy / d * move; }
       return;

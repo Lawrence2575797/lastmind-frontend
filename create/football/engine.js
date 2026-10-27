@@ -852,7 +852,10 @@
       const rawDist = Math.hypot(dx, dy);
       const dist = rawDist || 1e-6;
       const turning = Number.isFinite(p.turnTo);   // a man turning on the spot to play the ball: he turns faster than he runs and goes nowhere much
-      const speed = turning ? Math.min(p.maxSpeed, dist * 1.4, 4.2) : Math.min(p.maxSpeed, dist * 1.4);
+      // Getting into position is a jog, not a sprint: the further he has to go the faster, but a man shifting a few metres to keep his shape does not
+      // dart there. (A man sent to press, chase or carry the ball has an override and goes as fast as he can.)
+      const ovd = !!(overrides && overrides.get(p)), cap = ovd || p.group === 'GK' ? Infinity : 1.6 + dist * (FM.REPOS_K == null ? 0.65 : FM.REPOS_K);
+      const speed = turning ? Math.min(p.maxSpeed, dist * 1.4, 4.2) : Math.min(p.maxSpeed, dist * 1.4, cap);
       const wanted = turning ? p.turnTo : rawDist < 0.05 && Number.isFinite(p.facing) ? p.facing : Math.atan2(dy, dx);
       if (!Number.isFinite(p.facing)) p.facing = wanted;
       let turn = wanted - p.facing;

@@ -18,7 +18,7 @@
   }
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   const angDiff = (a, b) => { let d = b - a; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; return d; };
-  const lastBall = { x: 0, z: 0 };
+  const lastBall = { x: 0, z: 0 }; let lastT = null;
   const mkCanvas = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; };
   const tex = (c, srgb) => { const t = new THREE.CanvasTexture(c); if (srgb !== false) t.encoding = THREE.sRGBEncoding; t.anisotropy = renderer.capabilities.getMaxAnisotropy(); return t; };
 
@@ -226,39 +226,80 @@
   const mix = (a, b, k) => a + (b - a) * k;
   // Standing, walking, jogging, sprinting: one blend. Idle is an athletic stance (knees soft, arms loose, weight shifting), the run leans into its
   // speed and its turns, the arms drive against the legs, the shoulders turn against the hips, and the head stays on the ball.
+  // The step-by-step of a leg: the foot is planted on the grass where it lands and stays there (in the world, not on the body) until the body has gone
+  // over it; then it swings through to its next landing place, which is half a stride ahead of the body in whatever direction he is moving. Two-bone IK
+  // bends the hip and knee to reach it, and the ankle keeps the sole flat. A planted foot cannot skate.
+  const TL1 = 0.43, TL2 = 0.39;   // thigh and shin, in figure units
+  function legStep(f, key, stanceNow, st, geo, dt) {
+    const leg = f.leg[key], hipX = key === 'L' ? -0.092 : 0.092, sc = st.sc, ch = Math.cos(st.hd), sh = Math.sin(st.hd);
+    const toLocal = (wx, wz) => { const dx = wx - st.px, dz = wz - st.pz; return { x: (dx * sh - dz * ch) / sc, z: (dx * ch + dz * sh) / sc }; };
+    // where a foot would land now: half a stride ahead along the direction of travel, on his own side
+    const land = () => { const sp = Math.hypot(st.vx, st.vz), k = sp > 0.15 ? geo.stepLen * 0.5 / sp : 0; return { x: st.px + st.vx * k + sh * hipX * sc * 1.15, z: st.pz + st.vz * k - ch * hipX * sc * 1.15 }; };
+    if (!leg.init) { leg.init = true; leg.plant = land(); leg.from = leg.plant; leg.stance = stanceNow; }
+    if (stanceNow && !leg.stance) { leg.stance = true; leg.plant = land(); }                       // heel strike
+    else if (!stanceNow && leg.stance) { leg.stance = false; leg.from = leg.plant; }                // toe off
+    let wx, wz, lift = 0, u = 0, toe = 0;
+    const twoPi = Math.PI * 2, ph = ((f.phase % twoPi) + twoPi) % twoPi;
+    if (leg.stance) {
+      wx = leg.plant.x; wz = leg.plant.z;
+      const prog = key === 'L' ? ((ph - Math.PI / 2 + twoPi) % twoPi) / Math.PI : ((ph + Math.PI / 2) % twoPi) / Math.PI;
+      toe = 0.65 * smooth(0.6, 1, clamp(prog, 0, 1));
+    } else {
+      u = key === 'L' ? ((ph + Math.PI / 2) % twoPi) / Math.PI : ((ph - Math.PI / 2 + twoPi) % twoPi) / Math.PI; u = clamp(u, 0, 1);
+      const e = smooth(0, 1, u), tgt = land(); wx = leg.from.x + (tgt.x - leg.from.x) * e; wz = leg.from.z + (tgt.z - leg.from.z) * e;
+      lift = Math.sin(Math.PI * u) * (0.07 + 0.03 * geo.sp);
+      toe = 0.5 * (1 - u) - 0.28 * smooth(0.55, 1, u);
+    }
+    const lf = toLocal(wx, wz), fy = 0.07 + lift / sc, th = geo.lean;
+    // into the body's frame (leaning forward by th, bobbing by body.y)
+    const yp = fy - geo.by, zp = lf.z - geo.bz, yc = yp * Math.cos(th) + zp * Math.sin(th), zc = zp * Math.cos(th) - yp * Math.sin(th);
+    const dy = yc - 0.89, dz = zc, lx = lf.x - hipX;
+    const D = clamp(Math.hypot(dz, dy), 0.3, TL1 + TL2 - 0.002), al = Math.atan2(dz, -dy);
+    const th1 = Math.acos(clamp((TL1 * TL1 + D * D - TL2 * TL2) / (2 * TL1 * D), -1, 1)), gam = Math.acos(clamp((TL1 * TL1 + TL2 * TL2 - D * D) / (2 * TL1 * TL2), -1, 1));
+    const hipX_ = -(al + th1), kneeX = Math.PI - gam;
+    return { hip: hipX_, knee: kneeX, ankle: -(th + hipX_ + kneeX) + toe, abd: clamp(Math.atan2(lx, -dy), -0.5, 0.5) };
+  }
   function animate(f, st, dt, t) {
     // Stepping is tied to ground covered: each step is as long as the speed needs (a walk is short steps, a sprint long ones), so the feet are not left
-    // sliding, and the leg swing is the size that step needs. Each player has his own stride, so a team does not run in step.
+    // sliding. Each player has his own stride, so a team does not run in step.
     const vf = st.vf, vs = st.vs, sp = Math.hypot(vf, vs), spg = Math.max(sp, clamp(Math.abs(st.turn) * 0.28, 0, 1.2));   // turning on the spot shuffles the feet
     const run = smooth(0.12, 1.1, spg), sK = f.strideK || 1;
     const stepLen = clamp(0.42 + 0.14 * spg, 0.45, 1.55) * sK;
     if (spg > 0.12) f.phase += dt * Math.PI * spg / stepLen;
     const s = Math.sin(f.phase), c = Math.cos(f.phase), sw = Math.sin(t * 0.7 + f.sway);
-    const fwdF = sp > 0.05 ? Math.abs(vf) / sp : (spg > 0.12 ? 1 : 1), sideF = 1 - fwdF, dirS = vf >= 0 ? 1 : -1, latS = vs >= 0 ? 1 : -1;
-    const A = Math.asin(clamp(stepLen / 1.7, 0, 0.92)) * (vf >= 0 ? 1 : 0.62) * (0.4 + 0.6 * fwdF);
-    const B = 0.46 * sideF * Math.min(sp / 2.2, 1);
-    const brake = clamp(-st.accel - 1, 0, 6), launch = clamp(st.accel - 1, 0, 6);
-    // legs
-    const kBase = clamp(0.35 + 0.2 * spg, 0.35, 1.45) * (0.45 + 0.55 * fwdF), kneeL = Math.max(0, Math.sin(f.phase + 1.6)) * kBase + 0.06 + brake * 0.05, kneeR = Math.max(0, Math.sin(f.phase + 1.6 + Math.PI)) * kBase + 0.06 + brake * 0.05;
-    f.L.hip.rotation.x = mix(0.07 + 0.02 * sw, -s * A * dirS, run); f.R.hip.rotation.x = mix(-0.03 - 0.02 * sw, s * A * dirS, run);
-    f.L.knee.rotation.x = mix(0.14, kneeL, run); f.R.knee.rotation.x = mix(0.1, kneeR, run);
-    // sideways steps (a defender shuffling across): the leading leg opens out, the trailing one follows in
-    f.L.hip.rotation.z = mix(0.05, 0.03 + latS * B * Math.max(0, -s), run); f.R.hip.rotation.z = mix(-0.05, -0.03 + latS * B * Math.max(0, s), run);
+    const fwdF = sp > 0.05 ? Math.abs(vf) / sp : 1, sideF = 1 - fwdF, dirS = vf >= 0 ? 1 : -1, latS = vs >= 0 ? 1 : -1;
+    const brake = clamp(-st.accel - 1, 0, 6), launch = clamp(st.accel - 1, 0, 6), ikW = 1 - smooth(3.6, 5.2, spg);
+    // trunk: lean into speed and into a push-off, back when braking, bank into a turn, shoulders twist against the hips
+    const lean = (0.02 + clamp(0.03 * sp, 0, 0.27)) * fwdF * dirS + (dirS < 0 ? -0.03 : 0) + launch * 0.022 - brake * 0.024;
+    f.bank += (clamp(-st.turn * 0.06, -0.3, 0.3) * Math.min(sp / 4, 1) - f.bank) * Math.min(1, dt * 8);
+    const bob = Math.abs(c) * clamp(0.011 * spg, 0, 0.05) * run;
+    // the hips drop as far as a long stride needs, so the planted foot can reach
+    const dzMax = clamp(stepLen * 0.5 / st.sc, 0, 0.6);
+    const reachDrop = Math.max(0, (TL1 + TL2) - Math.sqrt(Math.max(0.05, (TL1 + TL2) * (TL1 + TL2) - dzMax * dzMax))), by = bob - (0.03 + reachDrop * 1.1 * ikW) * run + Math.sin(t * 1.7 + f.phase) * 0.004 * (1 - run) - brake * 0.012 - 0.02 * (1 - run);
+    f.body.rotation.x = lean; f.body.rotation.z = f.bank + s * clamp(0.006 * spg, 0, 0.035) * run; f.body.rotation.y = s * clamp(0.025 * spg, 0, 0.13) * run;
+    f.body.position.set(0.015 * sw * (1 - run) + s * 0.012 * run, by, 0);
+    // legs: planted feet and IK for walking and jogging, swung legs for a sprint, blended in between
+    const Asw = Math.asin(clamp(stepLen / 1.7, 0, 0.92)) * (vf >= 0 ? 1 : 0.62) * (0.4 + 0.6 * fwdF), Bsw = 0.46 * sideF * Math.min(sp / 2.2, 1);
+    const kBase = clamp(0.35 + 0.2 * spg, 0.35, 1.45) * (0.45 + 0.55 * fwdF), kL = Math.max(0, Math.sin(f.phase + 1.6)) * kBase + 0.06 + brake * 0.05, kR = Math.max(0, Math.sin(f.phase + 1.6 + Math.PI)) * kBase + 0.06 + brake * 0.05;
+    const sin_ = { Lh: -s * Asw * dirS, Rh: s * Asw * dirS, Lk: kL, Rk: kR, Lz: 0.03 + latS * Bsw * Math.max(0, -s), Rz: -0.03 + latS * Bsw * Math.max(0, s), La: 0.35 * Math.sin(f.phase + 0.8) - 0.08, Ra: -0.35 * Math.sin(f.phase + 0.8) - 0.08 };
+    let LH = sin_.Lh, RH = sin_.Rh, LK = sin_.Lk, RK = sin_.Rk, LZ = sin_.Lz, RZ = sin_.Rz, LA = sin_.La, RA = sin_.Ra;
+    if (!f.leg) f.leg = { L: {}, R: {} };
+    const geo = { stepLen: stepLen, sp: spg, lean, by, bz: 0 };
+    if (run > 0.04 && st.sc && ikW > 0.01) {
+      const L_ = legStep(f, 'L', c < 0, st, geo, dt), R_ = legStep(f, 'R', c >= 0, st, geo, dt), kb = brake * 0.05;
+      LH = mix(LH, L_.hip, ikW); RH = mix(RH, R_.hip, ikW); LK = mix(LK, L_.knee + kb, ikW); RK = mix(RK, R_.knee + kb, ikW); LZ = mix(LZ, L_.abd, ikW); RZ = mix(RZ, R_.abd, ikW); LA = mix(LA, L_.ankle, ikW); RA = mix(RA, R_.ankle, ikW);
+    } else if (f.leg.L.init) { f.leg.L.init = false; f.leg.R.init = false; }
+    f.L.hip.rotation.x = mix(0.07 + 0.02 * sw, LH, run); f.R.hip.rotation.x = mix(-0.03 - 0.02 * sw, RH, run);
+    f.L.knee.rotation.x = mix(0.14, LK, run); f.R.knee.rotation.x = mix(0.1, RK, run);
+    f.L.hip.rotation.z = mix(0.05, LZ, run); f.R.hip.rotation.z = mix(-0.05, RZ, run);
+    f.L.ankle.rotation.x = LA * run; f.R.ankle.rotation.x = RA * run;
     // arms
     const swing = clamp(0.12 + 0.1 * spg, 0.12, 0.88) * (0.4 + 0.6 * fwdF);
     f.L.arm.rotation.x = mix(0.12 + 0.03 * sw, s * swing * dirS, run); f.R.arm.rotation.x = mix(0.12 - 0.03 * sw, -s * swing * dirS, run);
     f.L.arm.rotation.z = mix(0.1, 0.05 + 0.1 * sideF, run); f.R.arm.rotation.z = mix(-0.1, -0.05 - 0.1 * sideF, run);
     const bend = mix(0.35, clamp(0.3 + 0.07 * spg * 5, 0.5, 1.25), run);
     f.L.elbow.rotation.x = -(bend + 0.1 * Math.max(0, -s) * run); f.R.elbow.rotation.x = -(bend + 0.1 * Math.max(0, s) * run);
-    // feet: toe up as the leg swings through, toe down as it pushes off; hands loosely closed
-    f.L.ankle.rotation.x = run * (0.35 * Math.sin(f.phase + 0.8) - 0.08); f.R.ankle.rotation.x = run * (-0.35 * Math.sin(f.phase + 0.8) - 0.08);
     f.L.hand.rotation.x = -0.25 * run; f.R.hand.rotation.x = -0.25 * run;
-    // trunk: lean into speed and into a push-off, back when braking, bank into a turn, shoulders twist against the hips
-    const lean = (0.02 + clamp(0.03 * sp, 0, 0.27)) * fwdF * dirS + (dirS < 0 ? -0.03 : 0) + launch * 0.022 - brake * 0.024;
-    f.bank += (clamp(-st.turn * 0.06, -0.3, 0.3) * Math.min(sp / 4, 1) - f.bank) * Math.min(1, dt * 8);
-    const bob = Math.abs(c) * clamp(0.011 * spg, 0, 0.065) * run;
-    f.body.rotation.x = lean; f.body.rotation.z = f.bank + s * clamp(0.006 * spg, 0, 0.035) * run; f.body.rotation.y = s * clamp(0.025 * spg, 0, 0.13) * run;
-    f.body.position.set(0.015 * sw * (1 - run) + s * 0.012 * run, bob + Math.sin(t * 1.7 + f.phase) * 0.004 * (1 - run) - brake * 0.012, 0);
     f.torso.rotation.y = -s * clamp(0.045 * spg, 0, 0.22) * run; f.torso.rotation.z = -f.bank * 0.4; f.torso.rotation.x = 0;
     f.body.scale.y = 1;
     // head: on the ball within what a neck allows, with now and then a glance away when standing
@@ -296,7 +337,13 @@
     else if (type === 'fall') { const ex = k < 0.55 ? Math.min(1, k * 5) : Math.max(0, 1 - (k - 0.55) / 0.45); f.body.rotation.x = -1.28 * ex; f.body.position.y = 0.04; f.L.arm.rotation.x = -1.4 * ex; f.R.arm.rotation.x = -1.4 * ex; }
     else if (type === 'stumble') { f.body.rotation.x += 0.4 * s; f.torso.rotation.y += 0.3 * s * dir; f.L.arm.rotation.z = 0.95 * s; f.R.arm.rotation.z = -0.95 * s; f.L.knee.rotation.x += 0.5 * s; }
     else if (type === 'celebrate') { f.L.arm.rotation.x = -2.9; f.R.arm.rotation.x = -2.9; f.L.arm.rotation.z = 0.25; f.R.arm.rotation.z = -0.25; f.body.position.y = Math.abs(Math.sin(t * 9)) * 0.12; f.headG.rotation.x = -0.25; }
-    else if (type === 'header') { f.body.position.y = 0.5 * s; f.body.rotation.x = 0.5 * Math.sin(Math.PI * Math.min(1, k * 1.6)); f.L.arm.rotation.x = -1.0 * s; f.R.arm.rotation.x = -1.0 * s; f.L.knee.rotation.x = 1.0 * s; }
+    else if (type === 'header') {
+      // a standing jump: crouch, drive up, arch back and snap the head through the ball, land with the knees bending to take it
+      const crouch = k < 0.22 ? Math.sin(Math.PI * k / 0.22 * 0.5) : 0, air = k >= 0.18 && k < 0.78 ? Math.sin(Math.PI * (k - 0.18) / 0.6) : 0, land = k >= 0.78 ? Math.sin(Math.PI * (k - 0.78) / 0.22) : 0, snap = k > 0.4 && k < 0.62 ? Math.sin(Math.PI * (k - 0.4) / 0.22) : 0;
+      f.body.position.y = -0.1 * crouch + 0.42 * air - 0.1 * land; f.body.rotation.x = 0.1 * crouch - 0.35 * air + 0.55 * snap + 0.1 * land;
+      f.L.knee.rotation.x = 0.9 * crouch + 0.5 * air + 0.8 * land; f.R.knee.rotation.x = 0.9 * crouch + 0.6 * air + 0.8 * land; f.L.hip.rotation.x = -0.5 * crouch - 0.3 * air - 0.5 * land; f.R.hip.rotation.x = -0.5 * crouch - 0.1 * air - 0.5 * land;
+      f.L.arm.rotation.x = -0.4 - 0.8 * air; f.R.arm.rotation.x = -0.4 - 0.8 * air; f.L.arm.rotation.z = 0.5 * air; f.R.arm.rotation.z = -0.5 * air; f.headG.rotation.x = -0.25 * air + 0.5 * snap;
+    }
   }
 
   // ---------------------------------------------------------------- building the scene
@@ -380,6 +427,8 @@
         setPose(te, e.duel ? 'challenge' : slide ? 'slide' : 'tackle', slide ? 0.95 : e.duel ? 0.7 : 0.55, side);
         if (ve) setPose(ve, e.ok ? 'stumble' : 'challenge', 0.7, -side);
       }
+      if (k === 'shot' && e.setPiece === 'header') setPose(findBy(m, e.team, e.player), 'header', 0.85);
+      if (k === 'clearance' && e.x == null) setPose(findBy(m, e.team, e.player), 'header', 0.85);   // a defender heading a cross away
       if (k === 'foul') { const vt = m.teams.find((t) => t.id !== e.team); if (vt) setPose(findBy(m, vt.id, e.vs), 'fall', 1.1); }
       if (k === 'goal') { const dir = (m.teams.find((t) => t.id === e.team) || {}).attackDir || 1; setPose(findBy(m, e.team, e.player), 'celebrate', 3.2); goalFx = { side: dir, t: 0, y: 0.5 + Math.random() * 0.8, z: clamp(m.ball.y - HH(), -3.2, 3.2), hit: false }; }
     }
@@ -432,11 +481,12 @@
     render(m, ctx) {
       if (!ready || !m) return;
       const dt = Math.min(0.1, (ctx && ctx.dt) || 0.016); clock += dt; netT += dt;
+      const nowT = performance.now(), rdt = clamp(lastT == null ? dt : (nowT - lastT) / 1000, 0.004, 0.25); lastT = nowT;
       ensurePlayers(m); readEvents(m);
       m.teams.forEach((team) => team.players.forEach((p) => {
         const e = players.get(p.id); if (!e) return; const rp = (ctx && ctx.renderPos && ctx.renderPos.get(p.id)) || { x: p.x, y: p.y, facing: p.facing || 0 };
         const x = rp.x - HL, z = rp.y - HW, lp = lastPos.get(p.id), k8 = Math.min(1, dt * 8);
-        const rvx = lp ? (x - lp.x) / Math.max(dt, 0.001) : 0, rvz = lp ? (z - lp.z) / Math.max(dt, 0.001) : 0; lastPos.set(p.id, { x, z });
+        const rvx = lp ? (x - lp.x) / rdt : 0, rvz = lp ? (z - lp.z) / rdt : 0; lastPos.set(p.id, { x, z });
         e.vx += (clamp(rvx, -12, 12) - e.vx) * k8; e.vz += (clamp(rvz, -12, 12) - e.vz) * k8; e.speed += (Math.hypot(e.vx, e.vz) - e.speed) * k8;
         e.fig.root.position.set(x, 0, z); e.fig.root.scale.setScalar(1.3);   // the players are drawn larger than life so they read at this distance
         // Which way he faces. Running, he faces where he is going; jogging or walking without the ball he keeps the ball in front of him and moves
@@ -449,7 +499,7 @@
           e.turn += (clamp(dF / Math.max(dt, 0.001), -9, 9) - e.turn) * Math.min(1, dt * 6);
           e.accel += (clamp((e.speed - e.lastSp) / Math.max(dt, 0.001), -12, 12) - e.accel) * Math.min(1, dt * 5); e.lastSp = e.speed;
           const ch = Math.cos(e.hd), sh = Math.sin(e.hd);
-          animate(e.fig, { vf: e.vx * ch + e.vz * sh, vs: e.vx * sh - e.vz * ch, turn: e.turn, accel: e.accel, look: angDiff(e.hd, ab) }, dt, clock); }
+          animate(e.fig, { vf: e.vx * ch + e.vz * sh, vs: e.vx * sh - e.vz * ch, turn: e.turn, accel: e.accel, look: angDiff(e.hd, ab), px: x, pz: z, hd: e.hd, sc: 1.3, vx: e.vx, vz: e.vz }, dt, clock); }
         // the first touch: a man who has just received the ball cushions it
         if (isC && !e.wasC && e.speed < 8) setPose(e, 'control', 0.5, e.foot); e.wasC = isC;
         if (e.pose) { e.pose.t += dt; if (e.pose.t >= e.pose.dur) e.pose = null; else applyPose(e.fig, e.pose.type, e.pose.t, e.pose.dur, e.pose.dir); }
