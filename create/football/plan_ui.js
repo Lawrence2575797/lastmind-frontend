@@ -121,6 +121,11 @@
   const manualCount = (team, ph) => team.players.filter((p) => FM.planPhase(ph).eng.some((k) => FM.isManual(team, p, k))).length;
 
   // ---------- the page ----------
+  // dials: real-unit sliders under the pitch; the engine reads them straight away
+  function dialsHtml(team, ph) {
+    const g = SIDE_OF[ph] === 'with' ? 'With the ball' : 'Without the ball';
+    return '<div class="pl-dialgrid">' + FM.DIALS.filter((d) => d.group === g).map((d) => { const v = FM.dialGet(team, d.id); return `<label class="pl-dial" for="dial-${d.id}"><span class="pl-dial-h"><b>${esc(d.label)}</b><output id="dial-out-${d.id}">${esc(FM.dialShow(d.id, v))}</output></span><input id="dial-${d.id}" type="range" data-dial="${d.id}" min="${d.lo}" max="${d.hi}" step="${d.step}" value="${v}"><small>${esc(d.words)}</small></label>`; }).join('') + '</div>';
+  }
   FM.renderPlanTab = function (host, team, tab, hooks) {
     const phases = TAB_PHASES[tab]; if (!phases) return false;
     if (!UI.sub || phases.indexOf(UI.sub) < 0) UI.sub = phases[0];
@@ -139,12 +144,17 @@
             <p class="pl-help pl-legend">Each circle is a player and where he stands in this phase. Drag one to where you want him: that is where he stands, and his role and instructions decide how he plays from there. A white dot marks a player you have placed. Click one without dragging to open his role and instructions on the squad page.</p></section>
           <section class="card pl-right"><h4>Team approach: ${esc(info.name.toLowerCase())}</h4>${teamPanel(team, ph)}</section>
         </div>
+        <section class="card pl-dials"><h4>Dials: ${SIDE_OF[ph] === 'with' ? 'with the ball' : 'without the ball'}</h4>${dialsHtml(team, ph)}</section>
         <section class="card pl-plans"><h4>On the pitch: areas and triggers</h4>${planItems(team, ph)}${builder(team, ph)}</section>
         <section class="card pl-sum"><h4>The plan so far</h4>${FM.planSummary(team).map((x) => `<p><b>${esc(x.phase)}:</b> ${esc(x.text)}</p>`).join('') || '<p class="pl-empty">Everything is as the roles set it. Make a choice above and it appears here.</p>'}</section></div>`;
       bind();
     };
     const again = () => { hooks.save(); draw(); };
     const bind = () => {
+      host.querySelectorAll('[data-dial]').forEach((r) => {
+        r.addEventListener('input', () => { FM.dialSet(team, r.dataset.dial, +r.value); const o = host.querySelector('#dial-out-' + r.dataset.dial); if (o) o.textContent = FM.dialShow(r.dataset.dial, FM.dialGet(team, r.dataset.dial)); });
+        r.addEventListener('change', () => hooks.save());
+      });
       host.querySelectorAll('[data-sub]').forEach((b) => b.addEventListener('click', () => { UI.sub = b.dataset.sub; UI.mode = 'view'; UI.cells = []; UI.sel = null; FM.renderPlanTab(host, team, tab, hooks); }));   // the page is opened again for that phase (its name, choices and pitch all belong to it)
       host.querySelectorAll('[data-team-tog]').forEach((b) => b.addEventListener('click', () => { FM.planSetTeam(team, ph, b.dataset.teamTog, b.dataset.v); again(); }));
       host.querySelectorAll('[data-player-tog]').forEach((b) => b.addEventListener('click', () => { FM.planSetPlayer(team, UI.sel, ph, b.dataset.playerTog, b.dataset.v); again(); }));

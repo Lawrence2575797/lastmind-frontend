@@ -35,6 +35,8 @@
     },
     // a tactic, changed or kept according to what the club's own figures say
     plan: (phase, key, value, say) => ({ kind: 'plan', phase, key, value, say }),
+    // a tactical dial moved to a value (metres, or a 0-1 setting); say explains why
+    dial: (id, value, say) => ({ kind: 'control', action: 'setDial', params: { dial: id, value }, say }),
     when: (cond, ifYes, ifNo) => (cond ? ifYes : ifNo),
   };
   // ----- the shape of a question

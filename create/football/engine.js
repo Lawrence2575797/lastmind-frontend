@@ -262,6 +262,7 @@
       const oP = phase === 'without' || phase === 'withoutEnd' ? role.outPoss : role.inPoss;
       let d = POSS_D[phase][p.group] + (p.group === 'GK' ? 0 : (base.d - (GROUP_BASE[p.group] == null ? base.d : GROUP_BASE[p.group])) * 0.5) + (oP.depth || 0) * 0.25 + m.depth;
       if (phase === 'press' && p.group !== 'GK') d += ((team.tactics && team.tactics.lineHeight != null ? team.tactics.lineHeight : 0.5) - 0.5) * 0.16;   // a higher line sets the whole press higher
+      if ((phase === 'without' || phase === 'withoutEnd' || phase === 'press') && p.group !== 'GK' && team.dials && team.dials.line) d += team.dials.line / 105 * (phase === 'withoutEnd' ? 0.4 : 1);   // the line dial, in metres
       const kw = phase === 'build' ? 0.6 : 1;
       let w = base.w;
       const centre = Math.abs(base.w - 0.5) < 0.01;
@@ -426,6 +427,7 @@
     };
     team.tactics.attackWidth = width('final');
     team.tactics.defWidth = width('without');
+    if (FM.dialsApply) FM.dialsApply(team);
   };
   // After anything moves, any hand-placed position that is now out of reach is pulled back.
   // Returns whether anything moved. A position that came from a scenario the manager showed counts like one placed by hand; a default one that is
