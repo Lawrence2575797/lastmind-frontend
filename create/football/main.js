@@ -10,7 +10,7 @@
   const REAL_SECONDS_FOR_MATCH = 600; // a full 90 minutes takes about ten real minutes at 1x
   const MATCH_SPEED = 5400 / REAL_SECONDS_FOR_MATCH / 6 * 1.5;   // speeds are shown against a pace six times slower than the first version's
   const SUBSTEP = 0.1;
-  const TIER_NAMES = { gcse: 'GCSE', alevel: 'A-level', above: 'Beyond A-level' };
+  const TIER_NAMES = { gcse: 'GCSE Maths', alevel: 'A-level Maths', above: 'Beyond A-level' };
 
   const userTeam = () => FM.teamById(world.league, world.league.userId);
   const shortName = (p) => { const parts = p.name.split(' '); return parts.length > 1 ? parts[0][0] + '. ' + parts.slice(1).join(' ') : p.name; };
@@ -33,6 +33,7 @@
     if (cssW <= 0) return;
     const cssH = cssW * (W + 2 * MARGIN) / (L + 2 * MARGIN);
     canvas.style.height = cssH + 'px';
+    { const h3 = el('pitch3d'); if (h3) { h3.style.height = cssH + 'px'; if (FM.view3d && FM.view3d.ready) FM.view3d.resize(); } }
     canvas.width = Math.round(cssW * dpr);
     canvas.height = Math.round(cssH * dpr);
     scale = canvas.width / (L + 2 * MARGIN);
@@ -301,7 +302,38 @@
     ctx.strokeText(g.score, cx, cy + size * 1.16); ctx.fillText(g.score, cx, cy + size * 1.16);
     ctx.restore();
   }
-  function draw() { drawPitch(); drawTrails(); drawImpacts(); drawPlayers(); drawGoalFx(); }
+  // where the shirts are drawn follows the match a little behind, so movement looks smooth; the 3D views use the same positions
+  function stepRender(m) {
+    m.teams.forEach((team) => team.players.forEach((p) => {
+      let rp = world.renderPos.get(p.id);
+      if (!rp) { rp = { x: p.x, y: p.y, facing: Number.isFinite(p.facing) ? p.facing : (team.attackDir === 1 ? 0 : Math.PI) }; world.renderPos.set(p.id, rp); }
+      const follow = 1 - Math.exp(-10 * Math.min(.05, world.frameDt || .016));
+      rp.x += (p.x - rp.x) * follow; rp.y += (p.y - rp.y) * follow;
+      let da = (Number.isFinite(p.facing) ? p.facing : rp.facing) - rp.facing;
+      while (da > Math.PI) da -= Math.PI * 2; while (da < -Math.PI) da += Math.PI * 2;
+      rp.facing += da * (1 - Math.exp(-8 * Math.min(.05, world.frameDt || .016)));
+    }));
+    if (!world.renderBall) world.renderBall = { x: m.ball.x, y: m.ball.y };
+    const bf = 1 - Math.exp(-16 * Math.min(.05, world.frameDt || .016));
+    world.renderBall.x += (m.ball.x - world.renderBall.x) * bf; world.renderBall.y += (m.ball.y - world.renderBall.y) * bf;
+  }
+  // How the match is watched: the 2D birds-eye pitch, or the same match in 3D from the touchline or from the stands.
+  try { world.viewMode = localStorage.getItem('lm_football_view') || '2d'; } catch (e) { world.viewMode = '2d'; }
+  function applyViewMode() {
+    const v = world.viewMode, three = v === 'touchline' || v === 'stands', host = el('pitch3d'), sel = el('viewMode');
+    if (sel) sel.value = v;
+    canvas.hidden = three; if (host) host.hidden = !three;
+    if (!three || !FM.view3d || !host) return;
+    resize();
+    FM.view3d.ensure(host).then(() => { FM.view3d.setMode(v); world.view3dSnap = true; }).catch(() => { world.viewMode = '2d'; canvas.hidden = false; host.hidden = true; if (sel) sel.value = '2d'; });
+  }
+  function draw() {
+    if ((world.viewMode === 'touchline' || world.viewMode === 'stands') && FM.view3d && FM.view3d.ready) {
+      stepRender(world.match); FM.view3d.render(world.match, { dt: world.frameDt, renderPos: world.renderPos, renderBall: world.renderBall, snap: world.view3dSnap }); world.view3dSnap = false; return;
+    }
+    if (world.viewMode !== '2d' && world.viewMode) { stepRender(world.match); return; }   // 3D is still loading
+    drawPitch(); drawTrails(); drawImpacts(); drawPlayers(); drawGoalFx();
+  }
 
   const pct = (a, b) => (b ? Math.round(100 * a / b) + '%' : '-');
   const RESTART_NAMES = { throw: 'Throw-in', goalkick: 'Goal kick', corner: 'Corner', freekick: 'Free kick', penalty: 'Penalty' };
@@ -452,6 +484,8 @@
   });
   el('pitchPlay').addEventListener('click', () => el('playBtn').click());
   el('pitchPause').addEventListener('click', () => el('playBtn').click());
+  if (el('viewMode')) el('viewMode').addEventListener('change', () => { world.viewMode = el('viewMode').value; try { localStorage.setItem('lm_football_view', world.viewMode); } catch (e) { /* a convenience only */ } applyViewMode(); });
+  applyViewMode();
   el('playBtn').addEventListener('click', () => {
     const m = world.match;
     if (world.skipTo) { world.skipTo = null; world.running = false; return; } // stop skipping
@@ -961,7 +995,8 @@
     }));
   }
   // The level (GCSE, A-level, beyond) can be changed at any time: it sets how the analysis, the lessons and the agent explain things. Nothing else changes.
-  const LEVELS = [['gcse', 'GCSE'], ['alevel', 'A-level'], ['above', 'Beyond A-level']];
+  // what the student is studying: GCSE Maths or A-level Maths, both Edexcel. (A game saved earlier at a level called Beyond A-level keeps it.)
+  const LEVELS = [['gcse', 'GCSE Maths'], ['alevel', 'A-level Maths'], ['above', 'Beyond A-level']];
   FM.setLevel = (lg, v) => {
     if (!lg || !LEVELS.some((l) => l[0] === v) || lg.tier === v) return;
     lg.tier = v; try { localStorage.setItem('lm_football_level', v); } catch (e) { /* the choice is also in the game */ }
@@ -976,7 +1011,7 @@
     const user = userTeam();
     el('subtitle').textContent = user.name + ' · Season ' + lg.season;
     host.innerHTML = `<span class="hint" style="color:inherit;opacity:0.8">${esc(FM.dayLabel(lg.day))}</span>
-      <label class="top-level"><select id="topLevel" aria-label="Level you are studying at">${LEVELS.map(([k, n]) => `<option value="${k}"${lg.tier === k ? ' selected' : ''}>${n}</option>`).join('')}</select></label>
+      <label class="top-level"><select id="topLevel" aria-label="What you are studying">${LEVELS.filter(([k]) => k !== 'above' || lg.tier === 'above').map(([k, n]) => `<option value="${k}"${lg.tier === k ? ' selected' : ''}>${n}</option>`).join('')}</select></label>
       <button data-top="home" class="${world.view === 'home' ? 'on' : ''}">Home</button>
       ${DEMO_MODE ? '' : `<button data-top="workbench" class="tb-workbench ${world.view === 'workbench' ? 'on' : ''}">Workbook</button>`}
       ${lg.mp && lg.mp.kind === 'match' ? '' : `<button data-top="board" class="${world.view === 'board' ? 'on' : ''}">Board</button>`}
@@ -2527,7 +2562,7 @@
     }
   }
   const openMp = (first) => FM.mpMenu({ start: (league) => { world.league = league; world.match = null; FM.saveLeague(league); if (FM.ensurePreseasonNews) FM.ensurePreseasonNews(league); try { history.replaceState(null, '', cleanUrl()); } catch (e) { /* fine */ } setView('mp'); } }, first);
-  try { const lv = localStorage.getItem('lm_football_level'), rb = lv && document.querySelector('input[name="ngLevel"][value="' + lv + '"]'); if (rb) rb.checked = true; } catch (e) { /* the default stands */ }
+  try { const lv = localStorage.getItem('lm_football_level'), sb = el('ngSubject'); if (sb && lv && [...sb.options].some((o) => o.value === lv)) sb.value = lv; } catch (e) { /* the default stands */ }
   const mpGuard = (first) => () => { if (world.hadMp && !window.confirm('You already have a multiplayer game saved. Starting another replaces it (your single-player season is not affected). Continue?')) return; openMp(first); };
   el('ngLeague').addEventListener('click', mpGuard('league'));
   el('ngMatch').addEventListener('click', mpGuard('match'));
@@ -2537,7 +2572,7 @@
   if (DEMO_MODE && el('ngSkinBox')) el('ngSkinBox').hidden = true;
   if (el('ngRecover')) { if (DEMO_MODE) el('ngRecoverBox').hidden = true; else if (FM.recoveryPanel) FM.recoveryPanel(el('ngRecover')); }
   el('ngStart').addEventListener('click', async () => {
-    const btn = el('ngStart'), picked = document.querySelector('input[name="ngLevel"]:checked'), tier = picked ? picked.value : 'gcse';
+    const btn = el('ngStart'), tier = (el('ngSubject') && el('ngSubject').value) || 'gcse';
     // a season in progress is never replaced without asking; it is kept as a backup either way, and can be brought back with "Recover an earlier season"
     if (!DEMO_MODE && world.hadSave && (world.hadSave.season * 1000 + world.hadSave.played) >= 1001) {
       if (!window.confirm('You have a single-player season in progress: ' + world.hadSave.club + ', season ' + world.hadSave.season + ', ' + world.hadSave.played + ' of 14 played. Starting a new single-player game replaces it (a multiplayer game is not affected). It is kept as a backup, and "Recover an earlier season" brings it back. Start the new game?')) return;

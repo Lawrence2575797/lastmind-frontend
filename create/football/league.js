@@ -890,7 +890,7 @@
         const user = FM.teamById(league, league.userId), played = league.fixtures.filter((f) => f.played && (f.homeId === league.userId || f.awayId === league.userId)).length;
         const pos = FM.tableRows(league).findIndex((r) => r.id === league.userId) + 1;
         const ord = (n) => n + (['th', 'st', 'nd', 'rd'][(n % 100 > 10 && n % 100 < 14) || n % 10 > 3 ? 0 : n % 10]);
-        const tier = { gcse: 'GCSE', alevel: 'A-level', above: 'Beyond A-level' }[league.tier] || league.tier;
+        const tier = { gcse: 'GCSE Maths', alevel: 'A-level Maths', above: 'Beyond A-level' }[league.tier] || league.tier;
         list.unshift({ id: PROJECT_ID, title: DEMO_MODE ? 'Lastmind football demo' : 'Be the manager: ' + user.name, kind: DEMO_MODE ? 'football-demo' : 'football-manager', updatedAt: new Date().toISOString(), isReference: false,
           data: { href: DEMO_MODE ? '/create/football/?demo=1' : '/create/football/?game=solo', meta: DEMO_MODE ? 'Opening match' : 'Season ' + league.season + ' · ' + (played >= 14 ? 'season complete' : played + ' of 14 played') + (played ? ' · ' + ord(pos) + ' in the table' : '') } });
       }

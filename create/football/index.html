@@ -240,6 +240,7 @@
   #playBtn.on { background: var(--gold, #f1c04f); color: #14181a; }
   .pitch-play { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 5; padding: 18px 34px; font-size: 1.35rem; font-weight: 800; border-radius: 0; background: var(--gold, #f1c04f); color: #14181a; border: 3px solid rgba(255,255,255,.85); box-shadow: 0 10px 40px rgba(0,0,0,.55); cursor: pointer; }
   .pitch-play[hidden] { display: none; }
+  #pitch[hidden], .pitch3d[hidden] { display: none; } .ng-select { font: inherit; font-size: 1rem; padding: 11px 12px; min-width: 260px; max-width: 100%; background: rgba(255,255,255,.06); color: inherit; border: 1px solid var(--line, rgba(255,255,255,.25)); } .pitch3d { width: 100%; background: #0a100d; position: relative; overflow: hidden; } .view-pick { display: inline-flex; align-items: center; gap: 8px; margin-right: 6px; font-size: .8rem; color: var(--cream-soft, #cfc9b4); } .view-pick select { font: inherit; padding: 8px 10px; background: rgba(255,255,255,.06); color: inherit; border: 1px solid var(--line, rgba(255,255,255,.2)); }
   .pitch-pause { position: absolute; right: 18px; top: 18px; z-index: 5; padding: 10px 20px; font-size: 1rem; font-weight: 800; border-radius: 0; background: var(--gold, #f1c04f); color: #14181a; border: 2px solid rgba(255,255,255,.85); box-shadow: 0 6px 24px rgba(0,0,0,.5); cursor: pointer; } .pitch-pause[hidden] { display: none; }
   .lab-how { border: 1px solid rgba(244,237,218,.16); border-radius: 0; padding: 12px 14px; display: grid; gap: 4px; } .lab-how p { margin: 0; }
   .controls { display: flex; gap: 6px; flex-wrap: wrap; padding: 10px 6px 0; position: relative; z-index: 7; }   /* above the highlight loading screen, so the buttons never disappear */
@@ -1007,12 +1008,8 @@
     <div class="ng-modes">
       <div class="ng-mode">
         <h3>A season on your own</h3>
-        <div class="ng-field"><span class="ng-lab">Level</span>
-          <div class="ng-seg" role="radiogroup" aria-label="Level">
-            <label><input type="radio" name="ngLevel" value="gcse" checked><span>GCSE</span></label>
-            <label><input type="radio" name="ngLevel" value="alevel"><span>A-level</span></label>
-            <label><input type="radio" name="ngLevel" value="above"><span>Beyond</span></label>
-          </div>
+        <div class="ng-field"><label class="ng-lab" for="ngSubject">What do you want to study?</label>
+          <select id="ngSubject" class="ng-select" aria-label="What you want to study"><option value="gcse" selected>GCSE Maths (Edexcel)</option><option value="alevel">A-level Maths (Edexcel)</option></select>
         </div>
         <div class="row"><button class="primary" id="ngStart" style="flex:0 0 auto">Start the season</button></div>
       </div>
@@ -1059,10 +1056,12 @@
         <div>
           <div class="pitch-wrap">
             <canvas id="pitch" aria-label="Football pitch seen from above with 22 numbered players"></canvas>
+            <div id="pitch3d" class="pitch3d" hidden role="img" aria-label="The match in 3D"></div>
             <button id="pitchPlay" class="pitch-play" type="button" hidden>Play</button>
             <button id="pitchPause" class="pitch-pause" type="button" hidden>Pause</button>
             <div class="match-commentary" id="matchCommentary" role="status" aria-live="polite">The teams are ready. The match is about to begin.</div>
             <div class="controls">
+              <label class="view-pick"><span>View</span><select id="viewMode" aria-label="How to watch the match"><option value="2d">2D birds-eye</option><option value="touchline">3D touchline</option><option value="stands">3D from the stands</option></select></label>
               <button id="playBtn" class="on">Pause</button>
               <button data-speed="0.5">0.5x</button><button data-speed="1" class="on">1x</button><button data-speed="1.5">1.5x</button><button data-speed="3">3x</button><button data-speed="24">24x</button>
               <button id="highlightBtn" aria-pressed="false" title="Fast-forward quiet passages and watch dangerous attacks at normal speed">Important highlights</button>
@@ -1160,6 +1159,7 @@
 <script src="/create/football/cases.js?v=20261028a"></script>
 <script src="/create/football/scenario.js?v=20261208a"></script>
 <script src="/create/football/multiplayer.js?v=20261107c"></script>
-<script src="/create/football/main.js?v=20261026c"></script>
+<script src="/create/football/view3d.js?v=20261027b"></script>
+<script src="/create/football/main.js?v=20261027b"></script>
 </body>
 </html>
