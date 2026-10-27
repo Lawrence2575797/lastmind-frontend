@@ -71,7 +71,7 @@
 
   // ---------- the lesson ----------
   function lessonHtml(nd) {
-    const f = FM.knowledgeLessons[nd.id];
+    const f = FM.knowledgeLessons[nd.id]; S.les = null;
     const pre = nd.pre.map((pid) => FM.knowledgeNode(pid)).filter(Boolean);
     const head = '<div class="kn-lh"><div class="kn-kicker">' + esc(nd.strand) + ' · ' + esc(nd.spec) + '</div><h3>' + esc(nd.t) + '</h3>' + (pre.length ? '<div class="kn-pre"><span>Comes after:</span> ' + pre.map((p) => '<button type="button" class="kn-chip ' + (doneOf(S.lg, p.id) ? 'done' : '') + '" data-node="' + p.id + '">' + (doneOf(S.lg, p.id) ? '&#10003; ' : '') + esc(p.t) + '</button>').join(' ') + '</div>' : '') + '</div>';
     if (!f) return head + '<p class="kn-soon">The lesson for this point is still being written. It will use your club in the same way as the others. Meanwhile you can see where it sits on the map and what it builds on.</p>';
@@ -99,28 +99,35 @@
     return h;
   }
 
-  // ---------- drawing the page ----------
+  // ---------- drawing the panels ----------
+  // Three separate panels share one state: the map (with its tabs and legend), the suggestions, and the lesson. Each is only drawn into if its host exists.
   function draw() {
     const lg = S.lg, maps = FM.knowledgeMaps(lg.tier), mp = maps.find((x) => x.id === S.mapId) || maps[0]; S.mapId = mp.id;
     S.d = FM.knowledgeData(lg);
-    const sug = suggestions(lg, maps), nd = S.sel ? FM.knowledgeNode(S.sel) : null;
+    const H = S.hosts, sug = suggestions(lg, maps), nd = S.sel ? FM.knowledgeNode(S.sel) : null; S.sug = sug;
     const total = mp.strands.reduce((a, s) => a + s.nodes.length, 0), done = mp.strands.reduce((a, s) => a + s.nodes.filter((n) => doneOf(lg, n.id)).length, 0), written = mp.strands.reduce((a, s) => a + s.nodes.filter((n) => hasLesson(n.id)).length, 0);
-    S.host.innerHTML = '<div class="kn"><aside class="kn-side">' +
+    if (H.map) H.map.innerHTML = '<div class="kn-mapwrap">' +
       '<div class="kn-top"><div><div class="kn-kicker">' + esc(mp.board) + '</div><h3>' + esc(mp.title) + '</h3></div><div class="kn-stat"><b>' + done + '</b> of ' + total + ' learnt<br><span>' + written + ' lessons written</span></div></div>' +
       (maps.length > 1 ? '<div class="kn-tabs">' + maps.map((x) => '<button type="button" class="' + (x.id === mp.id ? 'on' : '') + '" data-map="' + x.id + '">' + esc(x.title) + '</button>').join('') + '</div>' : '') +
-      '<div class="kn-sug"><div class="kn-kicker">Suggested next</div>' + (sug.length ? sug.map((x) => '<button type="button" class="kn-card" data-node="' + x.id + '"><b>' + esc(x.t) + '</b><span>' + esc(reason(x)) + '</span></button>').join('') : '<p class="kn-soon">Nothing ready yet: more lessons are on the way.</p>') + '</div>' +
       '<div class="kn-legend"><span class="ready">ready</span><span class="done">learnt</span><span class="locked">needs earlier points</span><span class="soon">lesson coming</span></div>' +
-      '<div class="kn-map">' + mapHtml(mp) + '</div></aside>' +
-      '<section class="kn-main">' + (nd ? lessonHtml(nd) : '<div class="kn-empty"><h3>Pick a point on the map</h3><p>Every point of the specification is on the map, joined to the points it needs first. Lessons use ' + esc(S.d.club) + ' for every example, so the numbers are yours, and each ends with a question whose answer you can put straight into the game.</p></div>') + '</section></div>';
+      '<div class="kn-map">' + mapHtml(mp) + '</div></div>';
+    if (H.sug) H.sug.innerHTML = '<div class="kn-sug"><div class="kn-kicker">Suggested next</div>' + (sug.length ? sug.map((x) => '<button type="button" class="kn-card" data-node="' + x.id + '"><b>' + esc(x.t) + '</b><span>' + esc(reason(x)) + '</span></button>').join('') : '<p class="kn-soon">Nothing ready yet: more lessons are on the way.</p>') + '</div>';
+    if (H.lesson) {
+      const keep = H.lesson.scrollTop;
+      H.lesson.innerHTML = '<div class="kn-main">' + (nd ? lessonHtml(nd) : '<div class="kn-empty"><h3>Pick a point on the map</h3><p>Every point of the specification is on the map, joined to the points it needs first. Lessons use ' + esc(S.d.club) + ' for every example, so the numbers are yours, and each ends with a question whose answer you can put straight into the game.</p><p>Open the map or the suggestions from the bar above to choose one. You can keep the notes and the AI agent open beside the lesson and ask the agent about any step.</p></div>') + '</div>';
+      H.lesson.scrollTop = S.resetScroll ? 0 : keep; S.resetScroll = false;
+    }
     wire();
   }
   function wire() {
-    const h = S.host;
-    h.querySelectorAll('[data-node]').forEach((b) => b.addEventListener('click', () => { S.sel = b.dataset.node; S.shown = 1; S.ans = ''; S.result = null; S.worked = false; S.applied = null; draw(); const m = h.querySelector('.kn-main'); if (m) m.scrollTop = 0; }));
-    h.querySelectorAll('[data-map]').forEach((b) => b.addEventListener('click', () => { S.mapId = b.dataset.map; draw(); }));
-    h.querySelectorAll('[data-act]').forEach((b) => b.addEventListener('click', () => act(b.dataset.act)));
-    const ta = h.querySelector('#knAns'); if (ta) ta.addEventListener('input', () => { S.ans = ta.value; });
-    const sc = h.querySelector('.kn-map'); if (sc && S.scroll) { sc.scrollLeft = S.scroll.x; sc.scrollTop = S.scroll.y; } if (sc) sc.addEventListener('scroll', () => { S.scroll = { x: sc.scrollLeft, y: sc.scrollTop }; });
+    const H = S.hosts, hs = [H.map, H.sug, H.lesson].filter(Boolean);
+    hs.forEach((h) => {
+      h.querySelectorAll('[data-node]').forEach((b) => b.addEventListener('click', () => { S.sel = b.dataset.node; S.shown = 1; S.ans = ''; S.result = null; S.worked = false; S.applied = null; S.resetScroll = true; if (S.opts.onOpen) S.opts.onOpen(S.sel); draw(); }));
+      h.querySelectorAll('[data-map]').forEach((b) => b.addEventListener('click', () => { S.mapId = b.dataset.map; draw(); }));
+      h.querySelectorAll('[data-act]').forEach((b) => b.addEventListener('click', () => act(b.dataset.act)));
+      const ta = h.querySelector('#knAns'); if (ta) ta.addEventListener('input', () => { S.ans = ta.value; });
+    });
+    const sc = H.map && H.map.querySelector('.kn-map'); if (sc && S.scroll) { sc.scrollLeft = S.scroll.x; sc.scrollTop = S.scroll.y; } if (sc) sc.addEventListener('scroll', () => { S.scroll = { x: sc.scrollLeft, y: sc.scrollTop }; });
   }
   async function mark() {
     const nd = FM.knowledgeNode(S.sel), a = S.les.ask, ans = (S.ans || '').trim(); if (!ans) { S.result = { verdict: 'err', feedback: 'Type your answer first.' }; draw(); return; }
@@ -142,8 +149,34 @@
     else if (a === 'done' && nd) { const k = know(S.lg).done; if (k[nd.id]) delete k[nd.id]; else k[nd.id] = { at: Date.now() }; if (S.opts.save) S.opts.save(); draw(); }
   }
 
+  // What the AI agent is told about the lesson the student has open, so it can answer questions about it the way it answers questions about tactics.
+  const plain = (t) => String(t == null ? '' : t).replace(/\s+/g, ' ').trim();
+  function contextText() {
+    if (!S || !S.sel) return '';
+    const nd = FM.knowledgeNode(S.sel); if (!nd) return '';
+    const out = ['LESSON OPEN ON THE KNOWLEDGE MAP: ' + nd.t + ' (' + nd.strand + ', ' + nd.spec + ', ' + (S.lg.tier === 'gcse' ? 'Edexcel GCSE' : 'Edexcel A-level') + '). ' + (doneOf(S.lg, nd.id) ? 'The student has marked it learnt.' : 'Not learnt yet.')];
+    const les = S.les;
+    if (les) {
+      const ana = les.analogy || (FM.knowledgeIntros && FM.knowledgeIntros[nd.id] ? FM.knowledgeIntros[nd.id](S.d) : '');
+      if (ana) out.push('Analogy: ' + plain([].concat(ana).join(' ')));
+      const shown = Math.max(1, Math.min(les.steps.length, S.shown || 1));
+      les.steps.slice(0, shown).forEach((st, i) => out.push('Step ' + (i + 1) + ' (shown): ' + plain(st.say.join(' ')) + (st.maths ? ' Maths: ' + plain([].concat(st.maths).join(' ; ')) : '')));
+      if (shown < les.steps.length) out.push((les.steps.length - shown) + ' more steps not yet shown to the student.');
+      else {
+        out.push('Question at the end: ' + plain(les.ask.q));
+        out.push('Student\'s answer so far: ' + (plain(S.ans) || '(nothing typed)') + (S.result && S.result.verdict ? ' | marked: ' + S.result.verdict : ''));
+      }
+    } else out.push('(The lesson for this point is still being written, so there is no lesson text yet.)');
+    if (S.sug && S.sug.length) out.push('Suggested next lessons: ' + S.sug.map((x) => x.t).join('; ') + '.');
+    const learnt = Object.keys(know(S.lg).done).map((id) => FM.knowledgeNode(id)).filter(Boolean).map((n) => n.t).slice(-12);
+    out.push('Learnt so far: ' + (learnt.length ? learnt.join('; ') : 'nothing yet') + '.');
+    return out.join('\n').slice(0, 3600);
+  }
+
   FM.knowledgeUI = {
-    mount(host, lg, opts) { S = Object.assign(S && S.lg === lg ? S : { sel: null, shown: 1 }, { host, lg, opts: opts || {} }); draw(); },
-    open(id) { if (!S) return; S.sel = id; S.shown = 1; S.result = null; draw(); },
+    // hosts: { map, sug, lesson }, each an element or null (a closed panel is simply not drawn into)
+    mount(hosts, lg, opts) { S = Object.assign(S && S.lg === lg ? S : { sel: null, shown: 1 }, { hosts: hosts || {}, lg, opts: opts || {} }); draw(); },
+    open(id) { if (!S) return; S.sel = id; S.shown = 1; S.result = null; S.resetScroll = true; if (S.opts.onOpen) S.opts.onOpen(id); draw(); },
+    contextText,
   };
 })();

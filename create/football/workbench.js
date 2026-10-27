@@ -817,7 +817,7 @@
     state.locks = 0; state.busy = bl('Thinking…'); chatDraw();
     try {
       const C = CTL();
-      const out = await FM.api('/football/workbench', { phase: 'plan', depth: state.wb.settings.depth || 'standard', lessonData: FM.lessonDataText ? FM.lessonDataText(state.league, text) : '', controls: (FM.controls && FM.controls.helpStatic) ? FM.controls.helpStatic() : '', plan: FM.planCatalogText ? FM.planCatalogText(FM.teamById(state.league, state.league.userId)) : '', messages: chatMessages().slice(-10), schema: T.digestCompact(), schemaExtra: T.digestExtra(), methods: WB.METHOD_HELP.join('\n'), controls: C ? C.helpStatic() : '', state: C ? C.state(state.league) : '', board: boardText(), summary: summaryText(2600), doc: docSummary(), level: state.league.tier, detail: detailText(), lessons: lessonList() });
+      const out = await FM.api('/football/workbench', { phase: 'plan', depth: state.wb.settings.depth || 'standard', openLesson: (FM.knowledgeUI && FM.knowledgeUI.contextText) ? FM.knowledgeUI.contextText() : '', lessonData: FM.lessonDataText ? FM.lessonDataText(state.league, text) : '', controls: (FM.controls && FM.controls.helpStatic) ? FM.controls.helpStatic() : '', plan: FM.planCatalogText ? FM.planCatalogText(FM.teamById(state.league, state.league.userId)) : '', messages: chatMessages().slice(-10), schema: T.digestCompact(), schemaExtra: T.digestExtra(), methods: WB.METHOD_HELP.join('\n'), controls: C ? C.helpStatic() : '', state: C ? C.state(state.league) : '', board: boardText(), summary: summaryText(2600), doc: docSummary(), level: state.league.tier, detail: detailText(), lessons: lessonList() });
       state.locks += out.locks || 0;
       const msg = chatPush({ role: 'agent', text: out.reply || 'Tell me more about what you want to learn or find out.', lesson: withFit(out.lesson), from });
       const actions = Array.isArray(out.actions) ? out.actions : [];
@@ -909,11 +909,16 @@
     const wb = state.wb, tier = league.tier || 'gcse';
     FM.richHtml = richHtml;
     host.innerHTML = `<div class="wb wb2">
-      <div class="wb2-modes" role="tablist"><button type="button" role="tab" data-wbmode="work" class="on">Notebook and agent</button><button type="button" role="tab" data-wbmode="learn">Learn</button></div>
+      <div class="wb2-bar" role="toolbar" aria-label="Open or close panels"><span class="wb2-lab">Show</span>
+        <button type="button" class="wb2-tog" data-panel="notes" aria-pressed="true">Notes</button><button type="button" class="wb2-tog" data-panel="agent" aria-pressed="true">AI agent</button><button type="button" class="wb2-tog" data-panel="map" aria-pressed="false">Knowledge map</button><button type="button" class="wb2-tog" data-panel="sug" aria-pressed="false">Suggested lessons</button><button type="button" class="wb2-tog" data-panel="lesson" aria-pressed="false">Lesson</button>
+        <span class="wb2-hint">Open as many as you like side by side.</span></div>
       <div class="wb2-body">
-        <section class="wb2-notes" aria-label="Your notebook"><iframe id="wbNotes" title="Your notebook" src="/learn/?embed=wbnotes"></iframe></section>
-        <aside class="wb-agent wb2-chat" id="wbAgent" aria-label="LastMind AI Agent"><div class="wb-pane-h"><b>AI Agent</b><span class="wb-agent-btns"><span class="wb-lk" id="wbLkTotal"></span><select id="wbDepth" class="wb-depth" aria-label="How deeply the agent teaches" title="Standard: the key ideas, quickly and cheaply. High: a fuller lesson with the reasoning behind each step, from a stronger model; it uses more Locks."><option value="standard">Standard</option><option value="high">High</option></select><button type="button" class="wb-clear" data-tool="exportdata" title="Save your club's match statistics, finances, squad and tactics as one file you can give to any AI assistant to talk through examples. It costs no Locks.">Export</button><button type="button" class="wb-clear" data-tool="clearchat">Clear</button></span></div><div class="wb-log" id="wbLog" role="log" aria-live="polite"></div>
+        <section class="wb2-notes wb2-panel" data-panel="notes" aria-label="Your notebook"><div class="wb2-ph"><b>Notes</b><button type="button" class="wb-clear" data-close="notes" aria-label="Close the notes" title="Close the notes">×</button></div><iframe id="wbNotes" title="Your notebook" src="/learn/?embed=wbnotes"></iframe></section>
+        <aside class="wb-agent wb2-chat wb2-panel" id="wbAgent" data-panel="agent" aria-label="LastMind AI Agent"><div class="wb-pane-h"><b>AI Agent</b><span class="wb-agent-btns"><span class="wb-lk" id="wbLkTotal"></span><select id="wbDepth" class="wb-depth" aria-label="How deeply the agent teaches" title="Standard: the key ideas, quickly and cheaply. High: a fuller lesson with the reasoning behind each step, from a stronger model; it uses more Locks."><option value="standard">Standard</option><option value="high">High</option></select><button type="button" class="wb-clear" data-tool="exportdata" title="Save your club's match statistics, finances, squad and tactics as one file you can give to any AI assistant to talk through examples. It costs no Locks.">Export</button><button type="button" class="wb-clear" data-tool="clearchat">Clear</button><button type="button" class="wb-clear" data-close="agent" aria-label="Close the agent" title="Close the agent">×</button></span></div><div class="wb-log" id="wbLog" role="log" aria-live="polite"></div>
           <form class="wb-form" id="wbForm"><div id="wbAsk" class="wb-ask" aria-label="Message to the agent"></div><button class="wb-send" id="wbSend" type="submit">Send</button></form></aside>
+        <section class="wb2-panel kn-panel" data-panel="map" aria-label="Knowledge map" hidden><div class="wb2-ph"><b>Knowledge map</b><button type="button" class="wb-clear" data-close="map" aria-label="Close the knowledge map" title="Close the knowledge map">×</button></div><div class="wb2-pb" id="knMap"></div></section>
+        <section class="wb2-panel kn-panel" data-panel="sug" aria-label="Suggested lessons" hidden><div class="wb2-ph"><b>Suggested lessons</b><button type="button" class="wb-clear" data-close="sug" aria-label="Close the suggestions" title="Close the suggestions">×</button></div><div class="wb2-pb" id="knSug"></div></section>
+        <section class="wb2-panel kn-panel" data-panel="lesson" aria-label="Lesson" hidden><div class="wb2-ph"><b>Lesson</b><button type="button" class="wb-clear" data-close="lesson" aria-label="Close the lesson" title="Close the lesson">×</button></div><div class="wb2-pb" id="knLesson"></div></section>
       </div>
       <div class="wb-legacy" hidden><div class="wb-bar" role="toolbar" aria-label="Workbook tools">
         <span class="wk-brand">Workbook</span>
@@ -929,20 +934,29 @@
         <aside class="wb-data" id="wbData" aria-label="Data and controls"><div class="wb-pane-h"><span class="wb-dtabs"><button type="button" data-dtab="data">Data</button><button type="button" data-dtab="controls">Controls</button></span><span class="wb-dbtns"><button type="button" class="wb-dx" data-tool="dwide" aria-label="Make the data panel wider or narrower" title="Wider / narrower">⇔</button><button type="button" class="wb-dx" data-tool="data" aria-label="Fold the data panel away" title="Fold away">‹</button></span></div><div class="wb-dlist"></div><button type="button" class="wb-drail" data-tool="data" aria-label="Open the data panel">DATA ›</button></aside>
         <section class="wb-main wk-main"><div class="wk-book"><div class="wk-sheet"><div class="wk-scroll" id="wkScroll"><div class="wk-titlebar"><input id="wkTitle" class="wk-title" placeholder="Name this page" aria-label="Page title" maxlength="90"></div><div class="wk-rule"></div><div class="wk-flow" id="wbDoc"></div></div><div class="wk-foot"><button type="button" class="wk-arrow" id="wkPrev" aria-label="Previous page" title="Previous page">‹</button><span class="wk-pos" id="wkPos"></span><button type="button" class="wk-arrow" id="wkNext" aria-label="Next page" title="Next page">›</button></div></div></div><div class="wb-kb" id="wbKb" hidden></div></section>
         </div></div>
-      <div class="kn-host" id="knHost" hidden></div>
       <div class="wb-flash" id="wbFlash" role="status"></div></div>`;
     wb.ui.agent = true; wb.settings.auto = false; { const dp = el('wbDepth'); if (dp) { dp.value = wb.settings.depth === 'high' ? 'high' : 'standard'; dp.addEventListener('change', () => { wb.settings.depth = dp.value === 'high' ? 'high' : 'standard'; save(); }); } }
     refreshData(); renderDoc(); chatDraw(); el('wbKb').innerHTML = kbHtml(); layout();
     {
-      const body = host.querySelector('.wb2-body'), kn = el('knHost'), tabs = host.querySelectorAll('[data-wbmode]');
-      const setMode = (mode) => { wb.ui.mode = mode; body.hidden = mode === 'learn'; kn.hidden = mode !== 'learn'; tabs.forEach((b) => b.classList.toggle('on', b.dataset.wbmode === mode)); if (mode === 'learn' && FM.knowledgeUI) FM.knowledgeUI.mount(kn, league, { save: state.opts.save }); };
-      tabs.forEach((b) => b.addEventListener('click', () => { setMode(b.dataset.wbmode); save(); }));
-      if (wb.ui.mode === 'learn') setMode('learn');
+      // Panels: each can be opened or closed on its own, and any number can be open at once. What is open is remembered with the game.
+      const PANELS = ['notes', 'agent', 'map', 'sug', 'lesson'], on = () => (wb.ui.panels = wb.ui.panels || { notes: true, agent: true, map: false, sug: false, lesson: false });
+      const mountKn = () => { if (FM.knowledgeUI) FM.knowledgeUI.mount({ map: on().map ? el('knMap') : null, sug: on().sug ? el('knSug') : null, lesson: on().lesson ? el('knLesson') : null }, league, { save: state.opts.save, onOpen: () => { if (!on().lesson) { on().lesson = true; apply(true); } } }); };
+      function apply(remount) {
+        const p = on(); host.querySelectorAll('.wb2-body [data-panel]').forEach((x) => { x.hidden = !p[x.dataset.panel]; });
+        host.querySelectorAll('.wb2-tog').forEach((b) => b.setAttribute('aria-pressed', String(!!p[b.dataset.panel])));
+        const body = host.querySelector('.wb2-body'); body.dataset.open = String(PANELS.filter((k) => p[k]).length);
+        if (remount !== false && (p.map || p.sug || p.lesson)) mountKn();
+        save();
+      }
+      host.querySelectorAll('.wb2-tog').forEach((b) => b.addEventListener('click', () => { const p = on(); p[b.dataset.panel] = !p[b.dataset.panel]; apply(); }));
+      host.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', () => { on()[b.dataset.close] = false; apply(false); }));
+      window.wbPanels = { show: (k) => { on()[k] = true; apply(); } };
+      apply();
     }
 
     if (host._wbAbort) host._wbAbort.abort();
     const ac = new AbortController(), SIG = { signal: ac.signal }; host._wbAbort = ac;
-    window.addEventListener('message', (e) => { if (e.origin === location.origin && e.data && e.data.lm === 'wb-notes' && e.data.op === 'size') { const b = host.querySelector('.wb2-body'); if (b) { const w = +e.data.width; if (w > 0) b.style.setProperty('--wb-cols', Math.max(320, Math.min(w, Math.round(b.clientWidth * 0.62))) + 'px minmax(380px, 1fr)'); else b.style.removeProperty('--wb-cols'); const h = +e.data.height; if (h > 0) b.style.setProperty('--wb-notes-h', Math.max(300, Math.min(h, b.clientHeight)) + 'px'); else b.style.removeProperty('--wb-notes-h'); } } else if (e.origin === location.origin && e.data && e.data.lm === 'wb-notes' && e.data.op === 'appended') flash(e.data.ok ? 'Copied to your notebook' : 'Could not copy to your notebook'); }, SIG);
+    window.addEventListener('message', (e) => { if (e.origin === location.origin && e.data && e.data.lm === 'wb-notes' && e.data.op === 'size') { const b = host.querySelector('.wb2-body'); if (b) { const w = +e.data.width; if (w > 0) b.style.setProperty('--wb-notes-w', Math.max(320, Math.min(w, Math.round(b.clientWidth * 0.62))) + 'px'); else b.style.removeProperty('--wb-notes-w'); const h = +e.data.height; if (h > 0) b.style.setProperty('--wb-notes-h', Math.max(300, Math.min(h, b.clientHeight)) + 'px'); else b.style.removeProperty('--wb-notes-h'); } } else if (e.origin === location.origin && e.data && e.data.lm === 'wb-notes' && e.data.op === 'appended') flash(e.data.ok ? 'Copied to your notebook' : 'Could not copy to your notebook'); }, SIG);
     host.addEventListener('keydown', wbShortcut, SIG);
     host.addEventListener('keydown', (e) => { if (e.altKey && !e.ctrlKey && !e.metaKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight') && !(e.target.closest && e.target.closest('.wb-form'))) { e.preventDefault(); goPage(wb.cur + (e.key === 'ArrowRight' ? 1 : -1)); } }, SIG);
     host.addEventListener('focusin', (e) => { if (e.target.classList && e.target.classList.contains('wb-in')) state.focus = e.target; }, SIG);
