@@ -145,6 +145,7 @@
           <section class="card pl-right"><h4>Team approach: ${esc(info.name.toLowerCase())}</h4>${teamPanel(team, ph)}</section>
         </div>
         <section class="card pl-dials"><h4>Dials: ${SIDE_OF[ph] === 'with' ? 'with the ball' : 'without the ball'}</h4>${dialsHtml(team, ph)}</section>
+        <section class="card pl-analysis">${FM.planAnalysisHtml ? FM.planAnalysisHtml(team, ph, hooks) : ''}</section>
         <section class="card pl-plans"><h4>On the pitch: areas and triggers</h4>${planItems(team, ph)}${builder(team, ph)}</section>
         <section class="card pl-sum"><h4>The plan so far</h4>${FM.planSummary(team).map((x) => `<p><b>${esc(x.phase)}:</b> ${esc(x.text)}</p>`).join('') || '<p class="pl-empty">Everything is as the roles set it. Make a choice above and it appears here.</p>'}</section></div>`;
       bind();

@@ -328,3 +328,13 @@ body[data-view="workbench"] #view-workbench { animation: none !important; transf
 .pl-dial-h{display:flex;justify-content:space-between;gap:8px;font-size:13px}
 .pl-dial-h output{font-variant-numeric:tabular-nums;opacity:.85}
 .pl-dial small{opacity:.65;font-size:11.5px;line-height:1.3}
+
+.pa h4 { margin: 0 0 6px; } .pa-why, .pa-note { font-size: 13px; opacity: .85; margin: 4px 0 8px; line-height: 1.4; }
+.pa-deltas { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 4px 0 10px; font-size: 12.5px; }
+.pa-chip { padding: 2px 8px; border-radius: 10px; font-weight: 700; background: rgba(255,255,255,.1); } .pa-chip.up { color: #62d092; } .pa-chip.down { color: #ee7a70; }
+.pa-card { margin: 14px 0 20px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,.14); } .pa-card h5 { margin: 0 0 8px; font-size: 15px; }
+.pa-fig { max-width: 100%; overflow-x: auto; } .pa-svg { display: block; width: 100%; min-width: 520px; height: auto; border-radius: 6px; }
+.pa-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 8px 0; font-size: 12px; opacity: .9; } .pa-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.pa-legend i { width: 14px; height: 14px; border-radius: 3px; display: inline-block; border: 1px solid rgba(255,255,255,.3); } .pa-legend i.ring { border: 2px solid #ffd54a; border-radius: 50%; background: none; }
+.pa-legend i.ln { height: 0; width: 22px; border: 0; border-top: 3px solid #fff; border-radius: 0; } .pa-legend i.ln.gold { border-top-color: #ffd54a; } .pa-legend i.ln.red { border-top: 3px dotted #e5574b; }
+.pa-what { font-size: 13px; line-height: 1.5; margin: 6px 0; } .pa-card ul { margin: 6px 0 0; padding-left: 18px; font-size: 13px; line-height: 1.5; } .pa-card li { margin: 5px 0; }
