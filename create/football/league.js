@@ -860,12 +860,12 @@
   };
   FM.serializeLeague = function (league) {
     const teams = league.teams.map(packTeam), other = FM.ensureTwoDivisions(league);
-    return JSON.stringify({ v: 2, nameFix: league.nameFix || 0, seed: league.seed, runSeed: league.runSeed || 0, tier: league.tier, userId: league.userId, season: league.season, day: league.day, divisionLevel: league.divisionLevel || 1, divisionName: league.divisionName || 'Premier Division', fixtures: league.fixtures, teams, otherLeague: { level: other.level, name: other.name, fixtures: other.fixtures, teams: other.teams.map(packTeam) }, seasonHistory: league.seasonHistory || [], workbench: league.workbench || null, skin: league.skin || null, injuryLog: league.injuryLog || [], board: league.board || null, boardApproval: Number.isFinite(league.boardApproval) ? league.boardApproval : 50, prepStep: league.prepStep || 0, prepPhaseMax: league.prepPhaseMax || 0, testPhaseMax: league.testPhaseMax || 0, testLog: league.testLog || [], hypotheses: league.hypotheses || [], news: league.news || [], friendlies: league.friendlies || [], labRuns: league.labRuns || [], labCtx: league.labCtx || null, labArchive: league.labArchive || [], phaseLabRuns: league.phaseLabRuns || {}, interviews: league.interviews || [], publicOpinion: Number.isFinite(league.publicOpinion) ? league.publicOpinion : 50, tacticalPlans: league.tacticalPlans || [], activePlanId: league.activePlanId || null, transfer: league.transfer || null, develop: league.develop || null, captains: league.captains || {}, captainIntroSeen: !!league.captainIntroSeen, mp: league.mp || null, biz: league.biz || null });
+    return JSON.stringify({ v: 2, cid: league.cid || undefined, nameFix: league.nameFix || 0, seed: league.seed, runSeed: league.runSeed || 0, tier: league.tier, userId: league.userId, season: league.season, day: league.day, divisionLevel: league.divisionLevel || 1, divisionName: league.divisionName || 'Premier Division', fixtures: league.fixtures, teams, otherLeague: { level: other.level, name: other.name, fixtures: other.fixtures, teams: other.teams.map(packTeam) }, seasonHistory: league.seasonHistory || [], workbench: league.workbench || null, skin: league.skin || null, injuryLog: league.injuryLog || [], board: league.board || null, boardApproval: Number.isFinite(league.boardApproval) ? league.boardApproval : 50, prepStep: league.prepStep || 0, prepPhaseMax: league.prepPhaseMax || 0, testPhaseMax: league.testPhaseMax || 0, testLog: league.testLog || [], hypotheses: league.hypotheses || [], news: league.news || [], friendlies: league.friendlies || [], labRuns: league.labRuns || [], labCtx: league.labCtx || null, labArchive: league.labArchive || [], phaseLabRuns: league.phaseLabRuns || {}, interviews: league.interviews || [], publicOpinion: Number.isFinite(league.publicOpinion) ? league.publicOpinion : 50, tacticalPlans: league.tacticalPlans || [], activePlanId: league.activePlanId || null, transfer: league.transfer || null, develop: league.develop || null, captains: league.captains || {}, captainIntroSeen: !!league.captainIntroSeen, mp: league.mp || null, biz: league.biz || null });
   };
   FM.deserializeLeague = function (text) {
     const d = JSON.parse(text);
     const teams = d.teams.map(unpackTeam);
-    const league = { nameFix: d.nameFix || 0, seed: d.seed, runSeed: d.runSeed || 0, tier: d.tier, userId: d.userId, season: d.season, day: d.day, divisionLevel: d.divisionLevel || 1, divisionName: d.divisionName || 'Premier Division', fixtures: d.fixtures, teams, seasonHistory: d.seasonHistory || [], workbench: d.workbench || null, skin: d.skin || null, injuryLog: d.injuryLog || [], board: d.board || null, boardApproval: Number.isFinite(d.boardApproval) ? d.boardApproval : 50, prepStep: d.prepStep || 0, prepPhaseMax: d.prepPhaseMax || 0, testPhaseMax: d.testPhaseMax || 0, testLog: d.testLog || [], hypotheses: d.hypotheses || [], news: d.news || [], friendlies: d.friendlies || [], labRuns: d.labRuns || [], labCtx: d.labCtx || null, labArchive: d.labArchive || [], phaseLabRuns: d.phaseLabRuns || {}, interviews: d.interviews || [], publicOpinion: Number.isFinite(d.publicOpinion) ? d.publicOpinion : 50, tacticalPlans: d.tacticalPlans || [], activePlanId: d.activePlanId || null, transfer: d.transfer || null, develop: d.develop || null, captains: d.captains || {}, captainIntroSeen: !!d.captainIntroSeen, mp: d.mp || null, biz: d.biz || null };
+    const league = { cid: d.cid || undefined, nameFix: d.nameFix || 0, seed: d.seed, runSeed: d.runSeed || 0, tier: d.tier, userId: d.userId, season: d.season, day: d.day, divisionLevel: d.divisionLevel || 1, divisionName: d.divisionName || 'Premier Division', fixtures: d.fixtures, teams, seasonHistory: d.seasonHistory || [], workbench: d.workbench || null, skin: d.skin || null, injuryLog: d.injuryLog || [], board: d.board || null, boardApproval: Number.isFinite(d.boardApproval) ? d.boardApproval : 50, prepStep: d.prepStep || 0, prepPhaseMax: d.prepPhaseMax || 0, testPhaseMax: d.testPhaseMax || 0, testLog: d.testLog || [], hypotheses: d.hypotheses || [], news: d.news || [], friendlies: d.friendlies || [], labRuns: d.labRuns || [], labCtx: d.labCtx || null, labArchive: d.labArchive || [], phaseLabRuns: d.phaseLabRuns || {}, interviews: d.interviews || [], publicOpinion: Number.isFinite(d.publicOpinion) ? d.publicOpinion : 50, tacticalPlans: d.tacticalPlans || [], activePlanId: d.activePlanId || null, transfer: d.transfer || null, develop: d.develop || null, captains: d.captains || {}, captainIntroSeen: !!d.captainIntroSeen, mp: d.mp || null, biz: d.biz || null };
     if (d.otherLeague && d.otherLeague.teams) league.otherLeague = { level: d.otherLeague.level, name: d.otherLeague.name, fixtures: d.otherLeague.fixtures || [], teams: d.otherLeague.teams.map(unpackTeam) };
     FM.ensureTwoDivisions(league); FM.setBoardExpectation(league);
     if (FM.fixStaleNames) FM.fixStaleNames(league);   // friendlies written with the earlier player names (see name_fix.js)
@@ -973,7 +973,9 @@
   const progressOfText = (text) => { try { const d = JSON.parse(text); return (d.season || 1) * 1000 + (d.fixtures || []).filter((f) => f.played && (f.homeId === d.userId || f.awayId === d.userId)).length; } catch (e) { return -1; } };
   FM.leagueProgress = progressOfLeague;
   let replaceLeague = null;
-  FM.markReplaceNext = (lg) => { if (lg) replaceLeague = lg; else replaceNext = true; lsSet(accountKey(SAVE_KEY + '_prefer'), null); };
+  // A new game is a save of its own: it gets its own row on the account the first time it is written, and the seasons already saved stay where they are (Your projects lists
+  // every one, each can be resumed or deleted). Each game carries the id of its row (league.cid), so any device that opens it writes to the same row.
+  FM.markReplaceNext = (lg) => { if (lg) { replaceLeague = lg; delete lg.cid; } else replaceNext = true; lsSet(accountKey(SAVE_KEY + '_prefer'), null); lsSet(cloudIdKey('solo'), null); lsSet(atKey('solo'), null); };
   async function cloudWrite() {
     const league = cloudLeague; if (!league || DEMO_MODE || !accountUid) return false;
     if (cloudBusy) { cloudAgain = true; return false; }
@@ -981,19 +983,20 @@
     let ok = false, refused = false;
     try {
       let text = FM.serializeLeague(league);
-      if (text.length > 4400000) {   // too big for the account copy: the oldest match clips (replays) are left out of it, nothing else
+      // the size is measured as the server measures it: the save is sent as a string inside JSON, which escapes every quote
+      if (JSON.stringify(text).length > 4700000) {   // too big for the account copy: the oldest match clips (replays) are left out of it, nothing else
         const kept = league.fixtures.map((f) => f.clips);
         const order = league.fixtures.map((f, i) => i).filter((i) => kept[i] && kept[i].length).sort((a, b) => league.fixtures[a].round - league.fixtures[b].round);
         try {
-          for (const i of order) { league.fixtures[i].clips = []; text = FM.serializeLeague(league); if (text.length <= 4400000) break; }
+          for (const i of order) { league.fixtures[i].clips = []; text = FM.serializeLeague(league); if (JSON.stringify(text).length <= 4700000) break; }
         } finally { league.fixtures.forEach((f, i) => { f.clips = kept[i]; }); }
       }
       const user = FM.teamById(league, league.userId), m = league.mp ? 'mp' : 'solo';
-      const body = { id: lsGet(cloudIdKey(m)) || undefined, title: (m === 'mp' ? 'Multiplayer: ' : 'Be the manager: ') + (user ? user.name : 'My club'), kind: m === 'mp' ? 'football-mp' : 'football-manager', data: { href: m === 'mp' ? '/create/football/?game=mp' : '/create/football/?game=solo', meta: (m === 'mp' ? 'Multiplayer · season ' : 'Season ') + league.season, football: { save: text, savedAt: new Date().toISOString(), progress: progressOfLeague(league) } } };
-      const replacing = replaceNext || (replaceLeague && replaceLeague === league);
+      const body = { id: league.cid || (league.mp ? lsGet(cloudIdKey(m)) : (replaceLeague === league ? undefined : lsGet(cloudIdKey(m)))) || undefined, title: (m === 'mp' ? 'Multiplayer: ' : 'Be the manager: ') + (user ? user.name : 'My club'), kind: m === 'mp' ? 'football-mp' : 'football-manager', data: { href: m === 'mp' ? '/create/football/?game=mp' : '/create/football/?game=solo', meta: (m === 'mp' ? 'Multiplayer · season ' : 'Season ') + league.season, football: { save: text, savedAt: new Date().toISOString(), progress: progressOfLeague(league) } } };
+      const replacing = m === 'mp' && (replaceNext || (replaceLeague && replaceLeague === league));
       if (replacing) body.replace = true;
       const r = await FM.apiCall('POST', '/create/projects', body);
-      if (r && r.ok && r.json && r.json.id && r.uid === accountUid) { ok = true; lsSet(cloudIdKey(m), r.json.id); lsSet(atKey(m), r.json.updatedAt || new Date().toISOString()); replaceNext = false; if (replaceLeague === league) replaceLeague = null; }
+      if (r && r.ok && r.json && r.json.id && r.uid === accountUid) { ok = true; league.cid = r.json.id; if (m === 'mp' || cloudLeague === league) lsSet(cloudIdKey(m), r.json.id); lsSet(atKey(m), r.json.updatedAt || new Date().toISOString()); replaceNext = false; if (replaceLeague === league) replaceLeague = null; }
       else if (r && r.status === 409) { replaceNext = false; if (replaceLeague === league) replaceLeague = null; refused = true; FM.cloudRefused = true; }   // the account holds a season further on than this one: the next page open offers it
     } catch (e) { /* the browser copy is still saved; the next change tries again */ }
     cloudBusy = false;
@@ -1078,8 +1081,15 @@
       const localText = storeGet(sk);
       // the season furthest on is the one to carry on with (then the most recently saved)
       const kind = m === 'mp' ? 'football-mp' : 'football-manager';
-      const rows = (list.json.projects || []).filter((p) => p.kind === kind).sort((a, b) => ((b.progress || 0) - (a.progress || 0)) || String(b.updatedAt).localeCompare(String(a.updatedAt)));
-      const chosen = m === 'solo' ? lsGet(accountKey(SAVE_KEY + '_prefer')) : null, row = (chosen && rows.find((p) => p.id === chosen)) || rows[0];   // a season the manager restored on purpose is kept even when another copy is further on
+      const rows = (list.json.projects || []).filter((p) => p.kind === kind).sort((a, b) => ((m === 'mp' ? (b.progress || 0) - (a.progress || 0) : 0)) || String(b.updatedAt).localeCompare(String(a.updatedAt)));
+      let row;
+      if (m === 'mp') { const chosen = null; row = (chosen && rows.find((p) => p.id === chosen)) || rows[0]; }
+      else {
+        // single-player: every game is its own row. This device carries on with the game it holds (the id travels inside the save), and a device with nothing takes the one saved last.
+        const held = (() => { try { return (localText && JSON.parse(localText).cid) || lsGet(ck) || null; } catch (e) { return lsGet(ck) || null; } })();
+        row = rows.find((p) => p.id === held) || (!localText ? rows[0] : null);
+        if (held && !rows.find((p) => p.id === held)) { lsSet(ck, null); lsSet(ak, null); }   // its row is gone from the account (deleted elsewhere): the game on this device is kept and written as a new one
+      }
       if (!row) return 'ok';
       const at = lsGet(ak);
       const localProg = localText ? progressOfText(localText) : -1; knownProgress = Math.max(0, localProg);
@@ -1141,6 +1151,22 @@
     storeSet(mine + Date.now(), cur);
     idbKeys().then((all) => all.map(String).filter((k) => k.indexOf(mine) === 0).sort().slice(0, -KEEP_ARCHIVES).forEach((k) => storeDrop(k)));
   }
+  // Open one particular saved game (Your projects sends the manager here with ?save=<id>): it becomes the game on this device, and carries on writing to its own row.
+  FM.openSave = async function (id) {
+    if (DEMO_MODE || !accountUid || !id) return false;
+    try {
+      const got = await FM.apiCall('GET', '/create/projects/' + encodeURIComponent(id));
+      const row = got && got.ok && got.json, text = row && row.data && row.data.football && row.data.football.save;
+      if (!text || row.kind !== 'football-manager') return false;
+      const lg = FM.deserializeLeague(text); if (lg.mp) return false;
+      if (lsGet(cloudIdKey('solo')) !== id) archiveCurrent();
+      lg.cid = id; storeSet(saveKey('solo'), FM.serializeLeague(lg));
+      await FM.flushStore();
+      lsSet(cloudIdKey('solo'), id); lsSet(atKey('solo'), String(row.updatedAt || new Date().toISOString()));
+      setMode('solo'); knownProgress = progressOfLeague(lg);
+      return true;
+    } catch (e) { return false; }
+  };
   FM.restoreSavedSeason = async function (entry) {
     if (DEMO_MODE || !accountUid) return { ok: false, error: 'Sign in to LastMind first.' };
     let text = null;
@@ -1231,6 +1257,7 @@
         if (at) { lsSet(atKey('mp'), at); lsSet(atKey('solo'), null); }
         FM.syncProject(null, 'solo'); m = 'mp'; setMode('mp');
       }
+      if (lg && !lg.mp && m === 'solo' && !DEMO_MODE) { const k = lsGet(cloudIdKey('solo')); if (!lg.cid && k) lg.cid = k; else if (lg.cid && lg.cid !== k) lsSet(cloudIdKey('solo'), lg.cid); }
       if (lg) FM.dropStrangeFriendlies(lg);
       if (lg) lg.teams.forEach((tm) => { tm.squad.forEach((p) => FM.backfillPhysique(p)); FM.migrateRoles(tm); }); // saves from before heights existed and before the positional roles went
       FM.syncProject(lg, m);

@@ -1009,11 +1009,11 @@
       else setView('preview');
     }));
   }
-  // The level (GCSE, A-level, beyond) can be changed at any time: it sets how the analysis, the lessons and the agent explain things. Nothing else changes.
+  // The level (GCSE, A-level, beyond) is chosen when a game is started and stays with that save: the lessons, the knowledge map and what has been learnt all belong to it.
   // what the student is studying: GCSE Maths or A-level Maths, both Edexcel. (A game saved earlier at a level called Beyond A-level keeps it.)
   const LEVELS = [['gcse', 'GCSE Maths'], ['alevel', 'A-level Maths'], ['above', 'Beyond A-level']];
   FM.setLevel = (lg, v) => {
-    if (!lg || !LEVELS.some((l) => l[0] === v) || lg.tier === v) return;
+    if (!lg || !LEVELS.some((l) => l[0] === v) || lg.tier === v || lg.tier) return;   // a save that has a level keeps it
     lg.tier = v; try { localStorage.setItem('lm_football_level', v); } catch (e) { /* the choice is also in the game */ }
     saveSoon();
     document.querySelectorAll('#topLevel, #wbLevel').forEach((s) => { s.value = v; });
@@ -1026,7 +1026,7 @@
     const user = userTeam();
     el('subtitle').textContent = user.name + ' · Season ' + lg.season;
     host.innerHTML = `<span class="hint" style="color:inherit;opacity:0.8">${esc(FM.dayLabel(lg.day))}</span>
-      <label class="top-level"><select id="topLevel" aria-label="What you are studying">${LEVELS.filter(([k]) => k !== 'above' || lg.tier === 'above').map(([k, n]) => `<option value="${k}"${lg.tier === k ? ' selected' : ''}>${n}</option>`).join('')}</select></label>
+      <span class="top-level top-level-fixed" title="The level is set for this save">${esc((LEVELS.find(([k]) => k === lg.tier) || [0, lg.tier])[1])}</span>
       <button data-top="home" class="${world.view === 'home' ? 'on' : ''}">Home</button>
       ${DEMO_MODE ? '' : `<button data-top="workbench" class="tb-workbench ${world.view === 'workbench' ? 'on' : ''}">Workbook</button>`}
       ${lg.mp && lg.mp.kind === 'match' ? '' : `<button data-top="board" class="${world.view === 'board' ? 'on' : ''}">Board</button>`}
@@ -1035,7 +1035,6 @@
       ${lg.mp && lg.mp.kind === 'match' ? '' : `<button data-top="news" class="${world.view === 'news' ? 'on' : ''}">News</button>`}
       ${lg.mp ? `<button data-top="mp" class="${world.view === 'mp' ? 'on' : ''}">Online</button>` : ''}`;
     host.querySelectorAll('[data-top]').forEach((b) => b.addEventListener('click', () => setView(b.dataset.top)));
-    const tl = host.querySelector('#topLevel'); if (tl) tl.addEventListener('change', () => FM.setLevel(lg, tl.value));
   }
 
   function renderPreview() {
@@ -2598,7 +2597,7 @@
     const btn = el('ngStart'), tier = (el('ngSubject') && el('ngSubject').value) || 'gcse';
     // a season in progress is never replaced without asking; it is kept as a backup either way, and can be brought back with "Recover an earlier season"
     if (!DEMO_MODE && world.hadSave && (world.hadSave.season * 1000 + world.hadSave.played) >= 1001) {
-      if (!window.confirm('You have a single-player season in progress: ' + world.hadSave.club + ', season ' + world.hadSave.season + ', ' + world.hadSave.played + ' of 14 played. Starting a new single-player game replaces it (a multiplayer game is not affected). It is kept as a backup, and "Recover an earlier season" brings it back. Start the new game?')) return;
+      if (!window.confirm('You have a single-player season in progress: ' + world.hadSave.club + ', season ' + world.hadSave.season + ', ' + world.hadSave.played + ' of 14 played. A new game is a separate save: that season stays in Your projects and can be resumed or deleted there. Start the new game?')) return;
     }
     // (the new game replaces the account's save: createLeague marks the new league for that, and the server backs the old one up)
     try { localStorage.setItem('lm_football_level', tier); } catch (e) { /* the choice is also in the game */ }
@@ -2642,6 +2641,7 @@
       return;
     }
   }
+  { const wantSave = (location.search.match(/[?&]save=([A-Za-z0-9-]+)/) || [])[1]; if (wantSave && FM.openSave) await FM.openSave(wantSave); }   // a particular saved game, chosen in Your projects
   const wantGame = (location.search.match(/[?&]game=(solo|mp)\b/) || [])[1];
   world.league = FM.loadLeague(wantGame);
   if (world.league && !(world.league.mp && world.league.mp.kind === 'match') && FM.biz) { FM.biz(world.league); FM.bizSyncBudget(world.league); }   // the club's books
