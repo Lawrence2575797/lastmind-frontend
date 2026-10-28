@@ -830,6 +830,7 @@
 
   // Moves every player of one team one time step toward their target.
   const TGT = new WeakMap();
+  FM.debugTGT = TGT;
   FM.stepTeam = function (team, ball, hasBall, dt, overrides) {
     // With the ball, attackers hold the offside line instead of standing beyond it.
     const lim = hasBall ? team.offsideLine : null;

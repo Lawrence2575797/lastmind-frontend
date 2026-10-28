@@ -966,7 +966,7 @@
     if (nearNow > 4 && !through && !drive) options.push({ kind: 'hold', score: .48 + .55 * live.patience - .4 * live.urgency - .2 * directness });
 
     if (coast > 0) options.forEach((o) => { if (o.kind === 'shoot' && o.score > 0) o.score *= 1 - 0.45 * coast; });
-    options.forEach((o) => { if (o.kind === 'shoot' && o.score > 0) o.score *= (FM.SHOT_K == null ? 0.85 : FM.SHOT_K); });
+    options.forEach((o) => { if (o.kind === 'shoot' && o.score > 0) o.score *= (FM.SHOT_K == null ? 1.2 : FM.SHOT_K); });
     if (RE && RE.shoot) options.forEach((o) => { if (o.kind === 'shoot' && o.score > 0) o.score *= clamp(1 + 0.9 * RE.shoot, 0.1, 2); });
 
     if (!options.length) options.push({ kind: 'carry', nearD: 3, drive: false, score: 0 });   // never nothing to do: he keeps the ball and moves on
@@ -1053,10 +1053,11 @@
     // How well the ball is struck depends on how good the pass is (its lane, the pressure, the distance): the worse it is, the more the direction and the weight can go
     // astray. Nothing else is decided here: where the ball ends up is what happens to it on the way.
     const err = 1 - pEff, g = () => (rng() + rng() + rng() - 1.5) / 0.5;
-    const sigma = (FM.PASS_SIGMA == null ? 1 : FM.PASS_SIGMA) * (0.012 + 0.22 * Math.pow(err, 1.2)) * (0.7 + 0.5 * (1 - (carrier.ratings.passing || 60) / 100));
+    const sigma = (FM.PASS_SIGMA == null ? 1.15 : FM.PASS_SIGMA) * (0.012 + 0.22 * Math.pow(err, 1.2)) * (0.7 + 0.5 * (1 - (carrier.ratings.passing || 60) / 100));
     // the pass is played to where the man will be, not to where he is: his run is led by the time the ball takes
     const tf = opt.d / Math.max(10, clamp(11 + opt.d * 0.4, 12, 23) * 0.85), aimX = clamp(opt.tx, 4.5, L - 4.5), aimY = opt.ty;   // nobody plays a pass to a spot on the end line: it is played just inside it
-    const ang = Math.atan2(aimY - carrier.y, aimX - carrier.x) + g() * sigma, len = Math.max(2, Math.hypot(aimX - carrier.x, aimY - carrier.y) * (1 + g() * 0.045 * (0.4 + 2 * err)));
+    const wideK = 1 + (FM.WIDE_ERR == null ? 3 : FM.WIDE_ERR) * clamp((Math.abs(aimY - W / 2) - 20) / 10, 0, 1);   // a ball played to a man on the touchline is harder to weight
+    const ang = Math.atan2(aimY - carrier.y, aimX - carrier.x) + g() * sigma * wideK, len = Math.max(2, Math.hypot(aimX - carrier.x, aimY - carrier.y) * (1 + g() * 0.045 * (0.4 + 2 * err)));
     // Metres per simulated second. A routine ground pass should be readable on the pitch rather than flashing between players.
     const speed = clamp(11 + opt.d * 0.4, 12, 23) * (1 + g() * 0.03);
     const flight = { kind: 'pass', team, passer: carrier, speed, target: opt.target, ex: carrier.x + Math.cos(ang) * len, ey: carrier.y + Math.sin(ang) * len, free: true, dir: { x: Math.cos(ang), y: Math.sin(ang) }, len, run: 0, t: 0, outcome: 'pending' };
@@ -1185,7 +1186,7 @@
     if (!match.lastClearance) match.lastClearance = {};
     match.lastClearance[team.id] = match.clock;
     // Under pressure a defender often just gets it away: kicked up the line into touch rather than to a team-mate (this is where most throw-ins come from).
-    if (match.rng() < (FM.CLEAR_TOUCH == null ? 0.6 : FM.CLEAR_TOUCH)) { const ty = carrier.y < W / 2 ? 1.2 : W - 1.2, tx = clamp(carrier.x + team.attackDir * 20, 3, L - 3); pass.tx = tx; pass.ty = ty; pass.d = Math.hypot(tx - carrier.x, ty - carrier.y); pass.p = 0.7; }
+    if (match.rng() < (FM.CLEAR_TOUCH == null ? 0.85 : FM.CLEAR_TOUCH)) { const ty = carrier.y < W / 2 ? 1.2 : W - 1.2, tx = clamp(carrier.x + team.attackDir * 20, 3, L - 3); pass.tx = tx; pass.ty = ty; pass.d = Math.hypot(tx - carrier.x, ty - carrier.y); pass.p = 0.7; }
     doPass(match, team, carrier, pass);
   }
 
@@ -2198,6 +2199,9 @@
     // A pass or a shot is played with the body pointing at it. A player facing one way who wants to play the ball the other way has to turn first, and
     // that takes time (about 0.3 s for a quarter turn, over half a second for a full one) in which he can be closed down: nobody plays it backwards
     // while running forwards.
+    // Only the man lining up a pass or a shot is ever turning on the spot. (Several things end a wind-up without going through the code below: a tackle, a lost ball, a goal.
+    // A man left with a turn he was never released from ran on along that heading until he reached a corner flag.)
+    match.teams.forEach((t) => t.players.forEach((q) => { if (q.turnTo !== undefined && !(match.pendingAct && match.pendingAct.player === q && match.pendingAct.ang != null)) q.turnTo = undefined; }));
     const pa = match.pendingAct;
     if (pa) {
       if (pa.ang != null && match.clock >= pa.turnEnd && pa.player.turnTo !== undefined) pa.player.turnTo = undefined;   // turned: the wind-up goes on facing the target
