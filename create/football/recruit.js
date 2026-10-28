@@ -155,7 +155,7 @@
       let note;
       if (!r.ok) note = { kind: 'no', text: r.text };
       else if (r.status === 'sold') note = { kind: 'ok', text: (action === 'counter' ? 'Accepted: ' + who + ' agreed to pay ' + FM.money(r.fee) + ' for ' + name + ', so the deal is done.' : 'Deal done: ' + name + ' has joined ' + who + ' for ' + FM.money(r.fee) + '.') };
-      else if (r.status === 'countered') note = { kind: 'counter', text: 'Countered: ' + who + ' will not pay ' + FM.money(asked) + ' for ' + name + ' but will go to ' + FM.money(r.fee) + (r.fee > before ? ' (up from ' + FM.money(before) + ')' : '') + '. Accept it, reject it, or ask for a different price below.' };
+      else if (r.status === 'countered') note = { kind: 'counter', text: 'Countered: ' + who + ' will not pay ' + FM.money(asked) + ' for ' + name + (r.fee > before ? ' but will go to ' + FM.money(r.fee) + ' (up from ' + FM.money(before) + ')' : ' and will stay at ' + FM.money(r.fee)) + '. Accept it, reject it, or ask for a different price below.' };
       else if (r.status === 'withdrawn') note = { kind: 'no', text: 'Rejected: ' + who + ' will not pay ' + FM.money(asked) + ' for ' + name + ' and have withdrawn their offer.' };
       else if (r.status === 'rejected') note = { kind: 'no', text: "You turned down " + who + "'s offer of " + FM.money(before) + ' for ' + name + '.' };
       else note = { kind: 'no', text: 'Nothing changed.' };

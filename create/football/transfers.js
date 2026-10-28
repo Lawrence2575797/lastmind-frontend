@@ -490,7 +490,8 @@
     const maxPay = Math.min(t.budget[buyer.id] || 0, FM.valueOf(p) * wantsHim(league, buyer, p) * 1.2);
     o.rounds = (o.rounds || 0) + 1;
     if (asked <= maxPay) { o.fee = asked; return complete(asked); }
-    if (asked <= maxPay * 1.15 && o.rounds <= 2) { o.fee = r1(Math.max(o.fee, (asked + maxPay) / 2)); o.status = 'countered'; return { ok: true, status: 'countered', fee: o.fee }; }
+    // their counter is rounded down, never above what they can pay and always below the price asked
+    if (asked <= maxPay * 1.15 && o.rounds <= 2) { const down = (v) => Math.floor(v * 10 + 1e-9) / 10; o.fee = Math.max(o.fee, Math.min(down((asked + maxPay) / 2), down(maxPay))); o.status = 'countered'; return { ok: true, status: 'countered', fee: o.fee }; }
     t.offers = t.offers.filter((x) => x !== o);
     news(league, 'Transfer', p, `${buyer.name} walk away from ${p.name}`, `${me.name}'s price was too high.`, `${buyer.name} have withdrawn their interest in ${p.name} after ${me.name} asked for ${money(asked)}.`, { mine: true, teams: [me.id, buyer.id] });
     return { ok: true, status: 'withdrawn' };
