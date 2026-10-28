@@ -518,7 +518,7 @@
 
   function size() {
     if (!host || !renderer) return; const w = host.clientWidth || 800, h = host.clientHeight || 450; renderer.setSize(w, h, false);
-    camera.aspect = w / h; const hfov = (mode === "stands" ? 44 : 74) * Math.PI / 180; camera.fov = 2 * Math.atan(Math.tan(hfov / 2) / camera.aspect) * 180 / Math.PI; camera.updateProjectionMatrix();
+    camera.aspect = w / h; const hfov = (mode === "stands" ? 60 : 74) * Math.PI / 180; camera.fov = 2 * Math.atan(Math.tan(hfov / 2) / camera.aspect) * 180 / Math.PI; camera.updateProjectionMatrix();
   }
   function setCamera(dt, bx, bz, snap, spc) {
     const k = snap ? 1 : 1 - Math.exp(-dt * (spc ? 3.6 : mode === 'stands' ? 3.4 : 2.6));

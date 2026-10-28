@@ -347,6 +347,7 @@
     return p.group !== 'GK' && FM.toTeamSpace(team.attackDir, p.x, p.y).d > (FM.CLEAR_D == null ? 0.92 : FM.CLEAR_D) && Math.abs(p.y - W / 2) < 24 && !other(match, team).players.some((o) => o.group !== 'GK' && (o.x - p.x) * team.attackDir > -(FM.CLEAR_GAP == null ? 4 : FM.CLEAR_GAP));
   }
   // ---------- target overrides: carrying, pressing, chasing the ball ----------
+  FM.debugOverrides = (m) => buildOverrides(m);
   function buildOverrides(match) {
     const ov = new Map();
     const c = match.carrier;
@@ -400,7 +401,7 @@
       const n = Math.max(1, 1 + (press > 0.65 && (lostIt || nearGoal || (deep && pbu > 0.6)) ? 1 : 0) + cpx + cpl);
       const ranked = opp.players.filter((p) => p.group !== 'GK').map((p) => ({ p, d: dist(p, c.player) })).sort((a, b) => a.d - b.d);
       ranked.slice(0, n).forEach(({ p, d }, i) => {
-        if (d >= pressTrigger(opp, p, press, match)) return;
+        if (d >= (i === 0 ? Math.max(pressTrigger(opp, p, press, match), (FM.FIRST_PRESS == null ? 0 : FM.FIRST_PRESS) * (0.4 + 0.6 * press)) : pressTrigger(opp, p, press, match))) return;   // the nearest man always comes to the ball
         const stand = 0.5 + 2.2 * (1 - press) + 0.8 * i; // how far off the carrier he stops, in metres
         const dx = p.x - c.player.x, dy = p.y - c.player.y, dd = Math.max(d, 0.1);
         // He closes from the goal side and from the inside, not straight down the line he happens to be on: he is between the man and his goal, and when the man is near a touchline
@@ -607,7 +608,7 @@
     // neutral setting the nearest forward now holds the block until the ball
     // is roughly ten metres away; aggressive pressing roles and instructions
     // still jump much earlier.
-    return 6 + 8 * press + bonus + FM.dialM(team, 'press') + 5 * (FM.instrMods(player, false).closeDown + (match ? FM.rulesDelta(team, player, 'closeDown', match.ball, false) : 0));
+    return (FM.PRESS_BASE == null ? 6 : FM.PRESS_BASE) + 8 * press + bonus + FM.dialM(team, 'press') + 5 * (FM.instrMods(player, false).closeDown + (match ? FM.rulesDelta(team, player, 'closeDown', match.ball, false) : 0));
   }
   // Pressing as the manager set it, adjusted for the seconds just after losing the ball:
   // a high counter-press instruction hunts it back at once, a low one drops into shape first.
