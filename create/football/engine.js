@@ -246,7 +246,7 @@
     // a goal kick the side is in its own half with only the striker near halfway, and every phase on from there moves the whole shape up with the
     // ball. (The slot's own place in the formation, and the role, move a player a little either side of his group's depth.)
     const POSS_D = {
-      build:    { GK: 0.03, CB: 0.19, FB: 0.29, DM: 0.33, CM: 0.40, AM: 0.46, WF: 0.50, ST: 0.56 },
+      build:    { GK: 0.03, CB: 0.19, FB: 0.29, DM: 0.33, CM: 0.39, AM: 0.43, WF: 0.46, ST: 0.49 },
       buildEnd: { GK: 0.03, CB: 0.30, FB: 0.40, DM: 0.38, CM: 0.46, AM: 0.54, WF: 0.60, ST: 0.68 },
       midfield: { GK: 0.04, CB: 0.38, FB: 0.48, DM: 0.46, CM: 0.54, AM: 0.62, WF: 0.67, ST: 0.74 },
       final:    { GK: 0.05, CB: 0.44, FB: 0.54, DM: 0.50, CM: 0.60, AM: 0.68, WF: 0.72, ST: 0.78 },
@@ -255,14 +255,16 @@
       withoutEnd: { GK: 0.03, CB: 0.17, FB: 0.20, DM: 0.27, CM: 0.33, AM: 0.42, WF: 0.55, ST: 0.60 },
       // Pressing the opposition's build-up: the whole side squeezes up, the forwards on the edge of their box (about 0.84 of the pitch) so the keeper and
       // centre-backs cannot play out, and the line just beyond the halfway line so nobody is left a long way behind the press.
-      press:      { GK: 0.10, CB: 0.56, FB: 0.62, DM: 0.69, CM: 0.74, AM: 0.78, WF: 0.82, ST: 0.86 },
+      press:      { GK: 0.10, CB: 0.52, FB: 0.57, DM: 0.63, CM: 0.68, AM: 0.73, WF: 0.77, ST: 0.81 },
+      // a low block: everybody behind the ball and inside their own half, the forwards just over the halfway line at most
+      withoutLow: { GK: 0.03, CB: 0.17, FB: 0.20, DM: 0.27, CM: 0.33, AM: 0.38, WF: 0.43, ST: 0.48 },
     };
     const GROUP_BASE = { GK: 0.03, CB: 0.20, FB: 0.22, DM: 0.41, CM: 0.50, AM: 0.62, WF: 0.78, ST: 0.83 };
     if (POSS_D[phase] && POSS_D[phase][p.group] != null) {
-      const oP = phase === 'without' || phase === 'withoutEnd' ? role.outPoss : role.inPoss;
+      const oP = phase === 'without' || phase === 'withoutEnd' || phase === 'withoutLow' ? role.outPoss : role.inPoss;
       let d = POSS_D[phase][p.group] + (p.group === 'GK' ? 0 : (base.d - (GROUP_BASE[p.group] == null ? base.d : GROUP_BASE[p.group])) * 0.5) + (oP.depth || 0) * 0.25 + m.depth;
       if (phase === 'press' && p.group !== 'GK') d += ((team.tactics && team.tactics.lineHeight != null ? team.tactics.lineHeight : 0.5) - 0.5) * 0.16;   // a higher line sets the whole press higher
-      if ((phase === 'without' || phase === 'withoutEnd' || phase === 'press') && p.group !== 'GK' && team.dials && team.dials.line) d += team.dials.line / 105 * (phase === 'withoutEnd' ? 0.4 : 1);   // the line dial, in metres
+      if ((phase === 'without' || phase === 'withoutEnd' || phase === 'withoutLow' || phase === 'press') && p.group !== 'GK' && team.dials && team.dials.line) d += team.dials.line / 105 * (phase === 'withoutEnd' ? 0.4 : 1);   // the line dial, in metres
       const kw = phase === 'build' ? 0.6 : 1;
       let w = base.w;
       const centre = Math.abs(base.w - 0.5) < 0.01;

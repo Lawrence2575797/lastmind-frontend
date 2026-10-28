@@ -44,7 +44,7 @@
     }
     // the ball: with the nearest man of the side that has it to the usual place for this phase
     const poss = ours ? us : them, at = { x: BALL_AT[ph], y: W / 2 };
-    const carrier = poss.filter((q) => q.group !== 'GK' || ph === 'build').sort((a, b) => dist(a, at) - dist(b, at))[0];
+    const carrier = (ph === 'build' && poss.find((q) => q.group === 'GK')) || poss.filter((q) => q.group !== 'GK').sort((a, b) => dist(a, at) - dist(b, at))[0];   // from a goal kick it is the keeper who has the ball
     return { ph, eng, ours, us, them, generic, ball: { x: carrier.x, y: carrier.y }, carrier, tac, dials, opp: od ? od.opp : null };
   }
 

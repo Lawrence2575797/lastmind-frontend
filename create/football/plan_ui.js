@@ -91,7 +91,16 @@
       const off = A.S0.ours ? A.fm.them.last : A.fm.us.last; if (off > 0 && off < 105) over += `<line x1="0" y1="${ty(off)}" x2="${PW}" y2="${ty(off)}" stroke="#FFD54A" stroke-width="1.3" stroke-dasharray="3 4" opacity=".9"/>` + lab(PW - 4, (+ty(off) - 4).toFixed(1), 'offside line', '#FFE58A', 'end');
       if (!A.S0.ours) over += `<circle cx="${tx(A.S0.ball.y)}" cy="${ty(A.S0.ball.x)}" r="${(A.ctl.trig * mx).toFixed(1)}" fill="rgba(255,213,74,.07)" stroke="#FFD54A" stroke-width="1.3" stroke-dasharray="6 4"/>` + lab(tx(A.S0.ball.y), (+ty(A.S0.ball.x) - A.ctl.trig * mx - 4).toFixed(1), 'press trigger ' + A.ctl.trig.toFixed(0) + ' m', '#FFE58A', 'middle');
     }
-    if (o.lanes && A) A.ln.forEach((l) => { const col = l.open ? (l.pref ? '#FFD54A' : '#FFFFFF') : '#FF7B6B'; over += `<line x1="${tx(l.a.y)}" y1="${ty(l.a.x)}" x2="${tx(l.b.y)}" y2="${ty(l.b.x)}" stroke="${col}" stroke-width="${l.open ? (l.pref ? 2.6 : 1.8) : 1.2}" stroke-dasharray="${l.open ? '0' : '2 5'}" opacity="${l.open ? 0.85 : 0.6}"/>`; });
+    if (o.lanes && A && A.ln.length) {
+      // The lanes open to the man on the ball, drawn as passes: an arrow from him to each team-mate he can find, gold for the preferred routes, white for the rest, blue when the ball goes back.
+      // A pass that is blocked is shown only when it goes forward (it is the one the other side is stopping), faint and short of the receiver.
+      const MK = { g: '#FFD54A', w: '#FFFFFF', b: '#8EC8FF', r: '#FF7B6B' };
+      over += '<defs>' + Object.keys(MK).map((k) => `<marker id="lnA${k}" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 z" fill="${MK[k]}"/></marker>`).join('') + '</defs>';
+      const seg = (l, k, w, op, dash) => { const x1 = +tx(l.a.y), y1 = +ty(l.a.x), x2 = +tx(l.b.y), y2 = +ty(l.b.x), dx = x2 - x1, dy = y2 - y1, len = Math.hypot(dx, dy) || 1, a = 17 / len, b = Math.min(0.9, 22 / len); return `<line x1="${(x1 + dx * a).toFixed(1)}" y1="${(y1 + dy * a).toFixed(1)}" x2="${(x2 - dx * b).toFixed(1)}" y2="${(y2 - dy * b).toFixed(1)}" stroke="${MK[k]}" stroke-width="${w}" stroke-linecap="round" ${dash ? 'stroke-dasharray="3 5"' : ''} opacity="${op}" marker-end="url(#lnA${k})"/>`; };
+      A.ln.filter((l) => !l.open && l.fwd > 6).sort((p, q) => q.fwd - p.fwd).slice(0, 3).forEach((l) => { over += seg(l, 'r', 1.3, 0.5, true); });
+      A.ln.filter((l) => l.open).forEach((l) => { const k = l.pref ? 'g' : l.fwd < -4 ? 'b' : 'w'; over += seg(l, k, l.pref ? 2.8 : 1.9, 0.88, false); });
+      if (A.S0.carrier) over += `<circle cx="${tx(A.S0.carrier.y)}" cy="${ty(A.S0.carrier.x)}" r="21" fill="none" stroke="#FFD54A" stroke-width="2.2"/>`;
+    }
     if (false) {
       const nk = MOVE_NEXT[eng];
       if (nk) team.players.forEach((p) => { const a = FM.phasePos(team, p, eng), b = FM.phasePos(team, p, nk); if (Math.hypot((b.d - a.d) * 105, (b.w - a.w) * 68) < 3) return; const dx = (b.w - a.w) * PW, dy = -(b.d - a.d) * PH, len = Math.hypot(dx, dy), k = Math.max(0, (len - 15) / len); over += `<line x1="${(a.w * PW).toFixed(1)}" y1="${((1 - a.d) * PH).toFixed(1)}" x2="${(a.w * PW + dx * k).toFixed(1)}" y2="${((1 - a.d) * PH + dy * k).toFixed(1)}" stroke="#FFD54A" stroke-width="1.5" opacity=".9" marker-end="url(#plsa)"/>`; });
@@ -132,6 +141,8 @@
         let c = od.cells[slot];
         const op = od.opp.players.find((q) => q.slotKey === slot);
         if (theyAttack && ourLine != null && op && op.group !== 'GK' && 1 - c.d < ourLine) c = { d: 1 - Math.min(0.97, ourLine + 0.012), w: c.w };
+        // a shirt of theirs is never drawn on top of one of ours: it stands just clear of it (the way a marker stands beside the man he marks)
+        if (op && op.group !== 'GK') { let px = (1 - c.d) * 105, py = (1 - c.w) * 68; for (let it = 0; it < 2; it++) team.players.forEach((p) => { const q = FM.phasePos(team, p, eng), qx = q.d * 105, qy = q.w * 68; let dx = px - qx, dy = py - qy, dd = Math.hypot(dx, dy); if (dd < 5.2) { if (dd < 0.3) { dx = 1; dy = 0; dd = 1; } px += dx / dd * (5.2 - dd); py += dy / dd * (5.2 - dd); } }); c = { d: Math.max(0.02, Math.min(0.98, 1 - px / 105)), w: Math.max(0.03, Math.min(0.97, 1 - py / 68)) }; }
         const x = (1 - c.w) * PW, y = c.d * PH;
         s += `<g transform="translate(${x.toFixed(1)},${y.toFixed(1)}) scale(.82)" pointer-events="none">${shirt(od.kit, op ? op.number : '', { ghost: true, dash: true, stroke: od.kit.number })}</g>`;
       });
