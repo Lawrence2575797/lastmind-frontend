@@ -300,6 +300,19 @@
   // The match runs in steps of a tenth of a second. Drawing each step as it lands makes everything move in ten little jumps a second, so what is drawn is the point between
   // the last two steps, as far through the present step as the clock is: continuous at any frame rate. (A jump of more than a few metres in one step, such as a kick-off
   // set-up, is a placing, not a movement, and is not drawn as a slide.)
+  // Between two steps the point is on a smooth curve (a cubic through both positions with the speeds the match had at each end) rather than a straight line, so the speed
+  // does not change in a jerk ten times a second. Where the speed changed abruptly (a kick, a touch, a tackle) it stays a straight line, and it never strays far from it.
+  function herm(p0, p1, a, maxDv) {
+    const T = 0.1, lin = (k) => p0[k] + (p1[k] - p0[k]) * a;
+    const dvx = (p1.vx || 0) - (p0.vx || 0), dvy = (p1.vy || 0) - (p0.vy || 0);
+    if (p0.vx === undefined || Math.hypot(dvx, dvy) > (maxDv == null ? 6 : maxDv)) return { x: lin('x'), y: lin('y') };
+    const t2 = a * a, t3 = t2 * a, h00 = 2 * t3 - 3 * t2 + 1, h10 = t3 - 2 * t2 + a, h01 = -2 * t3 + 3 * t2, h11 = t3 - t2, out = {};
+    ['x', 'y'].forEach((k) => {
+      const v = k === 'x' ? 'vx' : 'vy', l = lin(k), c = h00 * p0[k] + h10 * T * (p0[v] || 0) + h01 * p1[k] + h11 * T * (p1[v] || 0);
+      out[k] = Math.max(l - 0.15, Math.min(l + 0.15, c));
+    });
+    return out;
+  }
   function interpolate(m) {
     const a = Math.max(0, Math.min(1, (m.fixedStepRemainder || 0) / 0.1));
     const lerpAng = (f0, f1, t) => { let d = f1 - f0; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; return f0 + d * t; };
@@ -307,12 +320,12 @@
       const f1 = Number.isFinite(p.facing) ? p.facing : (team.attackDir === 1 ? 0 : Math.PI), pv = FM.prevOf ? FM.prevOf(p) : null;
       let rp = world.renderPos.get(p.id);
       if (!rp) { rp = { x: p.x, y: p.y, facing: f1 }; world.renderPos.set(p.id, rp); }
-      if (pv && Math.hypot(p.x - pv.x, p.y - pv.y) < 5) { rp.x = pv.x + (p.x - pv.x) * a; rp.y = pv.y + (p.y - pv.y) * a; rp.facing = Number.isFinite(pv.f) ? lerpAng(pv.f, f1, a) : f1; }
+      if (pv && Math.hypot(p.x - pv.x, p.y - pv.y) < 5) { const h = herm(pv, p, a); rp.x = h.x; rp.y = h.y; rp.facing = Number.isFinite(pv.f) ? lerpAng(pv.f, f1, a) : f1; }
       else { rp.x = p.x; rp.y = p.y; rp.facing = f1; }
     }));
     if (!world.renderBall) world.renderBall = { x: m.ball.x, y: m.ball.y };
     const bp = FM.prevOf ? FM.prevOf(m.ball) : null;
-    if (bp && Math.hypot(m.ball.x - bp.x, m.ball.y - bp.y) < 8) { world.renderBall.x = bp.x + (m.ball.x - bp.x) * a; world.renderBall.y = bp.y + (m.ball.y - bp.y) * a; }
+    if (bp && Math.hypot(m.ball.x - bp.x, m.ball.y - bp.y) < 8) { const h = herm(bp, m.ball, a, 2.5); world.renderBall.x = h.x; world.renderBall.y = h.y; }
     else { world.renderBall.x = m.ball.x; world.renderBall.y = m.ball.y; }
   }
   function stepRender(m) { interpolate(m); }

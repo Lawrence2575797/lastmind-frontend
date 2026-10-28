@@ -2347,16 +2347,19 @@
     match.teams.forEach((t) => t.players.forEach((q) => { if (q.turnTo !== undefined && !(match.pendingAct && match.pendingAct.player === q && match.pendingAct.ang != null)) q.turnTo = undefined; }));
     const pa = match.pendingAct;
     if (pa) {
-      if (pa.ang != null && match.clock >= pa.turnEnd && pa.player.turnTo !== undefined) pa.player.turnTo = undefined;   // turned: the wind-up goes on facing the target
+      // He faces the place the ball is going to, all through the turn and the backswing (the aim follows a team-mate who is moving), so it leaves along the line he is facing.
+      if (pa.ang != null && !FM.OLD_FACE) { const o = pa.opt, aim = aimOf(pa.team, o), lag = match.clock - pa.start; if (aim) { const tx = o.target ? aim.x + (o.target.vx || 0) * lag * 0.6 : aim.x, ty = o.target ? aim.y + (o.target.vy || 0) * lag * 0.6 : aim.y; pa.ang = Math.atan2(ty - pa.player.y, tx - pa.player.x); pa.player.turnTo = pa.ang; } }
+      else if (pa.ang != null && match.clock >= pa.turnEnd && pa.player.turnTo !== undefined) pa.player.turnTo = undefined;
       if (!match.carrier || match.carrier.player !== pa.player) { pa.player.turnTo = undefined; match.pendingAct = null; }
       // He was lining up a sideways or back pass, but the last defender has been beaten while he did: he is through, so the pass is off and he decides again.
       else if (pa.opt.kind === 'pass' && !match.forcePass && !match.restart && pa.player.group !== 'GK' && (pa.opt.tx - pa.player.x) * pa.team.attackDir < 8 && FM.toTeamSpace(pa.team.attackDir, pa.player.x, pa.player.y).d > 0.6 && !other(match, pa.team).players.some((o) => o.group !== 'GK' && (o.x - pa.player.x) * pa.team.attackDir > -1 && Math.abs(o.y - pa.player.y) < 24)) {
         pa.player.turnTo = undefined; match.pendingAct = null; match.nextDecision = match.clock;
       }
-      else if (match.clock >= pa.release && (dist(match.ball, pa.player) < KICK_REACH || match.clock > pa.release + 0.6)) {
+      else if (match.clock >= pa.release && (dist(match.ball, pa.player) < KICK_REACH || match.clock > pa.release + 0.6) && (FM.OLD_FACE || pa.ang == null || !Number.isFinite(pa.player.facing) || Math.abs(angleDiff(pa.player.facing, pa.ang)) < 0.38 || match.clock > pa.release + 0.4)) {
         pa.player.turnTo = undefined; match.pendingAct = null;
         const o = pa.opt, lag = match.clock - pa.start;
         if (o.target) { o.tx = clamp(o.tx + (o.target.vx || 0) * lag * 0.6, 1, L - 1); o.ty = clamp(o.ty + (o.target.vy || 0) * lag * 0.6, 1, W - 1); }
+        if (FM.relLog) { const aim = aimOf(pa.team, o); if (aim && Number.isFinite(pa.player.facing)) FM.relLog.push({ kind: o.kind, turned: pa.ang != null, off: Math.abs(angleDiff(pa.player.facing, Math.atan2(aim.y - pa.player.y, aim.x - pa.player.x))) * 180 / Math.PI, wait: match.clock - pa.start, sp: Math.hypot(pa.player.vx || 0, pa.player.vy || 0) }); }
         runAction(match, pa.team, pa.player, o);
       }
     }
@@ -2369,8 +2372,8 @@
       if (aim && !match.forcePass) {
         // A pass or a shot takes a moment: turn if he has to, then the backswing and the strike, and the ball leaves the foot at the end of it. (The
         // motion-captured kick in the 3D view is timed to this.)
-        const turnT = need > (FM.TURN_FREE == null ? 1.75 : FM.TURN_FREE) ? Math.min(0.9, need / (FM.TURN_RATE == null ? 5.2 : FM.TURN_RATE)) : 0, wind = (FM.WIND == null ? 0.3 : FM.WIND) * (turnT > 0 ? 0.65 : 1) * (ft ? 0.4 : 1);
-        const ang = turnT > 0 ? Math.atan2(aim.y - player.y, aim.x - player.x) : null;
+        const turnT = need > (FM.TURN_FREE == null ? 0.6 : FM.TURN_FREE) ? Math.min(0.9, need / (FM.TURN_RATE == null ? 7 : FM.TURN_RATE)) : 0, wind = (FM.WIND == null ? 0.3 : FM.WIND) * (turnT > 0 ? 0.65 : 1) * (ft ? 0.4 : 1);
+        const ang = turnT > 0 || !FM.OLD_FACE ? Math.atan2(aim.y - player.y, aim.x - player.x) : null;
         match.pendingAct = { opt, team, player, ang, start: match.clock, turnEnd: match.clock + turnT, release: match.clock + turnT + wind, kick: true };
         if (ang != null) player.turnTo = ang; match.carry = null;
       } else runAction(match, team, player, opt);
@@ -2403,7 +2406,7 @@
   FM.debugRestart = (m, kind, team, x, y) => startRestart(m, kind, team, x, y);
   // Where everyone and the ball were before the latest step, so the picture can be drawn between the last two steps (main.js interpolate) rather than jumping each step.
   const PREV = new WeakMap();
-  function keepPrev(match) { match.teams.forEach((t) => t.players.forEach((p) => PREV.set(p, { x: p.x, y: p.y, f: p.facing }))); PREV.set(match.ball, { x: match.ball.x, y: match.ball.y }); }
+  function keepPrev(match) { match.teams.forEach((t) => t.players.forEach((p) => PREV.set(p, { x: p.x, y: p.y, f: p.facing, vx: p.vx || 0, vy: p.vy || 0 }))); PREV.set(match.ball, { x: match.ball.x, y: match.ball.y, vx: match.ball.vx || 0, vy: match.ball.vy || 0 }); }
   FM.prevOf = (o) => PREV.get(o);
   FM.stepMatch = function (match, dt) {
     if (!(dt > 0)) return;

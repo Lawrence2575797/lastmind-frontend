@@ -898,7 +898,7 @@
       let turn = wanted - p.facing;
       while (turn > Math.PI) turn -= Math.PI * 2;
       while (turn < -Math.PI) turn += Math.PI * 2;
-      const maxTurn = (turning ? 5.2 : p.group === 'GK' ? 3.2 : (FM.TURN_RUN == null ? 2.5 : FM.TURN_RUN)) * dt;
+      const maxTurn = (turning ? (FM.TURN_RATE == null ? 7 : FM.TURN_RATE) : p.group === 'GK' ? 3.2 : (FM.TURN_RUN == null ? 2.5 : FM.TURN_RUN)) * dt;
       p.facing += clamp(turn, -maxTurn, maxTurn);
       const alignment = clamp(1 - Math.abs(turn) / Math.PI, .18, 1);
       // How quickly a player changes his velocity toward the one he wants. Written so that it gives the same response however long a step is:
