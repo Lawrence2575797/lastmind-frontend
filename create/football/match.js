@@ -386,7 +386,11 @@
         if (d >= pressTrigger(opp, p, press, match)) return;
         const stand = 0.5 + 2.2 * (1 - press) + 0.8 * i; // how far off the carrier he stops, in metres
         const dx = p.x - c.player.x, dy = p.y - c.player.y, dd = Math.max(d, 0.1);
-        ov.set(p, { x: c.player.x + c.player.vx * 0.4 + dx / dd * stand, y: c.player.y + c.player.vy * 0.4 + dy / dd * stand });
+        // He closes from the goal side and from the inside, not straight down the line he happens to be on: he is between the man and his goal, and when the man is near a touchline
+        // he shows him the line, so he is forced wide where a pass or a clearance is the only way out.
+        const ownGX = opp.attackDir === 1 ? 0 : L, gx = ownGX - c.player.x, gy = W / 2 - c.player.y, gl = Math.hypot(gx, gy) || 1, wide = Math.abs(c.player.y - W / 2) > W / 2 - 13 ? Math.sign(W / 2 - c.player.y) * 1.3 : 0;
+        const k = FM.PRESS_ANGLE == null ? 0.6 : FM.PRESS_ANGLE;
+        ov.set(p, { x: c.player.x + c.player.vx * 0.4 + (gx / gl * k + dx / dd * (1 - k)) * stand, y: c.player.y + c.player.vy * 0.4 + (gy / gl * k + dy / dd * (1 - k)) * stand + wide });
       });
       // Recovery. A defender who has been beaten does not stay behind the ball: he sprints to get goal-side again, between the man with the ball and
       // his goal, rather than trailing after him.

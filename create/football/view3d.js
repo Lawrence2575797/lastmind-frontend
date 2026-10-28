@@ -18,7 +18,7 @@
   }
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   const angDiff = (a, b) => { let d = b - a; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; return d; };
-  const lastBall = { x: 0, z: 0 }; let lastT = null, carriedVis = null, relOff = null, spcOn = false, snapNext = false, camSpread = 12, ballV = { x: 0, z: 0 }, lastBx = null, lastBz = null;
+  const lastBall = { x: 0, z: 0 }; let stadiumBuilt = false, lastT = null, carriedVis = null, relOff = null, spcOn = false, snapNext = false, camSpread = 12, ballV = { x: 0, z: 0 }, lastBx = null, lastBz = null;
   const mkCanvas = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; };
   const tex = (c, srgb) => { const t = new THREE.CanvasTexture(c); if (srgb !== false) t.encoding = THREE.sRGBEncoding; t.anisotropy = renderer.capabilities.getMaxAnisotropy(); return t; };
 
@@ -391,12 +391,12 @@
     const cols = ['#3b4b43', '#5a4a3d', '#2f4157', '#6e5e3f', '#4b3135', '#25342d', '#7c8c84', '#40594a'];
     for (let i = 0; i < 3000; i++) { cg.fillStyle = cols[(Math.random() * cols.length) | 0]; cg.globalAlpha = 0.5 + Math.random() * 0.45; const x = Math.random() * 512, y = Math.random() * 128; cg.beginPath(); cg.arc(x, y - 2, 2.1, 0, 6.3); cg.fill(); cg.fillRect(x - 2.6, y, 5.2, 3.4); }
     CROWD = tex(cc); CROWD.wrapS = CROWD.wrapT = THREE.RepeatWrapping;
-    const near = stand(L + 26, HW + 7), far = stand(L + 26, HW + 7), r = stand(W + 30, HL + 12), l = stand(W + 30, HL + 12);
-    far.rotation.y = Math.PI; r.rotation.y = Math.PI / 2; l.rotation.y = -Math.PI / 2; r.scale.y = 0.7; l.scale.y = 0.7; scene.add(near, far, r, l);
+    let near, far, r, l; if (!FM.stadium) { near = stand(L + 26, HW + 7); far = stand(L + 26, HW + 7); r = stand(W + 30, HL + 12); l = stand(W + 30, HL + 12); }
+    if (near) { far.rotation.y = Math.PI; r.rotation.y = Math.PI / 2; l.rotation.y = -Math.PI / 2; r.scale.y = 0.7; l.scale.y = 0.7; scene.add(near, far, r, l); }
     const bc = mkCanvas(1024, 64), bg = bc.getContext('2d'); bg.fillStyle = '#0f1b15'; bg.fillRect(0, 0, 1024, 64); bg.fillStyle = '#e8dcb4'; bg.font = '800 30px Helvetica, Arial, sans-serif'; bg.textBaseline = 'middle';
     for (let i = 0; i < 3; i++) { bg.fillText('LASTMIND FOOTBALL', 30 + i * 340, 34); bg.fillStyle = '#deb862'; bg.fillRect(i * 340 + 6, 28, 12, 12); bg.fillStyle = '#e8dcb4'; }
     BOARD = tex(bc); BOARD.wrapS = THREE.RepeatWrapping;
-    const board = (len, x, z, ry) => { const t = BOARD.clone(); t.needsUpdate = true; t.wrapS = THREE.RepeatWrapping; t.repeat.set(len / 34, 1); const m = new THREE.Mesh(new THREE.BoxGeometry(len, 0.9, 0.12), new THREE.MeshStandardMaterial({ map: t, roughness: 0.6, emissive: 0x16241c, emissiveIntensity: 0.5 })); m.position.set(x, 0.45, z); m.rotation.y = ry; scene.add(m); };
+    const board = (len, x, z, ry) => { const t = BOARD.clone(); t.needsUpdate = true; t.wrapS = THREE.RepeatWrapping; t.repeat.set(len / 34, 1); const m = new THREE.Mesh(new THREE.BoxGeometry(len, 0.9, 0.12), new THREE.MeshStandardMaterial({ map: t, roughness: 0.5, emissive: 0xffffff, emissiveMap: t, emissiveIntensity: 0.85 })); m.position.set(x, 0.45, z); m.rotation.y = ry; scene.add(m); };
     board(L + 8, 0, HW + 3.4, 0); board(L + 8, 0, -HW - 3.4, Math.PI); board(W + 6, HL + 4.2, 0, -Math.PI / 2); board(W + 6, -HL - 4.2, 0, Math.PI / 2);
     [[-74, -52], [74, -52], [-74, 52], [74, 52]].forEach((p) => { const pole = cyl(0.5, 30, new THREE.MeshStandardMaterial({ color: 0x28332d })); pole.position.set(p[0], 15, p[1]); scene.add(pole); const head = new THREE.Mesh(new THREE.BoxGeometry(7, 3.2, 1), new THREE.MeshStandardMaterial({ color: 0xfff6dc, emissive: 0xfff0c8, emissiveIntensity: 1.2 })); head.position.set(p[0], 30.4, p[1]); head.lookAt(0, 20, 0); scene.add(head); });
     ballMesh = new THREE.Mesh(new THREE.SphereGeometry(0.115, 24, 16), new THREE.MeshStandardMaterial({ map: ballTexture(), roughness: 0.45 })); ballMesh.castShadow = true; scene.add(ballMesh);
@@ -532,7 +532,7 @@
       tx = clamp(bx, -HL + 4, HL - 4); tz = bz * 0.5; cx = tx * 0.95 - 4; cy = 3.4; cz = HW + 3.2 + 4 * clamp(bz / 28, 0, 1); ty = 0.9;
     } else if (mode === 'stands') {
       // from the middle of the main stand, higher up: the whole width of the pitch and a long stretch of it, so the shape of both teams can be read
-      tx = clamp(bx + ballV.x * 0.45, -HL + 12, HL - 12); tz = clamp(bz * 0.55, -16, 16); cx = tx * 0.92; cy = 21 + 6 * zoom; cz = HW + 13; ty = 0.4;
+      tx = clamp(bx + ballV.x * 0.45, -HL + 12, HL - 12); tz = clamp(bz * 0.55, -16, 16); cx = tx * 0.92; cy = 15 + 5 * zoom; cz = HW + 6.5 + 2 * zoom; ty = 0.4;
     } else {
       // from the touchline, where the manager stands: a steady wide view that slides along the line with the ball
       // It follows the ball all the way to the corner flags. With the ball on the near touchline the camera rises and backs off a little and looks at it,
@@ -561,6 +561,8 @@
       const dt = Math.min(0.1, (ctx && ctx.dt) || 0.016); clock += dt; netT += dt;
       const nowT = performance.now(), rdt = clamp(lastT == null ? dt : (nowT - lastT) / 1000, 0.004, 0.25); lastT = nowT;
       ensurePlayers(m);
+      if (!stadiumBuilt && FM.stadium) { stadiumBuilt = true; try { const hc = (m.home.kit && m.home.kit.shirt) || '#c0392b', ac = (m.away.kit && m.away.kit.shirt) || '#2c5aa0'; FM.stadium.build(scene, { HL, HW, mkCanvas, tex, board: BOARD, homeHex: hc, awayHex: ac }); } catch (e) { try { console.warn('The stadium did not build', e); } catch (x) { /* nothing to log to */ } } }
+      if (FM.stadium) FM.stadium.update(m);
       // a replay: the recorded frames stand in for the live positions, and the live match waits
       if (m.phase === 'replay' && !rp && !m.replayDone) startReplay(m);
       if (rp && rp.m !== m) { rp = null; }

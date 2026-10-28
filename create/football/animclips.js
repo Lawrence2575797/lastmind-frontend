@@ -46,6 +46,12 @@
     const a = acc.q; for (let k = 0; k < NB; k++) { const i = k * 4, l = 1 / (Math.hypot(a[i], a[i + 1], a[i + 2], a[i + 3]) || 1); a[i] *= l; a[i + 1] *= l; a[i + 2] *= l; a[i + 3] *= l; }
     if (acc.w > 0) { acc.hy /= acc.w; acc.hx /= acc.w; acc.hz /= acc.w; }
   }
+  // take the turn about the vertical out of the hips rotation, leaving the rest of the pose
+  function yawStrip(q) {
+    const x = q[0], y = q[1], z = q[2], w = q[3], psi = Math.atan2(2 * (x * z + w * y), 1 - 2 * (x * x + y * y)), s = Math.sin(-psi / 2), c = Math.cos(-psi / 2);
+    // q' = Ry(-psi) * q
+    q[0] = c * x + s * z; q[1] = c * y + s * w; q[2] = c * z - s * x; q[3] = c * w - s * y;
+  }
   const reset = (p) => { p.q.fill(0); p.hy = p.hx = p.hz = 0; p.w = 0; };
   const L1 = mk(), L2 = mk(), OS = mk();
 
@@ -90,6 +96,8 @@
   // ---- the per-frame step for one figure; st carries velocity in the body frame (vf forward, vs toward his left), turn rate, acceleration, look angle and the entity
   A.step = function (f, st, dt, t) {
     A.drove = (A.drove || 0) + 1; A.droveAt = performance.now();
+    // standing, a quick turn is the standing-turn clip (left or right), so he turns on his feet instead of spinning on the spot
+    if (st.e && !st.e.os && A.clips.turnL90 && Math.hypot(st.vf, st.vs) < 1.6 && Math.abs(st.turn) > 2.2 && t > (st.e.tuCool || 0)) { st.e.tuCool = t + 1.4; A.play(st.e, st.turn > 0 ? 'turnR90' : 'turnL90', { fi: 0.1, fo: 0.3, len: 1.1, rate: clamp(Math.abs(st.turn) / 2.6, 0.9, 2) }); }
     // a hard turn at full pace is the sprint-turn clip, not a swerve of the jog
     if (st.e && !st.e.os && A.clips.sprintTurn && Math.hypot(st.vf, st.vs) > 4.8 && Math.abs(st.turn) > 4.5 && t > (st.e.stCool || 0)) { st.e.stCool = t + 2.5; A.play(st.e, 'sprintTurn', { fi: 0.08, fo: 0.25, len: 0.85 }); }
     const e = st.e, sp = Math.hypot(st.vf, st.vs), gk = !!st.gk;
@@ -117,6 +125,7 @@
       const o = e.os; o.t += dt * o.rate;
       const tin = o.fi > 0 ? smooth(0, 1, o.t / o.fi) : 1, tout = o.fo > 0 ? 1 - smooth(0, 1, (o.t - (o.len - o.fo)) / o.fo) : 1; wOS = Math.min(tin, tout);
       sampleInto(OS, A.clips[o.name], o.t, false);
+      if (o.name.indexOf('turn') === 0) yawStrip(OS.q);   // the match turns him; the clip supplies the feet and the body's twist
       if (o.t >= o.len) { if (o.next) { e.os = { name: o.next.name, t: 0, rate: 1, len: o.next.len, fi: o.next.fi || 0.1, fo: o.next.fo || 0.3, root: false, next: o.next.next }; } else e.os = null; }
       if (e.os) root = o.root ? 1 : 0;
     }
