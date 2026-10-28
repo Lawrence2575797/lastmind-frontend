@@ -211,17 +211,19 @@
     const bones = [body, torso, headG, Lh.arm, Lh.elbow, Lh.hand, Rh.arm, Rh.elbow, Rh.hand, Lh.hip, Lh.knee, Lh.ankle, Rh.hip, Rh.knee, Rh.ankle];
     root.updateMatrixWorld(true);
     const skeleton = new THREE.Skeleton(bones);
-    const add = (geo, mat, cast) => { const m = new THREE.SkinnedMesh(geo, mat); m.castShadow = !!cast; m.frustumCulled = false; root.add(m); root.updateMatrixWorld(true); m.bind(skeleton); return m; };
+    const mx = FM.playerModel && FM.playerModel.ready ? FM.playerModel.make({ shirt: o.shirt, shorts: o.shorts, sock: o.sock, boot: o.boot, skin: o.skin, hair: o.hair, bald: o.style === 'bald' }) : null;
+    if (mx) root.add(mx.group);
+    const add = (geo, mat, cast) => { if (mx) return null; const m = new THREE.SkinnedMesh(geo, mat); m.castShadow = !!cast; m.frustumCulled = false; root.add(m); root.updateMatrixWorld(true); m.bind(skeleton); return m; };
     add(SKR.skin, MS(o.skin, 0.58), true); add(SKR.shirt, MS(o.shirt, 0.68), true); add(SKR.shorts, MS(o.shorts, 0.72), true); add(SKR.socks, MS(o.sock, 0.8), true); add(SKR.trim, MS(o.trim, 0.65), false); add(SKR.boots, MS(o.boot, 0.42), true);
     add(SKR.face, MS(0xffffff, 0.45, { vertexColors: true }), false);
     if (o.style !== 'bald' && SKR.hair[o.style]) add(SKR.hair[o.style], MS(o.hair, 0.88), true);
     // the number on the back, carried by the trunk
-    const num = new THREE.Mesh(new THREE.PlaneGeometry(0.3, 0.3), new THREE.MeshBasicMaterial({ map: numberTexture(o.num, o.numColor), transparent: true })); num.position.set(0, 0.3, -0.126); num.rotation.y = Math.PI; torso.add(num);
+    const num = new THREE.Mesh(new THREE.PlaneGeometry(0.3, 0.3), new THREE.MeshBasicMaterial({ map: numberTexture(o.num, o.numColor), transparent: true })); num.position.set(0, mx ? 0.22 : 0.3, mx ? -0.2 : -0.126); num.rotation.y = Math.PI; torso.add(num);
     // a soft contact shadow so the feet sit on the grass
     if (!matCache.blob) { const c = mkCanvas(64, 64), g = c.getContext('2d'), gr = g.createRadialGradient(32, 32, 2, 32, 32, 31); gr.addColorStop(0, 'rgba(0,0,0,.55)'); gr.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = gr; g.fillRect(0, 0, 64, 64); matCache.blob = new THREE.MeshBasicMaterial({ map: tex(c, false), transparent: true, depthWrite: false }); }
     const blob = new THREE.Mesh(new THREE.PlaneGeometry(1.15, 0.85), matCache.blob); blob.rotation.x = -Math.PI / 2; blob.position.y = 0.012; root.add(blob);
     root.scale.set((o.height || 1) * (o.build || 1), o.height || 1, (o.height || 1) * (o.build || 1));
-    return { root, body, torso, headG, L: Lh, R: Rh, phase: Math.random() * 6, look: 0, bank: 0, sway: Math.random() * 6 };
+    return { root, body, torso, headG, L: Lh, R: Rh, mx, phase: Math.random() * 6, look: 0, bank: 0, sway: Math.random() * 6 };
   }
   const mix = (a, b, k) => a + (b - a) * k;
   // Standing, walking, jogging, sprinting: one blend. Idle is an athletic stance (knees soft, arms loose, weight shifting), the run leans into its
@@ -549,7 +551,7 @@
     poseFor(m, teamId, number, type, dur, dir) { const e = findBy(m, teamId, number); setPose(e, type, dur || 1, dir || 1); return !!e; },   // for trying out the animations
     get playersMap() { return players; }, get ball() { return ballMesh; }, get cameraObj() { return camera; },
     get ready() { return ready; }, get failed() { return failed; }, get mode() { return mode; },
-    ensure(container) { host = container; if (FM.anim) FM.anim.load(); if (ready) { if (renderer.domElement.parentElement !== host) host.appendChild(renderer.domElement); size(); return Promise.resolve(); } return load().then(() => { if (!ready) build(); size(); }); },
+    ensure(container) { host = container; if (FM.anim) FM.anim.load(); const pm = () => (FM.playerModel ? FM.playerModel.load() : Promise.resolve()); if (ready) { if (renderer.domElement.parentElement !== host) host.appendChild(renderer.domElement); size(); return pm().then(() => {}); } return load().then(pm).then(() => { if (!ready) build(); size(); }); },
     setMode(m) { mode = m === 'stands' ? 'stands' : 'touchline'; size(); },
     resize: size,
     render(m, ctx) {
@@ -600,6 +602,7 @@
         // the first touch: a man who has just received the ball cushions it
         if (isC && !e.wasC && e.speed < 8) setPose(e, 'control', 0.5, e.foot); e.wasC = isC;
         if (e.pose) { e.pose.t += dt; if (e.pose.t >= e.pose.dur) e.pose = null; else applyPose(e.fig, e.pose.type, e.pose.t, e.pose.dur, e.pose.dir); }
+        if (e.fig.mx) e.fig.mx.sync(e.fig);
       }));
       let bx = ((ctx && ctx.renderBall) || m.ball).x - HL, bz = ((ctx && ctx.renderBall) || m.ball).y - HW, by = replay ? ctx.replayBy : ballHeight(m, bx, bz);
       // Dribbling. The ball is a real rolling ball (it slows on the grass) that the carrier touches as he runs. At a jog he plays it on every stride and it stays at his feet; at
