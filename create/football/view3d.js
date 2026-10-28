@@ -18,7 +18,7 @@
   }
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   const angDiff = (a, b) => { let d = b - a; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; return d; };
-  const lastBall = { x: 0, z: 0 }; let lastT = null;
+  const lastBall = { x: 0, z: 0 }; let lastT = null, carriedVis = null, relOff = null;
   const mkCanvas = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; };
   const tex = (c, srgb) => { const t = new THREE.CanvasTexture(c); if (srgb !== false) t.encoding = THREE.sRGBEncoding; t.anisotropy = renderer.capabilities.getMaxAnisotropy(); return t; };
 
@@ -330,6 +330,10 @@
       Kf.hip.rotation.x = 0.85 * back - 1.35 * strike * (1 - 0.35 * fol); Kf.knee.rotation.x = 1.5 * back * (1 - strike) + 0.12 + 0.5 * fol;
       Pf.knee.rotation.x = 0.32; Pf.hip.rotation.x = 0.1; f.torso.rotation.y = -0.4 * sg * Math.sin(Math.PI * Math.min(1, kk * 1.2));
       f.body.rotation.x = -0.05 + 0.1 * strike; f.L.arm.rotation.z = 0.7 * s; f.R.arm.rotation.z = -0.55 * s; f.L.arm.rotation.x = -0.4 * s; f.R.arm.rotation.x = 0.3 * s;
+    } else if (type === 'touch') {
+      // a dribbling touch: the nearer foot swings out and through the ball and comes back
+      const Kf = dir < 0 ? f.L : f.R, h = Math.sin(Math.PI * Math.min(1, k));
+      Kf.hip.rotation.x = -0.5 * h; Kf.knee.rotation.x = 0.1 + 0.4 * (1 - h) * h * 2; f.body.rotation.x += 0.04 * h;
     } else if (type === 'control') {
       // a cushioned first touch: the foot goes out to meet the ball and gives with it, the head drops to watch it, the arms balance
       const Kf = dir < 0 ? f.L : f.R, Pf = dir < 0 ? f.R : f.L, h = Math.sin(Math.PI * Math.min(1, k * 1.15));
@@ -592,21 +596,44 @@
         if (e.pose) { e.pose.t += dt; if (e.pose.t >= e.pose.dur) e.pose = null; else applyPose(e.fig, e.pose.type, e.pose.t, e.pose.dur, e.pose.dir); }
       }));
       let bx = ((ctx && ctx.renderBall) || m.ball).x - HL, bz = ((ctx && ctx.renderBall) || m.ball).y - HW, by = replay ? ctx.replayBy : ballHeight(m, bx, bz);
-      // A man running with the ball does not carry it glued to his boots: he pushes it ahead a stride at a time, and the further and faster he goes the
-      // further ahead it runs between touches.
+      // Dribbling. The ball is a real rolling ball (it slows on the grass) that the carrier touches as he runs. At a jog he plays it on every stride and it stays at his feet; at
+      // a sprint he knocks it several metres ahead and runs on to it, so the touches come every few strides. Each touch swings the nearer foot to the ball. He stops
+      // and shields it when he stands still, and when he is about to pass or shoot it is brought to his foot for the kick.
+      let vis = false;
       if (!replay && m.carrier && m.ball.state === 'carried' && !goalFx) {
         const ce = players.get(m.carrier.player.id), rp = ce && ((ctx && ctx.renderPos && ctx.renderPos.get(m.carrier.player.id)) || null);
         if (ce && rp && Number.isFinite(rp.facing)) {
-          // a touch every stride: the ball runs a little ahead and is played again, on the rhythm of the gait the figure is in, and the offset from his feet is smoothed
-          // so it never snaps (when he turns, or when the gait changes)
-          const k = clamp(ce.speed / 7, 0, 1), g = ce.fig.spp > 0 && ce.speed > 4.4 ? ce.fig.spp : (ce.fig.lp != null ? ce.fig.lp : ce.fig.phase / (Math.PI * 2)), st = Math.sin(g * Math.PI * 4 - 0.6);
-          const ahead = 0.4 + k * 0.42 * (0.5 + 0.5 * st), side = 0.08 * Math.sin(g * Math.PI * 2), ox = Math.cos(rp.facing) * ahead - Math.sin(rp.facing) * side, oz = Math.sin(rp.facing) * ahead + Math.cos(rp.facing) * side;
-          if (!ce.bo || ce.boFor !== m.carrier.player) { ce.bo = { x: ox, z: oz }; ce.boFor = m.carrier.player; }
-          const kb = Math.min(1, dt * 13); ce.bo.x += (ox - ce.bo.x) * kb; ce.bo.z += (oz - ce.bo.z) * kb;
-          bx = rp.x - HL + ce.bo.x; bz = rp.y - HW + ce.bo.z;
-          by = 0.115 + k * 0.05 * Math.max(0, st);
+          const cx = rp.x - HL, cz = rp.y - HW, ux = Math.cos(rp.facing), uz = Math.sin(rp.facing), nx = -uz, nz = ux, sp = Math.hypot(ce.vx, ce.vz), run = sp > 4.3;
+          let dr = ce.dr; if (!dr || dr.who !== m.carrier.player) dr = ce.dr = { who: m.carrier.player, x: lastBall.x, z: lastBall.z, vx: ce.vx, vz: ce.vz, t: 0, last: -1, side: 1 };
+          const pa = m.pendingAct && m.pendingAct.player === m.carrier.player ? m.pendingAct : (m.kickCue && m.kickCue.player === m.carrier.player ? m.kickCue : null), dtp = ctx && ctx.simDt > 0.002 ? ctx.simDt : 0;
+          let left = dtp;
+          do {
+            const h = left > 0 ? Math.min(0.025, left) : 0; left -= h; dr.t += h;
+            const along = (dr.x - cx) * ux + (dr.z - cz) * uz, lat = (dr.x - cx) * nx + (dr.z - cz) * nz;
+            if (pa || sp < 0.9) {
+              // standing, or lining up a pass or shot: the ball is at his foot (where the engine has it for the kick)
+              const d = pa ? 0.72 : 0.5, kk = Math.min(1, (h || dt) * (pa ? 12 : 8)); dr.x += (cx + ux * d - dr.x) * kk; dr.z += (cz + uz * d - dr.z) * kk; dr.vx = ce.vx; dr.vz = ce.vz;
+            } else {
+              if (h > 0) { dr.x += dr.vx * h; dr.z += dr.vz * h; const fr = Math.exp(-1.25 * h); dr.vx *= fr; dr.vz *= fr; }
+              const reach = run ? 0.5 : 0.44, lost = along > (run ? 3.4 : 1.8) || along < -0.7 || Math.abs(lat) > 1.5;
+              if ((along < reach && dr.t - dr.last > 0.17) || lost) {
+                // a touch: the ball leaves the foot at the speed he is running plus a push, a little to one side, alternating feet
+                dr.side = -dr.side;
+                if (lost) { const tx = cx + ux * 0.7 + ce.vx * 0.2, tz = cz + uz * 0.7 + ce.vz * 0.2, ex = (tx - dr.x) / 0.18, ez = (tz - dr.z) / 0.18, em = Math.hypot(ex, ez), cap = Math.min(em, 15) / (em || 1); dr.vx = ex * cap; dr.vz = ez * cap; }
+                else { const push = run ? 4.6 + 0.3 * sp : 0.62 + 0.08 * sp, sd = (run ? 0.5 : 0.25) * dr.side; dr.vx = ux * (sp + push) + nx * sd; dr.vz = uz * (sp + push) + nz * sd; if (along < 0.2) { dr.x += ux * (0.34 - along); dr.z += uz * (0.34 - along); } }
+                dr.last = dr.t; if (h > 0) setPose(ce, 'touch', run ? 0.2 : 0.17, dr.side);
+              }
+            }
+          } while (left > 1e-6);
+          bx = dr.x; bz = dr.z; vis = true;
+          // a little hop after a hard push, flat when he is jogging
+          by = 0.115 + (run ? 0.07 : 0.025) * Math.max(0, 1 - (dr.t - dr.last) / 0.22) + (run ? 0.02 : 0);
         }
       }
+      // the ball leaves the carrier's control (a pass, a shot, a tackle): it is drawn where it was and eased to where the match has it
+      if (vis) { carriedVis = { x: bx, z: bz }; relOff = null; }
+      else if (carriedVis && !replay) { relOff = { x: carriedVis.x - bx, z: carriedVis.z - bz }; carriedVis = null; }
+      if (relOff && !replay) { const kr = Math.exp(-dt * 11); relOff.x *= kr; relOff.z *= kr; bx += relOff.x; bz += relOff.z; if (Math.hypot(relOff.x, relOff.z) < 0.02) relOff = null; }
       if (goalFx) {
         // after a goal the ball runs on into the net, hits it, and drops
         goalFx.t += dt; const g = goalFx, t = Math.min(g.t, 0.5), run = 1.9 * (1 - Math.pow(1 - t / 0.5, 2));
