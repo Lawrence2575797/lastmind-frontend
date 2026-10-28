@@ -43,7 +43,7 @@
     const roof = new THREE.Mesh(new THREE.BoxGeometry(roofLen, 0.5, roofD), stdMat({ color: 0x22292f, roughness: 0.7, metalness: 0.3 })); roof.position.set(0, ry + 1.2, off + roofD / 2 - 1); roof.rotation.x = slope; g.add(roof);
     const under = new THREE.Mesh(new THREE.PlaneGeometry(roofLen - 2, roofD - 2), new THREE.MeshBasicMaterial({ color: 0x3b4a58, fog: true })); under.rotation.x = Math.PI / 2 + slope; under.position.set(0, ry + 0.9, off + roofD / 2 - 1); g.add(under);
     for (let k = 0; k < 6; k++) { const strip = new THREE.Mesh(new THREE.BoxGeometry(roofLen - 8, 0.12, 0.5), new THREE.MeshBasicMaterial({ color: 0xfff4d8, fog: false })); strip.position.set(0, ry + 0.82 + k * 0.01, off + 2 + k * (roofD - 5) / 6); strip.rotation.x = slope; g.add(strip); }
-    const fascia = new THREE.Mesh(new THREE.BoxGeometry(roofLen, 1.5, 0.3), new THREE.MeshStandardMaterial({ map: ctx.board.clone(), emissive: 0xffffff, emissiveMap: ctx.board, emissiveIntensity: 0.55, roughness: 0.6 })); fascia.material.map.needsUpdate = true; fascia.material.map.repeat.set(roofLen / 34, 1); fascia.position.set(0, ry + 0.6, off - 1.5 + roofD * 0.0); g.add(fascia);
+    const fascia = new THREE.Mesh(new THREE.BoxGeometry(roofLen, 1.5, 0.3), new THREE.MeshStandardMaterial({ color: 0x1a2229, emissive: 0x2a3a48, emissiveIntensity: 0.5, roughness: 0.6 })); fascia.position.set(0, ry + 0.6, off - 1.5 + roofD * 0.0); g.add(fascia);
     for (let x = -len / 2; x <= len / 2 + 0.1; x += 14) { const col = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.45, ry + 1, 10), steel); col.position.set(x, (ry + 1) / 2, z + 0.9); g.add(col); const bm = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.5, roofD - 1), steel); bm.position.set(x, ry + 0.7, off + roofD / 2 - 1); bm.rotation.x = slope; g.add(bm); }
     g.userData.tag = tag; return g;
   }
@@ -68,7 +68,7 @@
     const tun = new THREE.Mesh(new THREE.BoxGeometry(6, 3.4, 0.5), new THREE.MeshBasicMaterial({ color: 0x05070a })); tun.position.set(0, 1.7, -(HW + 8) + 0.1); scene.add(tun);
     const rim = new THREE.Mesh(new THREE.BoxGeometry(6.6, 0.25, 0.55), new THREE.MeshBasicMaterial({ color: 0xdfe8f0, fog: false })); rim.position.set(0, 3.45, -(HW + 8) + 0.12); scene.add(rim);
     // the big screen on the east end
-    { const c = ctx.mkCanvas(1024, 340); S.screen = { c, g: c.getContext('2d'), t: null }; S.screen.t = ctx.tex(c); const m = new THREE.Mesh(new THREE.PlaneGeometry(22, 7.3), new THREE.MeshBasicMaterial({ map: S.screen.t, fog: false })); m.position.set(HL + 12.6, 10.2, 0); m.rotation.y = -Math.PI / 2; scene.add(m); const fr = new THREE.Mesh(new THREE.BoxGeometry(0.4, 7.9, 22.8), stdMat({ color: 0x0b0e11 })); fr.position.set(HL + 12.9, 10.2, 0); scene.add(fr); S.draw('LASTMIND FOOTBALL', '', '0', '0'); }
+    // (no big screen: it filled the picture whenever the camera looked towards that end)
     // floodlights: a bright bank and a glow, so the lights read as lights
     [[-74, -52], [74, -52], [-74, 52], [74, 52]].forEach((p) => {
       const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: glow, color: 0xfff1d0, transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending, depthWrite: false, fog: false })); sp.scale.set(34, 34, 1); sp.position.set(p[0] * 0.98, 31, p[1] * 0.98); scene.add(sp);

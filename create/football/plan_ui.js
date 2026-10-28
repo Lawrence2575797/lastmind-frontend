@@ -215,8 +215,8 @@
   // ---------- the page ----------
   // dials: real-unit sliders under the pitch; the engine reads them straight away
   function dialsHtml(team, ph) {
-    const g = SIDE_OF[ph] === 'with' ? 'With the ball' : 'Without the ball';
-    return '<div class="pl-dialgrid">' + FM.DIALS.filter((d) => d.group === g).map((d) => { const v = FM.dialGet(team, d.id); return `<label class="pl-dial" for="dial-${d.id}"><span class="pl-dial-h"><b>${esc(d.label)}</b><output id="dial-out-${d.id}">${esc(FM.dialShow(d.id, v))}</output></span><input id="dial-${d.id}" type="range" data-dial="${d.id}" min="${d.lo}" max="${d.hi}" step="${d.step}" value="${v}"><small>${esc(d.words)}</small></label>`; }).join('') + '</div>';
+    const list = FM.DIALS.filter((d) => d.phases.indexOf(ph) >= 0); if (!list.length) return '';
+    return '<div class="pl-dialgrid">' + list.map((d) => { const v = FM.dialGet(team, d.id); return `<label class="pl-dial" for="dial-${d.id}"><span class="pl-dial-h"><b>${esc(d.label)}</b><output id="dial-out-${d.id}">${esc(FM.dialShow(d.id, v))}</output></span><input id="dial-${d.id}" type="range" data-dial="${d.id}" min="${d.lo}" max="${d.hi}" step="${d.step}" value="${v}"><small>${esc(d.words)}</small></label>`; }).join('') + '</div>';
   }
   FM.renderPlanTab = function (host, team, tab, hooks) {
     const phases = TAB_PHASES[tab]; if (!phases) return false;
@@ -229,15 +229,13 @@
       const legacy = (team.rules || []).filter((r) => r.source !== 'plan');
       host.innerHTML = `<div class="pl">
         ${phases.length > 1 ? `<div class="pl-sub">${phases.map((k) => `<button type="button" class="${k === ph ? 'on' : ''}" data-sub="${k}">${esc(FM.planPhase(k).name)}</button>`).join('')}</div>` : ''}
-        <div class="pl-head"><h3>${esc(info.name)}</h3><p>${esc(info.blurb)}</p></div>
-        ${team.legacyTactics && !pl.noticeSeen ? '<div class="pl-notice">Tactics are now set with choices and roles as well as by placing players. Where you drag a player is where he stands in that phase, and his role and instructions decide how he plays from there. Your hand-placed positions from before are kept. <button type="button" data-notice="1">Got it</button></div>' : ''}
-        ${legacy.length ? `<div class="pl-notice">${legacy.length} written instruction${legacy.length === 1 ? '' : 's'} from before ${legacy.length === 1 ? 'is' : 'are'} still active. <button type="button" data-clear-legacy="1">Remove ${legacy.length === 1 ? 'it' : 'them'}</button></div>` : ''}
+        <div class="pl-head"><h3>${esc(info.name)}</h3></div>
         <div class="pl-grid">
           <section class="card pl-left"><div class="pl-ovl" role="group" aria-label="Pitch overlays"><span>Overlays</span>${OVL.map(([k, n]) => `<button type="button" class="${UI.ovl[k] ? 'on' : ''}" data-ovl="${k}" aria-pressed="${UI.ovl[k]}">${n}</button>`).join('')}</div><div class="pl-pitchbar">${manualCount(team, ph) ? '<button type="button" data-resetpos="1">Put this phase\'s players back where their roles put them</button>' : ''}<button type="button" class="${UI.showOpp ? 'on' : ''}" data-opp="1"${hooks.opp ? '' : ' disabled'}>${UI.showOpp ? 'Hide' : 'Show'} the opposition</button></div><div class="pl-pitchwrap${UI.mode !== 'view' ? ' picking' : ''}">${pitchSvg(team, ph, hooks, A)}</div>${(() => { const rp = hooks.report ? hooks.report(FM.planPhase(ph).eng[0]) : ''; return rp ? `<div class="pl-oppreport">${UI.showOpp ? '' : '<p class="pl-help">Show the opposition to see how they stand in this phase.</p>'}${rp}</div>` : ''; })()}
-            ${selP ? `<div class="pl-selbar"><b>${esc(selP.name)}</b> <span>${esc((FM.ROLES[selP.roleId] || {}).name || '')}</span><button type="button" data-openp="1">Open role and instructions</button><button type="button" data-unsel="1">Clear</button></div>` : ''}<p class="pl-help pl-legend">Each shirt is a player and where he stands in this phase. Drag one to where you want him: that is where he stands, and his role and instructions decide how he plays from there. A white dot marks a player you have placed. Click one to select him (his path through the phases can then be shown with the Selected player overlay). Overlays are off until you switch them on.</p></section>
+            ${selP ? `<div class="pl-selbar"><b>${esc(selP.name)}</b> <span>${esc((FM.ROLES[selP.roleId] || {}).name || '')}</span><button type="button" data-openp="1">Open role and instructions</button><button type="button" data-unsel="1">Clear</button></div>` : ''}</section>
           <section class="card pl-right"><h4>Team approach: ${esc(info.name.toLowerCase())}</h4>${teamPanel(team, ph)}</section>
         </div>
-        <section class="card pl-dials"><h4>Dials: ${SIDE_OF[ph] === 'with' ? 'with the ball' : 'without the ball'}</h4>${dialsHtml(team, ph)}</section>
+        ${dialsHtml(team, ph) ? `<section class="card pl-dials"><h4>Dials for ${esc(info.name.toLowerCase())}</h4>${dialsHtml(team, ph)}</section>` : ''}
         <section class="card pl-analysis">${FM.planAnalysisHtml ? FM.planAnalysisHtml(team, ph, hooks) : ''}</section>
         <section class="card pl-plans"><h4>On the pitch: areas and triggers</h4>${planItems(team, ph)}${builder(team, ph)}</section>
         <section class="card pl-sum"><h4>The plan so far</h4>${FM.planSummary(team).map((x) => `<p><b>${esc(x.phase)}:</b> ${esc(x.text)}</p>`).join('') || '<p class="pl-empty">Everything is as the roles set it. Make a choice above and it appears here.</p>'}</section></div>`;

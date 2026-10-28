@@ -63,7 +63,7 @@
     const sc = buildSchedule(lg), rows = sc.order.map((id) => Object.assign({ id, nd: FM.knowledgeNode(id) }, schedState(lg, id)));
     const grp = (list, title) => (list.length ? '<div class="kn-sg"><div class="kn-kicker">' + title + '</div>' + list.map((r) => '<button type="button" class="kn-row ' + r.st + (S.sel === r.id ? ' sel' : '') + '" data-node="' + r.id + '"><span class="kn-st ' + r.st + '">' + stShort(r) + '</span><b>' + esc(r.nd.t) + '</b><i>' + esc(r.nd.spec) + ' · ' + esc(stText(r)) + '</i></button>').join('') + '</div>' : '');
     const od = rows.filter((r) => r.st === 'overdue'), du = rows.filter((r) => r.st === 'due'), up = rows.filter((r) => r.st === 'upcoming'), dn = rows.filter((r) => r.st === 'done');
-    return '<div class="kn-sched"><p class="kn-note">One lesson falls due between each match, in an order where nothing is taught before what it needs. Each ends with a question whose answer changes your club. Nothing is forced.</p>' +
+    return '<div class="kn-sched">' +
       '<div class="kn-stat2"><b>' + matchesPlayed(lg) + '</b> matches played · <b>' + dn.length + '</b> of ' + rows.length + ' scheduled lessons learnt</div>' +
       grp(od, 'Overdue') + grp(du, 'Due now') + grp(up.slice(0, 8), 'Coming up') + (up.length > 8 ? '<p class="kn-note">and ' + (up.length - 8) + ' more after these.</p>' : '') + grp(dn.slice(-6), 'Learnt') +
       (!rows.length ? '<p class="kn-soon">No lessons are written for this course yet.</p>' : '') + '</div>';

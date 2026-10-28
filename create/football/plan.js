@@ -49,8 +49,6 @@
         o('short', 'Short and patient', { r: [['team', [E.len('short', 0.8)]]] }), STD('Mixed'), o('direct', 'Direct', { r: [['team', [E.len('long', 0.7), E.dir('forward', 0.4)]]] })]),
       T('route', 'Where we build', 'Through the flanks stretches them; through the middle is shorter but more crowded.', [
         o('flanks', 'Through the flanks', { r: [['team', [E.to({ side: 'wide' }, 0.5)]]] }), STD('Balanced'), o('centre', 'Through the middle', { r: [['team', [E.to({ side: 'centre' }, 0.5)]]] })]),
-      T('shape', 'Build-up shape', 'How the back players arrange themselves to start the move.', [
-        STD('Back four'), o('three', 'Back three (the holding midfielder drops in)', { pos: [['DM', -9, 0], ['CB', 0, 5], ['FB', 7, 0]] }), o('box', 'Box (full-backs tuck inside)', { pos: [['FB', 5, -9]] }), o('wide', 'Wide centre-backs', { pos: [['CB', 0, 7], ['GK', 3, 0]] })]),
       T('keeper', 'Goalkeeper', 'A keeper who plays short is another passer; one who kicks long saves a risk and gives the ball away.', [
         o('short', 'Plays short', { r: [['GK', [E.len('short', 1)]]] }), STD('Either'), o('long', 'Kicks it long', { r: [['GK', [E.len('long', 1)]]] })]),
       T('tempo', 'Tempo', 'How quickly the ball is moved on.', [o('slow', 'Slow it down', { r: [['team', [E.tempo(-0.6)]]] }), STD('Normal'), o('fast', 'Quick', { r: [['team', [E.tempo(0.6)]]] })]),

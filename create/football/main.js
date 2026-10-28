@@ -2367,7 +2367,6 @@
     const title = def ? (key === 'press' ? 'Pressing their build-up' : 'Defending your third') : ({ build: 'Build-up', midfield: 'Through midfield', final: 'Final third' })[tab];
     host.innerHTML = `<div class="tb-grid"><aside class="tb-controls">
         ${def ? '<div class="block-presets"><b>Defensive block</b><button data-block="low">Low block</button><button data-block="mid">Mid block</button><button data-block="high">High press</button></div>' : ''}
-        <p class="note">The shirts are where the players are right now, with the opposition beside them. Drag one of yours and he plays from there for the rest of this match. This does not change your plan for the next game.</p>
         <div class="row"><button type="button" id="liveReset">Let them move as they were</button></div>
       </aside><div class="tb-left">
         ${def ? '<div class="def-sub" role="tablist"><button data-msub="press" class="' + (key === 'press' ? 'on' : '') + '">Pressing their build-up</button><button data-msub="organised" class="' + (key === 'without' ? 'on' : '') + '">Defending your third</button></div>' : ''}
