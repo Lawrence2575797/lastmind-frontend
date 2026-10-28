@@ -532,7 +532,7 @@
       tx = clamp(bx, -HL + 4, HL - 4); tz = bz * 0.5; cx = tx * 0.95 - 4; cy = 3.4; cz = HW + 3.2 + 4 * clamp(bz / 28, 0, 1); ty = 0.9;
     } else if (mode === 'stands') {
       // from the middle of the main stand, higher up: the whole width of the pitch and a long stretch of it, so the shape of both teams can be read
-      tx = clamp(bx + ballV.x * 0.45, -HL + 12, HL - 12); tz = clamp(bz * 0.55, -16, 16); cx = tx * 0.92; cy = 15 + 5 * zoom; cz = HW + 6.5 + 2 * zoom; ty = 0.4;
+      tx = clamp(bx + ballV.x * 0.45, -HL + 12, HL - 12); tz = clamp(bz * 0.55, -16, 16); cx = tx * 0.92; cy = 12.5 + 3.2 * zoom; cz = HW + 4.6 + 1.2 * zoom; ty = 0.4;   // below the roof's edge (about 19 m) and in front of it, whatever the spread of play
     } else {
       // from the touchline, where the manager stands: a steady wide view that slides along the line with the ball
       // It follows the ball all the way to the corner flags. With the ball on the near touchline the camera rises and backs off a little and looks at it,
