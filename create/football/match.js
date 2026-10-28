@@ -242,12 +242,12 @@
     giveBall(match, team, taker, 1.2);
   };
 
-  function giveBall(match, team, player, delay) {
+  function giveBall(match, team, player, delay, keep) {
     xrPossession(match, team, player);
     if (match.rec) chainOnBall(match, team, player, match.lastTeam !== team);
     if (match.lastTeam !== team || !match.lastChange) match.lastChange = { team, t: match.clock };
     match.carrier = { team, player };
-    match.flight = null; match.ball.vx = 0; match.ball.vy = 0;
+    match.flight = null; match.ball.vx = (match.ball.vx || 0) * (keep || 0); match.ball.vy = (match.ball.vy || 0) * (keep || 0);
     match.lastTeam = team;
     match.ball.state = 'carried';
     match.nextDecision = match.clock + delay;
@@ -257,6 +257,19 @@
     match.possessionMinPressure = nearestOpponent(match, team, player).d;
     if (!match.possessionTeamSince || match.possessionTeamSince.team !== team) match.possessionTeamSince = { team, t: match.clock };
     match.carry = null;
+  }
+
+  // A man who is passed the ball does not always bring it under control and look around. When the next ball is there, the move is quick or he is closed down, he plays it
+  // first time: the ball arrives, he moves it on with one touch, and the decision is made as it comes, not seconds later.
+  function receive(match, team, p, keep, delay) {
+    giveBall(match, team, p, delay, keep);
+    if (match.restart || match.forcePass || p.group === 'GK' || FM.NO_ONE_TOUCH) return;
+    const nd = nearestOpponent(match, team, p).d, depth = FM.toTeamSpace(team.attackDir, p.x, p.y).d, r = p.ratings || {}, sk = ((r.passing || 60) + (r.composure || 60)) / 200;
+    const pr = clamp((FM.ONE_TOUCH == null ? 1 : FM.ONE_TOUCH) * (0.16 + 0.4 * team.tactics.tempo + (nd < 6 ? 0.16 : 0) + (nd < 3 ? 0.14 : 0) + (depth > 0.55 ? 0.1 : 0) + 0.35 * (sk - 0.6) + 0.2 * counterNow(match, team)), 0, 0.85);
+    if (match.rng() >= pr) return;
+    const opt = chooseAction(match, team, p);
+    if (!(opt.kind === 'shoot' || (opt.kind === 'pass' && opt.p >= 0.68) || (opt.kind === 'clear' && nd < 4))) return;
+    FM.ftCount = (FM.ftCount || 0) + 1; match.firstTime = { player: p, opt }; match.nextDecision = match.clock + 0.05;
   }
 
   // The build-up lab: one short, repeatable trial. Both sides stand where their own phase positions put them, with the ball beside the keeper.
@@ -364,6 +377,9 @@
         const sp = Math.hypot(c.player.vx || 0, c.player.vy || 0);
         if (sp > 1.5 && nearestOpponent(match, c.team, c.player).d > (FM.MOM_ND == null ? 4.2 : FM.MOM_ND) && FM.toTeamSpace(c.team.attackDir, c.player.x, c.player.y).d < (FM.MOM_DEPTH == null ? 0.75 : FM.MOM_DEPTH)) { const J = FM.MOM_DIST == null ? 2.4 : FM.MOM_DIST; ov.set(c.player, { x: clamp(c.player.x + c.player.vx / sp * J, 1, L - 1), y: clamp(c.player.y + c.player.vy / sp * J, 1, W - 1) }); }   // on at a jog, not stopped, not at a sprint
       }
+      // A ball that is not at his feet (a pass that arrived behind him, his own touch that ran on) is something he goes to, not something that comes back to him.
+      { const bp = match.ball, bdx = bp.x - c.player.x, bdy = bp.y - c.player.y, bdd = Math.hypot(bdx, bdy), psp = Math.hypot(c.player.vx || 0, c.player.vy || 0);
+        if (bdd > 1.3 && !(psp > 2 && (bdx * c.player.vx + bdy * c.player.vy) / (bdd * psp) > 0.5)) ov.set(c.player, { x: clamp(bp.x + (bp.vx || 0) * 0.3, 1, L - 1), y: clamp(bp.y + (bp.vy || 0) * 0.3, 1, W - 1) }); }
       if (!ov.has(c.player)) ov.set(c.player, { x: c.player.x, y: c.player.y });
       // Defending the man on the ball. Most of the time one defender goes to him, and he closes down rather than charging in: how
       // tightly depends on the team's pressing instruction (a hard press gets right on top of him, a soft one holds off and jockeys).
@@ -1092,7 +1108,7 @@
             match.flight = null; startRestart(match, 'freekick', opp, clamp(ball.x, 0.5, L - 0.5), clamp(ball.y, 0.5, W - 0.5), { indirect: true }); return;
           }
           statsOf(match, team).passesOk++; if (ev) { ev.ok = true; ev.outcome = 'complete'; }
-          giveBall(match, team, p, 0.12 + delayBeforeNextDecision(match, team, p)); return;
+          ball.vx = f.dir.x * sp; ball.vy = f.dir.y * sp; receive(match, team, p, 0.3, 0.12 + delayBeforeNextDecision(match, team, p)); return;
         }
         if (ev) { ev.outcome = 'loose'; ev.how = 'heavy'; }
         knockLoose(match, p, team, f.dir.x, f.dir.y, Math.max(1.5, sp * 0.3), 1.2); return;   // a heavy touch: it runs away from him
@@ -2193,13 +2209,14 @@
     }
     if (match.carrier && !match.pendingAct && match.clock >= match.nextDecision) {
       const { team, player } = match.carrier;
-      const opt = chooseAction(match, team, player);
+      const ft = match.firstTime && match.firstTime.player === player ? match.firstTime : null; match.firstTime = null;
+      const opt = ft ? ft.opt : chooseAction(match, team, player);
       const aim = aimOf(team, opt);
       const need = aim && !match.forcePass && Number.isFinite(player.facing) ? Math.abs(angleDiff(player.facing, Math.atan2(aim.y - player.y, aim.x - player.x))) : 0;
       if (aim && !match.forcePass) {
         // A pass or a shot takes a moment: turn if he has to, then the backswing and the strike, and the ball leaves the foot at the end of it. (The
         // motion-captured kick in the 3D view is timed to this.)
-        const turnT = need > (FM.TURN_FREE == null ? 1.75 : FM.TURN_FREE) ? Math.min(0.9, need / (FM.TURN_RATE == null ? 5.2 : FM.TURN_RATE)) : 0, wind = (FM.WIND == null ? 0.3 : FM.WIND) * (turnT > 0 ? 0.65 : 1);
+        const turnT = need > (FM.TURN_FREE == null ? 1.75 : FM.TURN_FREE) ? Math.min(0.9, need / (FM.TURN_RATE == null ? 5.2 : FM.TURN_RATE)) : 0, wind = (FM.WIND == null ? 0.3 : FM.WIND) * (turnT > 0 ? 0.65 : 1) * (ft ? 0.4 : 1);
         const ang = turnT > 0 ? Math.atan2(aim.y - player.y, aim.x - player.x) : null;
         match.pendingAct = { opt, team, player, ang, start: match.clock, turnEnd: match.clock + turnT, release: match.clock + turnT + wind, kick: true };
         if (ang != null) player.turnTo = ang; match.carry = null;
@@ -2278,19 +2295,20 @@
   function carryBall(match, dt) {
     const ball = match.ball, p = match.carrier.player, face = Number.isFinite(p.facing) ? p.facing : (match.carrier.team.attackDir === 1 ? 0 : Math.PI);
     const ux = Math.cos(face), uy = Math.sin(face), nx = -uy, ny = ux, sp = Math.hypot(p.vx || 0, p.vy || 0), run = sp > 4.3;
-    if (ball.of !== p) { ball.of = p; ball.lastTouch = match.clock - 1; ball.side = 1; ball.vx = p.vx || 0; ball.vy = p.vy || 0; }
-    const pa = match.pendingAct && match.pendingAct.player === p;
-    if (pa || sp < 0.9) {
-      // standing, or lining up a pass or shot: the ball is brought to his foot
+    if (ball.of !== p) { ball.of = p; ball.lastTouch = match.clock - 0.5; ball.side = 1; }
+    const pa = match.pendingAct && match.pendingAct.player === p, dB = Math.hypot(ball.x - p.x, ball.y - p.y);
+    if ((pa || sp < 0.9) && dB < 1.1) {
+      // standing, or lining up a pass or shot, with the ball at his foot: it is settled there
       const kk = Math.min(1, dt * (pa ? 12 : 8)), d = pa ? 0.55 : 0.5;
       ball.x += (p.x + ux * d - ball.x) * kk; ball.y += (p.y + uy * d - ball.y) * kk; ball.vx = p.vx || 0; ball.vy = p.vy || 0; return;
     }
+    // otherwise the ball is its own: it rolls and slows on the grass
     ball.x += ball.vx * dt; ball.y += ball.vy * dt; const fr = Math.exp(-1.25 * dt); ball.vx *= fr; ball.vy *= fr;
-    const along = (ball.x - p.x) * ux + (ball.y - p.y) * uy, lat = (ball.x - p.x) * nx + (ball.y - p.y) * ny, lost = along > (run ? 3.4 : 1.9) || along < -0.7 || Math.abs(lat) > 1.5;
-    if ((along < (run ? 0.56 : TOUCH_REACH) && match.clock - ball.lastTouch > 0.17) || lost) {
+    const along = (ball.x - p.x) * ux + (ball.y - p.y) * uy, lat = (ball.x - p.x) * nx + (ball.y - p.y) * ny, lost = along > (run ? 4.4 : 2.4) || along < -2.2 || Math.abs(lat) > 2.4;
+    if (lost) { match.carrier = null; match.carry = null; match.pendingAct = null; ball.state = 'loose'; p.noPick = match.clock + 0.05; return; }   // a heavy touch: he has to go and get it
+    if (along > -0.4 && along < (run ? 0.56 : TOUCH_REACH) && Math.abs(lat) < 0.9 && match.clock - ball.lastTouch > 0.17 && !pa) {
       ball.side = -ball.side; ball.lastTouch = match.clock; ball.touchBy = p; ball.touchSide = ball.side; ball.touchAt = match.clock;
-      if (lost) { const tx = p.x + ux * 0.7 + (p.vx || 0) * 0.2, ty = p.y + uy * 0.7 + (p.vy || 0) * 0.2, ex = (tx - ball.x) / 0.18, ey = (ty - ball.y) / 0.18, em = Math.hypot(ex, ey) || 1, cap = Math.min(em, 15) / em; ball.vx = ex * cap; ball.vy = ey * cap; }
-      else { const push = run ? 4.6 + 0.3 * sp : 0.62 + 0.08 * sp, sd = (run ? 0.5 : 0.25) * ball.side; ball.vx = ux * (sp + push) + nx * sd; ball.vy = uy * (sp + push) + ny * sd; if (along < 0.2) { ball.x += ux * (0.34 - along); ball.y += uy * (0.34 - along); } }
+      const push = run ? 4.6 + 0.3 * sp : 0.62 + 0.08 * sp, sd = (run ? 0.5 : 0.25) * ball.side; ball.vx = ux * (sp + push) + nx * sd; ball.vy = uy * (sp + push) + ny * sd;
     }
     ball.x = clamp(ball.x, 0.2, L - 0.2); ball.y = clamp(ball.y, 0.2, W - 0.2);
   }
@@ -2324,7 +2342,7 @@
     match.teams.forEach((t) => t.players.forEach((p) => { if ((p.noPick || 0) > match.clock) return; const d = Math.hypot(p.x - ball.x, p.y - ball.y); if (d < bd) { bd = d; best = { team: t, player: p }; } }));
     if (best) {
       const sp1 = Math.hypot(ball.vx || 0, ball.vy || 0);
-      if (match.rng() < clamp(0.97 - sp1 * 0.07, 0.3, 0.97)) giveBall(match, best.team, best.player, 0.5);
+      if (match.rng() < clamp(0.97 - sp1 * 0.07, 0.3, 0.97)) giveBall(match, best.team, best.player, 0.5, 0.4);
       else knockLoose(match, best.player, best.team, ball.vx || 1, ball.vy || 0, Math.max(1.2, sp1 * 0.6), 1.5);
     }
   }
