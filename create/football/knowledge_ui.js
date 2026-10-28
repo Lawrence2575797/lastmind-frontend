@@ -95,6 +95,7 @@
   function impactOf(ap) {
     if (ap && ap.kind === 'multi') return [ap.note || ''].concat(ap.acts.map(impactOf)).filter(Boolean).join(' ');
     if (ap && ap.kind === 'dial') return ap.note || '';
+    if (ap && ap.kind === 'control' && ap.note) return ap.note;
     if (!ap || ap.kind !== 'control' || ap.action !== 'setTicketPrice' || !S || !S.d) return '';
     const st = S.d.stands.find((x) => x.id === ap.params.stand); if (!st) return '';
     const pm = FM.knowledgePriceModel ? FM.knowledgePriceModel(st) : null, k = 0.9 * st.sold / st.price, A = st.sold + k * st.price, R = pm ? pm.revenue : (p) => Math.max(0, p * (A - k * p)), now = R(st.price), then = R(ap.params.price), dd = then - now;

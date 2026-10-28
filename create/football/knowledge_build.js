@@ -39,6 +39,13 @@
     dial: (id, value, say) => ({ kind: 'control', action: 'setDial', params: { dial: id, value }, say }),
     // several changes from one answer: tactical dials and club business together; note is the expected effect in words
     both: (say, note, acts) => ({ kind: 'multi', say, note, acts }),
+    // demand grows by a factor f over n matches: the price that still fills the stand (never below today's best price), on the lessons' straight-line demand
+    growth: (d, which, f, n, say) => {
+      const s = standBy(d, which), k = 0.9 * s.sold / s.price, Ac = s.sold + k * s.price, pm = FM.knowledgePriceModel ? FM.knowledgePriceModel(s) : null, best = pm ? pm.best : Ac / (2 * k);
+      const when = typeof n === 'number' ? n + ' matches' : n, pCap = (Ac - s.seats / f) / k, target = Math.max(3, Math.round(Math.max(best, pCap))), over = f * s.sold > s.seats;
+      const text = over ? 'In ' + when + ' demand will be ' + m3(f) + ' times today\'s, about ' + Math.round(f * s.sold).toLocaleString('en-GB') + ' fans at today\'s price against ' + s.seats.toLocaleString('en-GB') + ' seats. A price of about £' + target + ' keeps ' + s.name + ' full as demand grows.' : 'In ' + when + ' demand will be ' + m3(f) + ' times today\'s, about ' + Math.round(f * s.sold).toLocaleString('en-GB') + ' fans against ' + s.seats.toLocaleString('en-GB') + ' seats: it still fits, so there is no need to move the price for growth alone.';
+      return { kind: 'control', action: 'setTicketPrice', params: { stand: s.id, price: over ? Math.max(target, s.price) : s.price }, say: over ? 'Set ' + s.name + ' to £' + Math.max(target, s.price) + ' for the growth ahead' : 'Keep ' + s.name + ' at £' + s.price + ': demand will still fit', note: text, tied: true };
+    },
     when: (cond, ifYes, ifNo) => (cond ? ifYes : ifNo),
   };
   // ----- the shape of a question
@@ -48,6 +55,28 @@
   };
   const step = (say, maths, diagram) => { const st = { say: [].concat(say) }; if (maths) st.maths = maths; if (diagram) st.diagram = diagram; return st; };
   const K = { r2, m, m1, m3, sf, fr, sum, mean, gcd, eg, standBy, A, ask, step, gbp: (v) => (v < 0 ? '-£' : '£') + Math.abs(Math.round(v)).toLocaleString('en-GB'), num: (v) => Math.round(v).toLocaleString('en-GB') };
-  K.add = (id, fn) => { L[id] = (d) => { const o = fn(d, K); return o; }; };
+  // An "apply" button must follow from the question and the analogy that leads to it. A lesson's old generic button (set a price, set the marketing) is dropped unless the
+  // question itself is about that stand or about the marketing budget; tactical choices and the buttons built with A.both / A.dial are deliberate and stay.
+  const untie = (o, d) => {
+    const a = o && o.ask && o.ask.apply; if (!a || a.tied) return;
+    const q = String(o.ask.q).toLowerCase();
+    if (a.kind === 'multi' || a.kind === 'plan') return;
+    if (a.kind === 'control' && a.action === 'setDial') return;
+    if (a.kind === 'control' && a.action === 'setTicketPrice') { const st = (d.stands || []).find((s) => s.id === a.params.stand); if (st && q.indexOf(String(st.name).toLowerCase()) >= 0) return; }
+    if (a.kind === 'control' && a.action === 'setMarketing' && /marketing|budget/.test(q)) return;
+    delete o.ask.apply;
+  };
+  K.add = (id, fn) => { L[id] = (d) => { const o = fn(d, K); untie(o, d); return o; }; };
+  // Rebuild the question and/or the button of a lesson that already exists (knowledge_ties.js): fn(d, lesson) returns { q, answer, unit, tol, worked, apply }.
+  K.retie = (id, fn) => {
+    const prev = L[id]; if (!prev) return;
+    L[id] = (d) => {
+      const o = prev(d), p = fn(d, o, K) || {};
+      if (p.q) o.ask = ask(p.q, p.answer, p.unit, { tol: p.tol, worked: p.worked, apply: p.apply, kind: p.kind });
+      else if (p.apply) o.ask.apply = p.apply;
+      if (o.ask.apply) o.ask.apply.tied = true;
+      return o;
+    };
+  };
   FM.K = K;
 })();

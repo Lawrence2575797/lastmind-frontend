@@ -380,7 +380,10 @@
   }
   function richHtml(text) {
     const links = []; let x = String(text || '').replace(/\[\[([a-z]+)\|([^\]]+)\]\]/g, (m, id, w) => { if (id === 'need') { links.push(['need', w]); return '\u0002' + (links.length - 1) + '\u0002'; } if (!(FM.teach && FM.teach.lessons[id])) return w; links.push([id, w]); return '\u0002' + (links.length - 1) + '\u0002'; });
-    const h = window.LMMath ? window.LMMath.rich(fracPass(x)) : plainToHtml(x);
+    // the maths between $...$ is drawn by kn_tex.js (fractions, roots, matrices...) and put back after the rest of the text has been laid out
+    const tex = []; if (FM.texHtml) x = x.replace(/\$([^$\n]*)\$/g, (m, t) => { tex.push(FM.texHtml(t)); return '\u0003' + (tex.length - 1) + '\u0003'; });
+    let h = window.LMMath ? window.LMMath.rich(fracPass(x)) : plainToHtml(x);
+    if (tex.length) h = h.replace(/\u0003(\d+)\u0003/g, (m, n) => tex[n]);
     return h.replace(/\u0002(\d+)\u0002/g, (m, n) => (links[n][0] === 'need' ? (FM.learn ? FM.learn.chip(links[n][1]) : esc(links[n][1])) : '<span class="rv-term" data-lesson="' + links[n][0] + '" contenteditable="false">' + esc(links[n][1]) + '</span>'));
   }
   function richCellHtml(cell, i, n) {

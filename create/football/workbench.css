@@ -348,3 +348,14 @@ body[data-view="workbench"] #view-workbench { animation: none !important; transf
 /* the analysis pictures: smaller, with their reading beside them */
 .pa-card { display: grid; grid-template-columns: minmax(260px, 400px) minmax(0, 1fr); gap: 6px 22px; align-items: start; } .pa-card h5 { grid-column: 1 / -1; }
 .pa-svg { min-width: 0; } @media (max-width: 860px) { .pa-card { grid-template-columns: 1fr; } }
+
+/* maths drawn by kn_tex.js */
+.tx { font-family: 'Cambria Math', 'STIX Two Math', Cambria, 'Times New Roman', serif; white-space: normal; }
+.tx-frac { display: inline-flex; flex-direction: column; vertical-align: middle; text-align: center; margin: 0 .15em; line-height: 1.15; }
+.tx-frac > .tx-n { border-bottom: 1.5px solid currentColor; padding: 0 .25em .08em; } .tx-frac > .tx-d { padding: .08em .25em 0; }
+.tx-root { display: inline; } .tx-sq { font-size: 1.15em; } .tx-rad { border-top: 1.5px solid currentColor; padding: 0 .12em; } .tx-k { font-size: .6em; margin-right: -.2em; }
+.tx-fn, .tx-txt { font-family: inherit; font-style: normal; } .tx-b { font-weight: 700; }
+.tx-over { border-top: 1.4px solid currentColor; } .tx-vec::before { content: '92'; display: block; font-size: .7em; line-height: .6; text-align: center; } .tx-vec { display: inline-block; text-align: center; }
+.tx-mat { display: inline-flex; flex-direction: column; vertical-align: middle; margin: 0 .1em; } .tx-row { display: flex; gap: .8em; justify-content: center; } .tx-cell { min-width: .8em; text-align: center; }
+.tx-brk { display: inline-block; font-size: 2.2em; font-weight: 200; line-height: .8; vertical-align: middle; transform: scaleX(.7); } .tx-par { font-size: 2em; font-weight: 200; vertical-align: middle; }
+.tx-bin .tx-n { border-bottom: 0; }
