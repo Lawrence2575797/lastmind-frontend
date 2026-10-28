@@ -335,7 +335,15 @@
       <p class="pl-roledesc" id="plRoleDesc"><b>${esc(role.name || '')}.</b> ${esc(role.desc || '')}</p>
       <h5>General instructions</h5>${general}
       <h5>By phase of play</h5>${phases || '<p class="pl-empty">Nothing to choose by phase for this player.</p>'}</div>`;
-    const redraw = () => { if (hooks && hooks.save) hooks.save(); FM.planPlayerPanel(host, team, p, hooks); if (hooks && hooks.changed) hooks.changed(); };
+    // Choosing something rebuilds the panel (and the page behind it): where it and the page were scrolled to is kept, so a click never throws you back to the top.
+    const redraw = () => {
+      const kept = []; for (let n = host; n; n = n.parentElement) if (n.scrollTop) kept.push([n, n.scrollTop]);
+      const pop0 = host.querySelector('.pl-pop'), inner = pop0 ? pop0.scrollTop : 0, wx = window.scrollX, wy = window.scrollY, h0 = host.offsetHeight;
+      host.style.minHeight = h0 + 'px';   // the page does not get shorter while the panel is rebuilt, so the browser has no reason to move the scroll
+      const restore = () => { kept.forEach(([n, v]) => { n.scrollTop = v; }); const pop1 = host.querySelector('.pl-pop'); if (pop1 && inner) pop1.scrollTop = inner; window.scrollTo(wx, wy); };
+      if (hooks && hooks.save) hooks.save(); FM.planPlayerPanel(host, team, p, hooks); restore(); if (hooks && hooks.changed) hooks.changed(); restore();
+      host.style.minHeight = ''; restore();
+    };
     host.querySelectorAll('[data-roleid]').forEach((b) => {
       b.addEventListener('click', () => { FM.setRole(team, p, b.dataset.roleid); FM.planApply(team); redraw(); });
       const say = (id) => { const r = FM.ROLES[id], d = host.querySelector('#plRoleDesc'); if (r && d) d.innerHTML = '<b>' + esc(r.name) + '.</b> ' + esc(r.desc); };
