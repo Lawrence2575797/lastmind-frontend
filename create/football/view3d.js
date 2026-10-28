@@ -18,7 +18,7 @@
   }
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   const angDiff = (a, b) => { let d = b - a; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; return d; };
-  const lastBall = { x: 0, z: 0 }; let refE = null, stadiumBuilt = false, lastT = null, carriedVis = null, relOff = null, spcOn = false, snapNext = false, camSpread = 12, ballV = { x: 0, z: 0 }, lastBx = null, lastBz = null;
+  const lastBall = { x: 0, z: 0 }; let pan = null, ballY = null, rollPrev = null, rollAxis = null, rollQ = null, refE = null, stadiumBuilt = false, lastT = null, carriedVis = null, relOff = null, spcOn = false, snapNext = false, camSpread = 12, ballV = { x: 0, z: 0 }, lastBx = null, lastBz = null;
   const mkCanvas = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; };
   const tex = (c, srgb) => { const t = new THREE.CanvasTexture(c); if (srgb !== false) t.encoding = THREE.sRGBEncoding; t.anisotropy = renderer.capabilities.getMaxAnisotropy(); return t; };
 
@@ -524,26 +524,34 @@
     const k = snap ? 1 : 1 - Math.exp(-dt * (spc ? 3.6 : mode === 'stands' ? 3.4 : 2.6));
     let tx, tz, cx, cy, cz, ty = 0.8;
     const zoom = clamp((camSpread - 9) / 9, -0.25, 1);
-    if (spc && !rp) {
-      // a set piece (corner, penalty, free kick): the camera goes behind the taker, looking along the ball towards the goal, so the taker, the ball and the box are all in the picture
-      const dx = spc.gx - bx, dz = -bz, len = Math.hypot(dx, dz) || 1, ux = dx / len, uz = dz / len, back = spc.kind === 'corner' ? 11 : spc.kind === 'penalty' ? 10 : 13;
-      cx = clamp(bx - ux * back, -HL - 5, HL + 5); cz = clamp(bz - uz * back, -HW - 8, HW + 8); cy = spc.kind === 'penalty' ? 2.5 : 4; tx = bx + ux * Math.min(len * 0.55, 12); tz = bz + uz * Math.min(len * 0.55, 12); ty = 1.0;
-    } else if (rp) {
+    // A broadcast camera. It pans along the touchline on a spring and does not move at all while the ball stays inside a dead zone around where it is looking; height and
+    // distance stay put (they ease with how spread out the play is) and the depth it works to is a slow average of where the ball has been, so one wide pass does not swing the picture.
+    // A set piece is not cut to: the camera goes there at the same pace, a little toward the goal so the box is in the picture.
+    if (!rp) {
+      if (!pan || snap) pan = { x: bx, v: 0, z: bz };
+      pan.z += (bz - pan.z) * (1 - Math.exp(-dt * 0.8));
+      const lim = mode === 'stands' ? HL - 12 : HL - 2, dzone = mode === 'stands' ? 7 : 6, w = 1.5;
+      let want = clamp(bx + clamp(ballV.x * 0.4, -5, 5) + (spc ? (spc.gx - bx) * 0.3 : 0), -lim, lim);
+      const goal = want - clamp(want - pan.x, -dzone, dzone);
+      pan.v = clamp(pan.v + (w * w * (goal - pan.x) - 2 * w * pan.v) * dt, -26, 26); pan.x = clamp(pan.x + pan.v * dt, -lim, lim);
+    }
+    if (rp) {
       // a replay: low and close on the touchline, with the ball well in the picture
       tx = clamp(bx, -HL + 4, HL - 4); tz = bz * 0.5; cx = tx * 0.95 - 4; cy = 3.4; cz = HW + 3.2 + 4 * clamp(bz / 28, 0, 1); ty = 0.9;
     } else if (mode === 'stands') {
       // from the middle of the main stand, higher up: the whole width of the pitch and a long stretch of it, so the shape of both teams can be read
-      tx = clamp(bx + ballV.x * 0.45, -HL + 12, HL - 12); tz = clamp(bz * 0.55, -16, 16); cx = tx * 0.92; cy = 12.5 + 3.2 * zoom; cz = HW + 4.6 + 1.2 * zoom; ty = 0.4;   // below the roof's edge (about 19 m) and in front of it, whatever the spread of play
+      tx = pan.x; tz = clamp(pan.z * 0.55, -16, 16); cx = tx * 0.92; cy = 12.5 + 3.2 * zoom; cz = HW + 4.6 + 1.2 * zoom; ty = 0.4;   // below the roof's edge (about 19 m) and in front of it, whatever the spread of play
     } else {
       // from the touchline, where the manager stands: a steady wide view that slides along the line with the ball
       // It follows the ball all the way to the corner flags. With the ball on the near touchline the camera rises and backs off a little and looks at it,
       // otherwise the ball would be below the bottom of the picture.
-      const near = clamp((bz - 6) / 22, 0, 1);
-      tx = clamp(bx + ballV.x * 0.45, -HL + 2, HL - 2); tz = (bz * 0.25 - 6) * (1 - near) + bz * 0.85 * near; cx = tx * 0.9; cy = 4.2 + 4.8 * near + 3.2 * zoom; cz = HW + 5.5 + 3.5 * near + 4.5 * zoom; ty = 0.7;
+      const near = clamp((pan.z - 6) / 22, 0, 1);
+      tx = pan.x; tz = (pan.z * 0.25 - 6) * (1 - near) + pan.z * 0.85 * near; cx = tx * 0.9; cy = 4.6 + 3.2 * near + 3.2 * zoom; cz = HW + 5.5 + 3.5 * near + 4.5 * zoom; ty = 0.7;
       // with the ball on the far side of the pitch the camera comes in across the touchline, higher, so it is not a speck 70 metres away
-      { const far = clamp((-bz - 12) / 22, 0, 1); cz -= 15 * far; cy += 2.2 * far; tz = tz * (1 - far) + (bz * 0.7) * far; }
+      { const far = clamp((-pan.z - 12) / 22, 0, 1); cz -= 11 * far; cy += 2.2 * far; tz = tz * (1 - far) + (pan.z * 0.7) * far; }
     }
-    look.x += (tx - look.x) * k; look.z += (tz - look.z) * k; cam.x += (cx - cam.x) * k; cam.y += (cy - cam.y) * k; cam.z += (cz - cam.z) * k;
+    if (!rp) { look.x = tx; cam.x = cx; } else { look.x += (tx - look.x) * k; cam.x += (cx - cam.x) * k; }   // the pan is already smooth: easing it again would only make the picture trail the play
+    look.z += (tz - look.z) * k; cam.y += (cy - cam.y) * k; cam.z += (cz - cam.z) * k;
     camera.position.set(cam.x, cam.y, cam.z); camera.lookAt(look.x, ty, look.z);
     if (FM.view3d && FM.view3d.debugCam) { const d = FM.view3d.debugCam; camera.position.set(d.x, d.y, d.z); camera.lookAt(d.lx, d.ly, d.lz); }   // a fixed camera for looking at one thing
     sun.position.set(look.x - 30, 70, look.z + 46); sun.target.position.set(look.x, 0, look.z);
@@ -687,11 +695,17 @@
         if (lastBx != null && dt > 0) { const kv = Math.min(1, dt * 3); ballV.x += (clamp((bx - lastBx) / dt, -14, 14) - ballV.x) * kv; ballV.z += (clamp((bz - lastBz) / dt, -14, 14) - ballV.z) * kv; } lastBx = bx; lastBz = bz; }
       // a set piece taken now: corner, penalty or free kick
       const spc = !replay && !m.celeb && m.restart && (m.restart.kind === 'corner' || m.restart.kind === 'penalty' || m.restart.kind === 'freekick') ? { kind: m.restart.kind, gx: m.restart.team.attackDir === 1 ? HL : -HL } : null;
-      if (!!spc !== spcOn) { spcOn = !!spc; if (spc && Math.hypot(camX - look.x, camZ - look.z) > 30) snapNext = true; }
+      spcOn = !!spc;
       setCamera(dt, camX, camZ, !ctx || ctx.snap || (snapNext && !(snapNext = false)), spc);
       // The ball is drawn bigger than a real one so it can be followed, and bigger again the further it is from the camera.
       const bs = 1.05 * clamp(camera.position.distanceTo(ballMesh.position) / 32, 1, 2.4);
-      ballMesh.scale.setScalar(bs); ballMesh.position.set(bx, by + 0.115 * (bs - 1), bz); ballRing.position.set(bx, 0.03, bz); ballRing.scale.setScalar(bs * 0.9); ballRing.material.opacity = clamp(0.62 - by * 0.25, 0.25, 0.62); ballMesh.rotation.z -= dt * 6; updateNets();
+      // Its height is eased (a kick does not pop it up, and it settles on the grass rather than dropping), and it rolls: it turns about the axis across its path by the distance it
+      // has covered over its drawn radius, so it is still when it is still, and it never skids.
+      ballY = ballY == null || Math.abs(by - ballY) > 3 ? by : ballY + (by - ballY) * (1 - Math.exp(-dt * 24)); by = Math.max(0.115, ballY);
+      { const rr = 0.115 * bs, ddx = rollPrev ? bx - rollPrev.x : 0, ddz = rollPrev ? bz - rollPrev.z : 0, dd = Math.hypot(ddx, ddz);
+        if (dd > 1e-5 && dd < 4) { if (!rollAxis) { rollAxis = new THREE.Vector3(); rollQ = new THREE.Quaternion(); } rollAxis.set(ddz / dd, 0, -ddx / dd); ballMesh.quaternion.premultiply(rollQ.setFromAxisAngle(rollAxis, Math.min(dd / rr, 0.6))); }   // (a hard-struck ball turns many times a second: capped per frame, it spins fast without strobing)
+        rollPrev = { x: bx, z: bz }; }
+      ballMesh.scale.setScalar(bs); ballMesh.position.set(bx, by + 0.115 * (bs - 1), bz); ballRing.position.set(bx, 0.03, bz); ballRing.scale.setScalar(bs * 0.9); ballRing.material.opacity = clamp(0.62 - by * 0.25, 0.25, 0.62); updateNets();
       renderer.render(scene, camera);
     },
     dispose() { /* the scene is kept for the next time a 3D view is chosen */ },

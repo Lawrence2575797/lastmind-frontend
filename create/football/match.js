@@ -503,8 +503,63 @@
           .forEach(({ p }) => { const bs = Math.hypot(match.ball.vx || 0, match.ball.vy || 0), lead = Math.min(0.8, Math.hypot(p.x - match.ball.x, p.y - match.ball.y) / 7); ov.set(p, { x: clamp(match.ball.x + (match.ball.vx || 0) * lead, 0.5, L - 0.5), y: clamp(match.ball.y + (match.ball.vy || 0) * lead, 0.5, W - 0.5) }); });
       });
     }
+    offBall(match, ov);
     addTeamPlay(match, ov);
     return ov;
+  }
+  // ---------- what a side does without the ball that reads as a plan ----------
+  // The man who has just passed moves on (a one-two, or on to the next place), a full-back overlaps the winger, the box fills when the ball is wide and deep, and the winger on
+  // the far side stays wide and high. Each is a small job with an end time, and it carries on while the ball is in the air instead of being dropped the moment it is struck.
+  function offBall(match, ov) {
+    if (FM.NO_OFFBALL || match.restart || match.phase !== 'play' || match.forcePass) return;
+    const c = match.carrier, f = match.flight;
+    if (f && f.kind !== 'pass' && f.kind !== 'cross') return;
+    const T = c ? c.team : f && f.team;
+    if (!T) { match.oba = null; return; }
+    const O = other(match, T), dir = T.attackDir, now = match.clock, rng = match.rng;
+    let st = match.oba;
+    if (!st || st.team !== T) st = match.oba = { team: T, runs: new Map(), last: null, lastAt: -9, ovl: 0, box: 0 };
+    st.runs.forEach((r, p) => { if (now > r.until || (c && p === c.player)) st.runs.delete(p); });
+    if (c && !match.pendingAct) {
+      const cp = c.player, depth = FM.toTeamSpace(dir, cp.x, cp.y).d, wide = Math.abs(cp.y - W / 2), side = cp.y >= W / 2 ? 1 : -1;
+      const back = O.players.filter((o) => o.group !== 'GK').map((o) => o.x * dir).sort((a, b) => b - a)[1], lim = (back == null ? L : back) - 1.0;
+      const cap = (x) => dir * Math.min(x * dir, lim), gx = dir === 1 ? L : 0;
+      const open = (q) => q !== cp && q.group !== 'GK' && !ov.has(q) && !st.runs.has(q);
+      const give = (q, x, y, secs, kind) => { st.runs.set(q, { pt: { x: clamp(cap(x), 1.5, L - 1.5), y: clamp(y, 2.5, W - 2.5) }, until: now + secs, kind }); };
+      // 1. he has passed it: he does not stay where he struck it. Forward players go on beyond the new man, into the channel with the most room; a full-back stays on his flank.
+      if (cp !== st.last) {
+        const from = st.last, fresh = now - st.lastAt < 3.5; st.last = cp; st.lastAt = now;
+        if (from && fresh && T.players.indexOf(from) >= 0 && from !== cp && ['CM', 'AM', 'DM', 'WF', 'FB', 'ST'].indexOf(from.group) >= 0 && open(from) && depth > 0.28 && dist(from, cp) < 32 && rng() < (FM.PM_P == null ? 0.42 : FM.PM_P) + 0.25 * (T.tactics.directness - 0.5)) {
+          const tx = cp.x + dir * (from.group === 'FB' ? 10 : 9);
+          if ((tx - from.x) * dir > 4) {
+            let ty = from.group === 'FB' ? from.y : cp.y, bd = -1;
+            if (from.group !== 'FB') for (let off = -12; off <= 12; off += 3) { const y = clamp(cp.y + off, 4, W - 4), d = O.players.reduce((m, o) => (Math.abs(o.x - tx) < 12 ? Math.min(m, Math.hypot(o.x - tx, o.y - y)) : m), 30) - 0.12 * Math.abs(off); if (d > bd) { bd = d; ty = y; } }
+            give(from, tx, ty, 2.6, 'pm');
+          }
+        }
+      }
+      // 2. the overlap: a team-mate behind the winger runs on the outside of him (or inside him, now and then) while he has the ball
+      if (now > st.ovl && wide > 13 && depth > 0.42 && depth < 0.9 && ['WF', 'FB', 'AM', 'CM'].indexOf(cp.group) >= 0) {
+        let who = null, bd = 22;
+        T.players.forEach((q) => { if (!open(q) || ['FB', 'CM', 'WF', 'DM'].indexOf(q.group) < 0 || (q.x - cp.x) * dir > 2 || (q.y >= W / 2 ? 1 : -1) !== side) return; const d = dist(q, cp); if (d < bd) { bd = d; who = q; } });
+        if (who && rng() < (FM.OVERLAP_P == null ? 0.55 : FM.OVERLAP_P)) { const inside = rng() < 0.25; give(who, cp.x + dir * 12, cp.y + (inside ? -side * 6 : side * (wide > 26 ? 1 : 5)), 2.8, 'ovl'); st.ovl = now + 6; }
+      }
+      // 3. the ball is wide and deep: the box fills (near post, penalty spot, far post, and the edge of the area to recycle a cut-back)
+      if (wide > 15 && depth > 0.72 && now > st.box) {
+        const spots = [[gx - dir * 7, W / 2 + side * 4], [gx - dir * 11.5, W / 2 - side], [gx - dir * 8.5, W / 2 - side * 7.5], [gx - dir * 19, W / 2 - side * 2]], used = new Set();
+        spots.forEach((s, i) => {
+          let who = null, bd = 34;
+          T.players.forEach((q) => { if (used.has(q) || !open(q) || (i === 3 ? ['CM', 'DM', 'AM', 'WF'] : ['ST', 'AM', 'WF', 'CM']).indexOf(q.group) < 0) return; const d = dist(q, { x: s[0], y: s[1] }) - (q.group === 'ST' ? 6 : 0); if (d < bd) { bd = d; who = q; } });
+          if (who) { used.add(who); give(who, s[0], s[1], 2.4, 'box'); }
+        });
+        st.box = now + 2.4;
+      }
+      // 4. the winger on the far side stays wide and high, so the ball can be switched to a man with room
+      if (wide > 12 && depth > 0.4 && depth < 0.92) {
+        T.players.forEach((q) => { if (!open(q) || (q.group !== 'WF' && q.group !== 'FB') || (q.y >= W / 2 ? 1 : -1) === side || Math.abs(q.y - W / 2) < 8) return; give(q, Math.max(q.x * dir, cp.x * dir + 2) * dir, W / 2 - side * (W / 2 - 7), 1.4, 'wide'); });
+      }
+    }
+    st.runs.forEach((r, p) => { if (!ov.has(p)) ov.set(p, r.pt); });
   }
   // ---------- what the rest of the side does while one man has the ball ----------
   // The two team-mates nearest the carrier move to angles from which they can be found (about ten metres off, wide of him and ahead or behind, where no opponent is on the
@@ -1089,13 +1144,19 @@
     const ball = match.ball, a = Math.atan2(diry, dirx) + (match.rng() < 0.5 ? -1 : 1) * (0.35 + match.rng() * spread);
     match.flight = null; match.carrier = null; ball.state = 'loose'; match.lastTeam = tm; ball.vx = Math.cos(a) * speed; ball.vy = Math.sin(a) * speed; p.noPick = match.clock + 0.3;
   }
+  // A ball rolling on grass: a steady rolling resistance plus a little drag that grows with speed, so it runs on, slows, and comes to rest with a decelerating roll
+  // (braking hard and then creeping on, which is what an exponential does, does not look like a ball).
+  function rollSpeed(v, dt, floor) {
+    if (FM.OLD_ROLL) return Math.max(floor, v * Math.exp(-(FM.PASS_ROLL == null ? 2.6 : FM.PASS_ROLL) * dt));
+    return Math.max(floor, v - dt * ((FM.ROLL_A == null ? 1.6 : FM.ROLL_A) + (FM.ROLL_B == null ? 0.9 : FM.ROLL_B) * v));
+  }
   function stepFreePass(match, f, dt) {
     const ball = match.ball, rng = match.rng, team = f.team, opp = other(match, team);
     f.t += dt;
     if (f.v0 == null) { f.v0 = f.speed; f.speed *= (FM.PASS_BOOST == null ? 1.25 : FM.PASS_BOOST); }
     const x0 = ball.x, y0 = ball.y, sp = f.speed, move = sp * dt;
     // it slows on the grass; past the place it was aimed at it is rolling out
-    if (f.run < f.len) f.speed = Math.max(f.v0 * 0.62, f.speed * Math.exp(-(FM.PASS_DECAY == null ? 0.45 : FM.PASS_DECAY) * dt)); else f.speed = Math.max(0.4, f.speed * Math.exp(-(FM.PASS_ROLL == null ? 2.6 : FM.PASS_ROLL) * dt));
+    if (f.run < f.len) f.speed = Math.max(f.v0 * 0.62, f.speed * Math.exp(-(FM.PASS_DECAY == null ? 0.45 : FM.PASS_DECAY) * dt)); else f.speed = rollSpeed(f.speed, dt, 0.4);
     ball.x += f.dir.x * move; ball.y += f.dir.y * move; f.run += move;
     // who gets a touch: the first man along the ball's path whose reach it passes through
     let hit = null;
@@ -2350,7 +2411,7 @@
     // Loose ball: it rolls on and slows; whoever gets to it first has to win it (a fast ball is hard to control, and a man can knock it on instead).
     { const sp0 = Math.hypot(ball.vx || 0, ball.vy || 0);
       if (sp0 > 0.05) {
-        ball.x += ball.vx * dt; ball.y += ball.vy * dt; const fr = Math.exp(-(FM.LOOSE_FRIC == null ? 1.3 : FM.LOOSE_FRIC) * dt); ball.vx *= fr; ball.vy *= fr; if (sp0 < 0.35) { ball.vx = 0; ball.vy = 0; }
+        ball.x += ball.vx * dt; ball.y += ball.vy * dt; const fr = FM.OLD_ROLL ? Math.exp(-(FM.LOOSE_FRIC == null ? 1.3 : FM.LOOSE_FRIC) * dt) : rollSpeed(sp0, dt, 0) / sp0; ball.vx *= fr; ball.vy *= fr; if (sp0 < 0.35) { ball.vx = 0; ball.vy = 0; }
         if (ball.x < 0 || ball.x > L || ball.y < 0 || ball.y > W) { const bx = ball.x < 0 ? Math.min(ball.x, -0.1) : ball.x > L ? Math.max(ball.x, L + 0.1) : ball.x, by = ball.y < 0 ? Math.min(ball.y, -0.1) : ball.y > W ? Math.max(ball.y, W + 0.1) : ball.y; ball.vx = ball.vy = 0; handleOut(match, match.lastTeam || match.home, bx, by); return; }
       }
     }
