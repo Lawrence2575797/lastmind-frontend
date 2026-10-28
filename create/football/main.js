@@ -484,6 +484,15 @@
     b.setAttribute('role', 'status');
     setTimeout(() => { b.disabled = false; b.classList.remove('ok', 'warn'); b.textContent = 'Save'; }, res === 'saved' ? 2500 : 5000);
   });
+  // A saved game can be given a name; it is kept in the save and is what the account's project list shows.
+  if (el('nameBtn')) el('nameBtn').addEventListener('click', async () => {
+    if (!world.league) return;
+    const cur = world.league.saveName || '', v = window.prompt('Name this saved game (leave it empty for the club name):', cur);
+    if (v == null) return;
+    const name = v.trim().slice(0, 60); if (name === cur) return;
+    if (name) world.league.saveName = name; else delete world.league.saveName;
+    const b = el('saveBtn'); if (b && !b.disabled) b.click(); else { try { await FM.saveNow(world.league); } catch (e) { /* the next save writes it */ } }
+  });
   el('pitchPlay').addEventListener('click', () => el('playBtn').click());
   el('pitchPause').addEventListener('click', () => el('playBtn').click());
   if (el('viewMode')) el('viewMode').addEventListener('change', () => { world.viewMode = el('viewMode').value; try { localStorage.setItem('lm_football_view', world.viewMode); } catch (e) { /* a convenience only */ } applyViewMode(); });
@@ -949,7 +958,7 @@
     if (v === 'develop') v = 'squad';   // the Development page is gone: potential and growth are on the Squad page
     if (v !== 'tactics' && backBtn) dropBackBtn();
     world.view = v;
-    { const sb = el('saveBtn'); if (sb) sb.hidden = !world.league; }
+    { const sb = el('saveBtn'); if (sb) sb.hidden = !world.league; const nb = el('nameBtn'); if (nb) nb.hidden = !world.league || !!world.league.mp; }
     if (FM.agentHide) FM.agentHide(v === 'match');
     document.body.dataset.view = v;
     VIEWS.forEach((k) => { el('view-' + k).hidden = k !== v; });

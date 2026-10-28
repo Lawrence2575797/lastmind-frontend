@@ -12072,6 +12072,23 @@ SQIDAQAB
     // The projects sit in a stack. Scrolling (wheel, swipe or arrow keys) moves down it: the front card is flicked up and away and the
     // next one comes forward. Click the front card to open it, or a card behind it to bring it to the front.
     let simWalletCleanup = null;
+    // A saved football game's name is in the save itself (so the next save keeps it) and is the account row's title: both are written together.
+    async function createRenameFootball(p) {
+        const v = window.prompt('Name this saved game (leave it empty for the club name):', p.title || '');
+        if (v == null) return;
+        const name = v.trim().slice(0, 60);
+        try {
+            const got = await createAuthedFetch(`/create/projects/${encodeURIComponent(p.id)}`);
+            const row = got.body && (got.body.project || got.body), fb = row && row.data && row.data.football;
+            if (!got.resp.ok || !fb || typeof fb.save !== 'string') throw new Error('That saved game could not be opened.');
+            const sv = JSON.parse(fb.save); if (name) sv.saveName = name; else delete sv.saveName;
+            let club = ''; try { club = (sv.teams || []).find((t) => t.id === sv.userId).name; } catch (_) { /* the title falls back below */ }
+            const data = Object.assign({}, row.data, { football: Object.assign({}, fb, { save: JSON.stringify(sv) }) });
+            const put = await createAuthedFetch('/create/projects', { method: 'POST', body: JSON.stringify({ id: p.id, title: name || (club ? 'Be the manager: ' + club : p.title), kind: row.kind || 'football-manager', data }) });
+            if (!put.resp.ok) throw new Error((put.body && put.body.error) || 'It could not be renamed.');
+            window.location.reload();
+        } catch (err) { window.alert(err && err.message ? err.message : 'It could not be renamed.'); }
+    }
     function simProjectInfo(p, isRef) {
         const image = (() => {
             if (p.kind === 'chancellor') return '/assets/create/chancellor.jpg';
@@ -12096,6 +12113,7 @@ SQIDAQAB
         else { open = () => createOpenProject(p.id, isRef ? { playtest: true } : {}); openLabel = isRef ? 'Play free demo' : 'Open'; }
         const extras = [];
         if (!isRef && !['doctor-career', 'criminal-lawyer-career', 'football-manager', 'football-demo', 'chancellor'].includes(p.kind)) extras.push({ label: 'Playtest', run: () => createOpenProject(p.id, { playtest: true }) });
+        if (p.kind === 'football-manager' && p.cloud && !isRef) extras.push({ label: 'Rename', run: () => createRenameFootball(p) });
         const deletable = !isRef && p.kind !== 'doctor-career' && p.kind !== 'criminal-lawyer-career';
         return { id: p.id, image, title, meta, open, openLabel, extras, deletable, isRef };
     }

@@ -65,3 +65,15 @@ const ok = (c, m) => { if (!c) { console.error('FAIL: ' + m); process.exitCode =
   ok(kept && kept.tier === 'gcse', 'a game whose row was deleted elsewhere stays on the device');
   await B.saveNow(kept); ok([...rows.values()].some((x) => x.data.football.save.indexOf('"tier":"gcse"') > 0), 'and is written again as a new row');
 })();
+
+// a saved game can be named: the name is kept in the save and is the row's title
+(async () => {
+  await new Promise((r) => setTimeout(r, 1500));
+  const A = device('u1'); await A.pullCloud();
+  const g = A.createLeague({ userIndex: 0, tier: 'gcse', seed: 303, runSeed: 333 }); g.saveName = 'My first title run';
+  await A.saveNow(g); const row = rows.get(g.cid);
+  ok(row && row.title === 'My first title run', 'the row is titled with the save name: ' + (row && row.title));
+  const B = device('u1'); await B.pullCloud(); await B.openSave(g.cid); const lb = B.loadLeague('solo');
+  ok(lb && lb.saveName === 'My first title run', 'another device opens it with the name');
+  delete lb.saveName; await B.saveNow(lb); ok(/^Be the manager: /.test(rows.get(g.cid).title), 'clearing the name goes back to the club name: ' + rows.get(g.cid).title);
+})();
