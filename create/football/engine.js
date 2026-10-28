@@ -801,7 +801,7 @@
     const pull = clamp((FM.GROUP_BALL_PULL[player.group] || 0.4) + phase.ballPull + 0.25 * m.roam, 0, 1);
     // With the ball the team mostly holds its board's shape (only a little drawn toward the ball); without it the block shifts with the ball.
     d += (b.d - d) * pull * (1 - 0.85 * drawn) * (hasBall ? (FM.SHIFT_D_ATT == null ? 0.14 : FM.SHIFT_D_ATT) : 0.3 * (1 - 0.8 * lowK));
-    w += (b.w - w) * pull * (1 - 0.85 * drawn) * (hasBall ? (FM.SHIFT_W_ATT == null ? 0.09 : FM.SHIFT_W_ATT) : 0.22);
+    w += (b.w - w) * pull * (1 - 0.85 * drawn) * (hasBall ? (FM.SHIFT_W_ATT == null ? 0.09 : FM.SHIFT_W_ATT) : (FM.SHIFT_W_DEF == null ? 0.55 : FM.SHIFT_W_DEF));
     // Both sides play compactly round the ball: the length of a team is about 40 m and the men near the ball are close to each other, so the players of a side are drawn in toward the play,
     // the more the further they stand from it. (A shirt the manager placed holds its place.)
     if (player.group !== 'GK') { const cp = (FM.COMPACT == null ? 0 : FM.COMPACT) * (1 - 0.85 * drawn); d += (b.d - d) * cp; w += (b.w - w) * cp * 0.45; }

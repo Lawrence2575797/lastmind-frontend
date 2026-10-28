@@ -129,6 +129,21 @@
     const dbg = FM.view3d.ikLog; if (dbg) { f.root.updateMatrixWorld(true); Lg.ankle.getWorldPosition(tmp); const before = Math.hypot(tmp.x - tx, tmp.y - ty, tmp.z - tz); Lg.hip.quaternion.slerp(ik.q1, w); Lg.knee.quaternion.slerp(ik.q2, w); Lg.ankle.quaternion.slerp(ik.q3, w); f.root.updateMatrixWorld(true); Lg.ankle.getWorldPosition(tmp); dbg.push({ w, D, reach: TL1B + TL2B, before, after: Math.hypot(tmp.x - tx, tmp.y - ty, tmp.z - tz) }); return; }
     Lg.hip.quaternion.slerp(ik.q1, w); Lg.knee.quaternion.slerp(ik.q2, w); Lg.ankle.quaternion.slerp(ik.q3, w);
   }
+  // What each man is doing, in words, above his head (Show jobs): the match keeps it on him (p.job) so what he does can be checked against what he should be doing.
+  function jobLabel(e, p) {
+    const t = p.job || '';
+    if (!e.jobSprite) {
+      const c = mkCanvas(320, 56), tx = new THREE.CanvasTexture(c); tx.minFilter = THREE.LinearFilter;
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tx, transparent: true, depthTest: false })); sp.scale.set(4.4, 0.77, 1); sp.position.y = 2.0; sp.renderOrder = 10;
+      e.fig.root.add(sp); e.jobSprite = sp; e.jobCanvas = c; e.jobTx = tx;
+    }
+    if (e.jobText !== t) {
+      e.jobText = t; const g = e.jobCanvas.getContext('2d'); g.clearRect(0, 0, 320, 56);
+      if (t) { g.font = '600 24px system-ui, sans-serif'; const w = Math.min(312, g.measureText(t).width + 22); g.fillStyle = 'rgba(8,14,12,.78)'; g.beginPath(); g.roundRect ? g.roundRect(160 - w / 2, 6, w, 40, 10) : g.rect(160 - w / 2, 6, w, 40); g.fill(); g.fillStyle = '#f4f1e6'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(t, 160, 27, 300); }
+      e.jobTx.needsUpdate = true;
+    }
+    e.jobSprite.visible = !!t;
+  }
   function addContact(e, foot, tc, kind) { contacts.push({ e, foot, tc, kind }); if (contacts.length > 12) contacts.shift(); }
   const smooth = (e0, e1, x) => { const t = clamp((x - e0) / (e1 - e0), 0, 1); return t * t * (3 - 2 * t); };
   const down = (y, j, r) => 1 - smooth(j - r, j + r, y);   // 0 above a joint, 1 below it, easing across the joint
@@ -586,6 +601,7 @@
   }
 
   FM.view3d = {
+    showJobs: (() => { try { return localStorage.getItem('lm_football_jobs') === '1'; } catch (e) { return false; } })(),
     poseFor(m, teamId, number, type, dur, dir) { const e = findBy(m, teamId, number); setPose(e, type, dur || 1, dir || 1); return !!e; },   // for trying out the animations
     get playersMap() { return players; }, get ball() { return ballMesh; }, get cameraObj() { return camera; },
     get ready() { return ready; }, get failed() { return failed; }, get mode() { return mode; },
@@ -665,6 +681,7 @@
           }
         }
         if (e.fig.mx) e.fig.mx.sync(e.fig);
+        if (FM.view3d.showJobs && !replay) jobLabel(e, p); else if (e.jobSprite) e.jobSprite.visible = false;
       }));
       let bx = ((ctx && ctx.renderBall) || m.ball).x - HL, bz = ((ctx && ctx.renderBall) || m.ball).y - HW, by = replay ? ctx.replayBy : ballHeight(m, bx, bz);
       // Dribbling. The ball is a real rolling ball (it slows on the grass) that the carrier touches as he runs. At a jog he plays it on every stride and it stays at his feet; at

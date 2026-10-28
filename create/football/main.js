@@ -496,6 +496,12 @@
   el('pitchPlay').addEventListener('click', () => el('playBtn').click());
   el('pitchPause').addEventListener('click', () => el('playBtn').click());
   if (el('viewMode')) el('viewMode').addEventListener('change', () => { world.viewMode = el('viewMode').value; try { localStorage.setItem('lm_football_view', world.viewMode); } catch (e) { /* a convenience only */ } applyViewMode(); });
+  // Show jobs: what each player is doing, written above his head in the 3D views.
+  { const jb = el('jobsBtn'); if (jb) {
+    const on = () => { try { return localStorage.getItem('lm_football_jobs') === '1'; } catch (e) { return false; } };
+    const apply = (v) => { if (FM.view3d) FM.view3d.showJobs = v; jb.setAttribute('aria-pressed', v ? 'true' : 'false'); jb.textContent = v ? 'Hide jobs' : 'Show jobs'; };
+    apply(on()); jb.addEventListener('click', () => { const v = !(FM.view3d && FM.view3d.showJobs); try { localStorage.setItem('lm_football_jobs', v ? '1' : '0'); } catch (e) { /* a convenience only */ } apply(v); });
+  } }
   applyViewMode();
   el('playBtn').addEventListener('click', () => {
     const m = world.match;

@@ -348,39 +348,50 @@
   }
   // ---------- target overrides: carrying, pressing, chasing the ball ----------
   FM.debugOverrides = (m) => buildOverrides(m);
+  // What each man is doing is kept on him (p.job, in words) so it can be seen and checked against what a player in that spot of the game would really be doing.
+  let JOB = '';
   function buildOverrides(match) {
-    const ov = new Map();
+    const ov = new Map(); JOB = '';
+    { const set0 = Map.prototype.set; ov.set = function (p, v) { if (p && typeof p === 'object') p.job = JOB; return set0.call(this, p, v); }; }
+    match.teams.forEach((t) => t.players.forEach((p) => { p.job = ''; }));
     const c = match.carrier;
     if (c) {
       const opp = other(match, c.team);
       if (match.carry && match.carry.player === c.player && match.clock < match.carry.until) {
         const reach = FM.toTeamSpace(c.team.attackDir, c.player.x, c.player.y).d > 0.66 ? 9 * (FM.CARRY_FINAL == null ? 0.7 : FM.CARRY_FINAL) : 9;   // in the final third the cover is close: a touch past the man, not a run past the whole defence
+        JOB = 'carries it';
         ov.set(c.player, { x: clamp(c.player.x + match.carry.dx * reach, 1, L - 1), y: clamp(c.player.y + match.carry.dy * reach, 1, W - 1) });
       } else if (!match.forcePass && match.nextDecision - match.clock > (FM.BRAKE_T == null ? -1 : FM.BRAKE_T)) {   // he keeps moving right up to the moment he plays it: he does not brake for the last third of a second
         // Waiting to decide: a man with room keeps moving with the ball (a jog, toward goal and a little toward the middle) instead of standing
         // still holding it. Closed down, or already in the box, he holds the ball where he is (a man backing away from a defender can never be
         // tackled, which breaks the game: 30+ goals a match).
         const nd = nearestOpponent(match, c.team, c.player).d, toward = FM.toTeamSpace(c.team.attackDir, c.player.x, c.player.y).d;
+        JOB = 'drives forward';
         if (nd > 3.5 && toward > 0.5 && toward < 0.97 && c.player.group !== 'GK' && ['AM', 'WF', 'ST', 'CM', 'FB', 'DM'].includes(c.player.group) && clearAhead(match, c.team, c.player, 14)) ov.set(c.player, { x: clamp(c.player.x + c.team.attackDir * (FM.DRIVE_RUN == null ? 2.5 : FM.DRIVE_RUN), 1, L - 1), y: clamp(c.player.y + (W / 2 - c.player.y) * 0.22, 1, W - 1) });
         else if (nd > (FM.JOG_ND == null ? 0 : FM.JOG_ND) && toward < 0.84 && c.player.group !== 'GK') {
           // moving on with the ball while he decides, but across the pitch as much as up it, so territory is gained by passing and carrying, not by drifting
+          JOB = 'carries it';
           const dj = nd > 10 ? 8 * (FM.JOG_K == null ? .34 : FM.JOG_K) : 3.2, fw = FM.JOG_FWD == null ? 0.15 : FM.JOG_FWD, side = ((c.player.number + Math.floor(match.clock / 5)) % 2 ? 1 : -1) * (c.player.y < 9 ? -1 : c.player.y > W - 9 ? 1 : 1) * (c.player.y < 9 ? -1 : 1);
           ov.set(c.player, { x: clamp(c.player.x + c.team.attackDir * dj * fw, 1, L - 1), y: clamp(c.player.y + (W / 2 - c.player.y) * 0.04 * fw + side * dj * (1 - fw), 1, W - 1) });
         }
       }
       // Whatever the moment, a man with the ball is never sent back to his usual position: past the last defender he goes on, otherwise he holds.
       // A man clear through on goal runs on at the keeper; he is never sent back toward his usual position into the men chasing him.
+      JOB = 'runs at goal';
       if (!FM.NO_LATE && !ov.has(c.player) && clearThrough(match, c.team, c.player)) ov.set(c.player, { x: clamp(c.player.x + c.team.attackDir * (FM.THROUGH_RUN == null ? 9 : FM.THROUGH_RUN), 1, L - 1), y: clamp(c.player.y + (W / 2 - c.player.y) * 0.08, 1, W - 1) });
       // The carrier keeps possession where he is while turning or weighing a
       // pass. His generic phase position must never pull him backwards with
       // the ball simply because the rest of the team is resetting its shape.
       if (!ov.has(c.player) && !match.forcePass && c.player.group !== 'GK' && (!match.pendingAct || match.pendingAct.ang == null)) {
         const sp = Math.hypot(c.player.vx || 0, c.player.vy || 0);
+        JOB = 'carries it';
         if (sp > 1.5 && nearestOpponent(match, c.team, c.player).d > (FM.MOM_ND == null ? 4.2 : FM.MOM_ND) && FM.toTeamSpace(c.team.attackDir, c.player.x, c.player.y).d < (FM.MOM_DEPTH == null ? 0.75 : FM.MOM_DEPTH)) { const J = FM.MOM_DIST == null ? 2.4 : FM.MOM_DIST; ov.set(c.player, { x: clamp(c.player.x + c.player.vx / sp * J, 1, L - 1), y: clamp(c.player.y + c.player.vy / sp * J, 1, W - 1) }); }   // on at a jog, not stopped, not at a sprint
       }
       // A ball that is not at his feet (a pass that arrived behind him, his own touch that ran on) is something he goes to, not something that comes back to him.
       { const bp = match.ball, bdx = bp.x - c.player.x, bdy = bp.y - c.player.y, bdd = Math.hypot(bdx, bdy), psp = Math.hypot(c.player.vx || 0, c.player.vy || 0);
+        JOB = 'goes to the ball';
         if (bdd > 1.3 && !(psp > 2 && (bdx * c.player.vx + bdy * c.player.vy) / (bdd * psp) > 0.5)) ov.set(c.player, { x: clamp(bp.x + (bp.vx || 0) * 0.3, 1, L - 1), y: clamp(bp.y + (bp.vy || 0) * 0.3, 1, W - 1) }); }
+      JOB = 'shields the ball';
       if (!ov.has(c.player)) ov.set(c.player, { x: c.player.x, y: c.player.y });
       // Defending the man on the ball. Most of the time one defender goes to him, and he closes down rather than charging in: how
       // tightly depends on the team's pressing instruction (a hard press gets right on top of him, a soft one holds off and jockeys).
@@ -400,6 +411,7 @@
       const cpx = lostIt ? (opp.tactics.counterPress > 0.6 ? 1 : 0) + (opp.tactics.counterPress > 0.85 ? 1 : 0) : 0, cpl = lostIt ? (opp.tactics.counterPress < 0.3 ? -1 : 0) : 0;   // the counter-press setting: how many close the ball down just after it is lost
       const n = Math.max(1, 1 + (press > 0.65 && (lostIt || nearGoal || (deep && pbu > 0.6)) ? 1 : 0) + cpx + cpl);
       const ranked = opp.players.filter((p) => p.group !== 'GK').map((p) => ({ p, d: dist(p, c.player) })).sort((a, b) => a.d - b.d);
+      JOB = 'presses the ball';
       ranked.slice(0, n).forEach(({ p, d }, i) => {
         if (d >= (i === 0 ? Math.max(pressTrigger(opp, p, press, match), (FM.FIRST_PRESS == null ? 0 : FM.FIRST_PRESS) * (0.4 + 0.6 * press)) : pressTrigger(opp, p, press, match))) return;   // the nearest man always comes to the ball
         const stand = 0.5 + 2.2 * (1 - press) + 0.8 * i; // how far off the carrier he stops, in metres
@@ -408,6 +420,7 @@
         // he shows him the line, so he is forced wide where a pass or a clearance is the only way out.
         const ownGX = opp.attackDir === 1 ? 0 : L, gx = ownGX - c.player.x, gy = W / 2 - c.player.y, gl = Math.hypot(gx, gy) || 1, wide = Math.abs(c.player.y - W / 2) > W / 2 - 13 ? Math.sign(W / 2 - c.player.y) * 1.3 : 0;
         const k = FM.PRESS_ANGLE == null ? 0.6 : FM.PRESS_ANGLE;
+        JOB = i === 0 ? (lostIt ? 'counter-presses' : 'closes the ball down') : 'supports the press';
         ov.set(p, { x: c.player.x + c.player.vx * 0.4 + (gx / gl * k + dx / dd * (1 - k)) * stand, y: c.player.y + c.player.vy * 0.4 + (gy / gl * k + dy / dd * (1 - k)) * stand + wide });
       });
       // Recovery. A defender who has been beaten does not stay behind the ball: he sprints to get goal-side again, between the man with the ball and
@@ -416,6 +429,7 @@
         opp.players.forEach((p) => {
           if (p.group === 'GK' || ov.has(p)) return;
           const gap = (c.player.x - p.x) * c.team.attackDir;
+          JOB = 'recovers goal-side';
           if (gap > 1 && gap < 30 && Math.abs(p.y - c.player.y) < 26) ov.set(p, { x: c.player.x + c.team.attackDir * (FM.RECOVER_AHEAD == null ? 4 : FM.RECOVER_AHEAD), y: c.player.y + (p.y - c.player.y) * 0.3 });
         });
       }
@@ -432,6 +446,7 @@
         if (!target) return;
         let best = null, bd = reach;
         target.forEach((q) => { const dd = dist(p, q); if (dd < bd) { bd = dd; best = q; } });
+        JOB = 'marks his man';
         if (best) ov.set(p, { x: best.x - opp.attackDir * 1.5, y: best.y });
       });
       // The press on a build-up as a plan. Their forwards go to the deepest of your players, their attacking midfielders to the next, and so on, each
@@ -445,6 +460,7 @@
           if (ov.has(p)) return;
           const dx = c.player.x - q.x, dy = c.player.y - q.y, dd = Math.max(Math.hypot(dx, dy), 0.1);
           const sd = stand * (1 - 0.4 * (plan.cd ? plan.cd.get(p) || 0 : 0));
+          JOB = 'presses his man';
           ov.set(p, { x: clamp(q.x + dx / dd * sd, 1, L - 1), y: clamp(q.y + dy / dd * sd, 1, W - 1) });
         });
       }
@@ -467,6 +483,7 @@
         const lx = c.player.x + (q.x - c.player.x) * laneAt, ly = c.player.y + (q.y - c.player.y) * laneAt;
         let who = null, bd = 18;
         free.forEach((m) => { if (taken.has(m)) return; const dd = Math.hypot(m.x - lx, m.y - ly); if (dd < bd) { bd = dd; who = m; } });
+        JOB = 'cuts the passing lane';
         if (who) { taken.add(who); used++; ov.set(who, { x: lx, y: ly }); }
       }
 
@@ -487,17 +504,23 @@
         let len = Math.hypot(dx, dy);
         if (len < .1) { dx = p.x - c.player.x; dy = p.y - c.player.y; len = Math.hypot(dx, dy) || 1; }
         const radius = 13.5 + Math.min(3, index * .35);
+        JOB = 'holds off: keeps shape';
         ov.set(p, { x: clamp(c.player.x + dx / len * radius, 1, L - 1), y: clamp(c.player.y + dy / len * radius, 1, W - 1) });
       });
     } else if (match.flight && match.flight.target) {
       const f = match.flight;
       if (f.free) {
+        JOB = 'runs onto the pass';
         ov.set(f.target, runPoint(f.target, f, match.ball));
+        JOB = 'meets the ball';
         if (f.claim) ov.set(f.claim.p, runPoint(f.claim.p, f, match.ball));   // he goes onto the ball
+        JOB = 'covers the pass';
         if (f.t > 0.2) other(match, f.team).players.filter((q) => q.group !== 'GK' || segInfo(q.x, q.y, match.ball.x, match.ball.y, match.ball.x + f.dir.x * 20, match.ball.y + f.dir.y * 20).d < 10).map((q) => ({ q, d: segInfo(q.x, q.y, match.ball.x, match.ball.y, match.ball.x + f.dir.x * Math.max(0, f.len + 6 - f.run), match.ball.y + f.dir.y * Math.max(0, f.len + 6 - f.run)).d })).filter((o) => o.d < 14).sort((a, b) => a.d - b.d).slice(0, 2).forEach(({ q }) => ov.set(q, runPoint(q, f, match.ball)));
+      JOB = 'waits for the ball';
       } else ov.set(f.target, f.outcome === 'complete' ? { x: f.ex, y: f.ey } : { x: f.target.x, y: f.target.y });
     } else if (!match.flight) {
       match.teams.forEach((team) => {
+        JOB = 'chases the loose ball';
         team.players.map((p) => ({ p, d: Math.hypot(p.x - match.ball.x, p.y - match.ball.y) }))
           .filter(({ p, d }) => p.group !== 'GK' || d < 14)
           .sort((a, b) => a.d - b.d).slice(0, 2)
@@ -506,6 +529,16 @@
     }
     offBall(match, ov);
     addTeamPlay(match, ov);
+    { const poss = match.carrier ? match.carrier.team : match.flight && match.flight.team || null;
+      // the rest are doing the job of their place in that state of the game
+      match.teams.forEach((t) => t.players.forEach((p) => {
+        if (p.job) return;
+        const g = p.group, dirT = t.attackDir, bd = FM.toTeamSpace(dirT, match.ball.x, match.ball.y).d, side = Math.abs(p.y - match.ball.y);
+        if (g === 'GK') p.job = bd > 0.6 ? 'sweeps behind the line' : 'keeps goal';
+        else if (!poss) p.job = 'goes for the ball';
+        else if (t === poss) p.job = g === 'CB' ? (bd < 0.35 ? 'splits to receive' : 'holds the rest defence') : g === 'DM' ? (bd < 0.55 ? 'shows in front of the back line' : 'holds the rest defence') : g === 'ST' ? (bd > 0.45 ? 'pins the back line' : 'drops to link') : (g === 'WF' || (g === 'FB' && Math.abs(p.y - W / 2) > 22)) ? 'holds the width' : g === 'FB' ? 'supports from the flank' : 'holds the shape between the lines';
+        else p.job = g === 'CB' || g === 'FB' ? (side > 24 ? 'tucks in, far side' : 'holds the line') : g === 'DM' ? 'screens the middle' : (g === 'ST' || g === 'WF') ? (side > 24 ? 'stays up, far side' : 'cuts the pass back') : (side > 24 ? 'tucks in, far side' : 'shifts across to the ball');
+      })); }
     return ov;
   }
   // ---------- what a side does without the ball that reads as a plan ----------
@@ -559,8 +592,31 @@
       if (wide > 12 && depth > 0.4 && depth < 0.92) {
         T.players.forEach((q) => { if (!open(q) || (q.group !== 'WF' && q.group !== 'FB') || (q.y >= W / 2 ? 1 : -1) === side || Math.abs(q.y - W / 2) < 8) return; give(q, Math.max(q.x * dir, cp.x * dir + 2) * dir, W / 2 - side * (W / 2 - 7), 1.4, 'wide'); });
       }
+      // 5. everyone else looks for a place he can be found: an open line from the ball, in space, a pass away, and not far from his own place in the shape. This is what
+      // a man without the ball is doing in possession: making himself an option. (The centre-backs, and the holding midfielder once the ball is up the pitch, keep the rest defence.)
+      if (!FM.NO_OFFER && depth < 0.92) {
+        const mates = T.players.filter((q) => q !== cp && q.group !== 'GK');
+        T.players.forEach((q) => {
+          if (!open(q) || q.group === 'CB' || (q.group === 'DM' && depth > 0.55)) return;
+          const home = FM.targetFor(T, q, match.ball, true);
+          let best = null, bs = -1e9, cur = null;
+          const score = (x, y) => {
+            const dd = Math.hypot(x - cp.x, y - cp.y); if (dd < 0.1) return -1e9;
+            const blocked = O.players.reduce((n, o) => (n + (segInfo(o.x, o.y, cp.x, cp.y, x, y).d < 2.2 ? 1 : 0)), 0);
+            const od = Math.min(8, O.players.reduce((m, o) => Math.min(m, Math.hypot(o.x - x, o.y - y)), 99));
+            const crowd = mates.some((m2) => m2 !== q && Math.hypot((st.runs.has(m2) ? st.runs.get(m2).pt.x : m2.x) - x, (st.runs.has(m2) ? st.runs.get(m2).pt.y : m2.y) - y) < 6.5) ? 3 : 0;
+            return (blocked ? -4 - blocked : 3) + 0.6 * od + (dd < 7 ? -3 : dd > 26 ? -(dd - 26) * 0.4 : -Math.abs(dd - 14) * 0.1) + 0.07 * Math.max(-8, Math.min(10, (x - cp.x) * dir)) - 0.13 * Math.hypot(x - home.x, y - home.y) - crowd;
+          };
+          cur = score(q.x, q.y);
+          for (let ox = -8; ox <= 8; ox += 4) for (let oy = -8; oy <= 8; oy += 4) {
+            const x = clamp(cap(q.x + ox), 2, L - 2), y = clamp(q.y + oy, 2.5, W - 2.5), sc = score(x, y);
+            if (sc > bs) { bs = sc; best = { x, y }; }
+          }
+          if (best && bs > cur + 1.5) give(q, best.x, best.y, FM.OFFER_SECS == null ? 1.1 : FM.OFFER_SECS, 'offer');
+        });
+      }
     }
-    st.runs.forEach((r, p) => { if (!ov.has(p)) ov.set(p, r.pt); });
+    st.runs.forEach((r, p) => { if (!ov.has(p)) { JOB = ({ pm: 'passes and moves', ovl: 'overlaps', box: 'attacks the box', wide: 'holds the width', offer: 'finds space to be found' })[r.kind] || 'moves into space'; ov.set(p, r.pt); } });
   }
   // ---------- what the rest of the side does while one man has the ball ----------
   // The two team-mates nearest the carrier move to angles from which they can be found (about ten metres off, wide of him and ahead or behind, where no opponent is on the
@@ -589,6 +645,7 @@
         });
         st = match.sup = { who: cp, until: now + 1.6, tg };
       }
+      JOB = 'offers a short pass';
       st.tg.forEach((pt, q) => { if (!ov.has(q)) ov.set(q, pt); });
     }
     // an off-ball run
@@ -605,10 +662,12 @@
         }
       }
     }
+    JOB = 'runs in behind';
     if (rs.q && !ov.has(rs.q)) ov.set(rs.q, rs.pt);
     // recovery: just after a loss, the men who are ahead of the ball run back to where they defend
     if (!FM.NO_REC && match.lastChange && match.lastChange.team === T && now - match.lastChange.t < 5) {
       const bd = FM.toTeamSpace(O.attackDir, cp.x, cp.y).d;
+      JOB = 'tracks back';
       O.players.forEach((p) => { if (p.group === 'GK' || ov.has(p)) return; if (FM.toTeamSpace(O.attackDir, p.x, p.y).d > bd + 0.03) ov.set(p, FM.targetFor(O, p, match.ball, false)); });
     }
   }
@@ -1301,7 +1360,7 @@
     // long-run goals described two different models.
     // The geometric model describes the chance before the keeper, imperfect
     // contact and the small target inside the goal are considered.
-    const scoringChance = xgAdj * (FM.GOAL_K == null ? 0.95 : FM.GOAL_K);
+    const scoringChance = xgAdj * (FM.GOAL_K == null ? 1.9 : FM.GOAL_K);
     const conditionalGoal = clamp(scoringChance / pOn, 0.02, 0.97);
     const shotXg = (1 - pBlock) * pOn * conditionalGoal;
     st.xg += shotXg;
