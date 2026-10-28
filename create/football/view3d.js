@@ -271,6 +271,7 @@
     else if (A.failed) { txt = 'Motion capture failed to load (' + (A.error || 'unknown error') + '). Using basic movement. Try a hard refresh (Ctrl+Shift+R).'; bad = true; }
     else if (!A.ready) txt = 'Loading motion capture...';
     else { const n = (A.drove || 0) - badgeD; badgeD = A.drove || 0; if (n > 0 || now - (A.droveAt || 0) < 1500) { txt = 'Motion capture on (' + Object.keys(A.clips || {}).length + ' Mixamo clips)'; good = true; } else { txt = 'Motion capture loaded but not driving the players. Using basic movement.'; bad = true; } }
+    badge.style.display = bad ? '' : 'none';   // only a problem is shown; when it works there is nothing to say
     badge.textContent = txt; badge.style.background = bad ? 'rgba(160,40,30,.92)' : 'rgba(10,20,16,.72)'; badge.style.color = bad ? '#fff' : good ? '#8fe0a8' : '#e8dcb8';
   }
   function animate(f, st, dt, t) {
