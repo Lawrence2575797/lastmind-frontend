@@ -966,7 +966,7 @@
     if (nearNow > 4 && !through && !drive) options.push({ kind: 'hold', score: .48 + .55 * live.patience - .4 * live.urgency - .2 * directness });
 
     if (coast > 0) options.forEach((o) => { if (o.kind === 'shoot' && o.score > 0) o.score *= 1 - 0.45 * coast; });
-    options.forEach((o) => { if (o.kind === 'shoot' && o.score > 0) o.score *= (FM.SHOT_K == null ? 1.2 : FM.SHOT_K); });
+    options.forEach((o) => { if (o.kind === 'shoot' && o.score > 0) o.score *= (FM.SHOT_K == null ? 1.45 : FM.SHOT_K); });
     if (RE && RE.shoot) options.forEach((o) => { if (o.kind === 'shoot' && o.score > 0) o.score *= clamp(1 + 0.9 * RE.shoot, 0.1, 2); });
 
     if (!options.length) options.push({ kind: 'carry', nearD: 3, drive: false, score: 0 });   // never nothing to do: he keeps the ball and moves on
@@ -1099,7 +1099,7 @@
     let hit = null;
     const consider = (p, tm) => {
       if (p === f.passer && f.t < 0.5) return;
-      const s = segInfo(p.x, p.y, x0, y0, ball.x, ball.y), reach = (p === f.target ? 2.0 : tm === team ? 1.1 : 0.9) + (p.group === 'GK' ? 1.0 : 0) + (p.sliding ? 0.6 : 0);
+      const s = segInfo(p.x, p.y, x0, y0, ball.x, ball.y), reach = (p === f.target ? (FM.RECV_REACH == null ? 3.3 : FM.RECV_REACH) : tm === team ? 1.1 : 0.9) + (p.group === 'GK' ? 1.0 : 0) + (p.sliding ? 0.6 : 0);
       if (p === f.target) f.minD = Math.min(f.minD == null ? 99 : f.minD, s.d);
       if (s.d > reach) return; if (!hit || s.t < hit.t) hit = { p, tm, t: s.t, c: 1 - s.d / reach };
     };
@@ -1107,7 +1107,7 @@
     if (hit) {
       const p = hit.p, mine = hit.tm === team, sk = (k) => ((p.ratings && p.ratings[k]) == null ? 60 : p.ratings[k]) / 100, ev = f.ev, tmx = hit.tm;
       if (mine) {
-        const markD = nearestOpponent(match, team, p).d, ctrl = clamp((FM.CONTROL_BASE == null ? 0.92 : FM.CONTROL_BASE) + 0.2 * sk('composure') - 0.008 * Math.max(0, sp - 14) - (markD < 2.2 ? 0.06 : 0), 0.35, 0.985) * (p === f.target ? 1 : 0.92);
+        const markD = nearestOpponent(match, team, p).d, ctrl = clamp((FM.CONTROL_BASE == null ? 0.92 : FM.CONTROL_BASE) + 0.2 * sk('composure') - 0.008 * Math.max(0, sp - 14) - (markD < 2.2 ? 0.06 : 0), 0.35, 0.985) * (p === f.target ? clamp(0.88 + 0.12 * Math.min(1, hit.c / 0.45), 0.88, 1) : 0.92);   // the man it is meant for stretches for it: a ball far from his feet is less sure to be controlled
         if (rng() < ctrl) {
           if (f.offside && p === f.target) {
             statsOf(match, team).offsides++; if (ev) ev.outcome = 'offside';
@@ -1118,7 +1118,7 @@
           ball.vx = f.dir.x * sp; ball.vy = f.dir.y * sp; receive(match, team, p, 0.3, 0.12 + delayBeforeNextDecision(match, team, p)); return;
         }
         if (ev) { ev.outcome = 'loose'; ev.how = 'heavy'; }
-        knockLoose(match, p, team, f.dir.x, f.dir.y, Math.max(1.5, sp * 0.3), 1.2); return;   // a heavy touch: it runs away from him
+        knockLoose(match, p, team, f.dir.x, f.dir.y, Math.max(1.2, sp * (p === f.target ? 0.16 : 0.3)), 1.2); return;   // a heavy touch: it runs away from him (less far when it was meant for him: he was already on it)
       }
       const pi = clamp(((FM.INTERCEPT_BASE == null ? 0.24 : FM.INTERCEPT_BASE) + 0.45 * hit.c) * (0.7 + 0.5 * sk('tackling')) * clamp(1.25 - sp / 30, 0.5, 1), 0.05, 0.95) * (p.group === 'GK' ? 1.4 : 1);
       if (rng() < pi) {
