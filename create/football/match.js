@@ -247,7 +247,7 @@
     if (match.rec) chainOnBall(match, team, player, match.lastTeam !== team);
     if (match.lastTeam !== team || !match.lastChange) match.lastChange = { team, t: match.clock };
     match.carrier = { team, player };
-    match.flight = null;
+    match.flight = null; match.ball.vx = 0; match.ball.vy = 0;
     match.lastTeam = team;
     match.ball.state = 'carried';
     match.nextDecision = match.clock + delay;
@@ -469,13 +469,16 @@
       });
     } else if (match.flight && match.flight.target) {
       const f = match.flight;
-      ov.set(f.target, f.outcome === 'complete' ? { x: f.ex, y: f.ey } : { x: f.target.x, y: f.target.y });
+      if (f.free) {
+        ov.set(f.target, runPoint(f.target, f, match.ball));
+        if (f.t > 0.2) other(match, f.team).players.filter((q) => q.group !== 'GK' || segInfo(q.x, q.y, match.ball.x, match.ball.y, match.ball.x + f.dir.x * 20, match.ball.y + f.dir.y * 20).d < 10).map((q) => ({ q, d: segInfo(q.x, q.y, match.ball.x, match.ball.y, match.ball.x + f.dir.x * Math.max(0, f.len + 6 - f.run), match.ball.y + f.dir.y * Math.max(0, f.len + 6 - f.run)).d })).filter((o) => o.d < 14).sort((a, b) => a.d - b.d).slice(0, 2).forEach(({ q }) => ov.set(q, runPoint(q, f, match.ball)));
+      } else ov.set(f.target, f.outcome === 'complete' ? { x: f.ex, y: f.ey } : { x: f.target.x, y: f.target.y });
     } else if (!match.flight) {
       match.teams.forEach((team) => {
         team.players.map((p) => ({ p, d: Math.hypot(p.x - match.ball.x, p.y - match.ball.y) }))
           .filter(({ p, d }) => p.group !== 'GK' || d < 14)
           .sort((a, b) => a.d - b.d).slice(0, 2)
-          .forEach(({ p }) => ov.set(p, { x: match.ball.x, y: match.ball.y }));
+          .forEach(({ p }) => { const bs = Math.hypot(match.ball.vx || 0, match.ball.vy || 0), lead = Math.min(0.8, Math.hypot(p.x - match.ball.x, p.y - match.ball.y) / 7); ov.set(p, { x: clamp(match.ball.x + (match.ball.vx || 0) * lead, 0.5, L - 0.5), y: clamp(match.ball.y + (match.ball.vy || 0) * lead, 0.5, W - 0.5) }); });
       });
     }
     return ov;
@@ -959,38 +962,90 @@
     st.passes++;
     // a goalkeeper's short pass is the most rehearsed pass in the game: half as likely to go wrong as the same pass from anyone else
     const pEff = carrier.group === 'GK' && opt.d < 35 ? 1 - (1 - opt.p) * 0.5 : opt.p;
-    const ok = rng() < pEff;
-    // Metres per simulated second. A routine ground pass should be readable
-    // on the pitch rather than flashing between players; only long, firmly
-    // struck passes approach the top of this range.
-    const speed = clamp(11 + opt.d * 0.4, 12, 23);
-    const flight = { kind: 'pass', team, passer: carrier, speed, target: null, ex: opt.tx, ey: opt.ty, outcome: 'complete' };
-    if (ok) {
-      flight.target = opt.target;
-      const os = match.noOffside ? 'on' : offsideStatus(match, team, carrier, opt.target.x);
-      if (os === 'off' || (os === 'marginal' && rng() < 0.1 + 0.3 * other(match, team).tactics.offsideTrap)) flight.outcome = 'offside';
-      else st.passesOk++;
-    } else {
-      // Failed: usually cut out by the defender nearest the lane, otherwise it runs loose.
-      const opp = other(match, team);
-      let best = null, bd = 99;
-      opp.players.forEach((o) => { const s = segInfo(o.x, o.y, carrier.x, carrier.y, opt.tx, opt.ty); if (s.t > 0.05 && s.d < bd) { bd = s.d; best = o; } });
-      if (best && bd < 6 && rng() < 0.75) { flight.outcome = 'intercepted'; flight.target = best; flight.interceptor = best; }
-      else {
-        flight.outcome = 'loose';
-        const spread = (2 + opt.d * 0.12) * (rng() < 0.45 ? 3 : 1);
-        flight.ex = clamp(opt.tx + (rng() - 0.5) * 2 * spread, -4, L + 4);
-        flight.ey = clamp(opt.ty + (rng() - 0.5) * 2 * spread, -4, W + 4);
-        const gx0 = team.attackDir === 1 ? L : 0;
-        if (Math.hypot(opt.tx - gx0, opt.ty - W / 2) < 24 && rng() < 0.85) { flight.ex = clamp(flight.ex, 2, L - 2); flight.ey = clamp(flight.ey, 2, W - 2); }
-      }
-    }
+    // How well the ball is struck depends on how good the pass is (its lane, the pressure, the distance): the worse it is, the more the direction and the weight can go
+    // astray. Nothing else is decided here: where the ball ends up is what happens to it on the way.
+    const err = 1 - pEff, g = () => (rng() + rng() + rng() - 1.5) / 0.5;
+    const sigma = (FM.PASS_SIGMA == null ? 1 : FM.PASS_SIGMA) * (0.012 + 0.22 * Math.pow(err, 1.2)) * (0.7 + 0.5 * (1 - (carrier.ratings.passing || 60) / 100));
+    const ang = Math.atan2(opt.ty - carrier.y, opt.tx - carrier.x) + g() * sigma, len = Math.max(2, opt.d * (1 + g() * 0.045 * (0.4 + 2 * err)));
+    // Metres per simulated second. A routine ground pass should be readable on the pitch rather than flashing between players.
+    const speed = clamp(11 + opt.d * 0.4, 12, 23) * (1 + g() * 0.03);
+    const flight = { kind: 'pass', team, passer: carrier, speed, target: opt.target, ex: carrier.x + Math.cos(ang) * len, ey: carrier.y + Math.sin(ang) * len, free: true, dir: { x: Math.cos(ang), y: Math.sin(ang) }, len, run: 0, t: 0, outcome: 'pending' };
+    const os = match.noOffside ? 'on' : offsideStatus(match, team, carrier, opt.target.x);
+    flight.offside = os === 'off' || (os === 'marginal' && rng() < 0.1 + 0.3 * other(match, team).tactics.offsideTrap);
     // for the manager's analysis: where the pass was going, and how many team-mates were in the box when it left
     let boxMates = 0; { const gxA = team.attackDir === 1 ? L : 0; team.players.forEach((q) => { if (q !== carrier && Math.abs(q.x - gxA) <= 16.5 && Math.abs(q.y - W / 2) <= 20.2) boxMates++; }); }
-    record(match, { type: 'pass', team: team.id, from: carrier.number, to: opt.target.number, tx: opt.tx, ty: opt.ty, box: boxMates, by: flight.interceptor ? flight.interceptor.number : undefined, p: opt.p, ok, outcome: flight.outcome, dist: opt.d, lane: opt.lane, press: opt.press, forced: !!match.forcePass, carrierPressure: nearestOpponent(match, team, carrier).d, minCarrierPressure: match.possessionMinPressure, plannedHold: match.possessionPlannedDelay, receivedDepth: match.possessionReceivedDepth, held: Math.max(0, match.clock - (match.possessionReceivedAt == null ? match.clock : match.possessionReceivedAt)), x: carrier.x, y: carrier.y, tx: flight.ex, ty: flight.ey });
+    record(match, { type: 'pass', team: team.id, from: carrier.number, to: opt.target.number, tx: opt.tx, ty: opt.ty, box: boxMates, p: opt.p, ok: false, outcome: 'pending', dist: opt.d, lane: opt.lane, press: opt.press, forced: !!match.forcePass, carrierPressure: nearestOpponent(match, team, carrier).d });
+    flight.ev = match.events[match.events.length - 1];
     match.carrier = null; match.carry = null;
     match.flight = flight;
     match.ball.state = 'flight';
+  }
+
+  // ---------- the ball in flight and loose ----------
+  // A pass goes where it was struck. The man it was meant for runs to meet it, the other side's nearest men read it and go for it too, and anyone whose reach the ball passes
+  // through may get a touch: a team-mate controls it (or takes it badly and it runs loose), an opponent cuts it out cleanly, gets a foot to it (a deflection that runs loose),
+  // or cannot get to it. A ball nobody touches rolls on and stops. Skill, the speed of the ball and how tightly he is marked all count.
+  const gaussR = (rng) => (rng() + rng() + rng() - 1.5) / 0.5;
+  function runPoint(p, f, ball) {
+    const v = Math.max(f.speed, 6) * 0.88, ps = Math.max(5, (p.maxSpeed || 7) * 1.0), rem = Math.max(0, Math.min(f.len + 6 - f.run, 60));
+    let best = null, bs = 1e9;
+    for (let s = 0; s <= rem; s += 1.2) { const x = ball.x + f.dir.x * s, y = ball.y + f.dir.y * s, slack = Math.hypot(x - p.x, y - p.y) / ps - s / v; if (slack <= 0.1) return { x, y }; if (slack < bs) { bs = slack; best = { x, y }; } }
+    return best || { x: ball.x + f.dir.x * rem, y: ball.y + f.dir.y * rem };
+  }
+  function knockLoose(match, p, tm, dirx, diry, speed, spread) {
+    const ball = match.ball, a = Math.atan2(diry, dirx) + (match.rng() < 0.5 ? -1 : 1) * (0.35 + match.rng() * spread);
+    match.flight = null; match.carrier = null; ball.state = 'loose'; match.lastTeam = tm; ball.vx = Math.cos(a) * speed; ball.vy = Math.sin(a) * speed; p.noPick = match.clock + 0.3;
+  }
+  function stepFreePass(match, f, dt) {
+    const ball = match.ball, rng = match.rng, team = f.team, opp = other(match, team);
+    f.t += dt;
+    if (f.v0 == null) { f.v0 = f.speed; f.speed *= (FM.PASS_BOOST == null ? 1.25 : FM.PASS_BOOST); }
+    const x0 = ball.x, y0 = ball.y, sp = f.speed, move = sp * dt;
+    // it slows on the grass; past the place it was aimed at it is rolling out
+    if (f.run < f.len) f.speed = Math.max(f.v0 * 0.62, f.speed * Math.exp(-(FM.PASS_DECAY == null ? 0.45 : FM.PASS_DECAY) * dt)); else f.speed = Math.max(0.4, f.speed * Math.exp(-1.7 * dt));
+    ball.x += f.dir.x * move; ball.y += f.dir.y * move; f.run += move;
+    // who gets a touch: the first man along the ball's path whose reach it passes through
+    let hit = null;
+    const consider = (p, tm) => {
+      if (p === f.passer && f.t < 0.5) return;
+      const s = segInfo(p.x, p.y, x0, y0, ball.x, ball.y), reach = (p === f.target ? 2.0 : tm === team ? 1.1 : 0.9) + (p.group === 'GK' ? 1.0 : 0) + (p.sliding ? 0.6 : 0);
+      if (p === f.target) f.minD = Math.min(f.minD == null ? 99 : f.minD, s.d);
+      if (s.d > reach) return; if (!hit || s.t < hit.t) hit = { p, tm, t: s.t, c: 1 - s.d / reach };
+    };
+    team.players.forEach((p) => consider(p, team)); opp.players.forEach((p) => consider(p, opp));
+    if (hit) {
+      const p = hit.p, mine = hit.tm === team, sk = (k) => ((p.ratings && p.ratings[k]) == null ? 60 : p.ratings[k]) / 100, ev = f.ev, tmx = hit.tm;
+      if (mine) {
+        const markD = nearestOpponent(match, team, p).d, ctrl = clamp((FM.CONTROL_BASE == null ? 0.89 : FM.CONTROL_BASE) + 0.2 * sk('composure') - 0.008 * Math.max(0, sp - 14) - (markD < 2.2 ? 0.06 : 0), 0.35, 0.985) * (p === f.target ? 1 : 0.92);
+        if (rng() < ctrl) {
+          if (f.offside && p === f.target) {
+            statsOf(match, team).offsides++; if (ev) ev.outcome = 'offside';
+            record(match, { type: 'offside', team: team.id, player: p.number, x: p.x, y: p.y });
+            match.flight = null; startRestart(match, 'freekick', opp, clamp(ball.x, 0.5, L - 0.5), clamp(ball.y, 0.5, W - 0.5), { indirect: true }); return;
+          }
+          statsOf(match, team).passesOk++; if (ev) { ev.ok = true; ev.outcome = 'complete'; }
+          giveBall(match, team, p, 0.12 + delayBeforeNextDecision(match, team, p)); return;
+        }
+        if (ev) { ev.outcome = 'loose'; ev.how = 'heavy'; }
+        knockLoose(match, p, team, f.dir.x, f.dir.y, Math.max(1.5, sp * 0.3), 1.2); return;   // a heavy touch: it runs away from him
+      }
+      const pi = clamp(((FM.INTERCEPT_BASE == null ? 0.28 : FM.INTERCEPT_BASE) + 0.45 * hit.c) * (0.7 + 0.5 * sk('tackling')) * clamp(1.25 - sp / 30, 0.5, 1), 0.05, 0.95) * (p.group === 'GK' ? 1.4 : 1);
+      if (rng() < pi) {
+        if (rng() < 0.55 + 0.3 * sk('tackling')) { if (ev) { ev.outcome = 'intercepted'; ev.by = p.number; } giveBall(match, opp, p, 0.4 + delayBeforeNextDecision(match, opp, p) * 0.5); return; }
+        if (ev) { ev.outcome = 'loose'; ev.how = 'deflect'; }
+        knockLoose(match, p, opp, f.dir.x, f.dir.y, Math.max(2, sp * 0.5), 1.3); return;   // a deflection: it flies off in a new direction
+      }
+      // he could not get to it: the ball goes on
+    }
+    if (ball.x < 0.3 || ball.x > L - 0.3 || ball.y < 0.3 || ball.y > W - 0.3) {
+      if (f.ev && f.ev.outcome === 'pending') { f.ev.outcome = 'loose'; f.ev.how = 'out'; } match.flight = null; ball.vx = ball.vy = 0;
+      handleOut(match, team, ball.x < 0.3 ? Math.min(ball.x, -0.1) : ball.x > L - 0.3 ? Math.max(ball.x, L + 0.1) : ball.x, ball.y < 0.3 ? Math.min(ball.y, -0.1) : ball.y > W - 0.3 ? Math.max(ball.y, W + 0.1) : ball.y); return;
+    }
+    if (f.speed <= 1.0 && f.run >= f.len) {
+      // it has rolled to a stop with nobody on it
+      if (f.ev && f.ev.outcome === 'pending') { f.ev.outcome = 'loose'; f.ev.how = 'stopped'; f.ev.minD = f.minD; f.ev.len = f.len; f.ev.tdist = Math.hypot(f.target.x - ball.x, f.target.y - ball.y); }
+      match.flight = null; ball.state = 'loose'; ball.vx = f.dir.x * f.speed; ball.vy = f.dir.y * f.speed;
+    }
   }
 
   function doDribble(match, team, carrier, opt) {
@@ -2148,6 +2203,7 @@
     const ball = match.ball;
     if (match.carrier) { syncBall(match); return; }
     const f = match.flight;
+    if (f && f.free) { stepFreePass(match, f, dt); return; }
     if (f) {
       const tx = f.target ? f.target.x + f.target.vx * 0.15 : f.ex;
       const ty = f.target ? f.target.y + f.target.vy * 0.15 : f.ey;
@@ -2161,10 +2217,20 @@
       else { ball.x += dx / d * move; ball.y += dy / d * move; }
       return;
     }
-    // Loose ball: whoever gets to it first controls it.
-    let best = null, bd = 1.5;
+    // Loose ball: it rolls on and slows; whoever gets to it first has to win it (a fast ball is hard to control, and a man can knock it on instead).
+    { const sp0 = Math.hypot(ball.vx || 0, ball.vy || 0);
+      if (sp0 > 0.05) {
+        ball.x += ball.vx * dt; ball.y += ball.vy * dt; const fr = Math.exp(-(FM.LOOSE_FRIC == null ? 1.3 : FM.LOOSE_FRIC) * dt); ball.vx *= fr; ball.vy *= fr; if (sp0 < 0.35) { ball.vx = 0; ball.vy = 0; }
+        if (ball.x < 0 || ball.x > L || ball.y < 0 || ball.y > W) { const bx = ball.x < 0 ? Math.min(ball.x, -0.1) : ball.x > L ? Math.max(ball.x, L + 0.1) : ball.x, by = ball.y < 0 ? Math.min(ball.y, -0.1) : ball.y > W ? Math.max(ball.y, W + 0.1) : ball.y; ball.vx = ball.vy = 0; handleOut(match, match.lastTeam || match.home, bx, by); return; }
+      }
+    }
+    let best = null, bd = 1.25;
     match.teams.forEach((t) => t.players.forEach((p) => { if ((p.noPick || 0) > match.clock) return; const d = Math.hypot(p.x - ball.x, p.y - ball.y); if (d < bd) { bd = d; best = { team: t, player: p }; } }));
-    if (best) giveBall(match, best.team, best.player, 0.5);
+    if (best) {
+      const sp1 = Math.hypot(ball.vx || 0, ball.vy || 0);
+      if (match.rng() < clamp(0.97 - sp1 * 0.07, 0.3, 0.97)) giveBall(match, best.team, best.player, 0.5);
+      else knockLoose(match, best.player, best.team, ball.vx || 1, ball.vy || 0, Math.max(1.2, sp1 * 0.6), 1.5);
+    }
   }
 
   function arrive(match, f) {
