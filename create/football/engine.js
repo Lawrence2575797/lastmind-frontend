@@ -820,6 +820,7 @@
   };
 
   // Moves every player of one team one time step toward their target.
+  const TGT = new WeakMap();
   FM.stepTeam = function (team, ball, hasBall, dt, overrides) {
     // With the ball, attackers hold the offside line instead of standing beyond it.
     const lim = hasBall ? team.offsideLine : null;
@@ -849,7 +850,11 @@
       });
     }
     team.players.forEach((p, i) => {
-      const t = targets[i];
+      // the target he is heading for is eased towards the one asked for (a new instruction turns him over a fraction of a second, it does not snap his course)
+      let t = targets[i], sm = TGT.get(p);
+      const ks = 1 - Math.exp(-(FM.TGT_SMOOTH == null ? 10 : FM.TGT_SMOOTH) * dt);
+      if (!sm || Math.hypot(t.x - sm.x, t.y - sm.y) > 25 || Number.isFinite(p.turnTo)) sm = { x: t.x, y: t.y }; else { sm.x += (t.x - sm.x) * ks; sm.y += (t.y - sm.y) * ks; }
+      TGT.set(p, sm); t = sm;
       const dx = t.x - p.x, dy = t.y - p.y;
       const rawDist = Math.hypot(dx, dy);
       const dist = rawDist || 1e-6;

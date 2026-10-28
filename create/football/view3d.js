@@ -18,7 +18,7 @@
   }
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   const angDiff = (a, b) => { let d = b - a; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; return d; };
-  const lastBall = { x: 0, z: 0 }; let lastT = null, carriedVis = null, relOff = null, spcOn = false, snapNext = false;
+  const lastBall = { x: 0, z: 0 }; let lastT = null, carriedVis = null, relOff = null, spcOn = false, snapNext = false, camSpread = 12, ballV = { x: 0, z: 0 }, lastBx = null, lastBz = null;
   const mkCanvas = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; };
   const tex = (c, srgb) => { const t = new THREE.CanvasTexture(c); if (srgb !== false) t.encoding = THREE.sRGBEncoding; t.anisotropy = renderer.capabilities.getMaxAnisotropy(); return t; };
 
@@ -522,6 +522,7 @@
   function setCamera(dt, bx, bz, snap, spc) {
     const k = snap ? 1 : 1 - Math.exp(-dt * (spc ? 3.6 : mode === 'stands' ? 3.4 : 2.6));
     let tx, tz, cx, cy, cz, ty = 0.8;
+    const zoom = clamp((camSpread - 9) / 9, -0.25, 1);
     if (spc && !rp) {
       // a set piece (corner, penalty, free kick): the camera goes behind the taker, looking along the ball towards the goal, so the taker, the ball and the box are all in the picture
       const dx = spc.gx - bx, dz = -bz, len = Math.hypot(dx, dz) || 1, ux = dx / len, uz = dz / len, back = spc.kind === 'corner' ? 11 : spc.kind === 'penalty' ? 10 : 13;
@@ -531,13 +532,13 @@
       tx = clamp(bx, -HL + 4, HL - 4); tz = bz * 0.5; cx = tx * 0.95 - 4; cy = 3.4; cz = HW + 3.2 + 4 * clamp(bz / 28, 0, 1); ty = 0.9;
     } else if (mode === 'stands') {
       // from the middle of the main stand, higher up: the whole width of the pitch and a long stretch of it, so the shape of both teams can be read
-      tx = clamp(bx, -HL + 12, HL - 12); tz = clamp(bz * 0.55, -16, 16); cx = tx * 0.92; cy = 21; cz = HW + 13; ty = 0.4;
+      tx = clamp(bx + ballV.x * 0.45, -HL + 12, HL - 12); tz = clamp(bz * 0.55, -16, 16); cx = tx * 0.92; cy = 21 + 6 * zoom; cz = HW + 13; ty = 0.4;
     } else {
       // from the touchline, where the manager stands: a steady wide view that slides along the line with the ball
       // It follows the ball all the way to the corner flags. With the ball on the near touchline the camera rises and backs off a little and looks at it,
       // otherwise the ball would be below the bottom of the picture.
       const near = clamp((bz - 6) / 22, 0, 1);
-      tx = clamp(bx, -HL + 2, HL - 2); tz = (bz * 0.25 - 6) * (1 - near) + bz * 0.85 * near; cx = tx * 0.9; cy = 4.2 + 4.8 * near; cz = HW + 5.5 + 3.5 * near; ty = 0.7;
+      tx = clamp(bx + ballV.x * 0.45, -HL + 2, HL - 2); tz = (bz * 0.25 - 6) * (1 - near) + bz * 0.85 * near; cx = tx * 0.9; cy = 4.2 + 4.8 * near + 3.2 * zoom; cz = HW + 5.5 + 3.5 * near + 4.5 * zoom; ty = 0.7;
       // with the ball on the far side of the pitch the camera comes in across the touchline, higher, so it is not a speck 70 metres away
       { const far = clamp((-bz - 12) / 22, 0, 1); cz -= 15 * far; cy += 2.2 * far; tz = tz * (1 - far) + (bz * 0.7) * far; }
     }
@@ -573,6 +574,7 @@
         if (m.phase !== 'celebration' && m.phase !== 'replay' && goalMark != null && recT - goalMark > 30) goalMark = null;
         readEvents(m);
       }
+      { const fl = !rp && m.flight && m.flight.free ? m.flight : null; if (fl && fl.target && fl.t > 0.15) { const te = players.get(fl.target.id); if (te && te.recvFor !== fl && Math.hypot(m.ball.x - fl.target.x, m.ball.y - fl.target.y) < 3.4) { te.recvFor = fl; setPose(te, 'control', 0.6, te.foot); } } }
       const replay = !!rp; if (!replay) recT += dt;
       // speed is distance over the match time it took (what the engine advanced by this frame), not over wall-clock time, so the gait follows the real movement exactly
       const sdt = ctx && ctx.simDt > 0.002 ? ctx.simDt : rdt;
@@ -656,6 +658,10 @@
       if (!replay) recordFrame(m, ctx, bx, by, bz);
       // after a goal the camera goes with the scorer to the corner flag
       let camX = bx, camZ = bz; if (m.celeb && !replay) { const se = players.get(m.celeb.shooter.id); if (se) { camX = se.fig.root.position.x; camZ = se.fig.root.position.z; } }
+      // how spread out the play is (the eight men nearest the ball) and how fast the ball is going, both smoothed, for the framing
+      { let ds = []; players.forEach((e) => { if (e.fig.root.visible) ds.push(Math.hypot(e.fig.root.position.x - bx, e.fig.root.position.z - bz)); }); ds.sort((a, b) => a - b); const near8 = ds.slice(0, 8), rms = near8.length ? Math.sqrt(near8.reduce((a, d) => a + d * d, 0) / near8.length) : 12;
+        camSpread += (rms - camSpread) * Math.min(1, dt * 1.2);
+        if (lastBx != null && dt > 0) { const kv = Math.min(1, dt * 3); ballV.x += (clamp((bx - lastBx) / dt, -14, 14) - ballV.x) * kv; ballV.z += (clamp((bz - lastBz) / dt, -14, 14) - ballV.z) * kv; } lastBx = bx; lastBz = bz; }
       // a set piece taken now: corner, penalty or free kick
       const spc = !replay && !m.celeb && m.restart && (m.restart.kind === 'corner' || m.restart.kind === 'penalty' || m.restart.kind === 'freekick') ? { kind: m.restart.kind, gx: m.restart.team.attackDir === 1 ? HL : -HL } : null;
       if (!!spc !== spcOn) { spcOn = !!spc; if (spc && Math.hypot(camX - look.x, camZ - look.z) > 30) snapNext = true; }

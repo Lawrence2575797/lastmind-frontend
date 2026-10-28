@@ -481,7 +481,69 @@
           .forEach(({ p }) => { const bs = Math.hypot(match.ball.vx || 0, match.ball.vy || 0), lead = Math.min(0.8, Math.hypot(p.x - match.ball.x, p.y - match.ball.y) / 7); ov.set(p, { x: clamp(match.ball.x + (match.ball.vx || 0) * lead, 0.5, L - 0.5), y: clamp(match.ball.y + (match.ball.vy || 0) * lead, 0.5, W - 0.5) }); });
       });
     }
+    addTeamPlay(match, ov);
     return ov;
+  }
+  // ---------- what the rest of the side does while one man has the ball ----------
+  // The two team-mates nearest the carrier move to angles from which they can be found (about ten metres off, wide of him and ahead or behind, where no opponent is on the
+  // line to them); one forward at a time makes a run beyond the ball, behind the line or into the gap between defenders, never past the offside line; and for the first
+  // seconds after a loss the men who are ahead of the ball run back to their defending places at full pace. All of it follows the manager's settings (directness, runs).
+  const SUP_ANG = [0.75, -0.75, 1.95, -1.95];
+  function addTeamPlay(match, ov) {
+    const c = match.carrier; if (!c || match.restart || match.phase !== 'play' || match.flight || match.forcePass) return;
+    const T = c.team, O = other(match, T), cp = c.player, dir = T.attackDir, now = match.clock, depth = FM.toTeamSpace(dir, cp.x, cp.y).d;
+    const heading = Number.isFinite(cp.facing) ? cp.facing : (dir === 1 ? 0 : Math.PI);
+    // support
+    if (depth < 0.7 && !FM.NO_SUP) {
+      let st = match.sup;
+      if (!st || st.who !== cp || now > st.until) {
+        const tg = new Map(), taken = [];
+        T.players.filter((q) => q !== cp && q.group !== 'GK' && !ov.has(q)).map((q) => ({ q, d: dist(q, cp) })).filter((o) => o.d < 30).sort((a, b) => a.d - b.d).slice(0, 2).forEach(({ q }) => {
+          let best = null, bs = -1e9; const R = q.group === 'CB' ? 8 : q.group === 'ST' || q.group === 'WF' ? 13 : 10;
+          SUP_ANG.forEach((a) => {
+            const x = clamp(cp.x + Math.cos(heading + a) * R, 2, L - 2), y = clamp(cp.y + Math.sin(heading + a) * R, 2, W - 2);
+            if (taken.some((t) => Math.hypot(t.x - x, t.y - y) < 7)) return;
+            const od = Math.min(8, O.players.reduce((m, o) => Math.min(m, Math.hypot(o.x - x, o.y - y)), 99)), lane = O.players.some((o) => segInfo(o.x, o.y, cp.x, cp.y, x, y).d < 2.2) ? -4 : 0;
+            const score = od + lane + 0.12 * (x - cp.x) * dir + (Math.abs(y - W / 2) > 29 ? -2 : 0) - 0.06 * Math.hypot(x - q.x, y - q.y);
+            if (score > bs) { bs = score; best = { x, y }; }
+          });
+          if (best) { taken.push(best); tg.set(q, best); }
+        });
+        st = match.sup = { who: cp, until: now + 1.6, tg };
+      }
+      st.tg.forEach((pt, q) => { if (!ov.has(q)) ov.set(q, pt); });
+    }
+    // an off-ball run
+    const rs = match.runs || (match.runs = { until: 0, cool: 0, q: null, pt: null, team: null });
+    if (rs.q && (now > rs.until || rs.team !== T || rs.q === cp)) { rs.q = null; rs.cool = now + 2.5; }
+    if (!FM.NO_RUNS && !rs.q && depth > 0.38 && depth < 0.88 && now > rs.cool && match.rng() < 0.07 * (0.4 + T.tactics.directness + 0.5 * T.tactics.risk)) {
+      const cands = T.players.filter((q) => q !== cp && ['ST', 'WF', 'AM', 'CM'].indexOf(q.group) >= 0 && !ov.has(q) && FM.toTeamSpace(dir, q.x, q.y).d > 0.35 && FM.instrMods(q, true).runs >= 0);
+      if (cands.length) {
+        const wts = cands.map((q) => (q.group === 'ST' ? 3 : q.group === 'WF' ? 2.5 : q.group === 'AM' ? 2 : 1)), tot = wts.reduce((a, b) => a + b, 0); let r = match.rng() * tot, q = cands[0]; for (let i = 0; i < cands.length; i++) { r -= wts[i]; if (r <= 0) { q = cands[i]; break; } }
+        const last = O.players.filter((o) => o.group !== 'GK').map((o) => o.x * dir).sort((a, b) => b - a)[1], limit = (last == null ? L : last) - 1.0, tx = dir === 1 ? Math.min(q.x + 16, limit) : Math.max(q.x - 16, -limit);
+        if ((tx - q.x) * dir > 5) {
+          let ty = q.y, bd = -1; for (let off = -15; off <= 15; off += 3) { const y = clamp(q.y + off, 3, W - 3), d = O.players.reduce((m, o) => (Math.abs(o.x - tx) < 12 ? Math.min(m, Math.hypot(o.x - tx, o.y - y)) : m), 30); if (d > bd) { bd = d; ty = y; } }
+          rs.q = q; rs.pt = { x: tx, y: ty }; rs.until = now + 2.4; rs.team = T;
+        }
+      }
+    }
+    if (rs.q && !ov.has(rs.q)) ov.set(rs.q, rs.pt);
+    // recovery: just after a loss, the men who are ahead of the ball run back to where they defend
+    if (!FM.NO_REC && match.lastChange && match.lastChange.team === T && now - match.lastChange.t < 5) {
+      const bd = FM.toTeamSpace(O.attackDir, cp.x, cp.y).d;
+      O.players.forEach((p) => { if (p.group === 'GK' || ov.has(p)) return; if (FM.toTeamSpace(O.attackDir, p.x, p.y).d > bd + 0.03) ov.set(p, FM.targetFor(O, p, match.ball, false)); });
+    }
+  }
+  // Nobody stands inside anybody else: bodies keep apart (a little closer for opponents in a challenge, wider for team-mates).
+  function separate(match) {
+    if (FM.NO_SEP || match.phase !== 'play' || match.restart || match.celeb) return;
+    const all = match.home.players.map((p) => [p, 0]).concat(match.away.players.map((p) => [p, 1])), cp = match.carrier && match.carrier.player;
+    for (let a = 0; a < all.length; a++) for (let b = a + 1; b < all.length; b++) {
+      const A = all[a][0], B = all[b][0]; if (A.sliding || B.sliding) continue;
+      const R = all[a][1] === all[b][1] ? 1.5 : 0.95, dx = B.x - A.x, dy = B.y - A.y, d = Math.hypot(dx, dy); if (d >= R || d < 1e-4) continue;
+      const push = (R - d) * 0.5, ka = A === cp ? 0.3 : 1, kb = B === cp ? 0.3 : 1, ux = dx / d, uy = dy / d;
+      A.x = clamp(A.x - ux * push * ka, 0.5, L - 0.5); A.y = clamp(A.y - uy * push * ka, 0.5, W - 0.5); B.x = clamp(B.x + ux * push * kb, 0.5, L - 0.5); B.y = clamp(B.y + uy * push * kb, 0.5, W - 0.5);
+    }
   }
   // Who presses whom. Keep assignments long enough for a press to look like a
   // coordinated choice rather than eleven players repeatedly retargeting the ball.
@@ -966,7 +1028,9 @@
     // astray. Nothing else is decided here: where the ball ends up is what happens to it on the way.
     const err = 1 - pEff, g = () => (rng() + rng() + rng() - 1.5) / 0.5;
     const sigma = (FM.PASS_SIGMA == null ? 1 : FM.PASS_SIGMA) * (0.012 + 0.22 * Math.pow(err, 1.2)) * (0.7 + 0.5 * (1 - (carrier.ratings.passing || 60) / 100));
-    const ang = Math.atan2(opt.ty - carrier.y, opt.tx - carrier.x) + g() * sigma, len = Math.max(2, opt.d * (1 + g() * 0.045 * (0.4 + 2 * err)));
+    // the pass is played to where the man will be, not to where he is: his run is led by the time the ball takes
+    const tf = opt.d / Math.max(10, clamp(11 + opt.d * 0.4, 12, 23) * 0.85), aimX = opt.tx, aimY = opt.ty;
+    const ang = Math.atan2(aimY - carrier.y, aimX - carrier.x) + g() * sigma, len = Math.max(2, Math.hypot(aimX - carrier.x, aimY - carrier.y) * (1 + g() * 0.045 * (0.4 + 2 * err)));
     // Metres per simulated second. A routine ground pass should be readable on the pitch rather than flashing between players.
     const speed = clamp(11 + opt.d * 0.4, 12, 23) * (1 + g() * 0.03);
     const flight = { kind: 'pass', team, passer: carrier, speed, target: opt.target, ex: carrier.x + Math.cos(ang) * len, ey: carrier.y + Math.sin(ang) * len, free: true, dir: { x: Math.cos(ang), y: Math.sin(ang) }, len, run: 0, t: 0, outcome: 'pending' };
@@ -2172,7 +2236,7 @@
     while (match.fixedStepRemainder >= .1 - 1e-9 && match.phase !== 'halftime' && match.phase !== 'fulltime' && !match.injuryPause) {
       keepPrev(match);
       stepMatchFixed(match, .1);
-      stepSlides(match, .1);
+      stepSlides(match, .1); separate(match);
       match.fixedStepRemainder -= .1;
     }
     if (match.fixedStepRemainder < 1e-9) match.fixedStepRemainder = 0;
