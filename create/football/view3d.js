@@ -554,7 +554,7 @@
       if (rp) {
         rp.t += rdt * REPLAY_SPEED; const at = replayAt(rp);
         while (rp.li < rp.log.length && rp.log[rp.li].t <= rp.t) { const o = rp.log[rp.li++], e = players.get(o.id); if (o.net) hitNet(o.net[0], o.net[1], o.net[2], o.net[3], o.net[4], o.net[5]); else if (e && o.pose && o.pose !== 'kick') setPose(e, o.pose, o.dur, o.dir); else if (e && o.kick) FM.anim && FM.anim.ready && FM.anim.kick(e, 0.12 / REPLAY_SPEED, {}); }
-        ctx = { dt, renderPos: at.pos, renderBall: { x: at.ball[0] + HL, y: at.ball[2] + HW }, replayBy: at.ball[1], snap: snapCam };
+        ctx = { dt, simDt: rdt * REPLAY_SPEED, renderPos: at.pos, renderBall: { x: at.ball[0] + HL, y: at.ball[2] + HW }, replayBy: at.ball[1], snap: snapCam };
         if (rp.t >= rp.end) { stopReplay(m); }
       } else {
         if (m.phase === 'celebration' && goalMark == null) goalMark = recT;
@@ -562,13 +562,15 @@
         readEvents(m);
       }
       const replay = !!rp; if (!replay) recT += dt;
+      // speed is distance over the match time it took (what the engine advanced by this frame), not over wall-clock time, so the gait follows the real movement exactly
+      const sdt = ctx && ctx.simDt > 0.002 ? ctx.simDt : rdt;
       if (snapCam) { ctx = Object.assign({}, ctx, { snap: true }); snapCam = false; }
       // the scorer's slide: the clip starts as the scripted slide does
       if (m.celeb && m.celeb.stage === 'slide' && !m.celeb.fx) { m.celeb.fx = true; const ce = players.get(m.celeb.shooter.id); if (ce && !(FM.anim && FM.anim.ready && FM.anim.celebrate(ce, 2.07))) setPose(ce, 'celebrate', 2.1, 1); }
       m.teams.forEach((team) => team.players.forEach((p) => {
         const e = players.get(p.id); if (!e) return; const rp = (ctx && ctx.renderPos && ctx.renderPos.get(p.id)) || { x: p.x, y: p.y, facing: p.facing || 0 };
         const x = rp.x - HL, z = rp.y - HW, lp = lastPos.get(p.id), k8 = Math.min(1, dt * 8);
-        const rvx = lp ? (x - lp.x) / rdt : 0, rvz = lp ? (z - lp.z) / rdt : 0; lastPos.set(p.id, { x, z });
+        const rvx = lp ? (x - lp.x) / sdt : 0, rvz = lp ? (z - lp.z) / sdt : 0; lastPos.set(p.id, { x, z });
         e.vx += (clamp(rvx, -12, 12) - e.vx) * k8; e.vz += (clamp(rvz, -12, 12) - e.vz) * k8; e.speed += (Math.hypot(e.vx, e.vz) - e.speed) * k8;
         e.fig.root.position.set(x, 0, z); e.fig.root.scale.setScalar(1.3);   // the players are drawn larger than life so they read at this distance
         // Which way he faces. Running, he faces where he is going; jogging or walking without the ball he keeps the ball in front of him and moves
@@ -595,9 +597,14 @@
       if (!replay && m.carrier && m.ball.state === 'carried' && !goalFx) {
         const ce = players.get(m.carrier.player.id), rp = ce && ((ctx && ctx.renderPos && ctx.renderPos.get(m.carrier.player.id)) || null);
         if (ce && rp && Number.isFinite(rp.facing)) {
-          const k = clamp(ce.speed / 7, 0, 1), ahead = 0.42 + k * 0.5 * (0.5 + 0.5 * Math.sin(ce.fig.phase * 2 - 1.2)), side = 0.1 * Math.sin(ce.fig.phase);
-          bx = rp.x - HL + Math.cos(rp.facing) * ahead - Math.sin(rp.facing) * side; bz = rp.y - HW + Math.sin(rp.facing) * ahead + Math.cos(rp.facing) * side;
-          by = 0.115 + k * 0.05 * Math.max(0, Math.sin(ce.fig.phase * 2 - 1.2));
+          // a touch every stride: the ball runs a little ahead and is played again, on the rhythm of the gait the figure is in, and the offset from his feet is smoothed
+          // so it never snaps (when he turns, or when the gait changes)
+          const k = clamp(ce.speed / 7, 0, 1), g = ce.fig.spp > 0 && ce.speed > 4.4 ? ce.fig.spp : (ce.fig.lp != null ? ce.fig.lp : ce.fig.phase / (Math.PI * 2)), st = Math.sin(g * Math.PI * 4 - 0.6);
+          const ahead = 0.4 + k * 0.42 * (0.5 + 0.5 * st), side = 0.08 * Math.sin(g * Math.PI * 2), ox = Math.cos(rp.facing) * ahead - Math.sin(rp.facing) * side, oz = Math.sin(rp.facing) * ahead + Math.cos(rp.facing) * side;
+          if (!ce.bo || ce.boFor !== m.carrier.player) { ce.bo = { x: ox, z: oz }; ce.boFor = m.carrier.player; }
+          const kb = Math.min(1, dt * 13); ce.bo.x += (ox - ce.bo.x) * kb; ce.bo.z += (oz - ce.bo.z) * kb;
+          bx = rp.x - HL + ce.bo.x; bz = rp.y - HW + ce.bo.z;
+          by = 0.115 + k * 0.05 * Math.max(0, st);
         }
       }
       if (goalFx) {

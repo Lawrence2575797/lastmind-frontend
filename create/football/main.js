@@ -89,15 +89,10 @@
   function drawPlayers() {
     const r = Math.max(8, scale * 1.55);
     const m = world.match;
+    interpolate(m);
     m.teams.forEach((team) => {
       team.players.forEach((p) => {
-        let rp = world.renderPos.get(p.id);
-        if (!rp) { rp = { x: p.x, y: p.y, facing: Number.isFinite(p.facing) ? p.facing : (team.attackDir === 1 ? 0 : Math.PI) }; world.renderPos.set(p.id, rp); }
-        const follow = 1 - Math.exp(-10 * Math.min(.05, world.frameDt || .016));
-        rp.x += (p.x - rp.x) * follow; rp.y += (p.y - rp.y) * follow;
-        let da = (Number.isFinite(p.facing) ? p.facing : rp.facing) - rp.facing;
-        while (da > Math.PI) da -= Math.PI * 2; while (da < -Math.PI) da += Math.PI * 2;
-        rp.facing += da * (1 - Math.exp(-8 * Math.min(.05, world.frameDt || .016)));
+        const rp = world.renderPos.get(p.id);
         const cx = px(rp.x), cy = py(rp.y);
         ctx.beginPath(); ctx.arc(cx + 1.5, cy + 2.5, r, 0, Math.PI * 2); ctx.fillStyle = 'rgba(0,0,0,0.28)'; ctx.fill();
         ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fillStyle = team.kit.shirt; ctx.fill();
@@ -121,9 +116,6 @@
       });
     });
     if (!world.renderBall) world.renderBall = { x: m.ball.x, y: m.ball.y };
-    const ballFollow = 1 - Math.exp(-16 * Math.min(.05, world.frameDt || .016));
-    world.renderBall.x += (m.ball.x - world.renderBall.x) * ballFollow;
-    world.renderBall.y += (m.ball.y - world.renderBall.y) * ballFollow;
     const bx = px(world.renderBall.x), by = py(world.renderBall.y);
     ctx.beginPath(); ctx.arc(bx, by, Math.max(5, scale * 0.9), 0, Math.PI * 2);
     ctx.fillStyle = '#FFFFFF'; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = '#111'; ctx.stroke();
@@ -237,7 +229,7 @@
   let last = performance.now();
   function frame(now) {
     const dt = Math.min(0.1, (now - last) / 1000);
-    world.frameDt = dt;
+    world.frameDt = dt; world.simDt = 0;
     last = now;
     const m = world.match;
     if (world.view === 'match' && m && world.hl && world.hl.phase === 'replay') {
@@ -250,7 +242,7 @@
       else if (world.running && m.phase !== 'halftime' && m.phase !== 'fulltime') {
         m.skipFx = !!world.highlightsOnly; m.wantReplay = !world.highlightsOnly && !world.hl && (world.viewMode === 'touchline' || world.viewMode === 'stands') && !!(FM.view3d && FM.view3d.ready);
         if (world.highlightsOnly && !isImportantMoment(m)) seekHighlight(m);
-        else { advanceMatch(dt * MATCH_SPEED * world.speed); world.highlightSearching = false; }
+        else { advanceMatch(dt * MATCH_SPEED * world.speed); world.simDt = dt * MATCH_SPEED * world.speed; world.highlightSearching = false; }
         world.vt += dt;
       }
       if (!world.highlightSearching) { draw(); updateHud(); } else { if (!world.highlightsOnly) hlOverlay(false); refreshControls(m); }
@@ -305,20 +297,25 @@
     ctx.restore();
   }
   // where the shirts are drawn follows the match a little behind, so movement looks smooth; the 3D views use the same positions
-  function stepRender(m) {
+  // The match runs in steps of a tenth of a second. Drawing each step as it lands makes everything move in ten little jumps a second, so what is drawn is the point between
+  // the last two steps, as far through the present step as the clock is: continuous at any frame rate. (A jump of more than a few metres in one step, such as a kick-off
+  // set-up, is a placing, not a movement, and is not drawn as a slide.)
+  function interpolate(m) {
+    const a = Math.max(0, Math.min(1, (m.fixedStepRemainder || 0) / 0.1));
+    const lerpAng = (f0, f1, t) => { let d = f1 - f0; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; return f0 + d * t; };
     m.teams.forEach((team) => team.players.forEach((p) => {
+      const f1 = Number.isFinite(p.facing) ? p.facing : (team.attackDir === 1 ? 0 : Math.PI), pv = FM.prevOf ? FM.prevOf(p) : null;
       let rp = world.renderPos.get(p.id);
-      if (!rp) { rp = { x: p.x, y: p.y, facing: Number.isFinite(p.facing) ? p.facing : (team.attackDir === 1 ? 0 : Math.PI) }; world.renderPos.set(p.id, rp); }
-      const follow = 1 - Math.exp(-10 * Math.min(.05, world.frameDt || .016));
-      rp.x += (p.x - rp.x) * follow; rp.y += (p.y - rp.y) * follow;
-      let da = (Number.isFinite(p.facing) ? p.facing : rp.facing) - rp.facing;
-      while (da > Math.PI) da -= Math.PI * 2; while (da < -Math.PI) da += Math.PI * 2;
-      rp.facing += da * (1 - Math.exp(-8 * Math.min(.05, world.frameDt || .016)));
+      if (!rp) { rp = { x: p.x, y: p.y, facing: f1 }; world.renderPos.set(p.id, rp); }
+      if (pv && Math.hypot(p.x - pv.x, p.y - pv.y) < 5) { rp.x = pv.x + (p.x - pv.x) * a; rp.y = pv.y + (p.y - pv.y) * a; rp.facing = Number.isFinite(pv.f) ? lerpAng(pv.f, f1, a) : f1; }
+      else { rp.x = p.x; rp.y = p.y; rp.facing = f1; }
     }));
     if (!world.renderBall) world.renderBall = { x: m.ball.x, y: m.ball.y };
-    const bf = 1 - Math.exp(-16 * Math.min(.05, world.frameDt || .016));
-    world.renderBall.x += (m.ball.x - world.renderBall.x) * bf; world.renderBall.y += (m.ball.y - world.renderBall.y) * bf;
+    const bp = FM.prevOf ? FM.prevOf(m.ball) : null;
+    if (bp && Math.hypot(m.ball.x - bp.x, m.ball.y - bp.y) < 8) { world.renderBall.x = bp.x + (m.ball.x - bp.x) * a; world.renderBall.y = bp.y + (m.ball.y - bp.y) * a; }
+    else { world.renderBall.x = m.ball.x; world.renderBall.y = m.ball.y; }
   }
+  function stepRender(m) { interpolate(m); }
   // How the match is watched: the 2D birds-eye pitch, or the same match in 3D from the touchline or from the stands.
   try { world.viewMode = localStorage.getItem('lm_football_view') || '2d'; } catch (e) { world.viewMode = '2d'; }
   function applyViewMode() {
@@ -334,7 +331,7 @@
   function draw() {
     if ((world.viewMode === 'touchline' || world.viewMode === 'stands') && FM.view3d && FM.view3d.ready) {
       stepRender(world.match);
-      try { FM.view3d.render(world.match, { dt: world.frameDt, renderPos: world.renderPos, renderBall: world.renderBall, snap: world.view3dSnap }); world.view3dSnap = false; return; }
+      try { FM.view3d.render(world.match, { dt: world.frameDt, simDt: world.simDt, renderPos: world.renderPos, renderBall: world.renderBall, snap: world.view3dSnap }); world.view3dSnap = false; return; }
       catch (e) { const sel = el('viewMode'), note = el('viewNote'); world.viewMode = '2d'; canvas.hidden = false; if (el('pitch3d')) el('pitch3d').hidden = true; if (sel) sel.value = '2d'; if (note) { note.className = 'view-note bad'; note.textContent = '3D stopped working (' + ((e && e.message) || 'unknown error') + '). Back to the 2D pitch.'; } try { console.error('3D render failed', e); } catch (x) { /* nothing to log to */ } }
     }
     drawPitch(); drawTrails(); drawImpacts(); drawPlayers(); drawGoalFx();

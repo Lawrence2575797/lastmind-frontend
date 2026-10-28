@@ -72,7 +72,7 @@
     return out;
   }
   // the optional overlays, built from the same analysis the pages below use (plan_analysis.js) and from the page positions themselves
-  const OVL = [['space', 'Space control'], ['lanes', 'Passing lanes'], ['lines', 'Lines and press'], ['moves', 'Movement'], ['path', 'Selected player']];
+  const OVL = [['space', 'Space control'], ['lanes', 'Passing lanes'], ['lines', 'Lines and press'], ['path', 'Selected player']];
   const MOVE_NEXT = { build: 'buildEnd', midfield: 'final', transAtt: 'transAttEnd', transDef: 'transDefEnd', without: 'withoutEnd', press: 'without' };
   const CHAIN = { with: ['build', 'buildEnd', 'midfield', 'final'], without: ['press', 'without', 'withoutEnd'] };
   function overlays(team, ph, A) {
@@ -82,12 +82,17 @@
     if (o.lines && A) {
       const lab = (x, y, t, col, a) => `<text x="${x}" y="${y}" text-anchor="${a || 'start'}" font-size="9.5" font-weight="700" fill="${col}" stroke="rgba(6,21,11,.6)" stroke-width="2.4" style="paint-order:stroke">${esc(t)}</text>`;
       const names = { defence: 'back line', midfield: 'midfield', attack: 'front line' };
+      // the shape of each line, and the line that joins their centres
+      const poly = (h, col, op) => (h.length >= 3 ? `<polygon points="${h.map((q) => tx(q.y) + ',' + ty(q.x)).join(' ')}" fill="${col}" fill-opacity="${op}" stroke="${col}" stroke-width="1.6" stroke-linejoin="round"/>` : (h.length === 2 ? `<line x1="${tx(h[0].y)}" y1="${ty(h[0].x)}" x2="${tx(h[1].y)}" y2="${ty(h[1].x)}" stroke="${col}" stroke-width="5" stroke-linecap="round" opacity="${op * 3}"/>` : ''));
+      Object.keys(names).forEach((k) => { if (A.fm.them[k]) under += poly(A.fm.them[k].hull, '#FF7B6B', 0.1); });
+      Object.keys(names).forEach((k) => { if (A.fm.us[k]) under += poly(A.fm.us[k].hull, '#7FD0FF', 0.2); });
+      { const ks = Object.keys(names).filter((k) => A.fm.us[k]).sort((a, b) => A.fm.us[a].cx - A.fm.us[b].cx); if (ks.length > 1) under += `<polyline points="${ks.map((k) => tx(A.fm.us[k].cy) + ',' + ty(A.fm.us[k].cx)).join(' ')}" fill="none" stroke="#FF6B5B" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" opacity=".9"/>` + ks.map((k) => `<circle cx="${tx(A.fm.us[k].cy)}" cy="${ty(A.fm.us[k].cx)}" r="4" fill="#fff" stroke="#111"/>`).join(''); }
       Object.keys(names).forEach((k) => { const u = A.fm.us[k]; if (!u) return; const ys = u.pts.map((q) => q.y), a = Math.min.apply(null, ys), b = Math.max.apply(null, ys), yy = ty(u.cx); over += `<line x1="${(+tx(a) - 14).toFixed(1)}" y1="${yy}" x2="${(+tx(b) + 14).toFixed(1)}" y2="${yy}" stroke="#7FD0FF" stroke-width="1.8" stroke-dasharray="7 4"/>` + lab((+tx(a) - 14).toFixed(1), (+yy - 4).toFixed(1), names[k] + ' ' + u.cx.toFixed(0) + ' m', '#BFE6FF'); });
       const off = A.S0.ours ? A.fm.them.last : A.fm.us.last; if (off > 0 && off < 105) over += `<line x1="0" y1="${ty(off)}" x2="${PW}" y2="${ty(off)}" stroke="#FFD54A" stroke-width="1.3" stroke-dasharray="3 4" opacity=".9"/>` + lab(PW - 4, (+ty(off) - 4).toFixed(1), 'offside line', '#FFE58A', 'end');
       if (!A.S0.ours) over += `<circle cx="${tx(A.S0.ball.y)}" cy="${ty(A.S0.ball.x)}" r="${(A.ctl.trig * mx).toFixed(1)}" fill="rgba(255,213,74,.07)" stroke="#FFD54A" stroke-width="1.3" stroke-dasharray="6 4"/>` + lab(tx(A.S0.ball.y), (+ty(A.S0.ball.x) - A.ctl.trig * mx - 4).toFixed(1), 'press trigger ' + A.ctl.trig.toFixed(0) + ' m', '#FFE58A', 'middle');
     }
     if (o.lanes && A) A.ln.forEach((l) => { const col = l.open ? (l.pref ? '#FFD54A' : '#FFFFFF') : '#FF7B6B'; over += `<line x1="${tx(l.a.y)}" y1="${ty(l.a.x)}" x2="${tx(l.b.y)}" y2="${ty(l.b.x)}" stroke="${col}" stroke-width="${l.open ? (l.pref ? 2.6 : 1.8) : 1.2}" stroke-dasharray="${l.open ? '0' : '2 5'}" opacity="${l.open ? 0.85 : 0.6}"/>`; });
-    if (o.moves) {
+    if (false) {
       const nk = MOVE_NEXT[eng];
       if (nk) team.players.forEach((p) => { const a = FM.phasePos(team, p, eng), b = FM.phasePos(team, p, nk); if (Math.hypot((b.d - a.d) * 105, (b.w - a.w) * 68) < 3) return; const dx = (b.w - a.w) * PW, dy = -(b.d - a.d) * PH, len = Math.hypot(dx, dy), k = Math.max(0, (len - 15) / len); over += `<line x1="${(a.w * PW).toFixed(1)}" y1="${((1 - a.d) * PH).toFixed(1)}" x2="${(a.w * PW + dx * k).toFixed(1)}" y2="${((1 - a.d) * PH + dy * k).toFixed(1)}" stroke="#FFD54A" stroke-width="1.5" opacity=".9" marker-end="url(#plsa)"/>`; });
     }

@@ -2062,11 +2062,16 @@
   // forwarding and background fixtures may request different chunks, but no
   // longer change the number or ordering of random decisions.
   FM.debugRestart = (m, kind, team, x, y) => startRestart(m, kind, team, x, y);
+  // Where everyone and the ball were before the latest step, so the picture can be drawn between the last two steps (main.js interpolate) rather than jumping each step.
+  const PREV = new WeakMap();
+  function keepPrev(match) { match.teams.forEach((t) => t.players.forEach((p) => PREV.set(p, { x: p.x, y: p.y, f: p.facing }))); PREV.set(match.ball, { x: match.ball.x, y: match.ball.y }); }
+  FM.prevOf = (o) => PREV.get(o);
   FM.stepMatch = function (match, dt) {
     if (!(dt > 0)) return;
     if (FM.computeEdges && match.clock >= (match.edgeAt || 0)) { FM.computeEdges(match); match.edgeAt = match.clock + 60; }
     match.fixedStepRemainder = (match.fixedStepRemainder || 0) + dt;
     while (match.fixedStepRemainder >= .1 - 1e-9 && match.phase !== 'halftime' && match.phase !== 'fulltime' && !match.injuryPause) {
+      keepPrev(match);
       stepMatchFixed(match, .1);
       match.fixedStepRemainder -= .1;
     }
