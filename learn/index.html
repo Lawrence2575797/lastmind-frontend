@@ -6937,6 +6937,11 @@
                     <button type="button" class="new-chat-btn" id="notesNewNotesFolderBtn">Add folder</button>
                 </div>
                 <div class="notes-panel-tree" id="notesTreeItems"></div>
+                <div class="notes-panel-actions" style="margin-top:8px">
+                    <button type="button" class="new-chat-btn" id="notesBackupBtn" title="Download every page as one file">Download backup</button>
+                    <button type="button" class="new-chat-btn" id="notesRestoreBtn" title="Put pages back from a backup file">Restore from file</button>
+                    <input type="file" id="notesRestoreFile" accept=".json,application/json" hidden>
+                </div>
             </div>
 
             <div class="sidebar-footer">
@@ -21700,6 +21705,10 @@ SQIDAQAB
         try { const raw = await notesIdbGet(notesKey); if (raw) { const di = JSON.parse(raw); if (di && Array.isArray(di.nodes)) { d = di; notesInIdb = true; } } } catch (_) { /* the localStorage copy stands */ }
         if (d && Array.isArray(d.nodes)) notes = { nodes: d.nodes.filter((n) => n && n.id && (n.type === 'folder' || n.type === 'page')), activeId: d.activeId || null, sectionOpen: (d.sectionOpen && typeof d.sectionOpen === 'object') ? d.sectionOpen : {} };
         else { notes = { nodes: [], activeId: null }; notesMigrateMathsNotes(suffix); notesPersist(); }
+        // This device's copy is empty but it remembers having had notes: the copy was lost (a cleared or failed browser store), it was not emptied on purpose.
+        // Nothing is then sent to the account as deleted; what the account holds is brought back instead.
+        notesDistrustLocal = false;
+        if (suffix && !notes.nodes.length) { try { const m = JSON.parse(localStorage.getItem('lastmind-notes-syncmeta-v1:' + suffix.slice(1)) || 'null'); if (m && m.nodes && Object.keys(m.nodes).some((k) => !m.nodes[k].gone)) notesDistrustLocal = true; } catch (_) { /* no record */ } }
         notesLoaded = true;
         notesSyncUid = suffix ? suffix.slice(1) : null;
         if (notesSyncUid) notesSyncNow();
@@ -21716,7 +21725,7 @@ SQIDAQAB
     // what it last saw on the server (a fingerprint of the item and the server's timestamp). From that it can tell an item it changed from
     // one another device changed, one that was deleted here from one that was deleted elsewhere, and one it has never seen. The first time an
     // account is used on a device, everything already in this browser is uploaded, so existing notes move onto the account.
-    let notesSyncUid = null, notesSyncTimer = null, notesSyncBusy = false, notesSyncAgain = false;
+    let notesSyncUid = null, notesSyncTimer = null, notesSyncBusy = false, notesSyncAgain = false, notesDistrustLocal = false;
     const notesSyncImgKnown = new Set();
     function notesSyncMetaKey() { return 'lastmind-notes-syncmeta-v1:' + notesSyncUid; }
     function notesSyncMeta() {
@@ -21819,7 +21828,7 @@ SQIDAQAB
                     return;
                 }
                 if (!l) {
-                    if (m && !m.gone) toDelete.push(id);   // deleted here while offline
+                    if (m && !m.gone && !notesDistrustLocal) toDelete.push(id);   // deleted here while offline (never inferred from a copy that came up empty)
                     else adopt(row);
                     return;
                 }
@@ -21836,7 +21845,7 @@ SQIDAQAB
             });
             notes.nodes.forEach((n) => { if (!rows.has(n.id)) toPush.push(n); });
             // anything this device removed while it was not syncing
-            Object.keys(meta.nodes).forEach((id) => { if (!meta.nodes[id].gone && !notesNode(id) && !rows.has(id) && toDelete.indexOf(id) < 0) toDelete.push(id); });
+            if (!notesDistrustLocal) Object.keys(meta.nodes).forEach((id) => { if (!meta.nodes[id].gone && !notesNode(id) && !rows.has(id) && toDelete.indexOf(id) < 0) toDelete.push(id); });
             if (changed) {
                 // a folder's order, as the account has it
                 const groups = new Map();
@@ -21851,6 +21860,7 @@ SQIDAQAB
                 notesPersistLocal();
             }
             notesSyncSaveMeta(meta);
+            if (toDelete.length > 5 && toDelete.length >= notes.nodes.length) { console.warn('LastMind notes: not sending a deletion of nearly every note', toDelete.length); toDelete.length = 0; }
             await notesSyncPush(meta, toPush.filter((n, i, a) => a.indexOf(n) === i), toDelete);
             await notesSyncImages(server.imageIds || []);
             if (changed && uid === notesSyncUid) {
@@ -21915,6 +21925,29 @@ SQIDAQAB
         if (n.type !== 'folder') return null;
         if (notesSpaceOf(notesRootOf(n)) === 'sets') return 'pset';
         const d = notesDepth(n); return d === 0 ? 'folder' : d === 1 ? 'page' : null;
+    }
+    // A backup is the notes tree as one file; restoring puts every page in it back (a page already here is replaced only by a newer copy) and sends them to the account.
+    function notesBackupDownload() {
+        const blob = new Blob([JSON.stringify({ nodes: notes.nodes, activeId: null })], { type: 'application/json' });
+        const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'lastmind-notes-backup-' + new Date().toISOString().slice(0, 10) + '.json';
+        document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+    }
+    async function notesRestoreFrom(file) {
+        let d; try { d = JSON.parse(await file.text()); } catch (_) { alert('That file is not a LastMind notes backup.'); return; }
+        const inc = (d && Array.isArray(d.nodes) ? d.nodes : []).filter((n) => n && n.id && (n.type === 'folder' || n.type === 'page'));
+        if (!inc.length) { alert('There are no notes in that file.'); return; }
+        await notesEnsureLoaded();
+        const meta = notesSyncUid ? notesSyncMeta() : null; let added = 0, replaced = 0;
+        inc.forEach((n) => {
+            const i = notes.nodes.findIndex((x) => x.id === n.id);
+            if (i < 0) { notes.nodes.push(n); added++; }
+            else if (String(n.updatedAt || '') > String(notes.nodes[i].updatedAt || '')) { notes.nodes[i] = n; replaced++; }
+            if (meta) delete meta.nodes[n.id];   // so the account is sent it, whatever it recorded about this page before
+        });
+        if (meta) notesSyncSaveMeta(meta);
+        notesDistrustLocal = false; notesPersist(); renderMyNotesTree();
+        alert('Restored ' + added + ' new and ' + replaced + ' updated items. They are being saved to your account now.');
+        if (notesSyncUid) notesSyncNow();
     }
     function renderMyNotesTree() {
         const el = document.getElementById('notesTreeItems');
@@ -22028,6 +22061,7 @@ SQIDAQAB
         });
         document.getElementById('notesNewFolderBtn').addEventListener('click', () => notesStartNew(null, 'pset', 'sets'));
         document.getElementById('notesNewNotesFolderBtn').addEventListener('click', () => notesStartNew(null, 'folder', 'notes'));
+        { const bb = document.getElementById('notesBackupBtn'), rb = document.getElementById('notesRestoreBtn'), rf = document.getElementById('notesRestoreFile'); if (bb) bb.addEventListener('click', notesBackupDownload); if (rb && rf) { rb.addEventListener('click', () => rf.click()); rf.addEventListener('change', () => { if (rf.files && rf.files[0]) notesRestoreFrom(rf.files[0]); rf.value = ''; }); } }
         // Drag and drop: folders among folders, subfolders among the subfolders of the same folder, pages among the pages of the same folder.
         const tree = document.getElementById('notesTreeItems');
         let dragId = null;
