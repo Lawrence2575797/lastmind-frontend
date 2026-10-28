@@ -498,11 +498,11 @@
     const T = c.team, O = other(match, T), cp = c.player, dir = T.attackDir, now = match.clock, depth = FM.toTeamSpace(dir, cp.x, cp.y).d;
     const heading = Number.isFinite(cp.facing) ? cp.facing : (dir === 1 ? 0 : Math.PI);
     // support
-    if (depth < 0.7 && !FM.NO_SUP) {
+    if (depth < (FM.SUP_DEPTH == null ? 0.5 : FM.SUP_DEPTH) && !FM.NO_SUP) {
       let st = match.sup;
       if (!st || st.who !== cp || now > st.until) {
         const tg = new Map(), taken = [];
-        T.players.filter((q) => q !== cp && q.group !== 'GK' && !ov.has(q)).map((q) => ({ q, d: dist(q, cp) })).filter((o) => o.d < 30).sort((a, b) => a.d - b.d).slice(0, 2).forEach(({ q }) => {
+        T.players.filter((q) => q !== cp && q.group !== 'GK' && !ov.has(q)).map((q) => ({ q, d: dist(q, cp) })).filter((o) => o.d < 30).sort((a, b) => a.d - b.d).slice(0, FM.SUP_N == null ? 1 : FM.SUP_N).forEach(({ q }) => {
           let best = null, bs = -1e9; const R = q.group === 'CB' ? 8 : q.group === 'ST' || q.group === 'WF' ? 13 : 10;
           SUP_ANG.forEach((a) => {
             const x = clamp(cp.x + Math.cos(heading + a) * R, 2, L - 2), y = clamp(cp.y + Math.sin(heading + a) * R, 2, W - 2);
@@ -520,7 +520,7 @@
     // an off-ball run
     const rs = match.runs || (match.runs = { until: 0, cool: 0, q: null, pt: null, team: null });
     if (rs.q && (now > rs.until || rs.team !== T || rs.q === cp)) { rs.q = null; rs.cool = now + 2.5; }
-    if (!FM.NO_RUNS && !rs.q && depth > 0.38 && depth < 0.88 && now > rs.cool && match.rng() < 0.07 * (0.4 + T.tactics.directness + 0.5 * T.tactics.risk)) {
+    if (!FM.NO_RUNS && !rs.q && depth > 0.38 && depth < 0.88 && now > rs.cool && match.rng() < 0.1 * (0.4 + T.tactics.directness + 0.5 * T.tactics.risk)) {
       const cands = T.players.filter((q) => q !== cp && ['ST', 'WF', 'AM', 'CM'].indexOf(q.group) >= 0 && !ov.has(q) && FM.toTeamSpace(dir, q.x, q.y).d > 0.35 && FM.instrMods(q, true).runs >= 0);
       if (cands.length) {
         const wts = cands.map((q) => (q.group === 'ST' ? 3 : q.group === 'WF' ? 2.5 : q.group === 'AM' ? 2 : 1)), tot = wts.reduce((a, b) => a + b, 0); let r = match.rng() * tot, q = cands[0]; for (let i = 0; i < cands.length; i++) { r -= wts[i]; if (r <= 0) { q = cands[i]; break; } }
@@ -948,7 +948,7 @@
     if (nearNow > 4 && !through && !drive) options.push({ kind: 'hold', score: .48 + .55 * live.patience - .4 * live.urgency - .2 * directness });
 
     if (coast > 0) options.forEach((o) => { if (o.kind === 'shoot' && o.score > 0) o.score *= 1 - 0.45 * coast; });
-    options.forEach((o) => { if (o.kind === 'shoot' && o.score > 0) o.score *= (FM.SHOT_K == null ? 0.68 : FM.SHOT_K); });
+    options.forEach((o) => { if (o.kind === 'shoot' && o.score > 0) o.score *= (FM.SHOT_K == null ? 0.85 : FM.SHOT_K); });
     if (RE && RE.shoot) options.forEach((o) => { if (o.kind === 'shoot' && o.score > 0) o.score *= clamp(1 + 0.9 * RE.shoot, 0.1, 2); });
 
     if (!options.length) options.push({ kind: 'carry', nearD: 3, drive: false, score: 0 });   // never nothing to do: he keeps the ball and moves on
@@ -1084,7 +1084,7 @@
     if (hit) {
       const p = hit.p, mine = hit.tm === team, sk = (k) => ((p.ratings && p.ratings[k]) == null ? 60 : p.ratings[k]) / 100, ev = f.ev, tmx = hit.tm;
       if (mine) {
-        const markD = nearestOpponent(match, team, p).d, ctrl = clamp((FM.CONTROL_BASE == null ? 0.89 : FM.CONTROL_BASE) + 0.2 * sk('composure') - 0.008 * Math.max(0, sp - 14) - (markD < 2.2 ? 0.06 : 0), 0.35, 0.985) * (p === f.target ? 1 : 0.92);
+        const markD = nearestOpponent(match, team, p).d, ctrl = clamp((FM.CONTROL_BASE == null ? 0.92 : FM.CONTROL_BASE) + 0.2 * sk('composure') - 0.008 * Math.max(0, sp - 14) - (markD < 2.2 ? 0.06 : 0), 0.35, 0.985) * (p === f.target ? 1 : 0.92);
         if (rng() < ctrl) {
           if (f.offside && p === f.target) {
             statsOf(match, team).offsides++; if (ev) ev.outcome = 'offside';
@@ -1097,7 +1097,7 @@
         if (ev) { ev.outcome = 'loose'; ev.how = 'heavy'; }
         knockLoose(match, p, team, f.dir.x, f.dir.y, Math.max(1.5, sp * 0.3), 1.2); return;   // a heavy touch: it runs away from him
       }
-      const pi = clamp(((FM.INTERCEPT_BASE == null ? 0.28 : FM.INTERCEPT_BASE) + 0.45 * hit.c) * (0.7 + 0.5 * sk('tackling')) * clamp(1.25 - sp / 30, 0.5, 1), 0.05, 0.95) * (p.group === 'GK' ? 1.4 : 1);
+      const pi = clamp(((FM.INTERCEPT_BASE == null ? 0.24 : FM.INTERCEPT_BASE) + 0.45 * hit.c) * (0.7 + 0.5 * sk('tackling')) * clamp(1.25 - sp / 30, 0.5, 1), 0.05, 0.95) * (p.group === 'GK' ? 1.4 : 1);
       if (rng() < pi) {
         if (rng() < 0.55 + 0.3 * sk('tackling')) { if (ev) { ev.outcome = 'intercepted'; ev.by = p.number; } giveBall(match, opp, p, 0.4 + delayBeforeNextDecision(match, opp, p) * 0.5); return; }
         if (ev) { ev.outcome = 'loose'; ev.how = 'deflect'; }
@@ -1154,7 +1154,7 @@
 
   function doHold(match, team, carrier) {
     match.carry = null;
-    match.nextDecision = match.clock + 1.2 + 1.8 * match.rng() + .7 * (1 - team.tactics.tempo);
+    match.nextDecision = match.clock + (1.4 + 2.1 * match.rng()) * (1.5 - team.tactics.tempo);   // tempo: the time a man takes over the ball, from about 3.5 s to 1.3 s
   }
 
   function doClear(match, team, carrier, opt) {
@@ -1162,6 +1162,8 @@
     record(match, { type: 'clearance', team: team.id, player: carrier.number, x: carrier.x, y: carrier.y, tx: pass.tx, ty: pass.ty });
     if (!match.lastClearance) match.lastClearance = {};
     match.lastClearance[team.id] = match.clock;
+    // Under pressure a defender often just gets it away: kicked up the line into touch rather than to a team-mate (this is where most throw-ins come from).
+    if (match.rng() < (FM.CLEAR_TOUCH == null ? 0.6 : FM.CLEAR_TOUCH)) { const ty = carrier.y < W / 2 ? 1.2 : W - 1.2, tx = clamp(carrier.x + team.attackDir * 20, 3, L - 3); pass.tx = tx; pass.ty = ty; pass.d = Math.hypot(tx - carrier.x, ty - carrier.y); pass.p = 0.7; }
     doPass(match, team, carrier, pass);
   }
 
@@ -2235,6 +2237,8 @@
   FM.prevOf = (o) => PREV.get(o);
   FM.stepMatch = function (match, dt) {
     if (!(dt > 0)) return;
+    // timers that are kept as a time on this match's clock (a man who cannot pick the ball up for a moment, a man on the ground) start clean in every match
+    if (!match.cleaned) { match.cleaned = true; match.teams.forEach((t) => t.players.concat(t.bench || []).forEach((p) => { p.noPick = 0; p.sliding = false; p.turnTo = undefined; })); match.ball.vx = 0; match.ball.vy = 0; match.ball.of = null; }
     if (FM.computeEdges && match.clock >= (match.edgeAt || 0)) { FM.computeEdges(match); match.edgeAt = match.clock + 60; }
     match.fixedStepRemainder = (match.fixedStepRemainder || 0) + dt;
     while (match.fixedStepRemainder >= .1 - 1e-9 && match.phase !== 'halftime' && match.phase !== 'fulltime' && !match.injuryPause) {

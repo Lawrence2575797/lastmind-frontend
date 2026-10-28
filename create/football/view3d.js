@@ -18,7 +18,7 @@
   }
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   const angDiff = (a, b) => { let d = b - a; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; return d; };
-  const lastBall = { x: 0, z: 0 }; let stadiumBuilt = false, lastT = null, carriedVis = null, relOff = null, spcOn = false, snapNext = false, camSpread = 12, ballV = { x: 0, z: 0 }, lastBx = null, lastBz = null;
+  const lastBall = { x: 0, z: 0 }; let refE = null, stadiumBuilt = false, lastT = null, carriedVis = null, relOff = null, spcOn = false, snapNext = false, camSpread = 12, ballV = { x: 0, z: 0 }, lastBx = null, lastBz = null;
   const mkCanvas = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; };
   const tex = (c, srgb) => { const t = new THREE.CanvasTexture(c); if (srgb !== false) t.encoding = THREE.sRGBEncoding; t.anisotropy = renderer.capabilities.getMaxAnisotropy(); return t; };
 
@@ -577,6 +577,10 @@
         readEvents(m);
       }
       { const fl = !rp && m.flight && m.flight.free ? m.flight : null; if (fl && fl.target && fl.t > 0.15) { const te = players.get(fl.target.id); if (te && te.recvFor !== fl && Math.hypot(m.ball.x - fl.target.x, m.ball.y - fl.target.y) < 3.4) { te.recvFor = fl; setPose(te, 'control', 0.6, te.foot); } } }
+      // set pieces taken by hand: the throw-in is thrown, the goal kick is struck, both timed to the moment the match releases the ball
+      { const rs = !rp && m.restart ? m.restart : null; if (rs && rs.taker && FM.anim && FM.anim.ready) { const te = players.get(rs.taker.id); if (te && te.setFor !== rs && Math.hypot(rs.taker.x - rs.x, rs.taker.y - rs.y) < 1.8) {
+        if (rs.kind === 'throw' && rs.timer <= 1.25) { te.setFor = rs; FM.anim.timed(te, te.foot < 0 ? 'throwIn_m' : 'throwIn', Math.max(0.2, rs.timer)); }
+        else if (rs.kind === 'goalkick' && rs.timer <= 0.7) { te.setFor = rs; FM.anim.timed(te, 'gkPass', Math.max(0.2, rs.timer)); } } } }
       const replay = !!rp; if (!replay) recT += dt;
       // speed is distance over the match time it took (what the engine advanced by this frame), not over wall-clock time, so the gait follows the real movement exactly
       const sdt = ctx && ctx.simDt > 0.002 ? ctx.simDt : rdt;
@@ -604,7 +608,7 @@
           { const pa = m.pendingAct; if (FM.anim && FM.anim.ready && pa && pa.player === p && e.kickTag !== pa && (pa.opt.kind === 'pass' || pa.opt.kind === 'shoot' || pa.opt.kind === 'clear')) { const rem = pa.release - m.clock; if (rem <= 0.6) { e.kickTag = pa; e.kickAt = performance.now(); FM.anim.kick(e, rem, { shot: pa.opt.kind === 'shoot', gk: p.group === 'GK' }); logAct({ id: p.id, kick: 1, t: recT + rem - 0.12, rem: 0.12 }); } } } }
         { const kc = m.kickCue; if (!rp && FM.anim && FM.anim.ready && kc && kc.player === p && e.kickTag !== kc) { const rem = kc.release - m.clock; if (rem <= 0.55) { e.kickTag = kc; e.kickAt = performance.now(); FM.anim.kick(e, Math.max(0.12, rem), {}); logAct({ id: p.id, kick: 1, t: recT + Math.max(0.12, rem) - 0.12, rem: 0.12 }); } } }
         // the first touch: a man who has just received the ball cushions it
-        if (isC && !e.wasC && e.speed < 8) setPose(e, 'control', 0.5, e.foot); e.wasC = isC;
+        if (isC && !e.wasC && e.speed < 8) { if (p.group === 'GK' && FM.anim && FM.anim.ready && FM.anim.play(e, 'gkCatch2', { len: 1.1, fi: 0.08, fo: 0.3 })) { /* a keeper's catch */ } else setPose(e, 'control', 0.5, e.foot); } e.wasC = isC;
         if (e.pose) { e.pose.t += dt; if (e.pose.t >= e.pose.dur) e.pose = null; else applyPose(e.fig, e.pose.type, e.pose.t, e.pose.dur, e.pose.dir); }
         if (e.fig.mx) e.fig.mx.sync(e.fig);
       }));
@@ -656,10 +660,26 @@
         if (!g.hit && g.t > 0.1) { g.hit = true; hitNet(g.side, 0, 22, bx, by, bz); logAct({ net: [g.side, 0, 22, bx, by, bz] }); }
         if (g.t > 4) goalFx = null;
       }
+      // a throw-in is taken with the ball over his head
+      { const rs = !replay && m.restart && m.restart.kind === 'throw' ? m.restart : null; if (rs && rs.taker) { const te = players.get(rs.taker.id); if (te && te.setFor === rs) by = 1.95; } }
       lastBall.x = bx; lastBall.z = bz;
       if (!replay) recordFrame(m, ctx, bx, by, bz);
       // after a goal the camera goes with the scorer to the corner flag
       let camX = bx, camZ = bz; if (m.celeb && !replay) { const se = players.get(m.celeb.shooter.id); if (se) { camX = se.fig.root.position.x; camZ = se.fig.root.position.z; } }
+      // the referee: in black-and-yellow, keeping a few strides behind play, on the far side of it, and watching the ball
+      if (!replay) {
+        if (!refE) { try { const fig = makeFigure({ shirt: 0xf2d32e, sleeve: 0xf2d32e, trim: 0x111111, shorts: 0x15171a, sock: 0x15171a, boot: 0x0c0c0c, numColor: '#111', num: '', skin: SKIN[2], hair: HAIR[1], style: 'short', height: 1, build: 1 }); fig.strideK = 1; refE = { fig, x: 0, z: 10, vx: 0, vz: 0, speed: 0, os: null, foot: 1, hd: 0, turn: 0, accel: 0, lastF: 0, lastSp: 0 }; refE.fig.root.scale.setScalar(1.3); scene.add(fig.root); } catch (er) { refE = false; } }
+        if (refE) {
+          const r = refE, ux = ballV.x, sx = Math.hypot(ballV.x, ballV.z) > 2 ? Math.sign(ballV.x) : (r.side || 1); r.side = sx;
+          const tx = clamp(bx - sx * 9, -HL + 4, HL - 4), tz = clamp(bz * 0.5 + (bz > 0 ? -7 : 7), -HW + 4, HW - 4), ddx = tx - r.x, ddz = tz - r.z, dd = Math.hypot(ddx, ddz), want = Math.min(5.8, dd * 0.9), k = Math.min(1, dt * 3);
+          const nvx = dd > 0.5 ? ddx / dd * want : 0, nvz = dd > 0.5 ? ddz / dd * want : 0; r.vx += (nvx - r.vx) * k; r.vz += (nvz - r.vz) * k; r.x += r.vx * dt; r.z += r.vz * dt; r.speed = Math.hypot(r.vx, r.vz);
+          const want_hd = Math.atan2(bz - r.z, bx - r.x), mv = r.speed > 1.2 ? Math.atan2(r.vz, r.vx) : want_hd; let dh = mv - (r.hd || 0); while (dh > Math.PI) dh -= Math.PI * 2; while (dh < -Math.PI) dh += Math.PI * 2; r.hd = (r.hd || 0) + dh * Math.min(1, dt * 5);
+          r.fig.root.position.set(r.x, 0, r.z); r.fig.root.rotation.y = Math.PI / 2 - r.hd;
+          const ch = Math.cos(r.hd), sh = Math.sin(r.hd);
+          animate(r.fig, { vf: r.vx * ch + r.vz * sh, vs: r.vx * sh - r.vz * ch, turn: 0, accel: 0, look: angDiff(r.hd, want_hd), px: r.x, pz: r.z, hd: r.hd, sc: 1.3, vx: r.vx, vz: r.vz, e: r, gk: false }, dt, clock);
+          if (r.fig.mx) r.fig.mx.sync(r.fig);
+        }
+      }
       // how spread out the play is (the eight men nearest the ball) and how fast the ball is going, both smoothed, for the framing
       { let ds = []; players.forEach((e) => { if (e.fig.root.visible) ds.push(Math.hypot(e.fig.root.position.x - bx, e.fig.root.position.z - bz)); }); ds.sort((a, b) => a - b); const near8 = ds.slice(0, 8), rms = near8.length ? Math.sqrt(near8.reduce((a, d) => a + d * d, 0) / near8.length) : 12;
         camSpread += (rms - camSpread) * Math.min(1, dt * 1.2);

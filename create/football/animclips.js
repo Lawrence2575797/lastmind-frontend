@@ -85,6 +85,11 @@
   };
   // the goal celebration: the sprint to a backslide, started as the scripted slide begins (match.js, stepCelebration)
   A.celebrate = function (e, dur) { return A.play(e, 'sprintBackslide', { len: dur || 2.07, fi: 0.1, fo: 0.35 }); };
+  // a clip whose key moment (its 'peak') falls `remaining` seconds from now: a throw-in released, a goal kick struck
+  A.timed = function (e, name, remaining) {
+    if (!A.ready || !A.clips[name]) return false; const c = A.clips[name], rate = clamp(c.peak / Math.max(0.12, remaining), 0.5, 2.4);
+    return A.play(e, name, { rate, len: Math.min(c.dur, c.peak / rate + 0.7), fi: 0.12, fo: 0.3 });
+  };
   A.dive = function (e, dir) { const nm = (dir > 0 ? 'gkDive2' : 'gkDive1'); return A.play(e, A.clips[nm] ? nm : 'gkDive1', { len: 1.9 }); };
   // a kick timed so that the ball leaves the foot at `remaining` seconds from now
   A.kick = function (e, remaining, o) {

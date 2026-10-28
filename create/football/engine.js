@@ -670,6 +670,8 @@
         const target = choice === 'reset' ? chain[0].pos : choice === 'secure' ? chain[1].pos : mix(FM.phasePos(team, player, 'transAtt'), FM.phasePos(team, player, pn('transAttEnd')), clamp(ctx.taProg || 0, 0, 1));
         pos = mix(pos, target, ctx.transAtt);
       }
+      // the width dial (1 = as drawn): the side stretches or squeezes across the pitch round its centre line
+      if (team.dials && team.dials.width && player.group !== 'GK') pos = { d: pos.d, w: clamp(0.5 + (pos.w - 0.5) * team.dials.width, 0.03, 0.97) };
     } else {
       // Defending: the first diagram is the team set up while the ball is still far away; the second is the team with the ball close to the goal.
       const far = FM.phaseBall(team, 'without').d, near = FM.phaseBall(team, pn('withoutEnd')).d;
@@ -803,6 +805,8 @@
       const lim = ({ CB: (FM.CB_LIMIT == null ? 0.46 : FM.CB_LIMIT) + 0.14 * squeeze, FB: 0.56 + 0.1 * squeeze, DM: 0.64 + 0.1 * squeeze })[player.group];
       if (lim != null && !(drawn > 0.6)) d = Math.min(d, lim);   // (a line the manager drew, in a press, is his call)
     }
+    // The keeper without the ball stands on the line from the ball to the middle of his goal, closer to the near post the nearer the ball is, and comes off his line as a sweeper when it is far away.
+    if (player.group === 'GK' && !hasBall && !FM.NO_GKT) { const near = clamp((0.4 - b.d) / 0.4, 0, 1); w = 0.5 + (b.w - 0.5) * (0.18 + 0.5 * near); d = 0.02 + 0.11 * clamp((b.d - 0.3) / 0.35, 0, 1) * (1 - near); }
     if (player.group === 'GK') d = clamp(d, 0.02, 0.2);
     d = clamp(d, 0.02, 0.97);
     w = clamp(w, 0.04, 0.96);
