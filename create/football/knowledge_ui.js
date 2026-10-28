@@ -16,7 +16,7 @@
 
   // ---------- the schedule ----------
   // One lesson falls due between one match and the next, in an order in which a point is never reached before everything it needs. The order is fixed
-  // (it does not depend on how the student is getting on): lesson n is due once n matches have been played, and is overdue once another has been played
+  // (it does not depend on how the student is getting on): lesson n is due once n matches have been played (the first after the first match), and is overdue once another has been played
   // without it. Nothing is forced; the student can read any lesson, but is told what is due.
   let SCH = null;
   function buildSchedule(lg) {
@@ -48,8 +48,8 @@
   function schedState(lg, id) {
     if (doneOf(lg, id)) return { st: 'done' };
     const sc = buildSchedule(lg), i = sc.idx[id]; if (i == null) return { st: 'none' };
-    const played = matchesPlayed(lg);
-    if (played > i) return { st: 'overdue', late: played - i, i }; if (played === i) return { st: 'due', i }; return { st: 'upcoming', i, in: i - played };
+    const played = matchesPlayed(lg), dueAt = i + 1;   // the first lesson falls due once the first match has been played
+    if (played > dueAt) return { st: 'overdue', late: played - dueAt, i }; if (played === dueAt) return { st: 'due', i }; return { st: 'upcoming', i, in: dueAt - played };
   }
   const stText = (x) => (x.st === 'done' ? 'Learnt' : x.st === 'due' ? 'Due before your next match' : x.st === 'overdue' ? 'Overdue by ' + x.late + (x.late === 1 ? ' match' : ' matches') : x.st === 'upcoming' ? 'Due after ' + (x.in === 1 ? 'one more match' : x.in + ' more matches') : '');
   const stShort = (x) => (x.st === 'done' ? 'Learnt' : x.st === 'due' ? 'Due' : x.st === 'overdue' ? 'Overdue' : 'Later');

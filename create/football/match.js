@@ -2152,6 +2152,11 @@
       record(match, { type: 'goal', team: team.id, player: f.shooter.number });
       const goalSpec = match.rec ? clipGoal(match, team, f.shooter) : null;
       if (goalSpec) { goalSpec.pre = snapTeams(match); goalSpec.ballAt = [match.ball.x, match.ball.y]; }
+      if (match.rec) {
+        const r = match.rec, gx = team.attackDir === 1 ? L : 0, ny = clamp(f.ey, W / 2 - 3.4, W / 2 + 3.4), snap = (t) => t.players.map((p) => [p.number, p.x, p.y]);
+        [0, 0.35, 0.7].forEach((dt) => r.buf.push({ t: match.clock + dt, b: [gx + (gx === L ? -0.4 : 0.4), ny], h: snap(match.home), a: snap(match.away) }));
+        r.next = match.clock + 0.7 + CLIP_DT;
+      }
       if (match.skipFx) { FM.beginKickoff(match, opp); if (goalSpec) goalSpec.tail = goalTail(match, goalSpec, team, f.shooter); }
       else beginCelebration(match, team, f.shooter, opp, goalSpec);
     } else if (f.outcome === 'saved') {

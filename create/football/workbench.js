@@ -949,6 +949,8 @@
         const p = on(); host.querySelectorAll('.wb2-body [data-panel]').forEach((x) => { x.hidden = !p[x.dataset.panel]; });
         host.querySelectorAll('.wb2-tog').forEach((b) => b.setAttribute('aria-pressed', String(!!p[b.dataset.panel])));
         const body = host.querySelector('.wb2-body'); body.dataset.open = String(PANELS.filter((k) => p[k]).length); badge();
+        // every open panel sits on the one screen: they are placed by how many are open (the lesson or map biggest, the rest around it), never scrolled sideways
+        { const PRI = ['lesson', 'map', 'notes', 'agent', 'sug']; let n = 0; PRI.forEach((k) => { const x = body.querySelector('[data-panel="' + k + '"]'); if (!x) return; if (p[k]) { x.dataset.slot = String(n); x.style.order = String(n); n++; } else { delete x.dataset.slot; x.style.order = ''; } }); }
         if (remount !== false && (p.map || p.sug || p.lesson)) mountKn();
         save();
       }

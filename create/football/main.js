@@ -167,7 +167,7 @@
     h.saved.ball.p.x = h.saved.ball.x; h.saved.ball.p.y = h.saved.ball.y;
   }
   function hlCancel() {
-    hlRestore(); world.hl = null; world.hlScanned = null; world.hlWait = null; world.highlightSearching = false; hlOverlay(false);
+    hlRestore(); world.hl = null; world.hlHold = null; world.hlScanned = null; world.hlWait = null; world.highlightSearching = false; hlOverlay(false);
   }
   function hlStartReplay(m, e, index, tail) {
     const r = m.rec, t0 = e.t - (e.type === 'goal' ? 10 : 8), t1 = e.t + tail;
@@ -207,7 +207,7 @@
       FM.stepMatch(m, SUBSTEP);
       for (; scanned < m.events.length; scanned++) {
         const e = m.events[scanned];
-        if (e.type === 'goal') return hlStartReplay(m, e, scanned, 0.2);
+        if (e.type === 'goal') return hlStartReplay(m, e, scanned, 1.0);
         if (e.type === 'shot' && e.setPiece === 'penalty' && e.outcome !== 'goal') world.hlWait = { until: m.clock + 2.2, ev: e, index: scanned };
       }
       if (world.hlWait && m.clock >= world.hlWait.until) { const w = world.hlWait; return hlStartReplay(m, w.ev, w.index, 2.2); }
@@ -382,7 +382,7 @@
   }
   function updateHud() {
     const m = world.match, home = m.home, away = m.away;
-    { const hold = world.hlHold; el('scHome').textContent = hold ? hold.home : m.score[home.id]; el('scAway').textContent = hold ? hold.away : m.score[away.id]; }
+    { const hold = world.hl && world.hl.phase === 'replay' ? world.hlHold : null; el('scHome').textContent = hold ? hold.home : m.score[home.id]; el('scAway').textContent = hold ? hold.away : m.score[away.id]; }
     el('clock').textContent = m.phase === 'halftime' ? 'Half time' : m.phase === 'fulltime' ? 'Full time' : FM.formatClock(m.clock) + (m.restart ? ' · ' + RESTART_NAMES[m.restart.kind] : '');
     renderIncidents(m);
     const h = m.stats[home.id], a = m.stats[away.id], tot = h.possession + a.possession;
@@ -398,7 +398,7 @@
     const html = rows.map((r) => '<tr><td>' + r[1] + '</td><td>' + r[0] + '</td><td>' + r[2] + '</td></tr>').join('');
     if (html !== world.lastStats) { el('stats').innerHTML = html; world.lastStats = html; }
     const feed = el('feed');
-    const evLimit = world.hlHold ? Math.min(world.hlHold.index, m.events.length) : m.events.length;
+    const evLimit = world.hl && world.hl.phase === 'replay' && world.hlHold ? Math.min(world.hlHold.index, m.events.length) : m.events.length;
     for (; world.shownEvents < evLimit; world.shownEvents++) {
       const e = m.events[world.shownEvents];
       const team = e.team === home.id ? home : e.team === away.id ? away : null;

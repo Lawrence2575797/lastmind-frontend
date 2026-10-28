@@ -359,3 +359,12 @@ body[data-view="workbench"] #view-workbench { animation: none !important; transf
 .tx-mat { display: inline-flex; flex-direction: column; vertical-align: middle; margin: 0 .1em; } .tx-row { display: flex; gap: .8em; justify-content: center; } .tx-cell { min-width: .8em; text-align: center; }
 .tx-brk { display: inline-block; font-size: 2.2em; font-weight: 200; line-height: .8; vertical-align: middle; transform: scaleX(.7); } .tx-par { font-size: 2em; font-weight: 200; vertical-align: middle; }
 .tx-bin .tx-n { border-bottom: 0; }
+
+/* The Workbook's panels all sit on one screen, placed by how many are open: no sideways scrolling. Slot 0 (the lesson, then the map, then the notes) is the big one. */
+.wb2 .wb2-body { display: grid; overflow: hidden; gap: 12px; height: calc(100vh - 190px); min-height: 560px; grid-template-columns: minmax(0, 1fr); grid-auto-rows: minmax(0, 1fr); }
+.wb2 .wb2-body > [data-panel] { flex: none; min-width: 0; min-height: 0; height: auto; }
+.wb2 .wb2-body[data-open="2"] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.wb2 .wb2-body[data-open="3"] { grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); grid-template-rows: repeat(2, minmax(0, 1fr)); } .wb2 .wb2-body[data-open="3"] > [data-slot="0"] { grid-row: span 2; }
+.wb2 .wb2-body[data-open="4"] { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(2, minmax(0, 1fr)); }
+.wb2 .wb2-body[data-open="5"] { grid-template-columns: minmax(0, 1.3fr) repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(2, minmax(0, 1fr)); } .wb2 .wb2-body[data-open="5"] > [data-slot="0"] { grid-row: span 2; }
+@media (max-width: 960px) { .wb2 .wb2-body, .wb2 .wb2-body[data-open] { display: flex; flex-direction: column; height: auto; overflow: visible; } .wb2 .wb2-body > [data-panel] { height: 78vh; flex: none; } }

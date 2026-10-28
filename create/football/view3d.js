@@ -18,7 +18,7 @@
   }
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   const angDiff = (a, b) => { let d = b - a; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; return d; };
-  const lastBall = { x: 0, z: 0 }; let lastT = null, carriedVis = null, relOff = null;
+  const lastBall = { x: 0, z: 0 }; let lastT = null, carriedVis = null, relOff = null, spcOn = false, snapNext = false;
   const mkCanvas = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; };
   const tex = (c, srgb) => { const t = new THREE.CanvasTexture(c); if (srgb !== false) t.encoding = THREE.sRGBEncoding; t.anisotropy = renderer.capabilities.getMaxAnisotropy(); return t; };
 
@@ -517,10 +517,14 @@
     if (!host || !renderer) return; const w = host.clientWidth || 800, h = host.clientHeight || 450; renderer.setSize(w, h, false);
     camera.aspect = w / h; const hfov = (mode === "stands" ? 44 : 74) * Math.PI / 180; camera.fov = 2 * Math.atan(Math.tan(hfov / 2) / camera.aspect) * 180 / Math.PI; camera.updateProjectionMatrix();
   }
-  function setCamera(dt, bx, bz, snap) {
-    const k = snap ? 1 : 1 - Math.exp(-dt * (mode === 'stands' ? 3.4 : 2.6));
+  function setCamera(dt, bx, bz, snap, spc) {
+    const k = snap ? 1 : 1 - Math.exp(-dt * (spc ? 3.6 : mode === 'stands' ? 3.4 : 2.6));
     let tx, tz, cx, cy, cz, ty = 0.8;
-    if (rp) {
+    if (spc && !rp) {
+      // a set piece (corner, penalty, free kick): the camera goes behind the taker, looking along the ball towards the goal, so the taker, the ball and the box are all in the picture
+      const dx = spc.gx - bx, dz = -bz, len = Math.hypot(dx, dz) || 1, ux = dx / len, uz = dz / len, back = spc.kind === 'corner' ? 11 : spc.kind === 'penalty' ? 10 : 13;
+      cx = clamp(bx - ux * back, -HL - 5, HL + 5); cz = clamp(bz - uz * back, -HW - 8, HW + 8); cy = spc.kind === 'penalty' ? 2.5 : 4; tx = bx + ux * Math.min(len * 0.55, 12); tz = bz + uz * Math.min(len * 0.55, 12); ty = 1.0;
+    } else if (rp) {
       // a replay: low and close on the touchline, with the ball well in the picture
       tx = clamp(bx, -HL + 4, HL - 4); tz = bz * 0.5; cx = tx * 0.95 - 4; cy = 3.4; cz = HW + 3.2 + 4 * clamp(bz / 28, 0, 1); ty = 0.9;
     } else if (mode === 'stands') {
@@ -532,6 +536,8 @@
       // otherwise the ball would be below the bottom of the picture.
       const near = clamp((bz - 6) / 22, 0, 1);
       tx = clamp(bx, -HL + 2, HL - 2); tz = (bz * 0.25 - 6) * (1 - near) + bz * 0.85 * near; cx = tx * 0.9; cy = 4.2 + 4.8 * near; cz = HW + 5.5 + 3.5 * near; ty = 0.7;
+      // with the ball on the far side of the pitch the camera comes in across the touchline, higher, so it is not a speck 70 metres away
+      { const far = clamp((-bz - 12) / 22, 0, 1); cz -= 15 * far; cy += 2.2 * far; tz = tz * (1 - far) + (bz * 0.7) * far; }
     }
     look.x += (tx - look.x) * k; look.z += (tz - look.z) * k; cam.x += (cx - cam.x) * k; cam.y += (cy - cam.y) * k; cam.z += (cz - cam.z) * k;
     camera.position.set(cam.x, cam.y, cam.z); camera.lookAt(look.x, ty, look.z);
@@ -645,7 +651,10 @@
       if (!replay) recordFrame(m, ctx, bx, by, bz);
       // after a goal the camera goes with the scorer to the corner flag
       let camX = bx, camZ = bz; if (m.celeb && !replay) { const se = players.get(m.celeb.shooter.id); if (se) { camX = se.fig.root.position.x; camZ = se.fig.root.position.z; } }
-      setCamera(dt, camX, camZ, !ctx || ctx.snap);
+      // a set piece taken now: corner, penalty or free kick
+      const spc = !replay && !m.celeb && m.restart && (m.restart.kind === 'corner' || m.restart.kind === 'penalty' || m.restart.kind === 'freekick') ? { kind: m.restart.kind, gx: m.restart.team.attackDir === 1 ? HL : -HL } : null;
+      if (!!spc !== spcOn) { spcOn = !!spc; if (spc && Math.hypot(camX - look.x, camZ - look.z) > 30) snapNext = true; }
+      setCamera(dt, camX, camZ, !ctx || ctx.snap || (snapNext && !(snapNext = false)), spc);
       // The ball is drawn bigger than a real one so it can be followed, and bigger again the further it is from the camera.
       const bs = 1.05 * clamp(camera.position.distanceTo(ballMesh.position) / 32, 1, 2.4);
       ballMesh.scale.setScalar(bs); ballMesh.position.set(bx, by + 0.115 * (bs - 1), bz); ballRing.position.set(bx, 0.03, bz); ballRing.scale.setScalar(bs * 0.9); ballRing.material.opacity = clamp(0.62 - by * 0.25, 0.25, 0.62); ballMesh.rotation.z -= dt * 6; updateNets();
