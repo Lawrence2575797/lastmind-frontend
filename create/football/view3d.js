@@ -488,7 +488,7 @@
       if (k === 'tackle') {
         // a scrap is shoulder to shoulder; a man at speed may go to ground for it; otherwise a standing challenge. The loser of it stumbles.
         const te = findBy(m, e.team, e.player), vt = m.teams.find((t) => t.id !== e.team), ve = vt && findBy(m, vt.id, e.vs), side = e.player % 2 ? 1 : -1;
-        const slide = !!te && te.speed > 4.2 && !e.duel && Math.random() < 0.3;
+        const slide = !!te && !!e.slide;
         setPose(te, e.duel ? 'challenge' : slide ? 'slide' : 'tackle', slide ? 0.95 : e.duel ? 0.7 : 0.55, side);
         if (ve) setPose(ve, e.ok ? 'stumble' : 'challenge', 0.7, -side);
       }

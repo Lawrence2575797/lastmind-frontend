@@ -882,6 +882,7 @@
     options.forEach((o) => { if (o.kind === 'shoot' && o.score > 0) o.score *= (FM.SHOT_K == null ? 0.68 : FM.SHOT_K); });
     if (RE && RE.shoot) options.forEach((o) => { if (o.kind === 'shoot' && o.score > 0) o.score *= clamp(1 + 0.9 * RE.shoot, 0.1, 2); });
 
+    if (!options.length) options.push({ kind: 'carry', nearD: 3, drive: false, score: 0 });   // never nothing to do: he keeps the ball and moves on
     // Softmax: the manager's settings favour an action, but nothing is certain.
     const temp = 0.22 + 0.25 * (1 - carrier.ratings.composure / 100);
     let pool = options;
@@ -1600,6 +1601,43 @@
     if (c.goalSpec) c.goalSpec.tail = goalTail(match, c.goalSpec, c.team, c.shooter);
   }
 
+  // Slide tackles. A defender closing fast on a man who is running with the ball can go to ground for it. The slide is scripted from the slide-tackle clip's own travel
+  // (every tenth of a second, in metres), aimed at where the carrier will be; contact comes about 0.4 s in and is settled then: the ball won cleanly, a miss, or a foul.
+  // Coming from behind is the riskiest way: it wins the ball less often and is fouled more.
+  const SLIDE_T = [0, 0.7, 1.2, 1.8, 2.5, 3.0, 3.3, 3.7, 3.9, 4.2, 4.3, 4.4, 4.6, 4.7, 4.9, 5.0, 5.1, 5.1];
+  const slideTravel = (t) => { const k = Math.max(0, Math.min(t, 1.7)) * 10, i = Math.min(SLIDE_T.length - 2, Math.floor(k)); return SLIDE_T[i] + (SLIDE_T[i + 1] - SLIDE_T[i]) * Math.min(1, k - i); };
+  function trySlide(match, d, cp, team, opp) {
+    const aimX = clamp(cp.x + (cp.vx || 0) * 0.4, 1, L - 1), aimY = clamp(cp.y + (cp.vy || 0) * 0.4, 1, W - 1), dd = Math.hypot(aimX - d.x, aimY - d.y) || 1;
+    const behind = (d.x - cp.x) * team.attackDir < -0.6;
+    match.tackleLock = match.clock + 1.5; match.slideLock = match.clock + 2.5;
+    const p = FM.tackleProb(d, cp, FM.edgeFor(match, opp)) * (opp.tacticalFactor || 1) * (behind ? 0.5 : 0.88), ok = match.rng() < p, st = statsOf(match, opp);
+    st.tackles++; if (ok) st.tacklesWon++;
+    let coverD = 40; opp.players.forEach((q) => { if (q !== d) coverD = Math.min(coverD, Math.hypot(q.x - d.x, q.y - d.y)); });
+    record(match, { type: 'tackle', team: opp.id, player: d.number, vs: cp.number, p, ok, slide: true, x: cp.x, y: cp.y, depth: FM.toTeamSpace(opp.attackDir, cp.x, cp.y).d, cover: coverD });
+    const foulP = (ok ? 0.05 : 0.28) * (behind ? 2.2 : 1) * (0.6 + 0.8 * opp.tactics.tackleAggression) * (inBox(team.attackDir, cp.x, cp.y) ? 0.6 : 1);
+    (match.slides = match.slides || []).push({ p: d, x0: d.x, y0: d.y, ux: (aimX - d.x) / dd, uy: (aimY - d.y) / dd, k: Math.min(2, (dd + 0.3) / 3.0), t: 0, cp, team, opp, ok, foul: match.rng() < foulP, done: false });
+    d.sliding = true;
+  }
+  function stepSlides(match, dt) {
+    if (!match.slides || !match.slides.length) return;
+    match.slides = match.slides.filter((s) => {
+      s.t += dt; const px = s.p.x, py = s.p.y, tr = slideTravel(s.t) * s.k;
+      s.p.x = clamp(s.x0 + s.ux * tr, 0.5, L - 0.5); s.p.y = clamp(s.y0 + s.uy * tr, 0.5, W - 0.5); s.p.vx = (s.p.x - px) / dt; s.p.vy = (s.p.y - py) / dt; s.p.facing = Math.atan2(s.uy, s.ux);
+      if (!s.done && s.t >= 0.4) {
+        s.done = true;
+        const live = match.carrier && match.carrier.player === s.cp && !match.restart;
+        if (live && s.foul) commitFoul(match, s.p, s.cp, s.opp, s.team);
+        else if (live && s.ok) {
+          // the ball is won: it runs loose from the man on the ground, and neither he nor the man who lost it can pick it up for a moment, so it goes to whoever is nearest
+          match.carrier = null; match.carry = null; match.pendingAct = null; match.ball.state = 'loose'; match.lastTeam = s.opp; s.p.noPick = match.clock + 1.1; s.cp.noPick = match.clock + 0.9;
+          const ang = Math.atan2(s.uy, s.ux); match.ball.x = clamp(s.cp.x + Math.cos(ang) * 0.8, 0.5, L - 0.5); match.ball.y = clamp(s.cp.y + Math.sin(ang) * 0.8, 0.5, W - 0.5);
+        }
+      }
+      if (s.t >= 1.7) { s.p.sliding = false; s.p.vx = 0; s.p.vy = 0; return false; }
+      return true;
+    });
+  }
+
   // ---------- clips ----------
   // For the user's own matches the engine keeps a rolling record of where every player and the ball are, three times a second.
   // When something worth studying happens (a goal either way, a big chance, a build-up from the back that reaches the final
@@ -1963,12 +2001,18 @@
       const team = c.team, opp = other(match, team);
       // Tackles from defenders who are close enough.
       for (const d of opp.players) {
-        if (d.group === 'GK') continue;
+        if (d.group === 'GK' || d.sliding) continue;
         if (c.player.group === 'GK') continue;   // a goalkeeper with the ball is not tackled: he has it in his hands or is protected by the referee, and the ball is cleared from him
         const cSpeed = Math.hypot(c.player.vx || 0, c.player.vy || 0);   // a man running with the ball is in contact for less time but is easier to catch and hit
-        if (dist(d, c.player) > 1.8 + (FM.MOVE_REACH == null ? 0.25 : FM.MOVE_REACH) * cSpeed) continue;
+        const dd0 = dist(d, c.player);
+        // closing fast on a man who is running: go to ground for it
+        if (dd0 > 1.8 + (FM.MOVE_REACH == null ? 0.25 : FM.MOVE_REACH) * cSpeed && dd0 < 4.4 && cSpeed > 2.2 && match.clock >= (match.tackleLock || 0) && match.clock >= (match.slideLock || 0) && !match.pendingAct && !match.restart) {
+          const ux = (c.player.x - d.x) / dd0, uy = (c.player.y - d.y) / dd0, closing = (d.vx || 0) * ux + (d.vy || 0) * uy;
+          if (closing > 3.2 && match.rng() < (FM.SLIDE_RATE == null ? 0.045 : FM.SLIDE_RATE) * (0.35 + 0.9 * opp.tactics.tackleAggression) * dt) { trySlide(match, d, c.player, team, opp); break; }
+        }
+        if (dd0 > 1.8 + (FM.MOVE_REACH == null ? 0.25 : FM.MOVE_REACH) * cSpeed) continue;
         if (!FM.TACKLE_ANY && (d.x - c.player.x) * team.attackDir < -0.6 && c.player.vx * team.attackDir > 1.5) continue;   // beaten: a defender chasing a man who is running on cannot tackle him from behind
-        const rate = (1 + (FM.MOVE_TACKLE == null ? 0.5 : FM.MOVE_TACKLE) * cSpeed / 3) * .65 * (opp.tacticalFactor || 1) * (0.05 + 0.08 * opp.tactics.pressing + (d.roleId === 'ball_winning_midfielder' ? 0.06 : 0)) * (0.6 + 0.8 * opp.tactics.tackleAggression) * ((FM.CLOSE_TACKLE == null ? 1 : FM.CLOSE_TACKLE) > 1 && dist(c.player, { x: opp.attackDir === 1 ? 0 : L, y: W / 2 }) < 24 ? (FM.CLOSE_TACKLE == null ? 1 : FM.CLOSE_TACKLE) : 1) * (1 + 0.35 * (FM.instrMods(d).tackle + FM.rulesDelta(opp, d, 'tackle', match.ball, false)));
+        const rate = (FM.TACKLE_RATE == null ? 1.1 : FM.TACKLE_RATE) * (1 + (FM.MOVE_TACKLE == null ? 0.5 : FM.MOVE_TACKLE) * cSpeed / 3) * .65 * (opp.tacticalFactor || 1) * (0.05 + 0.08 * opp.tactics.pressing + (d.roleId === 'ball_winning_midfielder' ? 0.06 : 0)) * (0.6 + 0.8 * opp.tactics.tackleAggression) * ((FM.CLOSE_TACKLE == null ? 1 : FM.CLOSE_TACKLE) > 1 && dist(c.player, { x: opp.attackDir === 1 ? 0 : L, y: W / 2 }) < 24 ? (FM.CLOSE_TACKLE == null ? 1 : FM.CLOSE_TACKLE) : 1) * (1 + 0.35 * (FM.instrMods(d).tackle + FM.rulesDelta(opp, d, 'tackle', match.ball, false)));
         if (match.clock >= (match.tackleLock || 0) && match.rng() < rate * dt) {
           match.tackleLock = match.clock + 1.2;
           const p = FM.tackleProb(d, c.player, FM.edgeFor(match, opp)) * (opp.tacticalFactor || 1);
@@ -2073,6 +2117,7 @@
     while (match.fixedStepRemainder >= .1 - 1e-9 && match.phase !== 'halftime' && match.phase !== 'fulltime' && !match.injuryPause) {
       keepPrev(match);
       stepMatchFixed(match, .1);
+      stepSlides(match, .1);
       match.fixedStepRemainder -= .1;
     }
     if (match.fixedStepRemainder < 1e-9) match.fixedStepRemainder = 0;
@@ -2118,7 +2163,7 @@
     }
     // Loose ball: whoever gets to it first controls it.
     let best = null, bd = 1.5;
-    match.teams.forEach((t) => t.players.forEach((p) => { const d = Math.hypot(p.x - ball.x, p.y - ball.y); if (d < bd) { bd = d; best = { team: t, player: p }; } }));
+    match.teams.forEach((t) => t.players.forEach((p) => { if ((p.noPick || 0) > match.clock) return; const d = Math.hypot(p.x - ball.x, p.y - ball.y); if (d < bd) { bd = d; best = { team: t, player: p }; } }));
     if (best) giveBall(match, best.team, best.player, 0.5);
   }
 

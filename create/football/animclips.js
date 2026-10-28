@@ -56,10 +56,10 @@
 
   // ---- one-shot actions
   const ACT = {
-    kick: (e, dir) => ['kick1', 'kick2'], control: () => ['receive'], slide: () => ['tackle1'], stumble: () => ['transition'], header: () => ['header1', 'header2'], fall: () => ['trip'],
+    kick: (e, dir) => ['kick1', 'kick2'], control: () => ['receive'], slide: () => ['tackle2'], stumble: () => ['transition'], header: () => ['header1', 'header2'], fall: () => ['trip'],
   };
-  const LEN = { receive: 0.95, tackle3: 1.0, tackle2: 1.0, tackle1: 1.7, header1: 1.1, header2: 1.1, gkDive1: 1.9, gkDive2: 1.9, transition: 0.7, trip: 1.5, kick1: 0.62, kick2: 0.55, strike: 0.7, penalty: 1.1, gkDropKick: 2.2, gkPass: 1.2, gkThrow: 2.0 };
-  const ROOT = { tackle1: 1, tackle2: 1, trip: 1, gkDive1: 1, gkDive2: 1, standUp: 0 };   // clips whose own travel is used (a slide goes somewhere)
+  const LEN = { receive: 0.95, tackle3: 1.0, tackle2: 1.7, tackle1: 1.7, header1: 1.1, header2: 1.1, gkDive1: 1.9, gkDive2: 1.9, transition: 0.7, trip: 1.5, kick1: 0.62, kick2: 0.55, strike: 0.7, penalty: 1.1, gkDropKick: 2.2, gkPass: 1.2, gkThrow: 2.0 };
+  const ROOT = { tackle1: 1, trip: 1, gkDive1: 1, gkDive2: 1, standUp: 0 };   // clips whose own travel is used (a slide goes somewhere)
   // start an action on a player entity. opts: { rate, name, mirror, fi, fo }
   A.play = function (e, name, o) {
     if (!A.ready || !A.clips[name]) return false; o = o || {};
