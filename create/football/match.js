@@ -993,7 +993,8 @@
 
   // how long a man takes over the ball before he plays it; the side's tempo scales all of it (about 1.4 times as long at the slowest setting, 0.6 at the quickest)
   function delayBeforeNextDecision(match, team, carrier) {
-    return delayRaw(match, team, carrier) * clamp(1.4 - 0.8 * team.tactics.tempo - 0.25 * counterNow(match, team), 0.55, 1.45);
+    // nobody stands over the ball for ten seconds: a keeper plays it within a few, an outfield man within about five
+    return Math.min(delayRaw(match, team, carrier) * clamp(1.4 - 0.8 * team.tactics.tempo - 0.25 * counterNow(match, team), 0.55, 1.45), carrier.group === 'GK' ? (FM.GK_HOLD_MAX == null ? 3.6 : FM.GK_HOLD_MAX) : (FM.HOLD_MAX == null ? 5.2 : FM.HOLD_MAX));
   }
   function delayRaw(match, team, carrier) {
     // Settled first-phase possession has its own rhythm. Centre-backs and the
@@ -1035,7 +1036,7 @@
     if (live.urgency > .12) match.nextDecision -= dt * .16 * live.urgency;
     if (live.patience > .05 && live.forwardOpening < .35) {
       const receivedAt = match.possessionReceivedAt == null ? match.clock : match.possessionReceivedAt;
-      const ceiling = receivedAt + 9;
+      const ceiling = receivedAt + (player.group === 'GK' ? 3.8 : 5.4);
       match.nextDecision = Math.min(ceiling, match.nextDecision + dt * .6 * live.patience);
     }
     // Close pressure always wins over patience, but a player still needs a
@@ -1067,6 +1068,7 @@
     let boxMates = 0; { const gxA = team.attackDir === 1 ? L : 0; team.players.forEach((q) => { if (q !== carrier && Math.abs(q.x - gxA) <= 16.5 && Math.abs(q.y - W / 2) <= 20.2) boxMates++; }); }
     record(match, { type: 'pass', kd: dist(match.ball, carrier), team: team.id, from: carrier.number, to: opt.target.number, tx: opt.tx, ty: opt.ty, box: boxMates, p: opt.p, ok: false, outcome: 'pending', dist: opt.d, lane: opt.lane, press: opt.press, forced: !!match.forcePass, carrierPressure: nearestOpponent(match, team, carrier).d });
     flight.ev = match.events[match.events.length - 1];
+    flight.ev.hold = match.clock - (match.possessionReceivedAt == null ? match.clock : match.possessionReceivedAt); flight.ev.zone = FM.toTeamSpace(team.attackDir, carrier.x, carrier.y).d; flight.ev.grp = carrier.group;
     match.carrier = null; match.carry = null;
     match.flight = flight;
     match.ball.state = 'flight';
@@ -1187,6 +1189,7 @@
     match.lastClearance[team.id] = match.clock;
     // Under pressure a defender often just gets it away: kicked up the line into touch rather than to a team-mate (this is where most throw-ins come from).
     if (match.rng() < (FM.CLEAR_TOUCH == null ? 0.85 : FM.CLEAR_TOUCH)) { const ty = carrier.y < W / 2 ? 1.2 : W - 1.2, tx = clamp(carrier.x + team.attackDir * 20, 3, L - 3); pass.tx = tx; pass.ty = ty; pass.d = Math.hypot(tx - carrier.x, ty - carrier.y); pass.p = 0.7; }
+    if (Math.abs(carrier.x - (team.attackDir === 1 ? 0 : L)) < 14 && match.rng() < (FM.CLEAR_CORNER == null ? 0.35 : FM.CLEAR_CORNER)) { pass.tx = team.attackDir === 1 ? -2 : L + 2; pass.ty = clamp(carrier.y + (carrier.y < W / 2 ? -6 : 6), 2, W - 2); pass.d = Math.hypot(pass.tx - carrier.x, pass.ty - carrier.y); pass.target = { x: pass.tx, y: pass.ty, vx: 0, vy: 0, number: 0, group: 'CB', id: 'out' }; }   // scrambled behind for a corner
     doPass(match, team, carrier, pass);
   }
 
@@ -1218,7 +1221,7 @@
     // long-run goals described two different models.
     // The geometric model describes the chance before the keeper, imperfect
     // contact and the small target inside the goal are considered.
-    const scoringChance = xgAdj * .5;
+    const scoringChance = xgAdj * (FM.GOAL_K == null ? 0.95 : FM.GOAL_K);
     const conditionalGoal = clamp(scoringChance / pOn, 0.02, 0.97);
     const shotXg = (1 - pBlock) * pOn * conditionalGoal;
     st.xg += shotXg;
@@ -1600,6 +1603,7 @@
   function crossArrive(match, f) {
     match.flight = null;
     const team = f.team, opp = other(match, team), rng = match.rng;
+    if (rng() < (FM.CROSS_OUT == null ? 0.18 : FM.CROSS_OUT)) { match.ball.vx = match.ball.vy = 0; handleOut(match, team, team.attackDir === 1 ? L + 0.2 : -0.2, clamp(f.ey, 1, W - 1)); return; }   // overhit: behind for a goal kick
     const cands = [];
     const at = (p) => Math.hypot(p.x - f.ex, p.y - f.ey);
     team.players.forEach((p) => { if (p.group === 'GK') return; const d = at(p); if (d <= 4.5) cands.push({ p, team, w: Math.exp((p.ratings.heading + 14 * f.quality - 4 * d) / 14) }); });
@@ -2321,6 +2325,7 @@
       const push = run ? 4.6 + 0.3 * sp : 0.62 + 0.08 * sp, sd = (run ? 0.5 : 0.25) * ball.side; ball.vx = ux * (sp + push) + nx * sd; ball.vy = uy * (sp + push) + ny * sd;
     }
     ball.x = clamp(ball.x, 0.2, L - 0.2);   // (the end lines hold a carried ball in; the touchlines do not)
+    if ((ball.y < 2 || ball.y > W - 2) && !pa && match.rng() < (FM.SQUEEZE == null ? 0.08 : FM.SQUEEZE) && nearestOpponent(match, match.carrier.team, p).d < 2.8) ball.y = ball.y < W / 2 ? -0.2 : W + 0.2;   // pressed against the line, it goes out
     if (ball.y < 0 || ball.y > W) { const bx = ball.x < 0 ? Math.min(ball.x, -0.1) : ball.x > L ? Math.max(ball.x, L + 0.1) : ball.x, by = ball.y < 0 ? Math.min(ball.y, -0.1) : ball.y > W ? Math.max(ball.y, W + 0.1) : ball.y, tm = match.carrier.team; ball.vx = ball.vy = 0; match.carrier = null; match.carry = null; match.pendingAct = null; handleOut(match, tm, bx, by); }
   }
 
@@ -2397,11 +2402,11 @@
       else beginCelebration(match, team, f.shooter, opp, goalSpec);
     } else if (f.outcome === 'saved') {
       after(() => {
-        if (match.rng() < 0.45) startRestart(match, 'corner', team, team.attackDir === 1 ? L - 0.5 : 0.5, f.ey < W / 2 ? 0.5 : W - 0.5);
+        if (match.rng() < (FM.SHOT_CORNER == null ? 0.62 : FM.SHOT_CORNER)) startRestart(match, 'corner', team, team.attackDir === 1 ? L - 0.5 : 0.5, f.ey < W / 2 ? 0.5 : W - 0.5);
         else giveBall(match, opp, f.gk, 1.6);
       });
     } else if (f.outcome === 'blocked') {
-      if (match.rng() < 0.45) startRestart(match, 'corner', team, team.attackDir === 1 ? L - 0.5 : 0.5, f.ey < W / 2 ? 0.5 : W - 0.5);
+      if (match.rng() < (FM.SHOT_CORNER == null ? 0.62 : FM.SHOT_CORNER)) startRestart(match, 'corner', team, team.attackDir === 1 ? L - 0.5 : 0.5, f.ey < W / 2 ? 0.5 : W - 0.5);
       else { match.ball.state = 'loose'; match.lastTeam = opp; }
     } else {
       // Off target: goal kick.
