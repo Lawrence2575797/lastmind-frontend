@@ -974,7 +974,7 @@
     flight.offside = os === 'off' || (os === 'marginal' && rng() < 0.1 + 0.3 * other(match, team).tactics.offsideTrap);
     // for the manager's analysis: where the pass was going, and how many team-mates were in the box when it left
     let boxMates = 0; { const gxA = team.attackDir === 1 ? L : 0; team.players.forEach((q) => { if (q !== carrier && Math.abs(q.x - gxA) <= 16.5 && Math.abs(q.y - W / 2) <= 20.2) boxMates++; }); }
-    record(match, { type: 'pass', team: team.id, from: carrier.number, to: opt.target.number, tx: opt.tx, ty: opt.ty, box: boxMates, p: opt.p, ok: false, outcome: 'pending', dist: opt.d, lane: opt.lane, press: opt.press, forced: !!match.forcePass, carrierPressure: nearestOpponent(match, team, carrier).d });
+    record(match, { type: 'pass', kd: dist(match.ball, carrier), team: team.id, from: carrier.number, to: opt.target.number, tx: opt.tx, ty: opt.ty, box: boxMates, p: opt.p, ok: false, outcome: 'pending', dist: opt.d, lane: opt.lane, press: opt.press, forced: !!match.forcePass, carrierPressure: nearestOpponent(match, team, carrier).d });
     flight.ev = match.events[match.events.length - 1];
     match.carrier = null; match.carry = null;
     match.flight = flight;
@@ -2059,15 +2059,15 @@
         if (d.group === 'GK' || d.sliding) continue;
         if (c.player.group === 'GK') continue;   // a goalkeeper with the ball is not tackled: he has it in his hands or is protected by the referee, and the ball is cleared from him
         const cSpeed = Math.hypot(c.player.vx || 0, c.player.vy || 0);   // a man running with the ball is in contact for less time but is easier to catch and hit
-        const dd0 = dist(d, c.player);
+        const dd0 = Math.min(dist(d, c.player), dist(d, match.ball) + 0.3);
         // closing fast on a man who is running: go to ground for it
         if (dd0 > 1.8 + (FM.MOVE_REACH == null ? 0.25 : FM.MOVE_REACH) * cSpeed && dd0 < 4.4 && cSpeed > 2.2 && match.clock >= (match.tackleLock || 0) && match.clock >= (match.slideLock || 0) && !match.pendingAct && !match.restart) {
           const ux = (c.player.x - d.x) / dd0, uy = (c.player.y - d.y) / dd0, closing = (d.vx || 0) * ux + (d.vy || 0) * uy;
           if (closing > 3.2 && match.rng() < (FM.SLIDE_RATE == null ? 0.045 : FM.SLIDE_RATE) * (0.35 + 0.9 * opp.tactics.tackleAggression) * dt) { trySlide(match, d, c.player, team, opp); break; }
         }
-        if (dd0 > 1.8 + (FM.MOVE_REACH == null ? 0.25 : FM.MOVE_REACH) * cSpeed) continue;
+        if (dd0 > 1.8 + (FM.MOVE_REACH == null ? 0.25 : FM.MOVE_REACH) * cSpeed) continue;   // (the man or the ball, whichever is nearer)
         if (!FM.TACKLE_ANY && (d.x - c.player.x) * team.attackDir < -0.6 && c.player.vx * team.attackDir > 1.5) continue;   // beaten: a defender chasing a man who is running on cannot tackle him from behind
-        const rate = (FM.TACKLE_RATE == null ? 1.1 : FM.TACKLE_RATE) * (1 + (FM.MOVE_TACKLE == null ? 0.5 : FM.MOVE_TACKLE) * cSpeed / 3) * .65 * (opp.tacticalFactor || 1) * (0.05 + 0.08 * opp.tactics.pressing + (d.roleId === 'ball_winning_midfielder' ? 0.06 : 0)) * (0.6 + 0.8 * opp.tactics.tackleAggression) * ((FM.CLOSE_TACKLE == null ? 1 : FM.CLOSE_TACKLE) > 1 && dist(c.player, { x: opp.attackDir === 1 ? 0 : L, y: W / 2 }) < 24 ? (FM.CLOSE_TACKLE == null ? 1 : FM.CLOSE_TACKLE) : 1) * (1 + 0.35 * (FM.instrMods(d).tackle + FM.rulesDelta(opp, d, 'tackle', match.ball, false)));
+        const rate = (FM.TACKLE_RATE == null ? 1.0 : FM.TACKLE_RATE) * (1 + (FM.MOVE_TACKLE == null ? 0.5 : FM.MOVE_TACKLE) * cSpeed / 3) * .65 * (opp.tacticalFactor || 1) * (0.05 + 0.08 * opp.tactics.pressing + (d.roleId === 'ball_winning_midfielder' ? 0.06 : 0)) * (0.6 + 0.8 * opp.tactics.tackleAggression) * ((FM.CLOSE_TACKLE == null ? 1 : FM.CLOSE_TACKLE) > 1 && dist(c.player, { x: opp.attackDir === 1 ? 0 : L, y: W / 2 }) < 24 ? (FM.CLOSE_TACKLE == null ? 1 : FM.CLOSE_TACKLE) : 1) * (1 + 0.35 * (FM.instrMods(d).tackle + FM.rulesDelta(opp, d, 'tackle', match.ball, false)));
         if (match.clock >= (match.tackleLock || 0) && match.rng() < rate * dt) {
           match.tackleLock = match.clock + 1.2;
           const p = FM.tackleProb(d, c.player, FM.edgeFor(match, opp)) * (opp.tacticalFactor || 1);
@@ -2114,7 +2114,7 @@
       else if (pa.opt.kind === 'pass' && !match.forcePass && !match.restart && pa.player.group !== 'GK' && (pa.opt.tx - pa.player.x) * pa.team.attackDir < 8 && FM.toTeamSpace(pa.team.attackDir, pa.player.x, pa.player.y).d > 0.6 && !other(match, pa.team).players.some((o) => o.group !== 'GK' && (o.x - pa.player.x) * pa.team.attackDir > -1 && Math.abs(o.y - pa.player.y) < 24)) {
         pa.player.turnTo = undefined; match.pendingAct = null; match.nextDecision = match.clock;
       }
-      else if (match.clock >= pa.release) {
+      else if (match.clock >= pa.release && (dist(match.ball, pa.player) < KICK_REACH || match.clock > pa.release + 0.6)) {
         pa.player.turnTo = undefined; match.pendingAct = null;
         const o = pa.opt, lag = match.clock - pa.start;
         if (o.target) { o.tx = clamp(o.tx + (o.target.vx || 0) * lag * 0.6, 1, L - 1); o.ty = clamp(o.ty + (o.target.vy || 0) * lag * 0.6, 1, W - 1); }
@@ -2199,9 +2199,33 @@
     }
   }
 
+  // A man running with the ball does not have it fixed to his boots. At a jog he plays it on every stride and it stays at his feet; at a sprint he knocks it several metres ahead
+  // and runs onto it, so the touches come every few strides. Standing, or lining up a pass or a shot, he has it at his foot. The ball is a real thing with a position and a
+  // speed that slows on the grass, and a pass or shot can only be struck when it is within reach of his foot.
+  const TOUCH_REACH = 0.62, KICK_REACH = 1.0;
+  function carryBall(match, dt) {
+    const ball = match.ball, p = match.carrier.player, face = Number.isFinite(p.facing) ? p.facing : (match.carrier.team.attackDir === 1 ? 0 : Math.PI);
+    const ux = Math.cos(face), uy = Math.sin(face), nx = -uy, ny = ux, sp = Math.hypot(p.vx || 0, p.vy || 0), run = sp > 4.3;
+    if (ball.of !== p) { ball.of = p; ball.lastTouch = match.clock - 1; ball.side = 1; ball.vx = p.vx || 0; ball.vy = p.vy || 0; }
+    const pa = match.pendingAct && match.pendingAct.player === p;
+    if (pa || sp < 0.9) {
+      // standing, or lining up a pass or shot: the ball is brought to his foot
+      const kk = Math.min(1, dt * (pa ? 12 : 8)), d = pa ? 0.55 : 0.5;
+      ball.x += (p.x + ux * d - ball.x) * kk; ball.y += (p.y + uy * d - ball.y) * kk; ball.vx = p.vx || 0; ball.vy = p.vy || 0; return;
+    }
+    ball.x += ball.vx * dt; ball.y += ball.vy * dt; const fr = Math.exp(-1.25 * dt); ball.vx *= fr; ball.vy *= fr;
+    const along = (ball.x - p.x) * ux + (ball.y - p.y) * uy, lat = (ball.x - p.x) * nx + (ball.y - p.y) * ny, lost = along > (run ? 3.4 : 1.9) || along < -0.7 || Math.abs(lat) > 1.5;
+    if ((along < (run ? 0.56 : TOUCH_REACH) && match.clock - ball.lastTouch > 0.17) || lost) {
+      ball.side = -ball.side; ball.lastTouch = match.clock; ball.touchBy = p; ball.touchSide = ball.side; ball.touchAt = match.clock;
+      if (lost) { const tx = p.x + ux * 0.7 + (p.vx || 0) * 0.2, ty = p.y + uy * 0.7 + (p.vy || 0) * 0.2, ex = (tx - ball.x) / 0.18, ey = (ty - ball.y) / 0.18, em = Math.hypot(ex, ey) || 1, cap = Math.min(em, 15) / em; ball.vx = ex * cap; ball.vy = ey * cap; }
+      else { const push = run ? 4.6 + 0.3 * sp : 0.62 + 0.08 * sp, sd = (run ? 0.5 : 0.25) * ball.side; ball.vx = ux * (sp + push) + nx * sd; ball.vy = uy * (sp + push) + ny * sd; if (along < 0.2) { ball.x += ux * (0.34 - along); ball.y += uy * (0.34 - along); } }
+    }
+    ball.x = clamp(ball.x, 0.2, L - 0.2); ball.y = clamp(ball.y, 0.2, W - 0.2);
+  }
+
   function updateBall(match, dt) {
     const ball = match.ball;
-    if (match.carrier) { syncBall(match); return; }
+    if (match.carrier) { carryBall(match, dt); return; }
     const f = match.flight;
     if (f && f.free) { stepFreePass(match, f, dt); return; }
     if (f) {

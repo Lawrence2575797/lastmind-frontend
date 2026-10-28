@@ -609,7 +609,9 @@
       // a sprint he knocks it several metres ahead and runs on to it, so the touches come every few strides. Each touch swings the nearer foot to the ball. He stops
       // and shields it when he stands still, and when he is about to pass or shoot it is brought to his foot for the kick.
       let vis = false;
-      if (!replay && m.carrier && m.ball.state === 'carried' && !goalFx) {
+      // the touches are the match's: when the engine says the carrier has played the ball, his foot swings to it
+      if (!replay && m.carrier && m.ball.state === 'carried' && m.ball.touchAt != null && m.ball.touchBy === m.carrier.player) { const te = players.get(m.carrier.player.id); if (te && te.seenTouch !== m.ball.touchAt) { te.seenTouch = m.ball.touchAt; setPose(te, 'touch', 0.18, m.ball.touchSide); } }
+      if (false && !replay && m.carrier && m.ball.state === 'carried' && !goalFx) {
         const ce = players.get(m.carrier.player.id), rp = ce && ((ctx && ctx.renderPos && ctx.renderPos.get(m.carrier.player.id)) || null);
         if (ce && rp && Number.isFinite(rp.facing)) {
           const cx = rp.x - HL, cz = rp.y - HW, ux = Math.cos(rp.facing), uz = Math.sin(rp.facing), nx = -uz, nz = ux, sp = Math.hypot(ce.vx, ce.vz), run = sp > 4.3;
