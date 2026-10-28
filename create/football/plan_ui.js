@@ -55,6 +55,7 @@
     o = o || {};
     return `<path d="${SHIRT}" transform="translate(1.6,2.6)" fill="#06150b" fill-opacity="${o.ghost ? 0.12 : 0.3}"/><path d="${SHIRT}" fill="${kit.shirt}" fill-opacity="${o.ghost ? 0.88 : 1}" stroke="${o.stroke || 'rgba(255,255,255,.88)'}" stroke-width="${o.sw || 1}" stroke-linejoin="round"${o.dash ? ' stroke-dasharray="3 2"' : ''}/><text y="7.2" text-anchor="middle" font-size="${String(num).length > 1 ? 12.5 : 14}" font-weight="800" fill="${kit.number}" style="font-variant-numeric:tabular-nums">${esc(num)}</text>`;
   }
+  FM.planGfx = { surface, markings, shirt, PW, PH };   // the same pitch and shirts are drawn on the squad, substitution and test boards (main.js)
   // Labels sit under their shirt; where two would land on each other (or on another shirt) one moves to the side or above. Only the label moves, never the player.
   function labelSpots(items) {
     const placed = [], out = new Map(), hit = (a, b) => a.x0 < b.x1 && a.x1 > b.x0 && a.y0 < b.y1 && a.y1 > b.y0;

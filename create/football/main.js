@@ -2041,10 +2041,17 @@
     return Math.round(ratio * (BH + 92) - 48);
   }
 
+  let BOARD_N = 0;
   function boardPitchSvg(key) {
     const cx = BW / 2, S = BS, X = SX;
     const ln = 'stroke="rgba(255,255,255,0.85)" stroke-width="2.5" fill="none"';
     let s = '';
+    if (FM.planGfx) {
+      // the pitch as it is drawn on the tactics page: mown stripes, true markings, drawn to this board's own width and height
+      s += `<g transform="scale(${(BW / FM.planGfx.PW).toFixed(4)},${(BH / FM.planGfx.PH).toFixed(4)})">${FM.planGfx.surface('bd' + (++BOARD_N))}${FM.planGfx.markings()}</g>`;
+      if (key === 'final') s += `<rect x="0" y="0" width="${BW}" height="${BH / 3}" fill="rgba(255,255,255,0.07)"/>`;
+      if (key === 'build') s += `<rect x="0" y="${BH * 2 / 3}" width="${BW}" height="${BH / 3}" fill="rgba(255,255,255,0.07)"/>`;
+    } else {
     for (let i = 0; i < 14; i++) s += `<rect x="0" y="${(i * BH / 14).toFixed(1)}" width="${BW}" height="${(BH / 14).toFixed(1)}" fill="${i % 2 ? '#2E7D3E' : '#2A7539'}"/>`;
     if (key === 'final') s += `<rect x="0" y="0" width="${BW}" height="${BH / 3}" fill="rgba(255,255,255,0.07)"/>`;
     if (key === 'build') s += `<rect x="0" y="${BH * 2 / 3}" width="${BW}" height="${BH / 3}" fill="rgba(255,255,255,0.07)"/>`;
@@ -2058,6 +2065,7 @@
       s += `<circle cx="${cx}" cy="${y(11)}" r="3" fill="rgba(255,255,255,0.85)"/>`;
       s += `<path d="M ${cx - 7.31 * X} ${y(16.5)} A ${9.15 * X} ${9.15 * S} 0 0 ${dir > 0 ? 0 : 1} ${cx + 7.31 * X} ${y(16.5)}" ${ln}/>`;
     });
+    }
     const scaleText = 'font-family="Arial,sans-serif" font-size="12" font-weight="700" fill="rgba(255,255,255,.9)" stroke="rgba(0,0,0,.72)" stroke-width="3" style="paint-order:stroke;pointer-events:none"';
     s += '<g aria-hidden="true">';
     [0, 17, 34, 51, 68].forEach((m) => { const x = m * X; s += `<line x1="${x}" y1="${BH}" x2="${x}" y2="${BH + 8}" stroke="rgba(255,255,255,.75)" stroke-width="2"/><text x="${x}" y="${BH + 24}" text-anchor="middle" ${scaleText}>${m}m</text>`; });
@@ -2223,7 +2231,7 @@
       opp = '<g>' + Object.keys(cells).map((slot) => {
         const c = moved[slot] || cells[slot], pt = bpt({ d: 1 - c.d, w: 1 - c.w });
         const player = sc.opp.players.find((p) => p.slotKey === slot), name = player ? boardName(player) : slot;
-        return `<g class="odot" data-slot="${slot}" transform="translate(${pt.x.toFixed(1)},${pt.y.toFixed(1)})"><circle r="34" fill="transparent"/><circle r="19" fill="${kit.shirt}" fill-opacity="0.9" stroke="${kit.number}" stroke-width="2.5" stroke-dasharray="4 3"/><text y="4.5" text-anchor="middle" font-size="12.5" font-weight="700" fill="${kit.number}" style="pointer-events:none">${player ? player.number : slot}</text><text y="39" text-anchor="middle" font-size="14" font-weight="700" fill="#fff" stroke="#000" stroke-width="3.5" style="paint-order:stroke">${esc(name)}</text>${moved[slot] ? '<circle cx="14" cy="-14" r="5" fill="#F2C14E" stroke="#1A232D" stroke-width="1.5"/>' : ''}</g>`;
+        return `<g class="odot" data-slot="${slot}" transform="translate(${pt.x.toFixed(1)},${pt.y.toFixed(1)})"><circle r="34" fill="transparent"/>${FM.planGfx ? `<g transform="scale(1.6)" style="pointer-events:none">${FM.planGfx.shirt(kit, player ? player.number : slot, { ghost: true, dash: true, stroke: kit.number })}</g>` : `<circle r="19" fill="${kit.shirt}" fill-opacity="0.9" stroke="${kit.number}" stroke-width="2.5" stroke-dasharray="4 3"/><text y="4.5" text-anchor="middle" font-size="12.5" font-weight="700" fill="${kit.number}" style="pointer-events:none">${player ? player.number : slot}</text>`}<text y="39" text-anchor="middle" font-size="14" font-weight="700" fill="#fff" stroke="#000" stroke-width="3.5" style="paint-order:stroke">${esc(name)}</text>${moved[slot] ? '<circle cx="14" cy="-14" r="5" fill="#F2C14E" stroke="#1A232D" stroke-width="1.5"/>' : ''}</g>`;
       }).join('') + '</g>';
     }
     // With the ball, nobody can stand beyond the opposition's second-last defender: show that line, which moves with their defensive line.
@@ -2246,8 +2254,8 @@
       const manual = key === 'shape' ? !!(team.shape && team.shape[p.index]) : FM.isManual(team, p, key);
       return `<g class="dot" data-idx="${p.index}" transform="translate(${pt.x.toFixed(1)},${pt.y.toFixed(1)})">
         <circle r="46" fill="transparent"/>
-        <circle r="${sr}" fill="${team.kit.shirt}" stroke="${sel ? '#F2C14E' : '#fff'}" stroke-width="${sel ? 5 : 3}"/>
-        <text y="10" text-anchor="middle" font-size="25" font-weight="700" fill="${team.kit.number}">${p.number}</text>
+        ${FM.planGfx ? `<g transform="scale(${(sr / 27 * 1.85).toFixed(2)})">${FM.planGfx.shirt(team.kit, p.number, sel ? { stroke: '#F2C14E', sw: 2.4 } : {})}</g>${sel ? '<circle r="40" fill="none" stroke="#F2C14E" stroke-width="4"/>' : ''}` : `<circle r="${sr}" fill="${team.kit.shirt}" stroke="${sel ? '#F2C14E' : '#fff'}" stroke-width="${sel ? 5 : 3}"/>
+        <text y="10" text-anchor="middle" font-size="25" font-weight="700" fill="${team.kit.number}">${p.number}</text>`}
         <text y="52" text-anchor="middle" font-size="20" font-weight="700" fill="#fff" stroke="#000" stroke-width="4" style="paint-order:stroke">${esc(boardName(p))}</text>
         <text y="72" text-anchor="middle" font-size="16" fill="${FM.isInjured(p) ? '#FF9A9A' : FM.conditionOf(p) < 0.6 ? '#F2C8A0' : '#cfe8cf'}" stroke="#000" stroke-width="3.5" style="paint-order:stroke">${FM.isInjured(p) ? 'injured' : FM.playerRating(p, p.group).toFixed(1) + ' · ' + Math.round(100 * FM.conditionOf(p)) + '%'}</text>
         ${manual ? '<circle cx="23" cy="-23" r="7.5" fill="#F2C14E" stroke="#1A232D" stroke-width="1.5"/>' : ''}</g>`;
