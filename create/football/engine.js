@@ -410,8 +410,28 @@
     team.phasePos[phase] = team.phasePos[phase] || {};
     team.phasePos[phase][p.index] = { d: pos.d, w: pos.w };
   };
+  // What a man is, by where he stands: drag a winger into the middle behind the striker and he is an attacking midfielder, with those roles and instructions to choose from.
+  // (The lines agree with the preset formations: wide midfielders at 0.55 are AM, wing-backs FB, wingers WF.) A goalkeeper stays one.
+  FM.groupAtPos = function (d, w, cur) {
+    if (cur === 'GK') return 'GK';
+    const wide = w < 0.19 || w > 0.81;
+    if (d < 0.30) return wide ? 'FB' : 'CB';
+    if (wide) return d < 0.52 ? 'FB' : d < 0.66 ? 'AM' : 'WF';
+    return d < 0.44 ? 'DM' : d < 0.58 ? 'CM' : d < 0.72 ? 'AM' : 'ST';
+  };
+  FM.syncGroup = function (team, p) {
+    if (!p || p.group === 'GK' || !(p.index >= 0) || !team.shape || !team.shape[p.index]) return false;
+    const s = team.shape[p.index], g = FM.groupAtPos(s.d, s.w, p.group); if (g === p.group) return false;
+    p.group = g;
+    {   // he is given the usual role for his new place (his old one was a winger's or a centre-back's, not this man's)
+      const usual = { CB: 'centre_half', FB: 'full_back', DM: 'defensive_midfielder', CM: 'central_midfielder', AM: (s.w < 0.19 || s.w > 0.81) ? 'winger' : 'number_10', WF: 'inside_forward', ST: 'striker' }[g], ids = FM.rolesForGroup(g);
+      FM.setRole(team, p, ids.indexOf(usual) >= 0 ? usual : ids[0]);
+    }
+    return true;
+  };
   FM.setSlotBase = function (team, p, pos) {
     team.shape[p.index] = { d: clamp(pos.d, 0.02, 0.98), w: clamp(pos.w, 0.03, 0.97) };
+    FM.syncGroup(team, p);
     FM.fixSlot(team, p);
     FM.updateFormationName(team);
   };
