@@ -493,6 +493,7 @@
       const f = match.flight;
       if (f.free) {
         ov.set(f.target, runPoint(f.target, f, match.ball));
+        if (f.claim) ov.set(f.claim.p, runPoint(f.claim.p, f, match.ball));   // he goes onto the ball
         if (f.t > 0.2) other(match, f.team).players.filter((q) => q.group !== 'GK' || segInfo(q.x, q.y, match.ball.x, match.ball.y, match.ball.x + f.dir.x * 20, match.ball.y + f.dir.y * 20).d < 10).map((q) => ({ q, d: segInfo(q.x, q.y, match.ball.x, match.ball.y, match.ball.x + f.dir.x * Math.max(0, f.len + 6 - f.run), match.ball.y + f.dir.y * Math.max(0, f.len + 6 - f.run)).d })).filter((o) => o.d < 14).sort((a, b) => a.d - b.d).slice(0, 2).forEach(({ q }) => ov.set(q, runPoint(q, f, match.ball)));
       } else ov.set(f.target, f.outcome === 'complete' ? { x: f.ex, y: f.ey } : { x: f.target.x, y: f.target.y });
     } else if (!match.flight) {
@@ -1158,9 +1159,30 @@
     // it slows on the grass; past the place it was aimed at it is rolling out
     if (f.run < f.len) f.speed = Math.max(f.v0 * 0.62, f.speed * Math.exp(-(FM.PASS_DECAY == null ? 0.45 : FM.PASS_DECAY) * dt)); else f.speed = rollSpeed(f.speed, dt, 0.4);
     ball.x += f.dir.x * move; ball.y += f.dir.y * move; f.run += move;
+    // a pass that has been completed to a man: the ball is his, and he plays it
+    const complete = (p) => {
+      const ev = f.ev;
+      if (f.offside && p === f.target) {
+        statsOf(match, team).offsides++; if (ev) ev.outcome = 'offside';
+        record(match, { type: 'offside', team: team.id, player: p.number, x: p.x, y: p.y });
+        match.flight = null; startRestart(match, 'freekick', opp, clamp(ball.x, 0.5, L - 0.5), clamp(ball.y, 0.5, W - 0.5), { indirect: true }); return;
+      }
+      if (FM.claimLog) FM.claimLog.push({ g: Math.hypot(p.x - ball.x, p.y - ball.y), claimed: !!f.claim, sp: f.speed, why: f.claimWhy || 'direct' });
+      statsOf(match, team).passesOk++; if (ev) { ev.ok = true; ev.outcome = 'complete'; }
+      ball.vx = f.dir.x * f.speed; ball.vy = f.dir.y * f.speed; receive(match, team, p, 0.3, 0.12 + delayBeforeNextDecision(match, team, p));
+    };
+    // A man who has the ball coming to him (it passed within his reach) does not take it from three metres away: he goes onto it, and it is his when it is at his feet.
+    if (f.claim) {
+      const cp = f.claim.p, g = Math.hypot(cp.x - ball.x, cp.y - ball.y); f.claim.gap = Math.min(f.claim.gap, g);
+      // the ball bends toward his feet at a limited rate (a pass with a little curl on it), so a man who is a few metres off the line can still be met by it
+      { const tx = cp.x + (cp.vx || 0) * 0.15 - ball.x, ty = cp.y + (cp.vy || 0) * 0.15 - ball.y, want = Math.atan2(ty, tx), cur = Math.atan2(f.dir.y, f.dir.x); let d = want - cur; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2;
+        if (g > 0.4 && Math.abs(d) < 1.6) { const a = cur + clamp(d, -(FM.STEER == null ? 1.6 : FM.STEER) * dt, (FM.STEER == null ? 1.6 : FM.STEER) * dt); f.dir.x = Math.cos(a); f.dir.y = Math.sin(a); } }
+      if (g < (FM.CLAIM_AT == null ? 0.8 : FM.CLAIM_AT) || f.t > f.claim.until || g > f.claim.gap + 0.3) { f.claimWhy = g < (FM.CLAIM_AT == null ? 0.8 : FM.CLAIM_AT) ? 'arrived' : f.t > f.claim.until ? 'timeout' : 'passed'; complete(cp); return; }   // at his feet, or it has gone by him, or he has been waiting long enough
+    }
     // who gets a touch: the first man along the ball's path whose reach it passes through
     let hit = null;
     const consider = (p, tm) => {
+      if (f.claim && p === f.claim.p) return;
       if (p === f.passer && f.t < 0.5) return;
       const s = segInfo(p.x, p.y, x0, y0, ball.x, ball.y), reach = (p === f.target ? (FM.RECV_REACH == null ? 3.3 : FM.RECV_REACH) : tm === team ? 1.1 : 0.9) + (p.group === 'GK' ? 1.0 : 0) + (p.sliding ? 0.6 : 0);
       if (p === f.target) f.minD = Math.min(f.minD == null ? 99 : f.minD, s.d);
@@ -1172,13 +1194,9 @@
       if (mine) {
         const markD = nearestOpponent(match, team, p).d, ctrl = clamp((FM.CONTROL_BASE == null ? 0.92 : FM.CONTROL_BASE) + 0.2 * sk('composure') - 0.008 * Math.max(0, sp - 14) - (markD < 2.2 ? 0.06 : 0), 0.35, 0.985) * (p === f.target ? clamp(0.88 + 0.12 * Math.min(1, hit.c / 0.45), 0.88, 1) : 0.92);   // the man it is meant for stretches for it: a ball far from his feet is less sure to be controlled
         if (rng() < ctrl) {
-          if (f.offside && p === f.target) {
-            statsOf(match, team).offsides++; if (ev) ev.outcome = 'offside';
-            record(match, { type: 'offside', team: team.id, player: p.number, x: p.x, y: p.y });
-            match.flight = null; startRestart(match, 'freekick', opp, clamp(ball.x, 0.5, L - 0.5), clamp(ball.y, 0.5, W - 0.5), { indirect: true }); return;
-          }
-          statsOf(match, team).passesOk++; if (ev) { ev.ok = true; ev.outcome = 'complete'; }
-          ball.vx = f.dir.x * sp; ball.vy = f.dir.y * sp; receive(match, team, p, 0.3, 0.12 + delayBeforeNextDecision(match, team, p)); return;
+          const gap = Math.hypot(p.x - ball.x, p.y - ball.y);
+          if (!FM.NO_CLAIM && gap > (FM.CLAIM_AT == null ? 0.8 : FM.CLAIM_AT) && p.group !== 'GK') { f.claim = { p, until: f.t + 1.1, gap }; return; }
+          complete(p); return;
         }
         if (ev) { ev.outcome = 'loose'; ev.how = 'heavy'; }
         knockLoose(match, p, team, f.dir.x, f.dir.y, Math.max(1.2, sp * (p === f.target ? 0.16 : 0.3)), 1.2); return;   // a heavy touch: it runs away from him (less far when it was meant for him: he was already on it)
@@ -1196,6 +1214,7 @@
       handleOut(match, team, ball.x < 0.3 ? Math.min(ball.x, -0.1) : ball.x > L - 0.3 ? Math.max(ball.x, L + 0.1) : ball.x, ball.y < 0.3 ? Math.min(ball.y, -0.1) : ball.y > W - 0.3 ? Math.max(ball.y, W + 0.1) : ball.y); return;
     }
     if (f.speed <= 1.0 && f.run >= f.len) {
+      if (f.claim) { complete(f.claim.p); return; }   // it has stopped and he is on his way to it: it is his
       // it has rolled to a stop with nobody on it
       if (f.ev && f.ev.outcome === 'pending') { f.ev.outcome = 'loose'; f.ev.how = 'stopped'; f.ev.minD = f.minD; f.ev.len = f.len; f.ev.tdist = Math.hypot(f.target.x - ball.x, f.target.y - ball.y); }
       match.flight = null; ball.state = 'loose'; ball.vx = f.dir.x * f.speed; ball.vy = f.dir.y * f.speed;
@@ -2381,9 +2400,15 @@
     ball.x += ball.vx * dt; ball.y += ball.vy * dt; const fr = Math.exp(-1.25 * dt); ball.vx *= fr; ball.vy *= fr;
     const along = (ball.x - p.x) * ux + (ball.y - p.y) * uy, lat = (ball.x - p.x) * nx + (ball.y - p.y) * ny, lost = along > (run ? 4.4 : 2.4) || along < -2.2 || Math.abs(lat) > 2.4;
     if (lost) { match.carrier = null; match.carry = null; match.pendingAct = null; ball.state = 'loose'; p.noPick = match.clock + 0.05; return; }   // a heavy touch: he has to go and get it
-    if (along > -0.4 && along < (run ? 0.56 : TOUCH_REACH) && Math.abs(lat) < 0.9 && match.clock - ball.lastTouch > 0.17 && !pa) {
+    // A touch is decided, and the foot swings to the ball; the ball is pushed when the foot reaches it (a step later), not before the swing has begun.
+    const pushNow = () => { const push = run ? 4.6 + 0.3 * sp : 0.62 + 0.08 * sp, sd = (run ? 0.5 : 0.25) * ball.side; ball.vx = ux * (sp + push) + nx * sd; ball.vy = uy * (sp + push) + ny * sd; };
+    if (ball.pushAt != null) {
+      if (match.clock - ball.lastTouch > 0.5 || ball.pushOf !== p) ball.pushAt = null;
+      else if (match.clock >= ball.pushAt - 1e-6) { ball.pushAt = null; pushNow(); }
+    }
+    else if (along > -0.4 && along < (run ? 0.56 : TOUCH_REACH) && Math.abs(lat) < 0.9 && match.clock - ball.lastTouch > 0.17 && !pa) {
       ball.side = -ball.side; ball.lastTouch = match.clock; ball.touchBy = p; ball.touchSide = ball.side; ball.touchAt = match.clock;
-      const push = run ? 4.6 + 0.3 * sp : 0.62 + 0.08 * sp, sd = (run ? 0.5 : 0.25) * ball.side; ball.vx = ux * (sp + push) + nx * sd; ball.vy = uy * (sp + push) + ny * sd;
+      if (FM.PUSH_DELAY === 0) pushNow(); else { ball.pushAt = match.clock + (FM.PUSH_DELAY == null ? 0.1 : FM.PUSH_DELAY); ball.pushOf = p; }
     }
     ball.x = clamp(ball.x, 0.2, L - 0.2);   // (the end lines hold a carried ball in; the touchlines do not)
     if ((ball.y < 2 || ball.y > W - 2) && !pa && match.rng() < (FM.SQUEEZE == null ? 0.08 : FM.SQUEEZE) && nearestOpponent(match, match.carrier.team, p).d < 2.8) ball.y = ball.y < W / 2 ? -0.2 : W + 0.2;   // pressed against the line, it goes out

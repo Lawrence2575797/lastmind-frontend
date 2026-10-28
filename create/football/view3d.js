@@ -18,7 +18,7 @@
   }
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   const angDiff = (a, b) => { let d = b - a; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; return d; };
-  const lastBall = { x: 0, z: 0 }; let pan = null, ballY = null, rollPrev = null, rollAxis = null, rollQ = null, refE = null, stadiumBuilt = false, lastT = null, carriedVis = null, relOff = null, spcOn = false, snapNext = false, camSpread = 12, ballV = { x: 0, z: 0 }, lastBx = null, lastBz = null;
+  const lastBall = { x: 0, z: 0 }; let contacts = [], pendTouch = [], toeV = null, pan = null, ballY = null, rollPrev = null, rollAxis = null, rollQ = null, refE = null, stadiumBuilt = false, lastT = null, carriedVis = null, relOff = null, spcOn = false, snapNext = false, camSpread = 12, ballV = { x: 0, z: 0 }, lastBx = null, lastBz = null;
   const mkCanvas = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; };
   const tex = (c, srgb) => { const t = new THREE.CanvasTexture(c); if (srgb !== false) t.encoding = THREE.sRGBEncoding; t.anisotropy = renderer.capabilities.getMaxAnisotropy(); return t; };
 
@@ -102,6 +102,34 @@
   // so the knees, elbows, shoulders, waist and neck bend as a body does instead of as separate parts. The mesh is made here, in code, from lofted
   // cross-sections of a real figure's proportions (1.8 m, head about 1/7.5 of the height), so there is no model file to license or to load.
   const SHADE = (c, k) => { const col = new THREE.Color(c); col.multiplyScalar(k); return col.getHex(); };
+  // Where a man's boot is, and when it meets the ball. The ball is the match's, and what is drawn is the match a moment behind (between its last two steps), so every
+  // contact is timed in that drawn time (rt); at the moment of contact the ball is drawn at the boot (the toe of the foot that plays it), leaving it from there.
+  function toeOf(e, foot) {
+    const mx = e.fig && e.fig.mx; if (!mx) return null; if (!toeV) toeV = new THREE.Vector3();
+    let bn = e['toe' + foot]; if (bn === undefined) bn = e['toe' + foot] = mx.bones.find((b) => b.name === (foot === 'Left' ? 'Right' : 'Left') + 'ToeBase') || null;
+    if (!bn) return null; e.fig.root.updateMatrixWorld(true); bn.getWorldPosition(toeV); return toeV;
+  }
+  // The leg that plays the ball is bent to put the boot on it: two-bone IK in the body's frame (the thigh to the knee, the shin to the ankle, the knee out in front, the foot kept flat),
+  // blended over the pose the clip gave, so the boot is where the ball is at the moment of contact instead of somewhere near it.
+  const TL1B = 0.43, TL2B = 0.39;
+  let ik = null;
+  function reachFoot(e, foot, tx, ty, tz, w) {
+    const f = e.fig, Lg = foot === 'Left' ? f.L : f.R; if (!Lg || !f.body) return;
+    if (!ik) ik = { a: new THREE.Vector3(), b: new THREE.Vector3(), c: new THREE.Vector3(), d: new THREE.Vector3(), e: new THREE.Vector3(), q1: new THREE.Quaternion(), q2: new THREE.Quaternion(), q3: new THREE.Quaternion(), down: new THREE.Vector3(0, -1, 0), fwd: new THREE.Vector3(0, 0, 1) };
+    f.root.updateMatrixWorld(true);
+    const H = Lg.hip.position, tgt = ik.a, dir = ik.b, pole = ik.c, knee = ik.d, tmp = ik.e;
+    tgt.set(tx, ty, tz); f.body.worldToLocal(tgt);
+    dir.copy(tgt).sub(H); let D = dir.length(); if (D < 1e-4) return; dir.multiplyScalar(1 / D); D = clamp(D, 0.2, TL1B + TL2B - 0.003);
+    const aa = (TL1B * TL1B - TL2B * TL2B + D * D) / (2 * D), hh = Math.sqrt(Math.max(0, TL1B * TL1B - aa * aa));
+    pole.copy(ik.fwd).addScaledVector(dir, -ik.fwd.dot(dir)); if (pole.lengthSq() < 1e-6) pole.set(1, 0, 0); pole.normalize();
+    knee.copy(H).addScaledVector(dir, aa).addScaledVector(pole, hh);
+    tmp.copy(knee).sub(H).normalize(); ik.q1.setFromUnitVectors(ik.down, tmp);
+    tmp.copy(H).addScaledVector(dir, D).sub(knee).normalize(); tmp.applyQuaternion(ik.q2.copy(ik.q1).invert()); ik.q2.setFromUnitVectors(ik.down, tmp);
+    ik.q3.copy(ik.q1).multiply(ik.q2).invert();
+    const dbg = FM.view3d.ikLog; if (dbg) { f.root.updateMatrixWorld(true); Lg.ankle.getWorldPosition(tmp); const before = Math.hypot(tmp.x - tx, tmp.y - ty, tmp.z - tz); Lg.hip.quaternion.slerp(ik.q1, w); Lg.knee.quaternion.slerp(ik.q2, w); Lg.ankle.quaternion.slerp(ik.q3, w); f.root.updateMatrixWorld(true); Lg.ankle.getWorldPosition(tmp); dbg.push({ w, D, reach: TL1B + TL2B, before, after: Math.hypot(tmp.x - tx, tmp.y - ty, tmp.z - tz) }); return; }
+    Lg.hip.quaternion.slerp(ik.q1, w); Lg.knee.quaternion.slerp(ik.q2, w); Lg.ankle.quaternion.slerp(ik.q3, w);
+  }
+  function addContact(e, foot, tc, kind) { contacts.push({ e, foot, tc, kind }); if (contacts.length > 12) contacts.shift(); }
   const smooth = (e0, e1, x) => { const t = clamp((x - e0) / (e1 - e0), 0, 1); return t * t * (3 - 2 * t); };
   const down = (y, j, r) => 1 - smooth(j - r, j + r, y);   // 0 above a joint, 1 below it, easing across the joint
   // bone order: 0 body, 1 torso, 2 head, 3-5 left arm/elbow/hand, 6-8 right arm/elbow/hand, 9-11 left hip/knee/ankle, 12-14 right hip/knee/ankle
@@ -570,6 +598,7 @@
       const dt = Math.min(0.1, (ctx && ctx.dt) || 0.016); clock += dt; netT += dt;
       const nowT = performance.now(), rdt = clamp(lastT == null ? dt : (nowT - lastT) / 1000, 0.004, 0.25); lastT = nowT;
       ensurePlayers(m);
+      const lagS = 0.1 * (1 - clamp((m.fixedStepRemainder || 0) / 0.1, 0, 1)), rt = m.clock - lagS;   // how far behind the match what is drawn is, and the match time that is drawn
       if (!stadiumBuilt && FM.stadium) { stadiumBuilt = true; try { const hc = (m.home.kit && m.home.kit.shirt) || '#c0392b', ac = (m.away.kit && m.away.kit.shirt) || '#2c5aa0'; FM.stadium.build(scene, { HL, HW, mkCanvas, tex, board: BOARD, homeHex: hc, awayHex: ac }); } catch (e) { try { console.warn('The stadium did not build', e); } catch (x) { /* nothing to log to */ } } }
       if (FM.stadium) FM.stadium.update(m);
       // a replay: the recorded frames stand in for the live positions, and the live match waits
@@ -585,17 +614,18 @@
         if (m.phase !== 'celebration' && m.phase !== 'replay' && goalMark != null && recT - goalMark > 30) goalMark = null;
         readEvents(m);
       }
-      { const fl = !rp && m.flight && m.flight.free ? m.flight : null; if (fl && fl.target && fl.t > 0.15) { const te = players.get(fl.target.id); if (te && te.recvFor !== fl && Math.hypot(m.ball.x - fl.target.x, m.ball.y - fl.target.y) < 3.4) { te.recvFor = fl; setPose(te, 'control', 0.6, te.foot); } } }
+      // (the first touch is played when the ball reaches the man: see below)
       // set pieces taken by hand: the throw-in is thrown, the goal kick is struck, both timed to the moment the match releases the ball
       { const rs = !rp && m.restart ? m.restart : null; if (rs && rs.taker && FM.anim && FM.anim.ready) { const te = players.get(rs.taker.id); if (te && te.setFor !== rs && Math.hypot(rs.taker.x - rs.x, rs.taker.y - rs.y) < 1.8) {
         if (rs.kind === 'throw' && rs.timer <= 1.25) { te.setFor = rs; FM.anim.timed(te, te.foot < 0 ? 'throwIn_m' : 'throwIn', Math.max(0.2, rs.timer)); }
-        else if (rs.kind === 'goalkick' && rs.timer <= 0.7) { te.setFor = rs; FM.anim.timed(te, 'gkPass', Math.max(0.2, rs.timer)); } } } }
+        else if (rs.kind === 'goalkick' && rs.timer <= 0.7) { te.setFor = rs; FM.anim.timed(te, 'gkPass', Math.max(0.2, rs.timer + lagS)); addContact(te, te.foot < 0 ? 'Left' : 'Right', m.clock + rs.timer, 'goalkick'); } } } }
       const replay = !!rp; if (!replay) recT += dt;
       // speed is distance over the match time it took (what the engine advanced by this frame), not over wall-clock time, so the gait follows the real movement exactly
       const sdt = ctx && ctx.simDt > 0.002 ? ctx.simDt : rdt;
       if (snapCam) { ctx = Object.assign({}, ctx, { snap: true }); snapCam = false; }
       // the scorer's slide: the clip starts as the scripted slide does
       if (m.celeb && m.celeb.stage === 'slide' && !m.celeb.fx) { m.celeb.fx = true; const ce = players.get(m.celeb.shooter.id); if (ce && !(FM.anim && FM.anim.ready && FM.anim.celebrate(ce, 2.07))) setPose(ce, 'celebrate', 2.1, 1); }
+      const rb0 = (ctx && ctx.renderBall) || m.ball, bx0 = rb0.x - HL, bz0 = rb0.y - HW;   // where the ball is drawn before it is touched
       m.teams.forEach((team) => team.players.forEach((p) => {
         const e = players.get(p.id); if (!e) return; const rp = (ctx && ctx.renderPos && ctx.renderPos.get(p.id)) || { x: p.x, y: p.y, facing: p.facing || 0 };
         const x = rp.x - HL, z = rp.y - HW, lp = lastPos.get(p.id), k8 = Math.min(1, dt * 8);
@@ -614,11 +644,26 @@
           const ch = Math.cos(e.hd), sh = Math.sin(e.hd);
           animate(e.fig, { vf: e.vx * ch + e.vz * sh, vs: e.vx * sh - e.vz * ch, turn: e.turn, accel: e.accel, look: angDiff(e.hd, ab), px: x, pz: z, hd: e.hd, sc: 1.3, vx: e.vx, vz: e.vz, e, gk: p.group === 'GK' }, dt, clock);
           // the kick: the engine holds the ball for the turn and the backswing, and the clip is timed so the foot meets it as it leaves
-          { const pa = m.pendingAct; if (FM.anim && FM.anim.ready && pa && pa.player === p && e.kickTag !== pa && (pa.opt.kind === 'pass' || pa.opt.kind === 'shoot' || pa.opt.kind === 'clear')) { const rem = pa.release - m.clock; if (rem <= 0.6) { e.kickTag = pa; e.kickAt = performance.now(); FM.anim.kick(e, rem, { shot: pa.opt.kind === 'shoot', gk: p.group === 'GK' }); logAct({ id: p.id, kick: 1, t: recT + rem - 0.12, rem: 0.12 }); } } } }
-        { const kc = m.kickCue; if (!rp && FM.anim && FM.anim.ready && kc && kc.player === p && e.kickTag !== kc) { const rem = kc.release - m.clock; if (rem <= 0.55) { e.kickTag = kc; e.kickAt = performance.now(); FM.anim.kick(e, Math.max(0.12, rem), {}); logAct({ id: p.id, kick: 1, t: recT + Math.max(0.12, rem) - 0.12, rem: 0.12 }); } } }
+          { const pa = m.pendingAct; if (FM.anim && FM.anim.ready && pa && pa.player === p && e.kickTag !== pa && (pa.opt.kind === 'pass' || pa.opt.kind === 'shoot' || pa.opt.kind === 'clear')) { const rem = pa.release - m.clock + lagS; if (rem <= 0.6 + lagS) { e.kickTag = pa; e.kickAt = performance.now(); FM.anim.kick(e, rem, { shot: pa.opt.kind === 'shoot', gk: p.group === 'GK' }); addContact(e, e.foot < 0 ? 'Left' : 'Right', pa.release, 'kick'); logAct({ id: p.id, kick: 1, t: recT + rem - 0.12, rem: 0.12 }); } } } }
+        { const kc = m.kickCue; if (!replay && FM.anim && FM.anim.ready && kc && kc.player === p && e.kickTag !== kc) { const rem = kc.release - m.clock + lagS; if (rem <= 0.55 + lagS) { e.kickTag = kc; e.kickAt = performance.now(); FM.anim.kick(e, Math.max(0.12, rem), {}); addContact(e, e.foot < 0 ? 'Left' : 'Right', kc.release, 'kick'); logAct({ id: p.id, kick: 1, t: recT + Math.max(0.12, rem) - 0.12, rem: 0.12 }); } } }
         // the first touch: a man who has just received the ball cushions it
-        if (isC && !e.wasC && e.speed < 8) { if (p.group === 'GK' && FM.anim && FM.anim.ready && FM.anim.play(e, 'gkCatch2', { len: 1.1, fi: 0.08, fo: 0.3 })) { /* a keeper's catch */ } else setPose(e, 'control', 0.5, e.foot); } e.wasC = isC;
+        if (isC && !e.wasC && e.speed < 8) { if (p.group === 'GK' && FM.anim && FM.anim.ready && FM.anim.play(e, 'gkCatch2', { len: 1.1, fi: 0.08, fo: 0.3 })) { /* a keeper's catch */ } else if (Math.hypot(m.ball.x - p.x, m.ball.y - p.y) < 1.0) { setPose(e, 'control', 0.26, e.foot); if (!replay && Math.hypot(m.ball.vx || 0, m.ball.vy || 0) > 1.2) addContact(e, e.foot < 0 ? 'Left' : 'Right', m.possessionReceivedAt != null ? m.possessionReceivedAt : rt, 'control'); } } e.wasC = isC;
         if (e.pose) { e.pose.t += dt; if (e.pose.t >= e.pose.dur) e.pose = null; else applyPose(e.fig, e.pose.type, e.pose.t, e.pose.dur, e.pose.dir); }
+        // the man who is playing the ball puts his boot on it
+        if (!replay && contacts.length) {
+          let cb = null, cw = 0; contacts.forEach((c) => { if (c.e !== e) return; const w = smooth(c.tc - 0.14, c.tc - 0.03, rt) * (1 - smooth(c.tc, c.tc + 0.1, rt)); if (w > cw) { cw = w; cb = c; } });
+          if (cb && cw > 0.001) {
+            const ft = e.fig, kf = cb.foot === 'Left' ? ft.L : ft.R, pfoot = cb.foot === 'Left' ? 'Right' : 'Left', pf = cb.foot === 'Left' ? ft.R : ft.L, sc = ft.root.scale.y || 1.3;
+            const ahead = Math.max(0, cb.tc - rt) * 0.6, tx = bx0 + (m.ball.vx || 0) * ahead, tz = bz0 + (m.ball.vy || 0) * ahead;
+            ft.root.updateMatrixWorld(true); if (!ik) reachFoot(e, cb.foot, tx, 0.09, tz, 0);
+            const hipW = ik.a.setFromMatrixPosition(kf.hip.matrixWorld), plant = ik.b.setFromMatrixPosition(pf.ankle.matrixWorld), dx = tx - hipW.x, dz = tz - hipW.z, dl = Math.hypot(dx, dz) || 1;
+            const aim = { x: tx - dx / dl * 0.17, z: tz - dz / dl * 0.17 }, hh = Math.hypot(aim.x - hipW.x, aim.z - hipW.z), reachW = (TL1B + TL2B - 0.04) * sc;
+            const drop = clamp(hipW.y - (0.09 + Math.sqrt(Math.max(0, reachW * reachW - hh * hh))), 0, 0.42), px = plant.x, py = plant.y, pz = plant.z;   // he sinks over the planted knee to get down to the ball
+            ft.body.position.y -= drop * cw / sc;
+            reachFoot(e, pfoot, px, py, pz, cw);   // the planted foot stays where it was
+            reachFoot(e, cb.foot, aim.x, 0.09, aim.z, cw);
+          }
+        }
         if (e.fig.mx) e.fig.mx.sync(e.fig);
       }));
       let bx = ((ctx && ctx.renderBall) || m.ball).x - HL, bz = ((ctx && ctx.renderBall) || m.ball).y - HW, by = replay ? ctx.replayBy : ballHeight(m, bx, bz);
@@ -627,7 +672,8 @@
       // and shields it when he stands still, and when he is about to pass or shoot it is brought to his foot for the kick.
       let vis = false;
       // the touches are the match's: when the engine says the carrier has played the ball, his foot swings to it
-      if (!replay && m.carrier && m.ball.state === 'carried' && m.ball.touchAt != null && m.ball.touchBy === m.carrier.player) { const te = players.get(m.carrier.player.id); if (te && te.seenTouch !== m.ball.touchAt) { te.seenTouch = m.ball.touchAt; setPose(te, 'touch', 0.18, m.ball.touchSide); } }
+      if (!replay && m.carrier && m.ball.state === 'carried' && m.ball.touchAt != null && m.ball.touchBy === m.carrier.player) { const te = players.get(m.carrier.player.id); if (te && te.seenTouch !== m.ball.touchAt) { te.seenTouch = m.ball.touchAt; const tc = m.ball.pushAt != null ? m.ball.pushAt : m.ball.touchAt; pendTouch.push({ e: te, at: tc - 0.09, side: m.ball.touchSide }); addContact(te, m.ball.touchSide < 0 ? 'Left' : 'Right', tc, 'touch'); } }
+      pendTouch = pendTouch.filter((q) => { if (rp || rt >= q.at) { if (!rp) setPose(q.e, 'touch', 0.18, q.side); return false; } return true; });
       if (false && !replay && m.carrier && m.ball.state === 'carried' && !goalFx) {
         const ce = players.get(m.carrier.player.id), rp = ce && ((ctx && ctx.renderPos && ctx.renderPos.get(m.carrier.player.id)) || null);
         if (ce && rp && Number.isFinite(rp.facing)) {
@@ -671,6 +717,14 @@
       }
       // a throw-in is taken with the ball over his head
       { const rs = !replay && m.restart && m.restart.kind === 'throw' ? m.restart : null; if (rs && rs.taker) { const te = players.get(rs.taker.id); if (te && te.setFor === rs) by = 1.95; } }
+      // the ball is at the boot when it is played: kicked, pushed on in a dribble, or taken on the first touch
+      if (!replay && !goalFx && contacts.length) {
+        contacts = contacts.filter((c) => rt < c.tc + 0.3); let bw = 0, bc = null;
+        if (FM.view3d.trk) contacts.forEach((c) => { if (rt > c.tc - 0.5 && rt < c.tc + 0.35) { const T = toeOf(c.e, c.foot); if (T) FM.view3d.trk.push({ id: c.e.id + '@' + c.tc, kind: c.kind, dt: rt - c.tc, gap: Math.hypot(T.x - bx, T.z - bz), ty: T.y, by }); } });
+        contacts.forEach((c) => { const w = smooth(c.tc - 0.09, c.tc, rt) * (1 - smooth(c.tc, c.tc + 0.07, rt)); if (w > bw) { bw = w; bc = c; } });
+        FM.view3d.cur = null;
+        if (bc && bw > 0.001) { const T = toeOf(bc.e, bc.foot); if (T) { FM.view3d.cur = { w: bw, kind: bc.kind, x: T.x, y: T.y, z: T.z }; if (FM.view3d.gapLog) FM.view3d.gapLog.push({ id: bc.e.id + '@' + bc.tc, kind: bc.kind, gap: Math.hypot(T.x - bx, T.z - bz), w: bw, dy: Math.abs(T.y + 0.06 - by) }); bx += (T.x - bx) * bw; bz += (T.z - bz) * bw; by += (Math.max(0.115, T.y + 0.06) - by) * bw; } }
+      }
       lastBall.x = bx; lastBall.z = bz;
       if (!replay) recordFrame(m, ctx, bx, by, bz);
       // after a goal the camera goes with the scorer to the corner flag
