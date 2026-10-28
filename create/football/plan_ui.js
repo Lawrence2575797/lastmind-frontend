@@ -7,29 +7,111 @@
 (function () {
   const FM = (window.FM = window.FM || {});
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  const PW = 700, PH = 682;   // the same wide shape the squad board has, so a circle is the same size against the pitch there and here
+  const PW = 544, PH = 840;   // 8 drawing units a metre: the pitch is drawn at its true 68 x 105 proportions
   const TAB_PHASES = { build: ['build'], midfield: ['midfield'], final: ['final'], transdef: ['transDef'], organised: ['defence', 'press'], transatt: ['transAtt'] };
   const SIDE_OF = { build: 'with', midfield: 'with', final: 'with', transAtt: 'with', transDef: 'without', defence: 'without', press: 'without' };
   const TAG_COL = { press: '#FF6B4A', sit: '#9FB0BF', protect: '#5EA8FF', safe: '#6FD08C', risk: '#FFA94D', overload: '#B58CFF', target: '#FFD54A', switch: '#4FD1C5', keep: '#B8E986' };
-  const UI = { sel: null, mode: 'view', cells: [], sub: null, draft: {}, openTog: {}, showOpp: false };
+  const UI = { sel: null, mode: 'view', cells: [], sub: null, draft: {}, openTog: {}, showOpp: false, ovl: (() => { const d = { space: false, lanes: false, lines: false, moves: false, path: false }; try { return Object.assign(d, JSON.parse(localStorage.getItem('lm_pl_ovl') || '{}')); } catch (e) { return d; } })() };
   const sname = (p) => { const n = p.name.split(' ').slice(1).join(' ') || p.name; return n.length > 11 ? n.slice(0, 10) + '.' : n; };
 
   // ---------- the pitch ----------
-  function pitchSvg(team, ph, hooks) {
-    const eng = FM.planPhase(ph).eng[0], pl = FM.planGet(team), kit = team.kit || { shirt: '#244', number: '#fff' };
+  // Drawn to the true proportions of a 68 x 105 m pitch (8 drawing units a metre both ways), so every marking is the right shape at every size and a player's place on the
+  // page is his place on the pitch. Positions are kept as depth (d, 0 = our goal line) and width (w), as before.
+  const SC = PW / 68;
+  let NOISE = null;
+  function noiseTile() {
+    if (NOISE !== null) return NOISE;
+    try {
+      const c = document.createElement('canvas'); c.width = c.height = 96; const x = c.getContext('2d'), im = x.createImageData(96, 96); let r = 20261027;
+      for (let i = 0; i < im.data.length; i += 4) { r = (r * 1664525 + 1013904223) >>> 0; const v = r >>> 24, l = v & 1 ? 255 : 0; im.data[i] = im.data[i + 1] = im.data[i + 2] = l; im.data[i + 3] = (v >> 1) % 14; }
+      x.putImageData(im, 0, 0); NOISE = c.toDataURL('image/png');
+    } catch (e) { NOISE = ''; }
+    return NOISE;
+  }
+  function surface(id) {
+    let s = `<defs><pattern id="${id}n" width="96" height="96" patternUnits="userSpaceOnUse">${noiseTile() ? `<image href="${noiseTile()}" width="96" height="96"/>` : ''}</pattern>
+      <marker id="${id}a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5.5" markerHeight="5.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#FFD54A"/></marker></defs>`;
+    s += `<rect width="${PW}" height="${PH}" fill="#2D6B40"/>`;
+    for (let i = 0; i < 15; i++) s += `<rect y="${(i * 7 * SC).toFixed(1)}" width="${PW}" height="${(7 * SC).toFixed(1)}" fill="${i % 2 ? '#000' : '#fff'}" fill-opacity="${i % 2 ? 0.045 : 0.035}"/>`;
+    if (noiseTile()) s += `<rect width="${PW}" height="${PH}" fill="url(#${id}n)" opacity=".55"/>`;
+    return s;
+  }
+  function markings() {
+    const m = SC, cx = PW / 2, ln = 'fill="none" stroke="#F4F8F1" stroke-opacity=".8" stroke-width="1.3"', hw = 20.16 * m;
+    let s = `<g ${ln}><rect x=".65" y=".65" width="${PW - 1.3}" height="${PH - 1.3}"/><line x1="0" y1="${PH / 2}" x2="${PW}" y2="${PH / 2}"/><circle cx="${cx}" cy="${PH / 2}" r="${(9.15 * m).toFixed(2)}"/>`;
+    [0, 1].forEach((bot) => {
+      const gy = bot ? PH : 0, sg = bot ? -1 : 1, y = (d) => (gy + sg * d * m).toFixed(2), r = 9.15 * m, dx = Math.sqrt(9.15 * 9.15 - 5.5 * 5.5) * m;
+      s += `<rect x="${(cx - hw).toFixed(2)}" y="${bot ? y(16.5) : 0.65}" width="${(hw * 2).toFixed(2)}" height="${(16.5 * m - 0.65).toFixed(2)}"/><rect x="${(cx - 9.16 * m).toFixed(2)}" y="${bot ? y(5.5) : 0.65}" width="${(18.32 * m).toFixed(2)}" height="${(5.5 * m - 0.65).toFixed(2)}"/>`;
+      s += `<path d="M${(cx - dx).toFixed(2)} ${y(16.5)} A${r.toFixed(2)} ${r.toFixed(2)} 0 0 ${bot ? 1 : 0} ${(cx + dx).toFixed(2)} ${y(16.5)}"/>`;
+      s += `<path d="M${(3.66 * -m + cx).toFixed(2)} ${(gy).toFixed(2)} v${(sg * -2 * m).toFixed(2)} h${(7.32 * m).toFixed(2)} v${(sg * 2 * m).toFixed(2)}" stroke-opacity=".5"/>`;
+    });
+    s += `</g><g fill="#F4F8F1" fill-opacity=".85"><circle cx="${cx}" cy="${PH / 2}" r="2.2"/><circle cx="${cx}" cy="${(11 * m).toFixed(1)}" r="2"/><circle cx="${cx}" cy="${(PH - 11 * m).toFixed(1)}" r="2"/></g>`;
+    const c = 1 * m; s += `<g ${ln}><path d="M${c} 0.65 A${c} ${c} 0 0 0 0.65 ${c}"/><path d="M${PW - c} 0.65 A${c} ${c} 0 0 1 ${PW - 0.65} ${c}"/><path d="M0.65 ${PH - c} A${c} ${c} 0 0 0 ${c} ${PH - 0.65}"/><path d="M${PW - 0.65} ${PH - c} A${c} ${c} 0 0 0 ${PW - c} ${PH - 0.65}"/></g>`;
+    return s;
+  }
+  // a top-down shirt: body, two sleeves and the collar, with the number on the chest
+  const SHIRT = 'M-8.5,-12.5 L-3,-14.2 Q0,-10.6 3,-14.2 L8.5,-12.5 L18,-5.2 L13.2,2.2 L8.5,-1.2 L8.5,12.5 L-8.5,12.5 L-8.5,-1.2 L-13.2,2.2 L-18,-5.2 Z';
+  function shirt(kit, num, o) {
+    o = o || {};
+    return `<path d="${SHIRT}" transform="translate(1.6,2.6)" fill="#06150b" fill-opacity="${o.ghost ? 0.12 : 0.3}"/><path d="${SHIRT}" fill="${kit.shirt}" fill-opacity="${o.ghost ? 0.88 : 1}" stroke="${o.stroke || 'rgba(255,255,255,.88)'}" stroke-width="${o.sw || 1}" stroke-linejoin="round"${o.dash ? ' stroke-dasharray="3 2"' : ''}/><text y="7.2" text-anchor="middle" font-size="${String(num).length > 1 ? 12.5 : 14}" font-weight="800" fill="${kit.number}" style="font-variant-numeric:tabular-nums">${esc(num)}</text>`;
+  }
+  // Labels sit under their shirt; where two would land on each other (or on another shirt) one moves to the side or above. Only the label moves, never the player.
+  function labelSpots(items) {
+    const placed = [], out = new Map(), hit = (a, b) => a.x0 < b.x1 && a.x1 > b.x0 && a.y0 < b.y1 && a.y1 > b.y0;
+    const shirts = items.map((i) => ({ x0: i.x - 23, x1: i.x + 23, y0: i.y - 20, y1: i.y + 18, k: i.k }));
+    items.slice().sort((a, b) => a.y - b.y || a.x - b.x).forEach((it) => {
+      const w = Math.max(it.name.length * 6.6, 20) + 4, opts = [
+        { dx: 0, ny: 33, ry: 45, a: 'middle', box: { x0: it.x - w / 2, x1: it.x + w / 2, y0: it.y + 21, y1: it.y + 48 } },
+        { dx: 28, ny: 1, ry: 13, a: 'start', box: { x0: it.x + 26, x1: it.x + 28 + w, y0: it.y - 11, y1: it.y + 16 } },
+        { dx: -28, ny: 1, ry: 13, a: 'end', box: { x0: it.x - 28 - w, x1: it.x - 26, y0: it.y - 11, y1: it.y + 16 } },
+        { dx: 0, ny: -33, ry: -21, a: 'middle', box: { x0: it.x - w / 2, x1: it.x + w / 2, y0: it.y - 48, y1: it.y - 21 } },
+      ];
+      const ok = (o) => o.box.x0 > -22 && o.box.x1 < PW + 22 && !placed.some((b) => hit(o.box, b)) && !shirts.some((b) => b.k !== it.k && hit(o.box, b));
+      const pick = opts.find(ok) || opts[0]; placed.push(pick.box); out.set(it.k, pick);
+    });
+    return out;
+  }
+  // the optional overlays, built from the same analysis the pages below use (plan_analysis.js) and from the page positions themselves
+  const OVL = [['space', 'Space control'], ['lanes', 'Passing lanes'], ['lines', 'Lines and press'], ['moves', 'Movement'], ['path', 'Selected player']];
+  const MOVE_NEXT = { build: 'buildEnd', midfield: 'final', transAtt: 'transAttEnd', transDef: 'transDefEnd', without: 'withoutEnd', press: 'without' };
+  const CHAIN = { with: ['build', 'buildEnd', 'midfield', 'final'], without: ['press', 'without', 'withoutEnd'] };
+  function overlays(team, ph, A) {
+    const o = UI.ovl, eng = FM.planPhase(ph).eng[0], mx = SC, tx = (y) => (y / 68 * PW).toFixed(1), ty = (x) => ((1 - x / 105) * PH).toFixed(1);
+    let under = '', over = '';
+    if (o.space && A) { const img = FM.planControlPortrait(A.ctl); if (img) under += `<image href="${img}" x="0" y="0" width="${PW}" height="${PH}" preserveAspectRatio="none" opacity=".42" pointer-events="none"/>`; }
+    if (o.lines && A) {
+      const lab = (x, y, t, col, a) => `<text x="${x}" y="${y}" text-anchor="${a || 'start'}" font-size="9.5" font-weight="700" fill="${col}" stroke="rgba(6,21,11,.6)" stroke-width="2.4" style="paint-order:stroke">${esc(t)}</text>`;
+      const names = { defence: 'back line', midfield: 'midfield', attack: 'front line' };
+      Object.keys(names).forEach((k) => { const u = A.fm.us[k]; if (!u) return; const ys = u.pts.map((q) => q.y), a = Math.min.apply(null, ys), b = Math.max.apply(null, ys), yy = ty(u.cx); over += `<line x1="${(+tx(a) - 14).toFixed(1)}" y1="${yy}" x2="${(+tx(b) + 14).toFixed(1)}" y2="${yy}" stroke="#7FD0FF" stroke-width="1.8" stroke-dasharray="7 4"/>` + lab((+tx(a) - 14).toFixed(1), (+yy - 4).toFixed(1), names[k] + ' ' + u.cx.toFixed(0) + ' m', '#BFE6FF'); });
+      const off = A.S0.ours ? A.fm.them.last : A.fm.us.last; if (off > 0 && off < 105) over += `<line x1="0" y1="${ty(off)}" x2="${PW}" y2="${ty(off)}" stroke="#FFD54A" stroke-width="1.3" stroke-dasharray="3 4" opacity=".9"/>` + lab(PW - 4, (+ty(off) - 4).toFixed(1), 'offside line', '#FFE58A', 'end');
+      if (!A.S0.ours) over += `<circle cx="${tx(A.S0.ball.y)}" cy="${ty(A.S0.ball.x)}" r="${(A.ctl.trig * mx).toFixed(1)}" fill="rgba(255,213,74,.07)" stroke="#FFD54A" stroke-width="1.3" stroke-dasharray="6 4"/>` + lab(tx(A.S0.ball.y), (+ty(A.S0.ball.x) - A.ctl.trig * mx - 4).toFixed(1), 'press trigger ' + A.ctl.trig.toFixed(0) + ' m', '#FFE58A', 'middle');
+    }
+    if (o.lanes && A) A.ln.forEach((l) => { const col = l.open ? (l.pref ? '#FFD54A' : '#FFFFFF') : '#FF7B6B'; over += `<line x1="${tx(l.a.y)}" y1="${ty(l.a.x)}" x2="${tx(l.b.y)}" y2="${ty(l.b.x)}" stroke="${col}" stroke-width="${l.open ? (l.pref ? 2.6 : 1.8) : 1.2}" stroke-dasharray="${l.open ? '0' : '2 5'}" opacity="${l.open ? 0.85 : 0.6}"/>`; });
+    if (o.moves) {
+      const nk = MOVE_NEXT[eng];
+      if (nk) team.players.forEach((p) => { const a = FM.phasePos(team, p, eng), b = FM.phasePos(team, p, nk); if (Math.hypot((b.d - a.d) * 105, (b.w - a.w) * 68) < 3) return; const dx = (b.w - a.w) * PW, dy = -(b.d - a.d) * PH, len = Math.hypot(dx, dy), k = Math.max(0, (len - 15) / len); over += `<line x1="${(a.w * PW).toFixed(1)}" y1="${((1 - a.d) * PH).toFixed(1)}" x2="${(a.w * PW + dx * k).toFixed(1)}" y2="${((1 - a.d) * PH + dy * k).toFixed(1)}" stroke="#FFD54A" stroke-width="1.5" opacity=".9" marker-end="url(#plsa)"/>`; });
+    }
+    if (o.path && UI.sel) {
+      const p = team.players.find((q) => q.slotKey === UI.sel), side = SIDE_OF[ph] === 'with' ? 'with' : 'without';
+      if (p) {
+        const pts = CHAIN[side].map((k) => ({ k, q: FM.phasePos(team, p, k) })), nm = { build: 'build', buildEnd: 'reaches midfield', midfield: 'midfield', final: 'final third', press: 'press', without: 'block', withoutEnd: 'drops' };
+        over += `<polyline points="${pts.map((z) => (z.q.w * PW).toFixed(1) + ',' + ((1 - z.q.d) * PH).toFixed(1)).join(' ')}" fill="none" stroke="#FFD54A" stroke-width="2" stroke-linejoin="round" stroke-dasharray="1 0" opacity=".9"/>`;
+        pts.forEach((z) => { const cur = FM.planPhase(ph).eng.indexOf(z.k) >= 0; over += `<circle cx="${(z.q.w * PW).toFixed(1)}" cy="${((1 - z.q.d) * PH).toFixed(1)}" r="${cur ? 6 : 3.6}" fill="${cur ? '#FFD54A' : '#2D6B40'}" stroke="#FFD54A" stroke-width="1.6"/><text x="${(z.q.w * PW + 9).toFixed(1)}" y="${((1 - z.q.d) * PH + 3).toFixed(1)}" font-size="9" font-weight="700" fill="#FFE58A" stroke="rgba(6,21,11,.6)" stroke-width="2.4" style="paint-order:stroke">${esc(nm[z.k] || z.k)}</text>`; });
+      }
+    }
+    return { under, over };
+  }
+  function pitchSvg(team, ph, hooks, A) {
+    const eng = FM.planPhase(ph).eng[0], pl = FM.planGet(team), kit = team.kit || { shirt: '#244', number: '#fff' }, id = 'plp';
     const X = (w) => (w * PW).toFixed(1), Y = (d) => ((1 - d) * PH).toFixed(1);
-    let s = `<rect width="${PW}" height="${PH}" rx="6" fill="#2F7D3F"/>`;
-    for (let i = 0; i < 10; i++) if (i % 2) s += `<rect y="${i * PH / 10}" width="${PW}" height="${PH / 10}" fill="#000" fill-opacity=".05"/>`;
-    const mx = PW / 68, my = PH / 105;   // metres to drawing units across and along
-    s += `<g fill="none" stroke="#fff" stroke-opacity=".7" stroke-width="2"><rect x="2" y="2" width="${PW - 4}" height="${PH - 4}"/><line x1="2" y1="${PH / 2}" x2="${PW - 2}" y2="${PH / 2}"/><ellipse cx="${PW / 2}" cy="${PH / 2}" rx="${(9.15 * mx).toFixed(1)}" ry="${(9.15 * my).toFixed(1)}"/>
-      <rect x="${(PW / 2 - 20.15 * mx).toFixed(1)}" y="${(PH - 16.5 * my).toFixed(1)}" width="${(40.3 * mx).toFixed(1)}" height="${(16.5 * my - 2).toFixed(1)}"/><rect x="${(PW / 2 - 20.15 * mx).toFixed(1)}" y="2" width="${(40.3 * mx).toFixed(1)}" height="${(16.5 * my).toFixed(1)}"/>
-      <rect x="${(PW / 2 - 9.15 * mx).toFixed(1)}" y="${(PH - 5.5 * my).toFixed(1)}" width="${(18.3 * mx).toFixed(1)}" height="${(5.5 * my - 2).toFixed(1)}"/><rect x="${(PW / 2 - 9.15 * mx).toFixed(1)}" y="2" width="${(18.3 * mx).toFixed(1)}" height="${(5.5 * my).toFixed(1)}"/></g>`;
+    const ov = overlays(team, ph, A);
+    let s = surface(id) + ov.under + markings();
     // zones of this page
     pl.zones.filter((z) => z.on !== false && (z.phase === ph || (!z.phase || z.phase === 'any') && FM.PLAN_ZONE_TAG[z.tag] && FM.PLAN_ZONE_TAG[z.tag].side === SIDE_OF[ph])).forEach((z) => {
-      (z.cells || []).forEach((c) => { const dp = FM.PLAN_DEPTHS[c[0]], ch = FM.PLAN_CHANNELS[c[1]], col = TAG_COL[z.tag] || '#fff'; s += `<rect x="${X(ch.lo)}" y="${Y(dp.hi)}" width="${(ch.hi - ch.lo) * PW}" height="${(dp.hi - dp.lo) * PH}" fill="${col}" fill-opacity=".24" stroke="${col}" stroke-width="2" stroke-dasharray="6 4"/>`; });
-      const c0 = (z.cells || [])[0]; if (c0) { const dp = FM.PLAN_DEPTHS[c0[0]], ch = FM.PLAN_CHANNELS[c0[1]]; s += `<text x="${(+X(ch.lo) + 6).toFixed(0)}" y="${(+Y(dp.hi) + 16).toFixed(0)}" font-size="16" font-weight="800" fill="#fff" stroke="#000" stroke-width="4" style="paint-order:stroke">${esc((FM.PLAN_ZONE_TAG[z.tag] || {}).name || '')}</text>`; }
+      (z.cells || []).forEach((c) => { const dp = FM.PLAN_DEPTHS[c[0]], ch = FM.PLAN_CHANNELS[c[1]], col = TAG_COL[z.tag] || '#fff'; s += `<rect x="${X(ch.lo)}" y="${Y(dp.hi)}" width="${(ch.hi - ch.lo) * PW}" height="${(dp.hi - dp.lo) * PH}" fill="${col}" fill-opacity=".22" stroke="${col}" stroke-width="1.4" stroke-dasharray="6 4"/>`; });
+      const c0 = (z.cells || [])[0]; if (c0) { const dp = FM.PLAN_DEPTHS[c0[0]], ch = FM.PLAN_CHANNELS[c0[1]]; s += `<text x="${(+X(ch.lo) + 6).toFixed(0)}" y="${(+Y(dp.hi) + 14).toFixed(0)}" font-size="11" font-weight="800" fill="#fff" stroke="rgba(6,21,11,.6)" stroke-width="2.6" style="paint-order:stroke">${esc((FM.PLAN_ZONE_TAG[z.tag] || {}).name || '')}</text>`; }
     });
-    pl.triggers.filter((t) => t.on !== false && t.cells && t.cells.length && (FM.PLAN_WHEN_BY[t.when] || {}).side === SIDE_OF[ph]).forEach((t) => (t.cells || []).forEach((c) => { const dp = FM.PLAN_DEPTHS[c[0]], ch = FM.PLAN_CHANNELS[c[1]]; s += `<rect x="${X(ch.lo)}" y="${Y(dp.hi)}" width="${(ch.hi - ch.lo) * PW}" height="${(dp.hi - dp.lo) * PH}" fill="none" stroke="#fff" stroke-width="2" stroke-dasharray="2 5"/>`; }));
+    pl.triggers.filter((t) => t.on !== false && t.cells && t.cells.length && (FM.PLAN_WHEN_BY[t.when] || {}).side === SIDE_OF[ph]).forEach((t) => (t.cells || []).forEach((c) => { const dp = FM.PLAN_DEPTHS[c[0]], ch = FM.PLAN_CHANNELS[c[1]]; s += `<rect x="${X(ch.lo)}" y="${Y(dp.hi)}" width="${(ch.hi - ch.lo) * PW}" height="${(dp.hi - dp.lo) * PH}" fill="none" stroke="#fff" stroke-width="1.4" stroke-dasharray="2 5"/>`; }));
     // the opposition as scouted for the next match: where they stand in the phase that answers this one
     const od = UI.showOpp && hooks.opp ? hooks.opp(eng) : null;
     // Nobody is drawn offside. Where they have the ball (we are defending), their attackers stand no nearer our goal than our second-last defender (on the line, never beyond it);
@@ -45,29 +127,34 @@
         let c = od.cells[slot];
         const op = od.opp.players.find((q) => q.slotKey === slot);
         if (theyAttack && ourLine != null && op && op.group !== 'GK' && 1 - c.d < ourLine) c = { d: 1 - Math.min(0.97, ourLine + 0.012), w: c.w };
-        const pl2 = op, nm = pl2 ? sname(pl2) : slot, x = (1 - c.w) * PW, y = c.d * PH;
-        s += `<g transform="translate(${x.toFixed(1)},${y.toFixed(1)})" pointer-events="none"><circle r="14" fill="${od.kit.shirt}" fill-opacity=".9" stroke="${od.kit.number}" stroke-width="1.8" stroke-dasharray="3 2"/><text y="3.5" text-anchor="middle" font-size="10" font-weight="700" fill="${od.kit.number}">${pl2 ? pl2.number : ''}</text></g>`;
+        const x = (1 - c.w) * PW, y = c.d * PH;
+        s += `<g transform="translate(${x.toFixed(1)},${y.toFixed(1)}) scale(.82)" pointer-events="none">${shirt(od.kit, op ? op.number : '', { ghost: true, dash: true, stroke: od.kit.number })}</g>`;
       });
     }
     // the grid, when a zone is being chosen
     if (UI.mode === 'zone' || UI.mode === 'trigger') FM.PLAN_DEPTHS.forEach((dp) => FM.PLAN_CHANNELS.forEach((ch) => {
       const on = UI.cells.some((c) => c[0] === dp.k && c[1] === ch.k);
-      s += `<rect class="pl-cell" data-cell="${dp.k},${ch.k}" x="${X(ch.lo)}" y="${Y(dp.hi)}" width="${(ch.hi - ch.lo) * PW}" height="${(dp.hi - dp.lo) * PH}" fill="${on ? '#FFD54A' : '#fff'}" fill-opacity="${on ? 0.38 : 0.04}" stroke="#fff" stroke-opacity=".35"/>`;
+      s += `<rect class="pl-cell" data-cell="${dp.k},${ch.k}" x="${X(ch.lo)}" y="${Y(dp.hi)}" width="${(ch.hi - ch.lo) * PW}" height="${(dp.hi - dp.lo) * PH}" fill="${on ? '#FFD54A' : '#fff'}" fill-opacity="${on ? 0.38 : 0.04}" stroke="#fff" stroke-opacity=".3"/>`;
     }));
-    // the players, as cards
-    team.players.forEach((p) => {
+    s += ov.over;
+    // the players: a shirt with his number, his name and rating beneath
+    const cards = team.players.map((p) => {
       let q = FM.phasePos(team, p, eng);
       if (od && weAttack && theirLine != null && p.group !== 'GK' && !(FM.isManual && FM.isManual(team, p, eng)) && q.d > theirLine) q = { d: Math.max(0.02, theirLine - 0.012), w: q.w };
-      const sel = UI.sel === p.slotKey, inj = FM.isInjured && FM.isInjured(p), nChoices = Object.keys(((pl.player[p.slotKey] || {})[ph]) || {}).length;
-      const k = 0.72, r = 27 * k, rating = FM.playerRating ? FM.playerRating(p, p.group).toFixed(1) : '';
-      s += `<g class="pl-card" data-slot="${esc(p.slotKey)}" transform="translate(${X(q.w)},${Y(q.d)})" style="cursor:pointer"><title>${esc(p.name + ' · ' + ((FM.ROLES[p.roleId] || {}).name || '') + ': ' + ((FM.ROLES[p.roleId] || {}).desc || ''))}</title><circle r="${(46 * k).toFixed(1)}" fill="transparent"/>
-        <circle r="${r.toFixed(1)}" fill="${kit.shirt}" stroke="${sel ? '#F2C14E' : '#fff'}" stroke-width="${sel ? 4 : 2.3}"/>
-        <text y="${(10 * k).toFixed(1)}" text-anchor="middle" font-size="${(25 * k).toFixed(1)}" font-weight="700" fill="${kit.number}">${p.number}</text>
-        <text y="${(46 * k).toFixed(1)}" text-anchor="middle" font-size="${(20 * 0.9).toFixed(1)}" font-weight="700" fill="#fff" stroke="#000" stroke-width="3.4" style="paint-order:stroke">${esc(sname(p))}</text>
-        <text y="${(66 * k).toFixed(1)}" text-anchor="middle" font-size="${(16 * 0.9).toFixed(1)}" fill="${inj ? '#FF9A9A' : '#cfe8cf'}" stroke="#000" stroke-width="2.6" style="paint-order:stroke">${inj ? 'injured' : rating}</text>
-        ${FM.isManual && FM.isManual(team, p, eng) ? `<circle cx="${(-23 * k).toFixed(1)}" cy="${(-23 * k).toFixed(1)}" r="6.5" fill="#fff" stroke="#1A232D" stroke-width="1.5"/>` : ''}${nChoices ? `<circle cx="${(23 * k).toFixed(1)}" cy="${(-23 * k).toFixed(1)}" r="8" fill="#F2C14E" stroke="#1A232D" stroke-width="1.5"/><text x="${(23 * k).toFixed(1)}" y="${(-23 * k + 4).toFixed(1)}" text-anchor="middle" font-size="11" font-weight="800" fill="#1A232D">${nChoices}</text>` : ''}</g>`;
+      return { p, q, k: p.slotKey, x: q.w * PW, y: (1 - q.d) * PH, name: sname(p) };
     });
-    return `<svg class="pl-pitch" viewBox="-26 -22 ${PW + 52} ${PH + 80}" role="img" aria-label="Where the team stands in this phase">${s}</svg>`;
+    const spots = labelSpots(cards);
+    cards.forEach(({ p, q }) => {
+      const sel = UI.sel === p.slotKey, inj = FM.isInjured && FM.isInjured(p), nChoices = Object.keys(((pl.player[p.slotKey] || {})[ph]) || {}).length, rating = FM.playerRating ? FM.playerRating(p, p.group).toFixed(1) : '', sp = spots.get(p.slotKey);
+      s += `<g class="pl-card${sel ? ' sel' : ''}" data-slot="${esc(p.slotKey)}" transform="translate(${X(q.w)},${Y(q.d)})" style="cursor:pointer"><title>${esc(p.name + ' · ' + ((FM.ROLES[p.roleId] || {}).name || '') + ': ' + ((FM.ROLES[p.roleId] || {}).desc || ''))}</title>
+        <circle r="31" fill="transparent"/>
+        <circle class="pl-ring" r="27" fill="rgba(242,193,78,${sel ? 0.12 : 0})" stroke="#F2C14E" stroke-width="1.7" opacity="${sel ? 1 : 0}"/>
+        <g transform="scale(1.22)">${shirt(kit, p.number)}</g>
+        <text x="${sp.dx}" y="${sp.ny}" text-anchor="${sp.a}" font-size="12" font-weight="650" fill="#F6F8F3" stroke="rgba(6,21,11,.55)" stroke-width="2.4" style="paint-order:stroke;letter-spacing:.01em">${esc(sname(p))}</text>
+        <text x="${sp.dx}" y="${sp.ry}" text-anchor="${sp.a}" font-size="10" font-weight="500" fill="${inj ? '#FFB3B3' : '#BFD2C2'}" stroke="rgba(6,21,11,.5)" stroke-width="2" style="paint-order:stroke">${inj ? 'injured' : rating}</text>
+        ${FM.isManual && FM.isManual(team, p, eng) ? `<circle cx="-16" cy="-15" r="3.6" fill="#fff" stroke="#1A232D" stroke-width="1"/>` : ''}${nChoices ? `<circle cx="16" cy="-15" r="5.6" fill="#F2C14E" stroke="#1A232D" stroke-width="1"/><text x="16" y="-12" text-anchor="middle" font-size="8" font-weight="800" fill="#1A232D">${nChoices}</text>` : ''}</g>`;
+    });
+    return `<svg class="pl-pitch" viewBox="-24 -26 ${PW + 48} ${PH + 52}" role="img" aria-label="Where the team stands in this phase">${s}</svg>`;
   }
 
   // ---------- team approach ----------
@@ -133,6 +220,7 @@
     if (!pl.migrated) { migrate(team); pl.migrated = true; hooks.save(); }
     if (!UI.sel || !team.players.some((p) => p.slotKey === UI.sel)) UI.sel = null;
     const draw = () => {
+      const A = (UI.ovl.space || UI.ovl.lanes || UI.ovl.lines) ? FM.planAnalysis(team, ph, hooks) : null, selP = UI.sel && team.players.find((q) => q.slotKey === UI.sel);
       const legacy = (team.rules || []).filter((r) => r.source !== 'plan');
       host.innerHTML = `<div class="pl">
         ${phases.length > 1 ? `<div class="pl-sub">${phases.map((k) => `<button type="button" class="${k === ph ? 'on' : ''}" data-sub="${k}">${esc(FM.planPhase(k).name)}</button>`).join('')}</div>` : ''}
@@ -140,8 +228,8 @@
         ${team.legacyTactics && !pl.noticeSeen ? '<div class="pl-notice">Tactics are now set with choices and roles as well as by placing players. Where you drag a player is where he stands in that phase, and his role and instructions decide how he plays from there. Your hand-placed positions from before are kept. <button type="button" data-notice="1">Got it</button></div>' : ''}
         ${legacy.length ? `<div class="pl-notice">${legacy.length} written instruction${legacy.length === 1 ? '' : 's'} from before ${legacy.length === 1 ? 'is' : 'are'} still active. <button type="button" data-clear-legacy="1">Remove ${legacy.length === 1 ? 'it' : 'them'}</button></div>` : ''}
         <div class="pl-grid">
-          <section class="card pl-left"><div class="pl-pitchbar">${manualCount(team, ph) ? '<button type="button" data-resetpos="1">Put this phase\'s players back where their roles put them</button>' : ''}<button type="button" class="${UI.showOpp ? 'on' : ''}" data-opp="1"${hooks.opp ? '' : ' disabled'}>${UI.showOpp ? 'Hide' : 'Show'} the opposition</button></div><div class="pl-pitchwrap${UI.mode !== 'view' ? ' picking' : ''}">${pitchSvg(team, ph, hooks)}</div>${(() => { const rp = hooks.report ? hooks.report(FM.planPhase(ph).eng[0]) : ''; return rp ? `<div class="pl-oppreport">${UI.showOpp ? '' : '<p class="pl-help">Show the opposition to see how they stand in this phase.</p>'}${rp}</div>` : ''; })()}
-            <p class="pl-help pl-legend">Each circle is a player and where he stands in this phase. Drag one to where you want him: that is where he stands, and his role and instructions decide how he plays from there. A white dot marks a player you have placed. Click one without dragging to open his role and instructions on the squad page.</p></section>
+          <section class="card pl-left"><div class="pl-ovl" role="group" aria-label="Pitch overlays"><span>Overlays</span>${OVL.map(([k, n]) => `<button type="button" class="${UI.ovl[k] ? 'on' : ''}" data-ovl="${k}" aria-pressed="${UI.ovl[k]}">${n}</button>`).join('')}</div><div class="pl-pitchbar">${manualCount(team, ph) ? '<button type="button" data-resetpos="1">Put this phase\'s players back where their roles put them</button>' : ''}<button type="button" class="${UI.showOpp ? 'on' : ''}" data-opp="1"${hooks.opp ? '' : ' disabled'}>${UI.showOpp ? 'Hide' : 'Show'} the opposition</button></div><div class="pl-pitchwrap${UI.mode !== 'view' ? ' picking' : ''}">${pitchSvg(team, ph, hooks, A)}</div>${(() => { const rp = hooks.report ? hooks.report(FM.planPhase(ph).eng[0]) : ''; return rp ? `<div class="pl-oppreport">${UI.showOpp ? '' : '<p class="pl-help">Show the opposition to see how they stand in this phase.</p>'}${rp}</div>` : ''; })()}
+            ${selP ? `<div class="pl-selbar"><b>${esc(selP.name)}</b> <span>${esc((FM.ROLES[selP.roleId] || {}).name || '')}</span><button type="button" data-openp="1">Open role and instructions</button><button type="button" data-unsel="1">Clear</button></div>` : ''}<p class="pl-help pl-legend">Each shirt is a player and where he stands in this phase. Drag one to where you want him: that is where he stands, and his role and instructions decide how he plays from there. A white dot marks a player you have placed. Click one to select him (his path through the phases can then be shown with the Selected player overlay). Overlays are off until you switch them on.</p></section>
           <section class="card pl-right"><h4>Team approach: ${esc(info.name.toLowerCase())}</h4>${teamPanel(team, ph)}</section>
         </div>
         <section class="card pl-dials"><h4>Dials: ${SIDE_OF[ph] === 'with' ? 'with the ball' : 'without the ball'}</h4>${dialsHtml(team, ph)}</section>
@@ -171,7 +259,7 @@
         const mv = (ev) => { if (!moved && Math.hypot(ev.clientX - start.x, ev.clientY - start.y) < 5) return; moved = true; at = toPos(ev); g.setAttribute('transform', 'translate(' + (at.w * PW).toFixed(1) + ',' + ((1 - at.d) * PH).toFixed(1) + ')'); };
         const up = () => {
           g.removeEventListener('pointermove', mv); g.removeEventListener('pointerup', up); g.removeEventListener('pointercancel', up);
-          if (!moved || !at || !p) { if (!moved && hooks.openPlayer) hooks.openPlayer(g.dataset.slot); return; }
+          if (!moved || !at || !p) { if (!moved) { UI.sel = UI.sel === g.dataset.slot ? null : g.dataset.slot; draw(); } return; }
           team.phasePos = team.phasePos || {};
           info.eng.forEach((k) => FM.setPhasePos(team, p, k, { d: at.d, w: at.w }));
           if (FM.inferShapeTactics) FM.inferShapeTactics(team);
@@ -193,6 +281,9 @@
       }));
       host.querySelectorAll('[data-item-toggle]').forEach((b) => b.addEventListener('click', () => { const [k, id] = b.dataset.itemToggle.split(':'); FM.planToggleItem(team, k, id); again(); }));
       host.querySelectorAll('[data-item-del]').forEach((b) => b.addEventListener('click', () => { const [k, id] = b.dataset.itemDel.split(':'); FM.planRemove(team, k, id); again(); }));
+      host.querySelectorAll('[data-ovl]').forEach((b) => b.addEventListener('click', () => { UI.ovl[b.dataset.ovl] = !UI.ovl[b.dataset.ovl]; try { localStorage.setItem('lm_pl_ovl', JSON.stringify(UI.ovl)); } catch (e) { /* not kept */ } draw(); }));
+      const op = host.querySelector('[data-openp]'); if (op) op.addEventListener('click', () => { if (hooks.openPlayer && UI.sel) hooks.openPlayer(UI.sel); });
+      const us = host.querySelector('[data-unsel]'); if (us) us.addEventListener('click', () => { UI.sel = null; draw(); });
       const ob = host.querySelector('[data-opp]'); if (ob) ob.addEventListener('click', () => { UI.showOpp = !UI.showOpp; draw(); });
       const nt = host.querySelector('[data-notice]'); if (nt) nt.addEventListener('click', () => { pl.noticeSeen = true; again(); });
       const cl = host.querySelector('[data-clear-legacy]'); if (cl) cl.addEventListener('click', () => { team.legacyTactics = team.legacyTactics || {}; team.legacyTactics.rules = (team.rules || []).filter((r) => r.source !== 'plan'); team.rules = (team.rules || []).filter((r) => r.source === 'plan'); FM.planApply(team); again(); });

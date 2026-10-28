@@ -338,3 +338,13 @@ body[data-view="workbench"] #view-workbench { animation: none !important; transf
 .pa-legend i { width: 14px; height: 14px; border-radius: 3px; display: inline-block; border: 1px solid rgba(255,255,255,.3); } .pa-legend i.ring { border: 2px solid #ffd54a; border-radius: 50%; background: none; }
 .pa-legend i.ln { height: 0; width: 22px; border: 0; border-top: 3px solid #fff; border-radius: 0; } .pa-legend i.ln.gold { border-top-color: #ffd54a; } .pa-legend i.ln.red { border-top: 3px dotted #e5574b; }
 .pa-what { font-size: 13px; line-height: 1.5; margin: 6px 0; } .pa-card ul { margin: 6px 0 0; padding-left: 18px; font-size: 13px; line-height: 1.5; } .pa-card li { margin: 5px 0; }
+
+/* the tactics pitch: true proportions, so it is tall; kept to a sensible width */
+.pl-left .pl-pitch { max-width: 500px; }
+.pl-ovl { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 8px; font-size: 12px; } .pl-ovl span { opacity: .7; margin-right: 2px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.pl-ovl button { padding: 4px 10px; border-radius: 12px; border: 1px solid rgba(255,255,255,.22); background: transparent; color: inherit; cursor: pointer; font: 600 12px inherit; } .pl-ovl button.on { background: #d7b86b; color: #1a2420; border-color: #d7b86b; }
+.pl-selbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0; font-size: 13px; } .pl-selbar span { opacity: .7; } .pl-selbar button { padding: 3px 10px; border-radius: 4px; border: 1px solid rgba(255,255,255,.25); background: transparent; color: inherit; cursor: pointer; font-size: 12px; }
+.pl-card:hover .pl-ring { opacity: .55; }
+/* the analysis pictures: smaller, with their reading beside them */
+.pa-card { display: grid; grid-template-columns: minmax(260px, 400px) minmax(0, 1fr); gap: 6px 22px; align-items: start; } .pa-card h5 { grid-column: 1 / -1; }
+.pa-svg { min-width: 0; } @media (max-width: 860px) { .pa-card { grid-template-columns: 1fr; } }

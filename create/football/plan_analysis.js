@@ -280,12 +280,30 @@
 
   // ---------- the section ----------
   const PREV = {};
-  FM.planAnalysis = function (team, ph, hooks) {
+  const planAnalysisRaw = function (team, ph, hooks) {
     const S0 = snapshot(team, ph, hooks), ctl = control(S0), zs = zones(S0), ln = lanes(S0, team), ov = overloads(zs), fm = formation(S0);
     const metrics = { ctl: ctl.pct, fin: ctl.finalPct, own: ctl.ownPct, over: ov.best ? ov.best.diff : 0, open: ln.filter((l) => l.open).length, length: fm.us.length, width: fm.us.width, g1: fm.us.defence && fm.us.midfield ? Math.abs(fm.us.midfield.cx - fm.us.defence.cx) : 0 };
     const sig = JSON.stringify(S0.us.map((q) => [Math.round(q.x), Math.round(q.y)])) + JSON.stringify(S0.them.map((q) => [Math.round(q.x), Math.round(q.y)])) + JSON.stringify(team.dials || {}) + JSON.stringify(team.tactics ? [team.tactics.pressing, team.tactics.counterPress] : 0), key = team.id + ':' + ph, rec = PREV[key];
     let prev = null; if (rec && rec.sig !== sig) { prev = rec.metrics; PREV[key] = { sig, metrics, before: rec.metrics }; } else if (!rec) PREV[key] = { sig, metrics, before: null }; else prev = rec.before;
     return { S0, ctl, zs, ln, ov, fm, metrics, prev, ch: choices(team, ph), dl: dialsUsed(team, ph) };
+  };
+  // one calculation per set of positions and choices: the overlays on the pitch and the pages below share it
+  const MEMO = {};
+  FM.planAnalysis = function (team, ph, hooks) {
+    const S0 = snapshot(team, ph, hooks), k = team.id + ':' + ph;
+    const sig = JSON.stringify(S0.us.map((q) => [Math.round(q.x * 2), Math.round(q.y * 2)])) + JSON.stringify(S0.them.map((q) => [Math.round(q.x * 2), Math.round(q.y * 2)])) + JSON.stringify(team.dials || {}) + JSON.stringify(team.tactics ? [team.tactics.pressing, team.tactics.counterPress, team.tactics.counterAttack] : 0) + JSON.stringify(((FM.planGet(team).team || {})[ph]) || {});
+    if (MEMO[k] && MEMO[k].sig === sig) return MEMO[k].A;
+    const A = planAnalysisRaw(team, ph, hooks); MEMO[k] = { sig, A }; return A;
+  };
+  // the control surface turned to the tactics page's way up (our goal at the bottom), for drawing over the pitch
+  FM.planControlPortrait = function (ctl) {
+    if (ctl._portrait !== undefined) return ctl._portrait;
+    try {
+      const cv = document.createElement('canvas'); cv.width = ctl.ny; cv.height = ctl.nx; const cx = cv.getContext('2d'), im = cx.createImageData(ctl.ny, ctl.nx);
+      for (let j = 0; j < ctl.ny; j++) for (let i = 0; i < ctl.nx; i++) { const col = bandColour(ctl.grid[j * ctl.nx + i]), o = ((ctl.nx - 1 - i) * ctl.ny + j) * 4; im.data[o] = col[0]; im.data[o + 1] = col[1]; im.data[o + 2] = col[2]; im.data[o + 3] = 255; }
+      cx.putImageData(im, 0, 0); ctl._portrait = cv.toDataURL('image/png');
+    } catch (e) { ctl._portrait = null; }
+    return ctl._portrait;
   };
   const chip = (label, now, before, fmt, goodUp) => { if (before == null) return ''; const d = now - before; if (Math.abs(d) < 0.005) return ''; const good = goodUp ? d > 0 : d < 0; return '<span class="pa-chip ' + (good ? 'up' : 'down') + '">' + esc(label) + ' ' + (d > 0 ? '+' : '') + fmt(d) + '</span>'; };
   FM.planAnalysisHtml = function (team, ph, hooks) {
@@ -296,11 +314,11 @@
     const deltas = p ? '<div class="pa-deltas">Since your last change: ' + [chip('space', m.ctl, p.ctl, pct, true), chip('final third', m.fin, p.fin, pct, true), chip('open lanes', m.open, p.open, (d) => d.toFixed(0), true), chip('team length', m.length, p.length, mt, false), chip('best overload', m.over, p.over, (d) => d.toFixed(0), true)].filter(Boolean).join(' ') + '</div>' : '';
     const note = S0.generic ? '<p class="pa-note">No next opponent is scouted, so the other side is shown as a standard 4-4-2 block.</p>' : '<p class="pa-note">Against <b>' + esc(S0.opp ? S0.opp.name : 'the next opponent') + '</b>, standing as they do in the phase that answers yours.</p>';
     return '<div class="pa"><h4>Analysis: ' + esc(info.name.toLowerCase()) + '</h4>' + why + note + deltas +
-      '<article class="pa-card"><h5>1. Space and free men</h5><div class="pa-fig">' + drawControl(S0, A.ctl) + '</div><div class="pa-legend"><span><i style="background:#3E54B2"></i>you reach it first</span><span><i style="background:#ECE4DE"></i>contested</span><span><i style="background:#B22432"></i>they reach it first</span><span><i class="ring"></i>room round a player (gold: over 6 m)</span></div>' +
-      '<p class="pa-what"><b>What this tells you.</b> Each patch of grass is coloured by which side would get there first, given where everybody stands, how quick each player is and how soon he reacts. It is a map of <i>space you own</i>, not of where players are. The rings show how much room each of your players has before an opponent is on him: a gold ring means he can take a pass and turn.</p>' + ul(readControl(S0, A.ctl, A.fm)) + '</article>' +
-      '<article class="pa-card"><h5>2. Numbers and passing lanes</h5><div class="pa-fig">' + drawNumbers(S0, A.zs, A.ln) + '</div><div class="pa-legend"><span><i style="background:#4C8DFF"></i>you have more</span><span><i style="background:#E5574B"></i>they have more</span><span><i class="ln"></i>open pass</span><span><i class="ln gold"></i>open, on your chosen route</span><span><i class="ln red"></i>blocked pass</span></div>' +
-      '<p class="pa-what"><b>What this tells you.</b> The pitch is cut into 15 zones and each shows your players against theirs. Blue zones are overloads, where an extra player lets you pass round a defender; red zones are where you are outnumbered. The lines are the passes the man on the ball (thick ring) could play in this phase: solid if no opponent is in the way, dotted red if one is. Short play keeps to short passes and direct play to long ones.</p>' + ul(readNumbers(S0, A.zs, A.ln, A.ov)) + '</article>' +
-      '<article class="pa-card"><h5>3. Lines and shape</h5><div class="pa-fig">' + drawLines(S0, A.fm) + '</div><div class="pa-legend"><span><i style="background:#4C8DFF"></i>your lines</span><span><i style="background:#E5574B"></i>their lines</span><span><i class="ln red"></i>joins the line centres</span><span><i class="ln gold"></i>offside line</span></div>' +
-      '<p class="pa-what"><b>What this tells you.</b> The shaded shapes wrap each unit: back line, midfield and attack. The distance between the lines is how easily the ball can travel from one to the next; the length and width are how much of the pitch you cover. Too far apart and the lines cannot support each other; too close and there is nothing to attack or defend in front of them.</p>' + ul(readLines(S0, A.fm)) + '</article></div>';
+      '<article class="pa-card"><h5>1. Space and free men</h5><div class="pa-l"><div class="pa-fig">' + drawControl(S0, A.ctl) + '</div><div class="pa-legend"><span><i style="background:#3E54B2"></i>you reach it first</span><span><i style="background:#ECE4DE"></i>contested</span><span><i style="background:#B22432"></i>they reach it first</span><span><i class="ring"></i>room round a player (gold: over 6 m)</span></div>' +
+      '</div><div class="pa-r"><p class="pa-what"><b>What this tells you.</b> Each patch of grass is coloured by which side would get there first, given where everybody stands, how quick each player is and how soon he reacts. It is a map of <i>space you own</i>, not of where players are. The rings show how much room each of your players has before an opponent is on him: a gold ring means he can take a pass and turn.</p>' + ul(readControl(S0, A.ctl, A.fm)) + '</div></article>' +
+      '<article class="pa-card"><h5>2. Numbers and passing lanes</h5><div class="pa-l"><div class="pa-fig">' + drawNumbers(S0, A.zs, A.ln) + '</div><div class="pa-legend"><span><i style="background:#4C8DFF"></i>you have more</span><span><i style="background:#E5574B"></i>they have more</span><span><i class="ln"></i>open pass</span><span><i class="ln gold"></i>open, on your chosen route</span><span><i class="ln red"></i>blocked pass</span></div>' +
+      '</div><div class="pa-r"><p class="pa-what"><b>What this tells you.</b> The pitch is cut into 15 zones and each shows your players against theirs. Blue zones are overloads, where an extra player lets you pass round a defender; red zones are where you are outnumbered. The lines are the passes the man on the ball (thick ring) could play in this phase: solid if no opponent is in the way, dotted red if one is. Short play keeps to short passes and direct play to long ones.</p>' + ul(readNumbers(S0, A.zs, A.ln, A.ov)) + '</div></article>' +
+      '<article class="pa-card"><h5>3. Lines and shape</h5><div class="pa-l"><div class="pa-fig">' + drawLines(S0, A.fm) + '</div><div class="pa-legend"><span><i style="background:#4C8DFF"></i>your lines</span><span><i style="background:#E5574B"></i>their lines</span><span><i class="ln red"></i>joins the line centres</span><span><i class="ln gold"></i>offside line</span></div>' +
+      '</div><div class="pa-r"><p class="pa-what"><b>What this tells you.</b> The shaded shapes wrap each unit: back line, midfield and attack. The distance between the lines is how easily the ball can travel from one to the next; the length and width are how much of the pitch you cover. Too far apart and the lines cannot support each other; too close and there is nothing to attack or defend in front of them.</p>' + ul(readLines(S0, A.fm)) + '</div></article></div>';
   };
 })();
