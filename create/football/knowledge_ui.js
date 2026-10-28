@@ -88,7 +88,8 @@
       nd.pre.forEach((pid) => { const q = lay.pos[pid]; if (!q) return; const x1 = q.x + NODEW, y1 = q.y + NODEH / 2, x2 = p.x, y2 = p.y + NODEH / 2, mx = (x1 + x2) / 2; edges += '<path d="M' + x1 + ' ' + y1 + ' C' + mx + ' ' + y1 + ' ' + mx + ' ' + y2 + ' ' + x2 + ' ' + y2 + '" class="' + (doneOf(lg, pid) ? 'on' : '') + '"/>'; });
       const ss = schedState(lg, nd.id).st; nodes += '<button type="button" class="kn-node ' + st + (ss === 'due' || ss === 'overdue' ? ' ' + ss : '') + (S.sel === nd.id ? ' sel' : '') + '" data-node="' + nd.id + '" style="left:' + p.x + 'px;top:' + p.y + 'px;width:' + NODEW + 'px;height:' + NODEH + 'px" title="' + esc(nd.t + ' (' + nd.spec + ')' + (st === 'soon' ? ': lesson being written' : '')) + '"><span>' + esc(nd.t) + '</span><i>' + esc(nd.spec) + '</i></button>';
     }));
-    return '<div class="kn-canvas" style="width:' + lay.w + 'px;height:' + lay.h + 'px">' + bandsH + '<svg width="' + lay.w + '" height="' + lay.h + '" aria-hidden="true">' + edges + '</svg>' + nodes + '</div>';
+    S.lay = lay; const z = S.zoom || 1;
+    return '<div class="kn-zoomer" style="width:' + Math.round(lay.w * z) + 'px;height:' + Math.round(lay.h * z) + 'px"><div class="kn-canvas" style="width:' + lay.w + 'px;height:' + lay.h + 'px;transform:scale(' + z + ');transform-origin:0 0">' + bandsH + '<svg width="' + lay.w + '" height="' + lay.h + '" aria-hidden="true">' + edges + '</svg>' + nodes + '</div></div>';
   }
 
   // What a ticket-price change is worth on the model the lessons use (about 9% fewer fans for every 10% on the price): revenue from the stand per home match
@@ -101,6 +102,26 @@
     const pm = FM.knowledgePriceModel ? FM.knowledgePriceModel(st) : null, k = 0.9 * st.sold / st.price, A = st.sold + k * st.price, R = pm ? pm.revenue : (p) => Math.max(0, p * (A - k * p)), now = R(st.price), then = R(ap.params.price), dd = then - now;
     if (Math.abs(dd) < 50) return 'On the lessons\' model this changes ' + st.name + ' revenue by almost nothing: it is already near its best price.';
     return 'On the lessons\' model ' + st.name + ' brings in about £' + Math.round(now).toLocaleString('en-GB') + ' a home match now and about £' + Math.round(then).toLocaleString('en-GB') + ' at £' + ap.params.price + ' (' + (dd > 0 ? '+' : '-') + '£' + Math.abs(Math.round(dd)).toLocaleString('en-GB') + ' a match).';
+  }
+  // What came of the change a lesson made, in the words the next lesson opens with. The answer was right, so the change was the right one: where the model says it
+  // brought money in, it says how much; where the point was already the best, it says nothing was lost.
+  function outcomeOf(ap) {
+    if (!ap) return '';
+    if (ap.kind === 'multi') return ap.acts.map(outcomeOf).filter(Boolean).join(' ');
+    if (ap.kind === 'control' && ap.action === 'setTicketPrice' && S && S.d) {
+      const st = S.d.stands.find((x) => x.id === ap.params.stand); if (!st) return '';
+      const pm = FM.knowledgePriceModel ? FM.knowledgePriceModel(st) : null, k = 0.9 * st.sold / st.price, A = st.sold + k * st.price, R = pm ? pm.revenue : (p) => Math.max(0, p * (A - k * p)), now = R(st.price), then = R(ap.params.price), dd = then - now;
+      if (dd >= 50) return st.name + ' tickets at £' + ap.params.price + ' are doing what the working said they would: the stand now brings in about £' + Math.round(then).toLocaleString('en-GB') + ' a home match, up from about £' + Math.round(now).toLocaleString('en-GB') + ' (+£' + Math.round(dd).toLocaleString('en-GB') + ' a match), and the extra comes straight to the club.';
+      return st.name + ' was already priced close to its best, so the change cost nothing and the income held steady at about £' + Math.round(then).toLocaleString('en-GB') + ' a home match.';
+    }
+    if (ap.note) return ap.note;
+    return 'It has been made and is now part of how the club runs.';
+  }
+  function outcomeHtml(nd) {
+    const k = know(S.lg), id = k.lastApplied, rec = id && k.applied && k.applied[id]; if (!rec || id === nd.id) return '';
+    if (rec.shownIn && rec.shownIn !== nd.id) return '';
+    if (!rec.shownIn) { rec.shownIn = nd.id; if (S.opts.save) S.opts.save(); }
+    return '<section class="kn-outcome"><div class="kn-kicker">What your last change did</div><div class="kn-p">In ' + esc(rec.lesson) + ' you worked out the answer and put it in: <b>' + esc(rec.say) + '</b>.</div><div class="kn-p">' + rich(rec.outcome) + '</div></section>';
   }
   // ---------- applying an answer to the game ----------
   function applyAction(ap) {
@@ -126,7 +147,7 @@
     if (!f) return head + '<p class="kn-soon">The lesson for this point is still being written. It will use your club in the same way as the others. Meanwhile you can see where it sits on the map and what it builds on.</p>';
     let les; try { les = f(S.d); } catch (e) { return head + '<p class="kn-soon">This lesson could not be built from your club just now (' + esc(e.message) + ').</p>'; }
     S.les = les; const shown = Math.max(1, Math.min(les.steps.length, S.shown || 1)), steps = les.steps;
-    let h = head;
+    let h = head + outcomeHtml(nd);
     const ana = les.analogy || (FM.knowledgeIntros && FM.knowledgeIntros[nd.id] ? FM.knowledgeIntros[nd.id](S.d) : '');
     if (ana) h += '<section class="kn-ana"><div class="kn-kicker">The football analogy</div>' + [].concat(ana).map((l) => '<div class="kn-p">' + rich(l) + '</div>').join('') + '</section>';
     if (les.why) h += '<div class="kn-why">' + rich(les.why) + '</div>';
@@ -139,7 +160,9 @@
     if (r && !r.busy) {
       h += '<div class="kn-result ' + (r.verdict || 'err') + '"><b>' + (r.verdict === 'correct' ? 'Correct' : r.verdict === 'partly' ? 'Nearly' : r.verdict === 'incorrect' ? 'Not quite' : 'Could not mark') + '</b><div class="kn-p">' + rich(r.feedback || '') + '</div></div>';
     }
-    h += '<div class="kn-ans-btns"><button type="button" data-act="worked">' + (S.worked ? 'Hide the worked answer' : 'Show the worked answer') + '</button>' + (a.apply ? '<button type="button" class="gold" data-act="apply">' + esc(a.apply.say) + '</button>' : '') + '</div>' + (a.apply && impactOf(a.apply) ? '<p class="kn-imp">' + esc(impactOf(a.apply)) + '</p>' : '');
+    const right = (r && r.verdict === 'correct') || !!(know(S.lg).done[nd.id] && know(S.lg).done[nd.id].mark);   // marked right (the learnt button alone does not unlock it)
+    if (r && !r.busy && (r.verdict === 'incorrect' || r.verdict === 'partly')) h += '<p class="kn-note">Look at what the marking says, change your answer and mark it again. Nothing goes into your club until the answer is right.</p>';
+    h += '<div class="kn-ans-btns"><button type="button" data-act="worked">' + (S.worked ? 'Hide the worked answer' : 'Show the worked answer') + '</button>' + (a.apply && right ? '<button type="button" class="gold" data-act="apply">Apply the change: ' + esc(a.apply.say) + '</button>' : '') + '</div>' + (a.apply && right && impactOf(a.apply) ? '<p class="kn-imp">' + esc(impactOf(a.apply)) + '</p>' : '');
     if (S.worked) h += '<div class="kn-worked">' + a.worked.map((l) => '<div class="kn-p">' + rich(l) + '</div>').join('') + '</div>';
     if (S.applied) h += '<div class="kn-result ' + (S.applied.ok ? 'correct' : 'err') + '"><p>' + esc(S.applied.text) + '</p></div>';
     h += '</section>';
@@ -159,6 +182,7 @@
       '<div class="kn-top"><div><div class="kn-kicker">' + esc(mp.board) + '</div><h3>' + esc(mp.title) + '</h3></div><div class="kn-stat"><b>' + done + '</b> of ' + total + ' learnt<br><span>' + written + ' lessons written</span></div></div>' +
       (maps.length > 1 ? '<div class="kn-tabs">' + maps.map((x) => '<button type="button" class="' + (x.id === mp.id ? 'on' : '') + '" data-map="' + x.id + '">' + esc(x.title) + '</button>').join('') + '</div>' : '') +
       '<div class="kn-legend"><span class="ready">ready</span><span class="done">learnt</span><span class="due">due</span><span class="overdue">overdue</span><span class="locked">needs earlier points</span><span class="soon">lesson coming</span></div>' +
+      '<div class="kn-zoom"><button type="button" data-zoom="out" aria-label="Zoom out">&minus;</button><span id="knZoomPct">' + Math.round((S.zoom || 1) * 100) + '%</span><button type="button" data-zoom="in" aria-label="Zoom in">+</button><button type="button" data-zoom="fit">Fit to panel</button><em>Drag the map to move it. Ctrl and scroll to zoom.</em></div>' +
       '<div class="kn-map">' + mapHtml(mp) + '</div></div>';
     if (H.sug) H.sug.innerHTML = schedHtml(lg);
     if (H.lesson) {
@@ -176,7 +200,31 @@
       h.querySelectorAll('[data-act]').forEach((b) => b.addEventListener('click', () => act(b.dataset.act)));
       const ta = h.querySelector('#knAns'); if (ta) ta.addEventListener('input', () => { S.ans = ta.value; });
     });
+    wireMap();
     const sc = H.map && H.map.querySelector('.kn-map'); if (sc && S.scroll) { sc.scrollLeft = S.scroll.x; sc.scrollTop = S.scroll.y; } if (sc) sc.addEventListener('scroll', () => { S.scroll = { x: sc.scrollLeft, y: sc.scrollTop }; });
+  }
+  // The map zooms and pans without drawing the panels again (a redraw would lose the place in the lesson beside it).
+  function setZoom(nz, ax, ay) {
+    const sc = S.hosts.map && S.hosts.map.querySelector('.kn-map'), zm = sc && sc.querySelector('.kn-zoomer'), cv = sc && sc.querySelector('.kn-canvas'); if (!sc || !zm || !cv || !S.lay) return;
+    const old = S.zoom || 1; nz = Math.max(0.3, Math.min(1.8, nz)); if (Math.abs(nz - old) < 0.001) return;
+    const px = ax == null ? sc.clientWidth / 2 : ax, py = ay == null ? sc.clientHeight / 2 : ay, mx = (sc.scrollLeft + px) / old, my = (sc.scrollTop + py) / old;
+    S.zoom = nz; zm.style.width = Math.round(S.lay.w * nz) + 'px'; zm.style.height = Math.round(S.lay.h * nz) + 'px'; cv.style.transform = 'scale(' + nz + ')';
+    sc.scrollLeft = mx * nz - px; sc.scrollTop = my * nz - py; S.scroll = { x: sc.scrollLeft, y: sc.scrollTop };
+    const pct = S.hosts.map.querySelector('#knZoomPct'); if (pct) pct.textContent = Math.round(nz * 100) + '%';
+  }
+  function wireMap() {
+    const host = S.hosts.map, sc = host && host.querySelector('.kn-map'); if (!sc) return;
+    host.querySelectorAll('[data-zoom]').forEach((b) => b.addEventListener('click', () => {
+      const k = b.dataset.zoom, z = S.zoom || 1;
+      if (k === 'in') setZoom(z * 1.25); else if (k === 'out') setZoom(z / 1.25);
+      else if (S.lay) { setZoom(Math.min(1, (sc.clientWidth - 4) / S.lay.w, (sc.clientHeight - 4) / S.lay.h)); sc.scrollLeft = 0; sc.scrollTop = 0; S.scroll = { x: 0, y: 0 }; }
+    }));
+    sc.addEventListener('wheel', (e) => { if (!(e.ctrlKey || e.metaKey)) return; e.preventDefault(); const r = sc.getBoundingClientRect(); setZoom((S.zoom || 1) * (e.deltaY < 0 ? 1.12 : 1 / 1.12), e.clientX - r.left, e.clientY - r.top); }, { passive: false });
+    // dragging empty map moves it (a press on a point is a click on that point, as before)
+    let pan = null;
+    sc.addEventListener('pointerdown', (e) => { if (e.button !== 0 || (e.target.closest && e.target.closest('.kn-node'))) return; pan = { x: e.clientX, y: e.clientY, sl: sc.scrollLeft, st: sc.scrollTop }; sc.classList.add('panning'); try { sc.setPointerCapture(e.pointerId); } catch (x) { /* a touch pointer may not be capturable */ } });
+    sc.addEventListener('pointermove', (e) => { if (!pan) return; sc.scrollLeft = pan.sl - (e.clientX - pan.x); sc.scrollTop = pan.st - (e.clientY - pan.y); });
+    const end = () => { pan = null; sc.classList.remove('panning'); }; sc.addEventListener('pointerup', end); sc.addEventListener('pointercancel', end);
   }
   async function mark() {
     const nd = FM.knowledgeNode(S.sel), a = S.les.ask, ans = (S.ans || '').trim(); if (!ans) { S.result = { verdict: 'err', feedback: 'Type your answer first.' }; draw(); return; }
@@ -194,7 +242,11 @@
     else if (a === 'all') { S.shown = 99; draw(); }
     else if (a === 'mark') mark();
     else if (a === 'worked') { S.worked = !S.worked; draw(); }
-    else if (a === 'apply') { S.applied = applyAction(S.les.ask.apply); draw(); }
+    else if (a === 'apply') {
+      const ap = S.les.ask.apply, out = outcomeOf(ap); S.applied = applyAction(ap);
+      if (S.applied.ok && nd) { const k = know(S.lg); k.applied = k.applied || {}; k.applied[nd.id] = { at: Date.now(), lesson: nd.t, say: ap.say, outcome: out }; k.lastApplied = nd.id; if (S.opts.save) S.opts.save(); }
+      draw();
+    }
     else if (a === 'done' && nd) { const k = know(S.lg).done; if (k[nd.id]) delete k[nd.id]; else k[nd.id] = { at: Date.now() }; if (S.opts.save) S.opts.save(); draw(); }
   }
 

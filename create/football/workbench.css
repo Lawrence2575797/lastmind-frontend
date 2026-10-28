@@ -368,3 +368,7 @@ body[data-view="workbench"] #view-workbench { animation: none !important; transf
 .wb2 .wb2-body[data-open="4"] { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(2, minmax(0, 1fr)); }
 .wb2 .wb2-body[data-open="5"] { grid-template-columns: minmax(0, 1.3fr) repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(2, minmax(0, 1fr)); } .wb2 .wb2-body[data-open="5"] > [data-slot="0"] { grid-row: span 2; }
 @media (max-width: 960px) { .wb2 .wb2-body, .wb2 .wb2-body[data-open] { display: flex; flex-direction: column; height: auto; overflow: visible; } .wb2 .wb2-body > [data-panel] { height: 78vh; flex: none; } }
+
+.kn-zoom { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; } .kn-zoom button { padding: 3px 10px; min-width: 32px; } .kn-zoom span { min-width: 42px; text-align: center; font-variant-numeric: tabular-nums; font-size: .8rem; } .kn-zoom em { font-style: normal; font-size: .72rem; color: var(--wb-mute, #9db0a4); margin-left: 6px; }
+.kn-map { cursor: grab; } .kn-map.panning { cursor: grabbing; user-select: none; } .kn-zoomer { position: relative; } .kn-node { cursor: pointer; }
+.kn-outcome { border-left: 3px solid #5FD08A; background: rgba(95,208,138,.08); padding: 10px 14px; margin: 10px 0; border-radius: 4px; }
