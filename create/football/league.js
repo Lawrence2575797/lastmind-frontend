@@ -824,7 +824,7 @@
   };
 
   // ---------- saving ----------
-  const PLAYER_KEYS = ['id', 'number', 'natural', 'name', 'nation', 'ratings', 'height', 'foot', 'maxSpeed', 'roleId', 'options', 'index', 'slotKey', 'group', 'stats', 'origGk', 'emergencyKeeper', 'instr', 'note', 'condition', 'injury', 'relapse', 'form', 'wage', 'contract', 'joined', 'age', 'pot'];
+  const PLAYER_KEYS = ['id', 'number', 'natural', 'name', 'nation', 'ratings', 'height', 'foot', 'maxSpeed', 'roleId', 'options', 'index', 'slotKey', 'group', 'stats', 'origGk', 'emergencyKeeper', 'instr', 'note', 'condition', 'injury', 'relapse', 'form', 'wage', 'contract', 'joined', 'age', 'pot', 'side'];
   function packTeam(t) {
     return {
       id: t.id, name: t.name, kit: t.kit, kits: t.kits, style: t.style, strength: t.strength, seed: t.seed, formationKey: t.formationKey, formationLabel: t.formationLabel || null, tactics: t.tactics,

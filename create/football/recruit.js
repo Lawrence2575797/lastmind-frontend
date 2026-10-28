@@ -3,9 +3,9 @@
 (function () {
   const FM = (window.FM = window.FM || {});
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-  const POSITIONS = [['GK', 'Goalkeepers'], ['CB', 'Centre-backs'], ['FB', 'Full-backs'], ['DM', 'Defensive midfielders'], ['CM', 'Central midfielders'], ['AM', 'Attacking midfielders'], ['WF', 'Wingers'], ['ST', 'Strikers']];
+  const POSITIONS = [['GK', 'Goalkeepers'], ['CB', 'Centre-backs'], ['FB', 'Full-backs'], ['FBL', 'Left-backs'], ['FBR', 'Right-backs'], ['DM', 'Defensive midfielders'], ['CM', 'Central midfielders'], ['AM', 'Attacking midfielders'], ['WF', 'Wingers'], ['ST', 'Strikers']];
   const STAGE_TEXT = { interest: 'Interest declared', counter: 'Counter-offer', bid_rejected: 'Bid rejected', fee_agreed: 'Fee agreed', wage_talks: 'In wage talks', signed: 'Signed', collapsed: 'Collapsed' };
-  const rs = { tab: 'players', q: '', club: 'all', pos: 'all', nation: 'all', ageMin: '', ageMax: '', ratingMin: '', priceMax: '', fit: false, sort: 'rating', open: null, bid: null, msg: {} };
+  const rs = { tab: 'players', q: '', club: 'all', pos: 'all', nation: 'all', ageMin: '', ageMax: '', ratingMin: '', priceMax: '', fit: false, potMin: '', sort: 'rating', open: null, bid: null, msg: {} };
   let hooks = {};
 
   // Closest names first: a word that matches exactly or starts with what was typed beats one that merely contains it, which beats a near miss (a letter or two out).
@@ -52,12 +52,13 @@
     const nations = Array.from(new Set(all.map((x) => x.p.nation))).sort();
     let rows = all.filter(({ p, tm }) => {
       if (rs.club !== 'all' && tm.id !== rs.club) return false;
-      if (rs.pos !== 'all' && p.natural !== rs.pos) return false;
+      if (rs.pos !== 'all' && (rs.pos === 'FBL' || rs.pos === 'FBR' ? p.natural !== 'FB' || FM.sideOf(p) !== rs.pos.slice(2) : p.natural !== rs.pos)) return false;
       if (rs.nation !== 'all' && p.nation !== rs.nation) return false;
       const age = FM.ageOf(p);
       if (rs.ageMin !== '' && age < +rs.ageMin) return false;
       if (rs.ageMax !== '' && age > +rs.ageMax) return false;
       if (rs.ratingMin !== '' && FM.playerRating(p) < +rs.ratingMin) return false;
+      if (rs.potMin !== '' && FM.potentialOf(p) < +rs.potMin) return false;
       if (rs.priceMax !== '' && FM.askingPrice(league, p) > +rs.priceMax) return false;
       if (rs.fit && FM.isInjured(p)) return false;
       if (rs.q.trim() && nameScore(p.name, rs.q) === Infinity) return false;
@@ -67,6 +68,7 @@
       rating: (a, b) => FM.playerRating(b.p) - FM.playerRating(a.p),
       price: (a, b) => FM.askingPrice(league, b.p) - FM.askingPrice(league, a.p),
       priceLow: (a, b) => FM.askingPrice(league, a.p) - FM.askingPrice(league, b.p),
+      potential: (a, b) => FM.potentialOf(b.p) - FM.potentialOf(a.p) || FM.playerRating(b.p) - FM.playerRating(a.p),
       age: (a, b) => FM.ageOf(a.p) - FM.ageOf(b.p),
       name: (a, b) => a.p.name.localeCompare(b.p.name),
     };
@@ -76,15 +78,15 @@
     const cell = (p, s) => { const k = marks[p.id] && marks[p.id][s]; return `<td${k ? ' class="hl-' + k + '"' : ''}>${s === 'gk' && p.natural !== 'GK' ? '-' : stat(p, s)}</td>`; };
     const status = (p) => { const d = t.deals[p.id]; return d && d.stage !== 'signed' ? chip(STAGE_TEXT[d.stage] || d.stage, 'st-' + d.stage) : (t.shortlist.indexOf(p.id) >= 0 ? chip('Shortlisted') : ''); };
     const rowHtml = ({ p, tm }) => `<tr class="player-row${rs.open === p.id ? ' sel' : ''}" data-open="${esc(p.id)}" tabindex="0">
-      <td class="l"><b>${esc(p.name)}</b> ${FM.isInjured(p) ? '<span class="out">injured</span>' : ''}</td><td class="l">${esc(tm.name)}</td><td class="l">${p.natural}</td><td>${FM.ageOf(p)}</td><td class="l">${esc(p.nation)}</td>
+      <td class="l"><b>${esc(p.name)}</b> ${FM.isInjured(p) ? '<span class="out">injured</span>' : ''}</td><td class="l">${esc(tm.name)}</td><td class="l">${p.natural === 'FB' ? (FM.sideOf(p) === 'L' ? 'LB' : 'RB') : p.natural}</td><td>${FM.ageOf(p)}</td><td class="l">${esc(p.nation)}</td>
       <td><b>${FM.abilityOf(p)}</b></td><td>${FM.potentialOf(p)}</td>${['pace', 'dribbling', 'passing', 'finishing', 'tackling', 'heading', 'composure', 'stamina', 'gk'].map((s) => cell(p, s)).join('')}
       <td><b>${FM.money(FM.askingPrice(league, p))}</b></td><td class="l">${status(p)}</td></tr>`;
     const head = `<thead><tr><th class="l">Player</th><th class="l">Club</th><th class="l">Pos</th><th>Age</th><th class="l">Nation</th><th title="What he is worth to a team now, out of 100">Ability</th><th title="The most he can reach, out of 100">Potential</th><th>Pace</th><th>Dri</th><th>Pas</th><th>Fin</th><th>Tac</th><th>Hea</th><th>Com</th><th>Sta</th><th>GK</th><th>Price</th><th class="l">Status</th></tr></thead>`;
     const clubIdx = rs.club === 'all' ? -1 : others.findIndex((x) => x.id === rs.club);
     const filters = `<div class="rc-search"><input id="rcSearch" type="search" value="${esc(rs.q)}" placeholder="Search by name" autocomplete="off" aria-label="Search players by name"></div><div class="rc-filters">
         <label>Position<select id="rcPos"><option value="all">Any</option>${POSITIONS.map(([k, n]) => `<option value="${k}"${rs.pos === k ? ' selected' : ''}>${n}</option>`).join('')}</select></label>
-        <label>Sort by<select id="rcSort">${[['rating', 'Rating'], ['price', 'Price, high to low'], ['priceLow', 'Price, low to high'], ['age', 'Youngest first'], ['name', 'Name']].map(([k, n]) => `<option value="${k}"${rs.sort === k ? ' selected' : ''}>${n}</option>`).join('')}</select></label>
-        <details class="rc-more"${rs.moreOpen || rs.club !== 'all' || rs.nation !== 'all' || rs.ageMin || rs.ageMax || rs.ratingMin || rs.priceMax || rs.fit ? ' open' : ''}><summary>More filters</summary><div class="rc-filters-more">
+        <label>Sort by<select id="rcSort">${[['rating', 'Rating'], ['price', 'Price, high to low'], ['priceLow', 'Price, low to high'], ['potential', 'Potential, high to low'], ['age', 'Youngest first'], ['name', 'Name']].map(([k, n]) => `<option value="${k}"${rs.sort === k ? ' selected' : ''}>${n}</option>`).join('')}</select></label>
+        <details class="rc-more"${rs.moreOpen || rs.club !== 'all' || rs.nation !== 'all' || rs.ageMin || rs.ageMax || rs.ratingMin || rs.potMin || rs.priceMax || rs.fit ? ' open' : ''}><summary>More filters</summary><div class="rc-filters-more">
         <div class="rc-club"><button type="button" id="rcPrev" aria-label="Previous club">‹</button>
           <select id="rcClub"><option value="all">All clubs</option>${others.map((tm) => `<option value="${tm.id}"${rs.club === tm.id ? ' selected' : ''}>${esc(tm.name)}</option>`).join('')}</select>
           <button type="button" id="rcNext" aria-label="Next club">›</button></div>
@@ -92,6 +94,7 @@
         <label>Age from<input id="rcAgeMin" type="number" min="16" max="40" value="${esc(rs.ageMin)}"></label>
         <label>to<input id="rcAgeMax" type="number" min="16" max="40" value="${esc(rs.ageMax)}"></label>
         <label>Rating at least<input id="rcRating" type="number" step="0.1" min="5" max="10" value="${esc(rs.ratingMin)}"></label>
+        <label>Potential at least<input id="rcPot" type="number" step="1" min="40" max="99" value="${esc(rs.potMin)}"></label>
         <label>Price up to (£m)<input id="rcPrice" type="number" step="0.5" min="0" value="${esc(rs.priceMax)}"></label>
         <label class="rc-check"><input id="rcFit" type="checkbox"${rs.fit ? ' checked' : ''}> Fit only</label>
         <button type="button" id="rcClear">Clear filters</button></div></details></div>`;
@@ -139,10 +142,10 @@
       se.addEventListener('input', () => { rs.q = se.value; rs.shown = 25; rs.refocus = true; clearTimeout(rs.qt); rs.qt = setTimeout(draw, 160); });
       if (rs.refocus) { rs.refocus = false; se.focus(); try { se.setSelectionRange(se.value.length, se.value.length); } catch (e) { /* a search box that cannot place a caret */ } }
     }
-    bind('#rcClub', 'club'); bind('#rcPos', 'pos'); bind('#rcNation', 'nation'); bind('#rcAgeMin', 'ageMin'); bind('#rcAgeMax', 'ageMax'); bind('#rcRating', 'ratingMin'); bind('#rcPrice', 'priceMax'); bind('#rcFit', 'fit'); bind('#rcSort', 'sort');
+    bind('#rcClub', 'club'); bind('#rcPos', 'pos'); bind('#rcNation', 'nation'); bind('#rcAgeMin', 'ageMin'); bind('#rcAgeMax', 'ageMax'); bind('#rcRating', 'ratingMin'); bind('#rcPot', 'potMin'); bind('#rcPrice', 'priceMax'); bind('#rcFit', 'fit'); bind('#rcSort', 'sort');
     const step = (d) => { const ids = ['all'].concat(others.map((x) => x.id)); rs.club = ids[(ids.indexOf(rs.club) + d + ids.length) % ids.length]; rs.shown = 25; draw(); };
     const pv = host.querySelector('#rcPrev'), nx = host.querySelector('#rcNext'); if (pv) pv.addEventListener('click', () => step(-1)); if (nx) nx.addEventListener('click', () => step(1));
-    const cl = host.querySelector('#rcClear'); if (cl) cl.addEventListener('click', () => { Object.assign(rs, { q: '', club: 'all', pos: 'all', nation: 'all', ageMin: '', ageMax: '', ratingMin: '', priceMax: '', fit: false, sort: 'rating' }); draw(); });
+    const cl = host.querySelector('#rcClear'); if (cl) cl.addEventListener('click', () => { Object.assign(rs, { q: '', club: 'all', pos: 'all', nation: 'all', ageMin: '', ageMax: '', ratingMin: '', potMin: '', priceMax: '', fit: false, sort: 'rating' }); draw(); });
     host.querySelectorAll('[data-open]').forEach((r) => r.addEventListener('click', () => { rs.open = r.dataset.open; rs.bid = null; draw(); const side = host.querySelector('#rcSide'); if (side && side.scrollIntoView) side.scrollIntoView({ block: 'nearest' }); }));
     host.querySelectorAll('[data-offer]').forEach((b) => b.addEventListener('click', () => {
       const id = b.dataset.id, counter = host.querySelector('[data-counter="' + id + '"]');

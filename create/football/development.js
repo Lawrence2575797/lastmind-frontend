@@ -14,6 +14,15 @@
 
   // ---------- ability and potential ----------
   FM.abilityOf = (p) => Math.round(FM.playerRating(p, p.natural) * 10);
+  // Which flank a full-back plays: from the slot he stands in when he is in one (LB, RB, the wing-backs), otherwise chosen once and kept with the player. Others have none.
+  FM.sideOf = function (p) {
+    if (!p || p.natural !== 'FB') return '';
+    if (p.side === 'L' || p.side === 'R') return p.side;
+    const k = String(p.slotKey || '');
+    if (/^L/.test(k)) p.side = 'L'; else if (/^R/.test(k)) p.side = 'R';
+    else { let h = 0; String(p.id || p.name || '').split('').forEach((c) => { h = (h * 31 + c.charCodeAt(0)) >>> 0; }); p.side = h % 2 ? 'L' : 'R'; }
+    return p.side;
+  };
   FM.potentialOf = function (p) {
     if (p.pot == null) {
       const a = FM.abilityOf(p), age = FM.ageOf ? FM.ageOf(p) : 25, h = hsh(p.id + ':pot');
