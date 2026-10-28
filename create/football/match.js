@@ -268,7 +268,7 @@
     const pr = clamp((FM.ONE_TOUCH == null ? 1 : FM.ONE_TOUCH) * (0.16 + 0.4 * team.tactics.tempo + (nd < 6 ? 0.16 : 0) + (nd < 3 ? 0.14 : 0) + (depth > 0.55 ? 0.1 : 0) + 0.35 * (sk - 0.6) + 0.2 * counterNow(match, team)), 0, 0.85);
     if (match.rng() >= pr) return;
     const opt = chooseAction(match, team, p);
-    if (!(opt.kind === 'shoot' || (opt.kind === 'pass' && opt.p >= 0.68) || (opt.kind === 'clear' && nd < 4))) return;
+    if (!(opt.kind === 'shoot' || (opt.kind === 'pass' && opt.p >= 0.7 && opt.d <= 30) || (opt.kind === 'clear' && nd < 2.5))) return;
     FM.ftCount = (FM.ftCount || 0) + 1; match.firstTime = { player: p, opt }; match.nextDecision = match.clock + 0.05;
   }
 
@@ -396,7 +396,8 @@
       const now = pressingNow(match, opp);
       const press = clamp(Math.max(deep ? 0.6 * pbu + 0.4 * now : now, nearGoal ? (FM.DEF_BOX_PRESS || 0.8) : 0), 0, 1);
       const lostIt = match.lastChange && match.lastChange.team === c.team && match.clock - match.lastChange.t < PRESS_WINDOW;
-      const n = 1 + (press > 0.65 && (lostIt || nearGoal || (deep && pbu > 0.6)) ? 1 : 0);
+      const cpx = lostIt ? (opp.tactics.counterPress > 0.6 ? 1 : 0) + (opp.tactics.counterPress > 0.85 ? 1 : 0) : 0, cpl = lostIt ? (opp.tactics.counterPress < 0.3 ? -1 : 0) : 0;   // the counter-press setting: how many close the ball down just after it is lost
+      const n = Math.max(1, 1 + (press > 0.65 && (lostIt || nearGoal || (deep && pbu > 0.6)) ? 1 : 0) + cpx + cpl);
       const ranked = opp.players.filter((p) => p.group !== 'GK').map((p) => ({ p, d: dist(p, c.player) })).sort((a, b) => a.d - b.d);
       ranked.slice(0, n).forEach(({ p, d }, i) => {
         if (d >= pressTrigger(opp, p, press, match)) return;
@@ -616,7 +617,7 @@
     let p = team.tactics.pressing;
     if (ch && ch.team !== team) {
       const since = match.clock - ch.t;
-      if (since < PRESS_WINDOW) p += (team.tactics.counterPress - 0.5) * 1.2 * (1 - since / PRESS_WINDOW);
+      if (since < PRESS_WINDOW) p += (team.tactics.counterPress - 0.5) * (FM.CPRESS_K == null ? 2.4 : FM.CPRESS_K) * (1 - since / PRESS_WINDOW);
     }
     return clamp(p, 0, 1);
   }
@@ -629,7 +630,7 @@
       if (ch) {
         const since = match.clock - ch.t;
         if (ch.team === team && since < COUNTER_WINDOW) ta = (1 - since / COUNTER_WINDOW) * (0.25 + 0.45 * team.tactics.counterAttack);
-        if (ch.team !== team && since < PRESS_WINDOW) td = (1 - since / PRESS_WINDOW) * (0.25 + 0.45 * team.tactics.counterPress);
+        if (ch.team !== team && since < PRESS_WINDOW) td = (1 - since / PRESS_WINDOW) * (0.08 + 0.9 * team.tactics.counterPress);
       }
       let taProg = 0, tdProg = 0;
       if (ch) { const since = match.clock - ch.t; if (ch.team === team) taProg = since / COUNTER_WINDOW; else tdProg = since / PRESS_WINDOW; }
@@ -989,7 +990,11 @@
     return pool[pool.length - 1];
   }
 
+  // how long a man takes over the ball before he plays it; the side's tempo scales all of it (about 1.4 times as long at the slowest setting, 0.6 at the quickest)
   function delayBeforeNextDecision(match, team, carrier) {
+    return delayRaw(match, team, carrier) * clamp(1.4 - 0.8 * team.tactics.tempo - 0.25 * counterNow(match, team), 0.55, 1.45);
+  }
+  function delayRaw(match, team, carrier) {
     // Settled first-phase possession has its own rhythm. Centre-backs and the
     // goalkeeper commonly hold the ball for several seconds while the press
     // and passing lanes develop; midfield is quicker, and the final third is
@@ -1049,7 +1054,7 @@
     const err = 1 - pEff, g = () => (rng() + rng() + rng() - 1.5) / 0.5;
     const sigma = (FM.PASS_SIGMA == null ? 1 : FM.PASS_SIGMA) * (0.012 + 0.22 * Math.pow(err, 1.2)) * (0.7 + 0.5 * (1 - (carrier.ratings.passing || 60) / 100));
     // the pass is played to where the man will be, not to where he is: his run is led by the time the ball takes
-    const tf = opt.d / Math.max(10, clamp(11 + opt.d * 0.4, 12, 23) * 0.85), aimX = opt.tx, aimY = opt.ty;
+    const tf = opt.d / Math.max(10, clamp(11 + opt.d * 0.4, 12, 23) * 0.85), aimX = clamp(opt.tx, 4.5, L - 4.5), aimY = opt.ty;   // nobody plays a pass to a spot on the end line: it is played just inside it
     const ang = Math.atan2(aimY - carrier.y, aimX - carrier.x) + g() * sigma, len = Math.max(2, Math.hypot(aimX - carrier.x, aimY - carrier.y) * (1 + g() * 0.045 * (0.4 + 2 * err)));
     // Metres per simulated second. A routine ground pass should be readable on the pitch rather than flashing between players.
     const speed = clamp(11 + opt.d * 0.4, 12, 23) * (1 + g() * 0.03);
@@ -1086,7 +1091,7 @@
     if (f.v0 == null) { f.v0 = f.speed; f.speed *= (FM.PASS_BOOST == null ? 1.25 : FM.PASS_BOOST); }
     const x0 = ball.x, y0 = ball.y, sp = f.speed, move = sp * dt;
     // it slows on the grass; past the place it was aimed at it is rolling out
-    if (f.run < f.len) f.speed = Math.max(f.v0 * 0.62, f.speed * Math.exp(-(FM.PASS_DECAY == null ? 0.45 : FM.PASS_DECAY) * dt)); else f.speed = Math.max(0.4, f.speed * Math.exp(-1.7 * dt));
+    if (f.run < f.len) f.speed = Math.max(f.v0 * 0.62, f.speed * Math.exp(-(FM.PASS_DECAY == null ? 0.45 : FM.PASS_DECAY) * dt)); else f.speed = Math.max(0.4, f.speed * Math.exp(-(FM.PASS_ROLL == null ? 2.6 : FM.PASS_ROLL) * dt));
     ball.x += f.dir.x * move; ball.y += f.dir.y * move; f.run += move;
     // who gets a touch: the first man along the ball's path whose reach it passes through
     let hit = null;
@@ -2310,7 +2315,8 @@
       ball.side = -ball.side; ball.lastTouch = match.clock; ball.touchBy = p; ball.touchSide = ball.side; ball.touchAt = match.clock;
       const push = run ? 4.6 + 0.3 * sp : 0.62 + 0.08 * sp, sd = (run ? 0.5 : 0.25) * ball.side; ball.vx = ux * (sp + push) + nx * sd; ball.vy = uy * (sp + push) + ny * sd;
     }
-    ball.x = clamp(ball.x, 0.2, L - 0.2); ball.y = clamp(ball.y, 0.2, W - 0.2);
+    ball.x = clamp(ball.x, 0.2, L - 0.2);   // (the end lines hold a carried ball in; the touchlines do not)
+    if (ball.y < 0 || ball.y > W) { const bx = ball.x < 0 ? Math.min(ball.x, -0.1) : ball.x > L ? Math.max(ball.x, L + 0.1) : ball.x, by = ball.y < 0 ? Math.min(ball.y, -0.1) : ball.y > W ? Math.max(ball.y, W + 0.1) : ball.y, tm = match.carrier.team; ball.vx = ball.vy = 0; match.carrier = null; match.carry = null; match.pendingAct = null; handleOut(match, tm, bx, by); }
   }
 
   function updateBall(match, dt) {
