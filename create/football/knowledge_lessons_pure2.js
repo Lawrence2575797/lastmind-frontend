@@ -36,14 +36,16 @@
   }));
 
   K.add('p-indices', (d) => ({
-    analogy: ['Growth, decay and units all use powers. The speed of a ball and the scale of a crowd are products of powers, and the laws of indices let you simplify them without a calculator.', 'A fractional power is a root; a negative power is a reciprocal.'],
-    why: 'Fractional and negative powers follow the same laws as whole ones, and surds can be rationalised.',
+    analogy: ['The scenario for this whole lesson: the club\'s analysts forecast that demand for ' + d.big.name + ' will multiply by 8 over the next three seasons, growing by the same factor every season. Today ' + d.num(d.big.sold) + ' fans buy tickets there and the stand holds ' + d.num(d.big.seats) + '.', 'Every law of indices below answers a question about that forecast: what the yearly factor is, what it was a season ago, how seasons combine, and what it means for the stand. A power is just repeated growth written short.'],
+    why: 'Fractional powers are roots, negative powers look backwards, and the laws let growth over many seasons be combined without a calculator.',
     steps: [
-      step(['$a^{m/n} = (\\sqrt[n]{a})^m$. So $8^{2/3}$ means cube-root first: $(\\sqrt[3]{8})^2 = 2^2 = 4$.'], '$8^{2/3} = 4$'),
-      step(['Negative powers flip: $a^{-n} = ' + fr(1, 'a^n') + '$, so $25^{-1/2} = ' + fr(1, '\\sqrt{25}') + ' = ' + fr(1, 5) + '$.']),
-      step(['Combine laws: $\\dfrac{(2x^3)^2}{4x^{-1}} = \\dfrac{4x^6}{4x^{-1}} = x^7$.']),
-      step(['Surds: $\\sqrt{12} = 2\\sqrt{3}$. To rationalise a denominator with a surd, multiply top and bottom by its conjugate.'], '$' + fr(6, '3 - \\sqrt{3}') + ' \\times ' + fr('3 + \\sqrt{3}', '3 + \\sqrt{3}') + ' = ' + fr('6(3 + \\sqrt{3})', 6) + ' = 3 + \\sqrt{3}$'),
-      step(['Growth of ' + m1(3) + '% a match is the multiplier $1.03$; after $n$ matches $1.03^n$. Indices are growth made short.']),
+      step(['The yearly factor $r$ is the same each season, so after three seasons demand is $r \\times r \\times r = r^3$. The forecast says that is 8, so $r = 8^{1/3}$. A power of $\\frac{1}{3}$ is a cube root: the number that multiplies itself three times to make 8.'], '$8^{1/3} = \\sqrt[3]{8} = 2$: demand doubles every season'),
+      step(['After two seasons demand has multiplied by $r^2$. In terms of the forecast that is $8^{2/3}$: $a^{m/n} = (\\sqrt[n]{a})^m$, so take the cube root first and then square.'], '$8^{2/3} = (\\sqrt[3]{8})^2 = 2^2 = 4$'),
+      step(['Looking back. A season ago demand was half of today\'s, because going back one season undoes one doubling. A negative power is a reciprocal: $a^{-n} = ' + fr(1, 'a^n') + '$.'], '$2^{-1} = ' + fr(1, 2) + '$, and two seasons ago $2^{-2} = ' + fr(1, 4) + '$. Equally $8^{-2/3} = ' + fr(1, '8^{2/3}') + ' = ' + fr(1, 4) + '$'),
+      step(['Combining seasons. Demand in season 3 compared with season 1 is $' + fr('2^3', '2^1') + '$. Dividing powers of the same base subtracts the indices, and multiplying adds them.'], '$' + fr('2^3', '2^1') + ' = 2^{3-1} = 2^2 = 4$, and $(2^3)^2 = 2^6 = 64$ is the factor over six seasons'),
+      step(['Surds. Suppose a second stand\'s demand multiplies by 12 over two seasons, so its yearly factor is $\\sqrt{12}$. A surd is simplified by pulling out square factors: $\\sqrt{12} = 2\\sqrt{3}$, about 3.46 a season.']),
+      step(['Comparing two stands\' growth gives a ratio with a surd on the bottom, such as $' + fr(6, '3 - \\sqrt{3}') + '$. To rationalise, multiply top and bottom by the conjugate $3 + \\sqrt{3}$.'], '$' + fr(6, '3 - \\sqrt{3}') + ' \\times ' + fr('3 + \\sqrt{3}', '3 + \\sqrt{3}') + ' = ' + fr('6(3 + \\sqrt{3})', 6) + ' = 3 + \\sqrt{3}$'),
+      step(['Back to the stand. Demand is multiplied by 4 over two seasons, so about ' + d.num(Math.round(d.big.sold * 4)) + ' fans want a place at today\'s price, against ' + d.num(d.big.seats) + ' seats. That is why the question below ends with a ticket price: the price is how the club keeps the stand full as demand grows, and the factor you evaluate is what tells it how much.'].concat(eg(d, 'crowds'))),
     ],
     ask: ask('Evaluate $27^{2/3}$.', 9, '', { tol: 0, worked: ['$\\sqrt[3]{27} = 3$ and $3^2 = 9$.'], apply: A.price(d, 'third', 3) }),
     next: 'Simultaneous equations with one quadratic: where a curve meets a line.',
