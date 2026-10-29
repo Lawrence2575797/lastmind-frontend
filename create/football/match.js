@@ -254,7 +254,7 @@
     if (cushion) {
       // How he takes it: with the side of the foot, which slows it and lets it roll on under him; or with the sole on top of it, which stops it dead (centre-backs and holding midfielders often do).
       const r = player.ratings || {}, skill = ((r.composure || 60) + (r.dribbling || 60)) / 200, sole = bsp < 12 && match.rng() < (['CB', 'DM'].indexOf(player.group) >= 0 ? (FM.SOLE_P == null ? 0.5 : FM.SOLE_P) : 0.06);
-      match.ball.ctrl = { p: player, t0: match.clock, kind: sole ? 'sole' : 'side', dur: sole ? 0.12 : clamp((0.1 + 0.013 * bsp) * (1.25 - 0.5 * skill) * (FM.CUSHION_K == null ? 1 : FM.CUSHION_K), 0.14, 0.35), vx0: match.ball.vx, vy0: match.ball.vy }; delay = Math.max(delay, match.ball.ctrl.dur * (FM.CUSHION_WAIT == null ? 0.55 : FM.CUSHION_WAIT)); } else match.ball.ctrl = null;
+      match.ball.ctrl = { p: player, t0: match.clock, kind: sole ? 'sole' : 'side', dur: sole ? 0.12 : clamp((0.1 + 0.013 * bsp) * (1.25 - 0.5 * skill) * (FM.CUSHION_K == null ? 1 : FM.CUSHION_K), 0.14, 0.35), vx0: match.ball.vx, vy0: match.ball.vy }; if (!sole && !FM.NO_DIRTOUCH) { const psp = Math.hypot(player.vx || 0, player.vy || 0), ix = psp > 1.8 ? player.vx / psp : team.attackDir, iy = psp > 1.8 ? player.vy / psp : 0; match.ball.ctrl.dx = ix; match.ball.ctrl.dy = iy; match.ball.ctrl.vexit = clamp(1.0 + 0.2 * bsp, 1.2, 2.6); } delay = Math.max(delay, match.ball.ctrl.dur * (FM.CUSHION_WAIT == null ? 0.55 : FM.CUSHION_WAIT)); } else match.ball.ctrl = null;
     match.lastTeam = team;
     match.ball.state = 'carried';
     match.nextDecision = match.clock + delay;
@@ -2513,19 +2513,32 @@
     if (cu) {
       // the first touch: the ball's velocity eases from what it arrived with to the man's own, with a pull toward his foot (a touch that takes it into his feet)
       const u = clamp((match.clock - cu.t0 + dt) / cu.dur, 0, 1), e = cu.kind === 'sole' ? Math.min(1, u * 1.6) : 0.5 * (u + u * u * (3 - 2 * u)), bdx0 = ball.x - p.x, bdy0 = ball.y - p.y, bl0 = Math.hypot(bdx0, bdy0) || 1, fx = p.x + bdx0 / bl0 * Math.min(0.5, bl0), fy = p.y + bdy0 / bl0 * Math.min(0.5, bl0), ddx = fx - ball.x, ddy = fy - ball.y, dd = Math.hypot(ddx, ddy) || 1, pull = cu.kind === 'sole' ? Math.min(8, dd * 9) : Math.min(dd > 1.5 ? 6 : 3.5, dd * (dd > 1.5 ? 4 : 3));
-      const keepV = cu.kind === 'sole' ? 0.1 : 1, tvx = (p.vx || 0) * keepV + ddx / dd * pull, tvy = (p.vy || 0) * keepV + ddy / dd * pull;   // (a sole trap kills the ball's pace: it does not carry on at the man's own speed)
+      const keepV = cu.kind === 'sole' ? 0.1 : 1, dv = cu.vexit && cu.dx != null ? cu.vexit : 0, tvx = (p.vx || 0) * keepV + ddx / dd * pull + (cu.dx || 0) * dv, tvy = (p.vy || 0) * keepV + ddy / dd * pull + (cu.dy || 0) * dv;   // (a sole trap kills the ball's pace: it does not carry on at the man's own speed)
       ball.vx = cu.vx0 + (tvx - cu.vx0) * e; ball.vy = cu.vy0 + (tvy - cu.vy0) * e; ball.x += ball.vx * dt; ball.y += ball.vy * dt; ball.lastTouch = match.clock;
       if (ball.y < 0.3 || ball.y > W - 0.3) { ball.y = clamp(ball.y, 0.3, W - 0.3); if ((ball.y < 1 && ball.vy < 0) || (ball.y > W - 1 && ball.vy > 0)) ball.vy *= 0.2; }   // a man who has the ball coming to him on the line controls it there: it does not run out under his foot
-    } else { ball.x += ball.vx * dt; ball.y += ball.vy * dt; const fr = Math.exp(-1.25 * dt); ball.vx *= fr; ball.vy *= fr; }
-    const along = (ball.x - p.x) * ux + (ball.y - p.y) * uy, lat = (ball.x - p.x) * nx + (ball.y - p.y) * ny, lost = along > (run ? 4.4 : 2.4) || along < -2.2 || Math.abs(lat) > 2.4;
-    if (lost && !cu) { match.carrier = null; match.carry = null; match.pendingAct = null; ball.state = 'loose'; p.noPick = match.clock + 0.05; return; }   // a heavy touch: he has to go and get it
+    } else if (FM.OLD_CARRY) { ball.x += ball.vx * dt; ball.y += ball.vy * dt; const fr = Math.exp(-1.25 * dt); ball.vx *= fr; ball.vy *= fr; }
+    else {
+      // A ball played on by a man running with it travels with him: what it has over his own pace (the push) dies away on the grass, and it slows a little more than he does, so it
+      // drifts ahead, comes back to his foot and is played again. It does not run off at the speed of the touch.
+      ball.x += ball.vx * dt; ball.y += ball.vy * dt;
+      const rx = ball.vx - (p.vx || 0), ry = ball.vy - (p.vy || 0), k = Math.exp(-(FM.CARRY_K == null ? 1.8 : FM.CARRY_K) * dt), ra = FM.CARRY_A == null ? 0.7 : FM.CARRY_A, rl = Math.hypot(rx, ry), nl = Math.max(0, rl * k - (rl > 0.01 ? 0 : 0)), al = rx * ux + ry * uy;
+      let rnx = rl > 1e-6 ? rx / rl * nl : 0, rny = rl > 1e-6 ? ry / rl * nl : 0; rnx -= ux * ra * dt; rny -= uy * ra * dt;
+      ball.vx = (p.vx || 0) + rnx; ball.vy = (p.vy || 0) + rny; void al;
+      // a man who has the ball does not leave it behind: when it is more than a stride from him he takes it along, drawing it in toward his front foot
+      if (dB > (FM.STAY_AT == null ? 1.2 : FM.STAY_AT) && !FM.NO_STAY) {
+        const tx = p.x + ux * 0.55, ty = p.y + uy * 0.55, ex = tx - ball.x, ey = ty - ball.y, el = Math.hypot(ex, ey) || 1, want = Math.min(el * 2.6, sp + 2.6), kk = Math.min(1, dt * 4);
+        ball.vx += (ex / el * want - ball.vx) * kk; ball.vy += (ey / el * want - ball.vy) * kk;
+      }
+    }
+    const along = (ball.x - p.x) * ux + (ball.y - p.y) * uy, lat = (ball.x - p.x) * nx + (ball.y - p.y) * ny, lost = FM.OLD_CARRY ? (along > (run ? 4.4 : 2.4) || along < -2.2 || Math.abs(lat) > 2.4) : (along > (run ? 3.0 : 2.2) || along < -1.8 || Math.abs(lat) > 1.8);
+    if (lost && !cu && !(pa && dB < 3.2 && !FM.OLD_CARRY)) { FM.lostCount = (FM.lostCount || 0) + 1; if (FM.lostSamples && FM.lostSamples.length < 60) FM.lostSamples.push({ along: +along.toFixed(2), lat: +lat.toFixed(2), sp: +sp.toFixed(1), bs: +Math.hypot(ball.vx, ball.vy).toFixed(1), run, dB: +dB.toFixed(2), sinceTouch: +(match.clock - (ball.lastTouch || 0)).toFixed(2), pa: !!pa }); match.carrier = null; match.carry = null; match.pendingAct = null; ball.state = 'loose'; p.noPick = match.clock + 0.05; return; }   // a heavy touch: he has to go and get it
     // A touch is decided, and the foot swings to the ball; the ball is pushed when the foot reaches it (a step later), not before the swing has begun.
-    const pushNow = () => { const push = run ? 4.6 + 0.3 * sp : 0.62 + 0.08 * sp, sd = (run ? 0.5 : 0.25) * ball.side; ball.vx = ux * (sp + push) + nx * sd; ball.vy = uy * (sp + push) + ny * sd; };
+    const pushNow = () => { const push = FM.OLD_CARRY ? (run ? 4.6 + 0.3 * sp : 0.62 + 0.08 * sp) : (run ? 1.2 + 0.15 * sp : 0.62 + 0.08 * sp), sd = (FM.OLD_CARRY ? (run ? 0.5 : 0.25) : (run ? 0.3 : 0.2)) * ball.side; ball.vx = ux * (sp + push) + nx * sd; ball.vy = uy * (sp + push) + ny * sd; };
     if (ball.pushAt != null) {
       if (match.clock - ball.lastTouch > 0.5 || ball.pushOf !== p) ball.pushAt = null;
       else if (match.clock >= ball.pushAt - 1e-6) { ball.pushAt = null; pushNow(); }
     }
-    else if (along > -0.4 && along < (run ? 0.56 : TOUCH_REACH) && Math.abs(lat) < 0.9 && match.clock - ball.lastTouch > 0.17 && !pa) {
+    else if (along > -0.4 && along < (run ? (FM.OLD_CARRY ? 0.56 : 0.8) : TOUCH_REACH) && Math.abs(lat) < 0.9 && match.clock - ball.lastTouch > 0.17 && !pa) {
       ball.side = -ball.side; ball.lastTouch = match.clock; ball.touchBy = p; ball.touchSide = ball.side; ball.touchAt = match.clock;
       if (FM.PUSH_DELAY === 0) pushNow(); else { ball.pushAt = match.clock + (FM.PUSH_DELAY == null ? 0.1 : FM.PUSH_DELAY); ball.pushOf = p; }
     }
