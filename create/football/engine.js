@@ -905,8 +905,14 @@
       // the live match (0.1 s steps) and the background matches (0.25 s) must play out alike, and 1 - exp(-5.1 dt) is exactly the 40% a 0.1 s step
       // always used. (It used to be min(1, 4 dt), which at 0.25 s meant no smoothing at all, so background players were far twitchier.)
       const k = 1 - Math.exp(-5.1 * dt);
-      p.vx += (Math.cos(p.facing) * speed * alignment - p.vx) * k;
-      p.vy += (Math.sin(p.facing) * speed * alignment - p.vy) * k;
+      let ax = (Math.cos(p.facing) * speed * alignment - p.vx) * k, ay = (Math.sin(p.facing) * speed * alignment - p.vy) * k;
+      // A man cannot change his velocity faster than his legs allow: he gets up to speed over a second or so and takes a few strides to stop, so every
+      // change of pace and direction is a curve, never a jump from one spot on the pitch to another.
+      if (!FM.NO_ACC_LIMIT) {
+        const sp0 = Math.hypot(p.vx, p.vy), dvm = Math.hypot(ax, ay), braking = (p.vx * ax + p.vy * ay) < 0, lim = (braking ? (FM.BRAKE_MAX == null ? 9 : FM.BRAKE_MAX) : (FM.ACC_MAX == null ? 6 : FM.ACC_MAX)) * (0.75 + 0.25 * Math.min(1, p.maxSpeed / 8)) * dt;
+        void sp0; if (dvm > lim) { ax *= lim / dvm; ay *= lim / dvm; }
+      }
+      p.vx += ax; p.vy += ay;
     });
     // Teammates keep a little space from each other.
     for (let i = 0; i < team.players.length; i++) {
