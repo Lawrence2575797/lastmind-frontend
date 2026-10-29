@@ -983,6 +983,49 @@
   .board-money span { display:flex; flex-direction:column; gap:5px; padding:13px; border-radius: 0; background:rgba(255,255,255,.045); color:var(--muted); font-size:.78rem; text-transform:uppercase; letter-spacing:.05em; }
   .board-money b { color:var(--cream); font-size:1.05rem; text-transform:none; letter-spacing:0; }
   @media(max-width:720px) { .card-title-row { align-items:flex-start; flex-direction:column; } .card-title-row select { width:100%; } .approval-line { grid-template-columns:1fr 44px; } .approval-track { grid-column:1 / -1; grid-row:2; } .board-money { grid-template-columns:1fr; } }
+  /* Phones, while a match is on: the pitch first and as large as it can be, one tidy block of controls, and the stats and events a tap away. */
+  .stats-toggle { display: none; }
+  @media (max-width: 640px) {
+    body[data-view="match"] { padding: 8px 8px 24px; }
+    body[data-view="match"] .shell { gap: 8px; grid-template-columns: minmax(0, 1fr); }
+    body[data-view="match"] #view-match { min-width: 0; }
+    body[data-view="match"] .topbar { display: block; padding: 0; }
+    body[data-view="match"] .topbar h1 { font-size: 1.05rem; }
+    body[data-view="match"] .topbar .sub { display: none; }
+    body[data-view="match"] .topgroup { display: flex; flex-wrap: nowrap; gap: 6px; overflow-x: auto; scrollbar-width: none; margin-top: 6px; padding-bottom: 2px; }
+    body[data-view="match"] .topgroup::-webkit-scrollbar { display: none; }
+    body[data-view="match"] .topright, body[data-view="match"] .nav { display: flex; flex-wrap: nowrap; gap: 6px; flex: none; }
+    body[data-view="match"] .topright > :not(button):not(a) { display: none; }
+    body[data-view="match"] .topgroup button, body[data-view="match"] .topgroup a { flex: none; white-space: nowrap; padding: 6px 11px; font-size: .78rem; border-width: 1px; }
+    body[data-view="match"] .score { flex-wrap: nowrap; gap: 8px; padding: 7px 12px; }
+    body[data-view="match"] .score .team { flex: 1 1 0; min-width: 0; font-size: .82rem; gap: 6px; }
+    body[data-view="match"] .score .team:last-child { justify-content: flex-end; text-align: right; }
+    body[data-view="match"] #view-match > div { grid-template-columns: minmax(0, 1fr); gap: 8px !important; }
+    body[data-view="match"] .layout { gap: 8px; }
+    body[data-view="match"] .score { overflow: hidden; min-width: 0; }
+    body[data-view="match"] .score .team span:not(.swatch) { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    body[data-view="match"] .score .swatch { flex: none; }
+    body[data-view="match"] .score .big { font-size: 1.5rem; }
+    body[data-view="match"] .score .clock { font-size: .78rem; }
+    body[data-view="match"] .incidents { display: none; }
+    body[data-view="match"] .pitch-wrap { padding: 0; margin: 0 -8px; }
+    body[data-view="match"] .pitch-pause { right: 8px; top: 8px; padding: 6px 12px; font-size: .85rem; }
+    body[data-view="match"] .match-commentary { margin-top: 0; min-height: 0; padding: 6px 10px; font-size: .8rem; line-height: 1.3; }
+    body[data-view="match"] .match-commentary::before { margin-right: 8px; padding: 2px 5px; font-size: .55rem; }
+    body[data-view="match"] .controls { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; padding: 8px; }
+    body[data-view="match"] #playBtn, body[data-view="match"] .view-pick { grid-column: 1 / -1; }
+    body[data-view="match"] #playBtn { padding: 11px; font-size: 1rem; }
+    body[data-view="match"] .view-pick { display: flex; align-items: center; gap: 8px; margin: 0; font-size: .78rem; }
+    body[data-view="match"] .view-pick select { flex: 1; min-width: 0; }
+    body[data-view="match"] .controls [data-speed="0.5"], body[data-view="match"] .controls [data-speed="1.5"], body[data-view="match"] .controls [data-speed="6"],
+    body[data-view="match"] #jobsBtn, body[data-view="match"] #skipBtn, body[data-view="match"] #viewNote, body[data-view="match"] .legend { display: none; }
+    body[data-view="match"] #highlightBtn { grid-column: 1 / 3; }
+    body[data-view="match"] #simEndBtn { grid-column: 3; }
+    body[data-view="match"] .controls button { padding: 8px 6px; font-size: .8rem; }
+    body[data-view="match"] .stats-toggle { display: block; width: 100%; margin-top: 8px; padding: 10px; }
+    body[data-view="match"]:not(.show-stats) .layout > aside.panel { display: none; }
+    body[data-view="match"] .layout > aside.panel { padding: 12px; }
+  }
 </style>
 <link rel="stylesheet" href="/create/football/maths-editor.css?v=20261125b">
 <link rel="stylesheet" href="/create/football/workbench.css?v=20261029c">
@@ -1073,6 +1116,7 @@
             </div>
             <div class="legend" id="legend"></div>
           </div>
+          <button type="button" class="stats-toggle" id="statsToggle" aria-expanded="false">Match stats and events</button>
         </div>
         <aside class="panel">
           <div class="group"><h2>Match</h2><table class="stats" id="stats"></table></div>
@@ -1116,7 +1160,7 @@
 <script src="/create/football/plan_analysis.js?v=20261029a"></script>
 <script src="/create/football/plan_ui.js?v=20261029cs"></script>
 <script src="/create/football/fitness.js?v=20261127a"></script>
-<script src="/create/football/match.js?v=20261029ojkq"></script>
+<script src="/create/football/match.js?v=20261029ojkqmr"></script>
 <script src="/create/football/league.js?v=20261029bnp"></script>
 <script src="/create/football/preseason.js?v=20261208a"></script>
 <script src="/create/football/stats_math.js?v=20261010c"></script>
@@ -1190,7 +1234,7 @@
 <script src="/create/football/animclips.js?v=20261028c"></script>
 <script src="/create/football/stadium.js?v=20261028b"></script>
 <script src="/create/football/playermodel.js?v=20261028c"></script>
-<script src="/create/football/view3d.js?v=20261029pjk"></script>
-<script src="/create/football/main.js?v=20261029ejq"></script>
+<script src="/create/football/view3d.js?v=20261029pjkmnr"></script>
+<script src="/create/football/main.js?v=20261029ejqmr"></script>
 </body>
 </html>

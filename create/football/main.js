@@ -30,11 +30,13 @@
   let scale = 1;
   function resize() {
     const dpr = window.devicePixelRatio || 1;
-    const cssW = canvas.parentElement.clientWidth - 20;
+    const cssW = canvas.parentElement.clientWidth - (window.innerWidth <= 640 && document.body.getAttribute('data-view') === 'match' ? 0 : 20);
     if (cssW <= 0) return;
     const cssH = cssW * (W + 2 * MARGIN) / (L + 2 * MARGIN);
     canvas.style.height = cssH + 'px';
-    { const h3 = el('pitch3d'); if (h3) { h3.style.height = cssH + 'px'; if (FM.view3d && FM.view3d.ready) FM.view3d.resize(); } }
+    // on a phone the 3D view is as tall as the screen allows (it reads better upright than in a wide strip)
+    const phone = window.innerWidth <= 640, h3H = phone ? Math.max(cssH, Math.min(window.innerHeight * 0.5, cssW * 1.1)) : cssH;
+    { const h3 = el('pitch3d'); if (h3) { h3.style.height = h3H + 'px'; if (FM.view3d && FM.view3d.ready) FM.view3d.resize(); } }
     canvas.width = Math.round(cssW * dpr);
     canvas.height = Math.round(cssH * dpr);
     scale = canvas.width / (L + 2 * MARGIN);
@@ -167,7 +169,7 @@
     h.saved.ball.p.x = h.saved.ball.x; h.saved.ball.p.y = h.saved.ball.y;
   }
   function hlCancel() {
-    hlRestore(); world.hl = null; world.hlHold = null; world.hlScanned = null; world.hlWait = null; world.highlightSearching = false; hlOverlay(false);
+    hlRestore(); world.hl = null; world.hlHold = null; if (world.match) world.match.hlNow = null; world.hlScanned = null; world.hlWait = null; world.highlightSearching = false; hlOverlay(false);
   }
   function hlStartReplay(m, e, index, tail) {
     const r = m.rec, t0 = e.t - (e.type === 'goal' ? 10 : 8), t1 = e.t + tail;
@@ -180,7 +182,7 @@
     const span = frames[frames.length - 1].t - frames[0].t;
     // A highlight is a replay of recorded positions, but it must keep the same
     // viewing pace as the rest of the match instead of dropping into slow motion.
-    world.hl = { phase: 'replay', frames, start: performance.now(), span, dur: span * 1000 / (MATCH_SPEED * world.speed), saved };
+    world.hl = { phase: 'replay', frames, start: performance.now(), span, dur: span * 1000 / (MATCH_SPEED * world.speed), saved }; m.hlNow = frames[0].t;   // the replay's clock: the 3D view plays what happened in it as it reaches it
     // the score and the goal's commentary wait for the ball to cross the line in the replay: until then the scoreboard shows what it showed before
     if (e.type === 'goal') world.hlHold = { index, goalT: e.t, home: m.score[m.home.id] - (e.team === m.home.id ? 1 : 0), away: m.score[m.away.id] - (e.team === m.away.id ? 1 : 0) };
     return true;
@@ -188,7 +190,7 @@
   function hlReplayStep(m, now, dt) {
     const h = world.hl, el = now - h.start, fr = h.frames;
     world.vt += dt;
-    const tt = fr[0].t + h.span * Math.min(1, el / Math.max(1, h.dur));
+    const tt = fr[0].t + h.span * Math.min(1, el / Math.max(1, h.dur)); m.hlNow = tt;
     let k = 0; while (k < fr.length - 2 && fr[k + 1].t <= tt) k++;
     const a = fr[k], b = fr[Math.min(k + 1, fr.length - 1)], u = b.t > a.t ? Math.max(0, Math.min(1, (tt - a.t) / (b.t - a.t))) : 0;
     const put = (list, from, to) => list.forEach((p) => { const f = from.find((z) => z[0] === p.number), g = to.find((z) => z[0] === p.number); if (f) { p.x = f[1] + ((g ? g[1] : f[1]) - f[1]) * u; p.y = f[2] + ((g ? g[2] : f[2]) - f[2]) * u; } });
@@ -196,7 +198,7 @@
     m.ball.x = a.b[0] + (b.b[0] - a.b[0]) * u; m.ball.y = a.b[1] + (b.b[1] - a.b[1]) * u;
     draw();
     if (world.hlHold && tt >= world.hlHold.goalT) { world.hlHold = null; updateHud(); }   // the ball is in the net: now the score and the call
-    if (el >= h.dur) { hlRestore(); world.hl = null; world.hlHold = null; world.highlightUntil = world.vt + 4.5; }
+    if (el >= h.dur) { hlRestore(); world.hl = null; world.hlHold = null; m.hlNow = null; world.highlightUntil = world.vt + 4.5; }
   }
   function seekHighlight(m) {
     if (world.hlScanned == null) world.hlScanned = m.events.length;
@@ -506,6 +508,7 @@
     if (name) world.league.saveName = name; else delete world.league.saveName;
     const b = el('saveBtn'); if (b && !b.disabled) b.click(); else { try { await FM.saveNow(world.league); } catch (e) { /* the next save writes it */ } }
   });
+  { const st = el('statsToggle'); if (st) st.addEventListener('click', () => { const on = document.body.classList.toggle('show-stats'); st.setAttribute('aria-expanded', String(on)); st.textContent = on ? 'Hide stats and events' : 'Match stats and events'; }); }
   el('pitchPlay').addEventListener('click', () => el('playBtn').click());
   el('pitchPause').addEventListener('click', () => el('playBtn').click());
   if (el('viewMode')) el('viewMode').addEventListener('change', () => { world.viewMode = el('viewMode').value; try { localStorage.setItem('lm_football_view', world.viewMode); } catch (e) { /* a convenience only */ } applyViewMode(); });

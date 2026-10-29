@@ -5,7 +5,7 @@
   const { L, W } = FM.PITCH, HL = L / 2, HW = W / 2, G = 9.81;
   let THREE = null, ready = false, loading = null, failed = false;
   let host = null, renderer, scene, camera, sun, players = new Map(), ballMesh, ballRing, nets = { '-1': [], '1': [] }, netT = 0, clock = 0;
-  let mode = 'touchline', lastEv = 0, lastEvLen = 0, flightRec = null, goalFx = null, look = { x: 0, z: 0 }, cam = { x: 0, y: 4, z: HW + 5 };
+  let mode = 'touchline', lastEv = 0, lastEvLen = 0, hlReading = false, flightRec = null, goalFx = null, look = { x: 0, z: 0 }, cam = { x: 0, y: 4, z: HW + 5 };
   const lastPos = new Map();
 
   function load() {
@@ -144,7 +144,7 @@
     }
     e.jobSprite.visible = !!t;
   }
-  function addContact(e, foot, tc, kind) { contacts.push({ e, foot, tc, kind }); if (contacts.length > 12) contacts.shift(); }
+  function addContact(e, foot, tc, kind, hold) { contacts.push({ e, foot, tc, kind, hold: hold || 0 }); if (contacts.length > 12) contacts.shift(); }
   const smooth = (e0, e1, x) => { const t = clamp((x - e0) / (e1 - e0), 0, 1); return t * t * (3 - 2 * t); };
   const down = (y, j, r) => 1 - smooth(j - r, j + r, y);   // 0 above a joint, 1 below it, easing across the joint
   // bone order: 0 body, 1 torso, 2 head, 3-5 left arm/elbow/hand, 6-8 right arm/elbow/hand, 9-11 left hip/knee/ankle, 12-14 right hip/knee/ankle
@@ -305,7 +305,7 @@
     return { hip: hipX_, knee: kneeX, ankle: -(th + hipX_ + kneeX) + toe, abd: clamp(Math.atan2(lx, -dy), -0.5, 0.5) };
   }
   // A small note in the corner of the 3D view saying which movement is in use, so a failure to load the motion-captured clips is never silent.
-  let badge = null, badgeT = 0, badgeD = 0;
+  let badge = null, badgeT = 0, badgeD = 0, badgeSince = 0;
   function motionBadge() {
     const now = performance.now(); if (now - badgeT < 500 || !host) return; badgeT = now;
     if (!badge || badge.parentElement !== host) { badge = document.createElement('div'); badge.id = 'motionBadge'; badge.style.cssText = 'position:absolute;left:8px;bottom:8px;z-index:5;padding:4px 9px;font:600 11.5px system-ui,sans-serif;border-radius:4px;pointer-events:none;max-width:70%'; host.appendChild(badge); }
@@ -313,7 +313,8 @@
     if (!A) { txt = 'Motion capture: animation script did not load. Using basic movement. Try a hard refresh (Ctrl+Shift+R).'; bad = true; }
     else if (A.failed) { txt = 'Motion capture failed to load (' + (A.error || 'unknown error') + '). Using basic movement. Try a hard refresh (Ctrl+Shift+R).'; bad = true; }
     else if (!A.ready) txt = 'Loading motion capture...';
-    else { const n = (A.drove || 0) - badgeD; badgeD = A.drove || 0; if (n > 0 || now - (A.droveAt || 0) < 1500) { txt = 'Motion capture on (' + Object.keys(A.clips || {}).length + ' Mixamo clips)'; good = true; } else { txt = 'Motion capture loaded but not driving the players. Using basic movement.'; bad = true; } }
+    // (the first seconds are a grace period: before kick-off nothing is moving yet)
+    else { const n = (A.drove || 0) - badgeD; badgeD = A.drove || 0; if (!badgeSince) badgeSince = now; if (n > 0 || now - (A.droveAt || 0) < 1500 || now - badgeSince < 6000) { txt = 'Motion capture on (' + Object.keys(A.clips || {}).length + ' Mixamo clips)'; good = true; } else { txt = 'Motion capture loaded but not driving the players. Using basic movement.'; bad = true; } }
     badge.style.display = bad ? '' : 'none';   // only a problem is shown; when it works there is nothing to say
     badge.textContent = txt; badge.style.background = bad ? 'rgba(160,40,30,.92)' : 'rgba(10,20,16,.72)'; badge.style.color = bad ? '#fff' : good ? '#8fe0a8' : '#e8dcb8';
   }
@@ -526,9 +527,13 @@
   }
   function readEvents(m) {
     const ev = m.events; if (!ev || !ev.length) { lastEv = 0; lastEvLen = 0; return; }
-    if (ev.length < lastEvLen || ev[ev.length - 1].t < lastEv - 5) { lastEv = ev[ev.length - 1].t; lastEvLen = ev.length; return; }
-    for (let i = Math.max(0, ev.length - 12); i < ev.length; i++) {
-      const e = ev[i]; if (e.t <= lastEv || e.t < m.clock - 8) continue;
+    // In a highlight the match has already been played on to the end of the clip and what is shown is a replay of it: what happens in it (the kick, the tackle, the goal and
+    // the celebration) is read against the replay's own clock (m.hlNow), so each comes when the replay reaches it and not all at once at its start.
+    const hl = m.hlNow != null, now = hl ? m.hlNow : m.clock;
+    if (hl !== hlReading) { hlReading = hl; if (hl) lastEv = now - 0.001; else { lastEv = ev[ev.length - 1].t; lastEvLen = ev.length; goalFx = null; return; } }
+    if (!hl && (ev.length < lastEvLen || ev[ev.length - 1].t < lastEv - 5)) { lastEv = ev[ev.length - 1].t; lastEvLen = ev.length; return; }
+    for (let i = Math.max(0, ev.length - (hl ? 80 : 12)); i < ev.length; i++) {
+      const e = ev[i]; if (e.t <= lastEv || (hl ? e.t > now : e.t < m.clock - 8)) continue;
       const k = e.type; if (k === 'pass' || k === 'shot' || k === 'cross') { const ke = findBy(m, e.team, e.from || e.player); setPose(ke, 'kick', 0.42, ke ? ke.foot : 1); }
       if (k === 'shot') { const shooterT = m.teams.find((t) => t.id === e.team), def = m.teams.find((t) => t.id !== e.team), gk = def && def.players.find((p) => p.group === 'GK'), ge = gk && players.get(gk.id); if (ge && (e.outcome === 'saved' || e.outcome === 'goal')) { const lat = (e.ey != null ? e.ey : m.ball.y) - gk.y; setPose(ge, 'dive', 0.9, lat >= 0 ? -1 : 1); } void shooterT; }
       if (k === 'tackle') {
@@ -543,6 +548,7 @@
       if (k === 'foul') { const vt = m.teams.find((t) => t.id !== e.team); if (vt) setPose(findBy(m, vt.id, e.vs), 'fall', 1.1); }
       if (k === 'goal') { const dir = (m.teams.find((t) => t.id === e.team) || {}).attackDir || 1; setPose(findBy(m, e.team, e.player), 'celebrate', 1.8); goalFx = { side: dir, t: 0, y: 0.5 + Math.random() * 0.8, z: clamp(m.ball.y - HH(), -3.2, 3.2), hit: false }; }
     }
+    if (hl) { lastEv = now; lastEvLen = ev.length; return; }
     lastEv = ev[ev.length - 1].t; lastEvLen = ev.length;
   }
   const HH = () => HW;
@@ -561,7 +567,7 @@
 
   function size() {
     if (!host || !renderer) return; const w = host.clientWidth || 800, h = host.clientHeight || 450; renderer.setSize(w, h, false);
-    camera.aspect = w / h; const hfov = (mode === "stands" ? 60 : 74) * Math.PI / 180; camera.fov = 2 * Math.atan(Math.tan(hfov / 2) / camera.aspect) * 180 / Math.PI; camera.updateProjectionMatrix();
+    camera.aspect = w / h; const upright = camera.aspect < 1.3, hfov = (mode === "stands" ? (upright ? 40 : 60) : (upright ? 50 : 74)) * Math.PI / 180;   // upright (a phone): a narrower view, so the pitch fills it rather than the stands camera.fov = 2 * Math.atan(Math.tan(hfov / 2) / camera.aspect) * 180 / Math.PI; camera.updateProjectionMatrix();
   }
   function setCamera(dt, bx, bz, snap, spc) {
     const k = snap ? 1 : 1 - Math.exp(-dt * (spc ? 3.6 : mode === 'stands' ? 3.4 : 2.6));
@@ -663,11 +669,11 @@
           { const pa = m.pendingAct; if (FM.anim && FM.anim.ready && pa && pa.player === p && e.kickTag !== pa && (pa.opt.kind === 'pass' || pa.opt.kind === 'shoot' || pa.opt.kind === 'clear')) { const rem = pa.release - m.clock + lagS; if (rem <= 0.6 + lagS) { e.kickTag = pa; e.kickAt = performance.now(); FM.anim.kick(e, rem, { shot: pa.opt.kind === 'shoot', gk: p.group === 'GK' }); addContact(e, e.foot < 0 ? 'Left' : 'Right', pa.release, 'kick'); logAct({ id: p.id, kick: 1, t: recT + rem - 0.12, rem: 0.12 }); } } } }
         { const kc = m.kickCue; if (!replay && FM.anim && FM.anim.ready && kc && kc.player === p && e.kickTag !== kc) { const rem = kc.release - m.clock + lagS; if (rem <= 0.55 + lagS) { e.kickTag = kc; e.kickAt = performance.now(); FM.anim.kick(e, Math.max(0.12, rem), {}); addContact(e, e.foot < 0 ? 'Left' : 'Right', kc.release, 'kick'); logAct({ id: p.id, kick: 1, t: recT + Math.max(0.12, rem) - 0.12, rem: 0.12 }); } } }
         // the first touch: a man who has just received the ball cushions it
-        if (isC && !e.wasC && e.speed < 8) { if (p.group === 'GK' && FM.anim && FM.anim.ready && FM.anim.play(e, 'gkCatch2', { len: 1.1, fi: 0.08, fo: 0.3 })) { /* a keeper's catch */ } else if (Math.hypot(m.ball.x - p.x, m.ball.y - p.y) < 1.0) { setPose(e, 'control', 0.26, e.foot); if (!replay && Math.hypot(m.ball.vx || 0, m.ball.vy || 0) > 1.2) addContact(e, e.foot < 0 ? 'Left' : 'Right', m.possessionReceivedAt != null ? m.possessionReceivedAt : rt, 'control'); } } e.wasC = isC;
+        if (isC && !e.wasC && e.speed < 8) { if (p.group === 'GK' && FM.anim && FM.anim.ready && FM.anim.play(e, 'gkCatch2', { len: 1.1, fi: 0.08, fo: 0.3 })) { /* a keeper's catch */ } else if (Math.hypot(m.ball.x - p.x, m.ball.y - p.y) < 1.0) { const hold = m.ball.ctrl && m.ball.ctrl.p === p ? m.ball.ctrl.dur : 0; setPose(e, 'control', Math.max(0.26, hold + 0.12), e.foot); if (!replay && (hold || Math.hypot(m.ball.vx || 0, m.ball.vy || 0) > 1.2)) addContact(e, e.foot < 0 ? 'Left' : 'Right', m.possessionReceivedAt != null ? m.possessionReceivedAt : rt, 'control', hold); } } e.wasC = isC;
         if (e.pose) { e.pose.t += dt; if (e.pose.t >= e.pose.dur) e.pose = null; else applyPose(e.fig, e.pose.type, e.pose.t, e.pose.dur, e.pose.dir); }
         // the man who is playing the ball puts his boot on it
         if (!replay && contacts.length) {
-          let cb = null, cw = 0; contacts.forEach((c) => { if (c.e !== e) return; const w = smooth(c.tc - 0.14, c.tc - 0.03, rt) * (1 - smooth(c.tc, c.tc + 0.1, rt)); if (w > cw) { cw = w; cb = c; } });
+          let cb = null, cw = 0; contacts.forEach((c) => { if (c.e !== e) return; const w = smooth(c.tc - 0.14, c.tc - 0.03, rt) * (1 - smooth(c.tc + c.hold, c.tc + c.hold + 0.1, rt)); if (w > cw) { cw = w; cb = c; } });
           if (cb && cw > 0.001) {
             const ft = e.fig, kf = cb.foot === 'Left' ? ft.L : ft.R, pfoot = cb.foot === 'Left' ? 'Right' : 'Left', pf = cb.foot === 'Left' ? ft.R : ft.L, sc = ft.root.scale.y || 1.3;
             const ahead = Math.max(0, cb.tc - rt) * 0.6, tx = bx0 + (m.ball.vx || 0) * ahead, tz = bz0 + (m.ball.vy || 0) * ahead;
@@ -736,9 +742,9 @@
       { const rs = !replay && m.restart && m.restart.kind === 'throw' ? m.restart : null; if (rs && rs.taker) { const te = players.get(rs.taker.id); if (te && te.setFor === rs) by = 1.95; } }
       // the ball is at the boot when it is played: kicked, pushed on in a dribble, or taken on the first touch
       if (!replay && !goalFx && contacts.length) {
-        contacts = contacts.filter((c) => rt < c.tc + 0.3); let bw = 0, bc = null;
+        contacts = contacts.filter((c) => rt < c.tc + c.hold + 0.3); let bw = 0, bc = null;
         if (FM.view3d.trk) contacts.forEach((c) => { if (rt > c.tc - 0.5 && rt < c.tc + 0.35) { const T = toeOf(c.e, c.foot); if (T) FM.view3d.trk.push({ id: c.e.id + '@' + c.tc, kind: c.kind, dt: rt - c.tc, gap: Math.hypot(T.x - bx, T.z - bz), ty: T.y, by }); } });
-        contacts.forEach((c) => { const w = smooth(c.tc - 0.09, c.tc, rt) * (1 - smooth(c.tc, c.tc + 0.07, rt)); if (w > bw) { bw = w; bc = c; } });
+        contacts.forEach((c) => { const w = smooth(c.tc - 0.09, c.tc, rt) * (1 - smooth(c.tc + c.hold, c.tc + c.hold + 0.07, rt)); if (w > bw) { bw = w; bc = c; } });
         FM.view3d.cur = null;
         if (bc && bw > 0.001) { const T = toeOf(bc.e, bc.foot); if (T) { FM.view3d.cur = { w: bw, kind: bc.kind, x: T.x, y: T.y, z: T.z }; if (FM.view3d.gapLog) FM.view3d.gapLog.push({ id: bc.e.id + '@' + bc.tc, kind: bc.kind, gap: Math.hypot(T.x - bx, T.z - bz), w: bw, dy: Math.abs(T.y + 0.06 - by) }); bx += (T.x - bx) * bw; bz += (T.z - bz) * bw; by += (Math.max(0.115, T.y + 0.06) - by) * bw; } }
       }
