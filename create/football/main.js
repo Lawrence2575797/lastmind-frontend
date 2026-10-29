@@ -421,7 +421,7 @@
       const who = (n) => { const p = playerBy(team, n); return p ? shortName(p) : 'number ' + n; };
       const reveal = !world.highlightsOnly || world.shownEvents >= world.highlightRevealFrom;
       if (reveal && e.type === 'pass' && e.tx != null) world.trails.push({ x0: e.x, y0: e.y, x1: e.tx, y1: e.ty, kind: e.ok ? 'pass' : 'fail', born: world.vt });
-      else if (reveal && e.type === 'shot') world.trails.push({ x0: e.x, y0: e.y, x1: team.attackDir === 1 ? L : 0, y1: W / 2, kind: e.outcome === 'goal' ? 'goal' : 'shot', born: world.vt });
+      else if (reveal && e.type === 'shot') world.trails.push({ x0: e.x, y0: e.y, x1: e.ex != null ? e.ex : (team.attackDir === 1 ? L : 0), y1: e.ey != null ? e.ey : W / 2, kind: e.outcome === 'goal' ? 'goal' : 'shot', born: world.vt });
       if (reveal && e.type === 'tackle' && e.x != null) world.impacts.push({ x: e.x, y: e.y, kind: 'tackle', born: world.vt });
       let text = null;
       if (e.type === 'goal') text = 'GOAL, ' + team.name + ': ' + who(e.player);

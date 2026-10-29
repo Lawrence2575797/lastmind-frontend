@@ -999,7 +999,16 @@
       const attackSpread = zone === 'final' && targetGoalD < 32
         ? (({ ST: (FM.ST_SPREAD == null ? -0.6 : FM.ST_SPREAD), WF: .58, AM: .5, CM: .28, FB: .1 })[t.group] || 0)
         : 0;
-      options.push({ kind: 'pass', target: t, tx, ty, d, lane, press, p, score: off === 'off' ? -4 : score + adj + chance + attackSpread });
+      // Intent: each part of the pitch has a job. The back line wants the ball into midfield, midfield wants it into the final third, and a pass that does that
+      // is worth more, the more the side wants to go forward (its tempo and directness); a pass that stays in the same part is for keeping the ball.
+      let zoneAim = 0;
+      if (!FM.NO_AIM && t.group !== 'GK' && carrier.group !== 'GK') {
+        const td = FM.toTeamSpace(team.attackDir, tx, ty).d, B1 = 0.38, B2 = 0.68, crossed = (ownDepth0 < B1 && td >= B1) ? 1 : (ownDepth0 < B2 && td >= B2 && zone !== 'final') ? 1 : 0;
+        zoneAim = crossed * (FM.ZONE_AIM == null ? 1.3 : FM.ZONE_AIM) * (0.55 + 0.45 * directness + 0.35 * tac.tempo) * p * p;
+        // recycling is for when the way on is shut: with room and a forward pass on, going back or square for nothing is not what he does
+        if (zone !== 'final' && nearNow > 4 && back > 4) zoneAim -= (FM.RECYCLE_PEN == null ? 0.35 : FM.RECYCLE_PEN) * (0.5 + 0.5 * (1 - live.pressure));
+      }
+      options.push({ kind: 'pass', target: t, tx, ty, d, lane, press, p, score: off === 'off' ? -4 : score + adj + chance + attackSpread + zoneAim });
     });
 
     // Beating the press. How likely a team is to go long depends on how the other side press its build-up. Against a side that press high
@@ -1036,8 +1045,8 @@
     const carrySpace = clamp((nearD - 3.5) / 8, 0, 1);
     // With open grass ahead in the attacking half a forward runs at goal instead of standing and passing: he drives until a defender engages him or
     // he is in range to shoot.
-    const drive = ownDepth0 > 0.5 && nearD > 2.2 && ['AM', 'WF', 'ST', 'CM', 'FB', 'DM'].includes(carrier.group) && clearAhead(match, team, carrier, ownDepth0 > 0.72 ? 9 : 14);
-    if ((nearD > 3.5 || drive) && carrier.group !== 'GK') options.push({ kind: 'carry', nearD, drive, score: .38 + (.4 + (FM.CARRY_BONUS == null ? .3 : FM.CARRY_BONUS)) * carrySpace + .22 * directness + .18 * counter - .22 * (zone === 'build' && carrier.group === 'CB' ? 1 : 0) + (drive ? (FM.DRIVE_K == null ? 0.5 : FM.DRIVE_K) * (ownDepth0 > 0.72 ? 1.7 : 1) * (['WF', 'ST', 'AM'].includes(carrier.group) ? 1 : .7) : 0) });
+    const drive = ownDepth0 > 0.5 && nearD > 2.2 && !(!FM.OLD_SHOOT_W && dGoal < (FM.DRIVE_STOP == null ? 24 : FM.DRIVE_STOP) && ['ST', 'WF', 'AM'].indexOf(carrier.group) >= 0 && !through) && ['AM', 'WF', 'ST', 'CM', 'FB', 'DM'].includes(carrier.group) && clearAhead(match, team, carrier, ownDepth0 > 0.72 ? 9 : 14);
+    if ((nearD > 3.5 || drive) && carrier.group !== 'GK') options.push({ kind: 'carry', nearD, drive, score: .38 + (.4 + (FM.CARRY_BONUS == null ? .3 : FM.CARRY_BONUS)) * carrySpace + .22 * directness + .18 * counter - .22 * (zone === 'build' && carrier.group === 'CB' && FM.NO_AIM ? 1 : 0) + (!FM.NO_AIM && zone === 'build' && ['CB', 'FB', 'DM'].indexOf(carrier.group) >= 0 ? (FM.CARRY_AIM == null ? 0.45 : FM.CARRY_AIM) * carrySpace * (0.6 + 0.4 * tac.tempo) : 0) + (drive ? (FM.DRIVE_K == null ? 0.5 : FM.DRIVE_K) * (ownDepth0 > 0.72 ? 1.7 : 1) * (['WF', 'ST', 'AM'].includes(carrier.group) ? 1 : .7) : 0) });
     let dribbleOption = null;
     const willingDribbler = ['WF', 'AM', 'ST', 'CM'].includes(carrier.group) || mods.dribble > 0 || tac.dribbleFreedom > .65;
     if (nearD < 3.1 && willingDribbler && (zone === 'final' || mods.dribble > 0 || tac.dribbleFreedom > .72)) {
@@ -1070,7 +1079,7 @@
     const attackingThird = FM.toTeamSpace(team.attackDir, carrier.x, carrier.y).d > 0.6;
     if (((dGoal < FM.dialM(team, 'shootRange') && attackingThird) || (through && dGoal < FM.dialM(team, 'shootRange') + 6)) && carrier.group !== 'GK') {
       const xg = sig(FM.xgLogit(carrier, carrier.x, carrier.y, team.attackDir, nearD) - 0.55 * crowd(match, team, carrier));
-      options.push({ kind: 'shoot', xg, score: xg * 2.75 * (0.5 + risk * 0.8) * (0.45 + tac.shootFreedom) * mods.shoot - (1 - xg) * 0.2 - Math.max(0, 0.1 - xg) * 6.5 * (1.2 - tac.shootFreedom) * (['AM', 'WF', 'CM'].indexOf(carrier.group) >= 0 ? (FM.MID_LOWXG == null ? .85 : FM.MID_LOWXG) : 1) + 0.25 * clamp((nearD - 1.2) / 2.5, 0, 1) * clamp((25 - dGoal) / 13, 0, 1) + (through ? .28 * clamp((36 - dGoal) / 20, 0, 1) : 0) + .75 * (({ ST: 0.45, WF: .85, AM: 1, CM: .8, DM: .3, FB: .25, CB: .1 })[carrier.group] || 0.4) * clamp((26 - dGoal) / 12, 0, 1) * clamp((nearD - 1.2) / 2.5, 0, 1) + .32 - Math.max(0, .045 - xg) * 5 + (({ ST: -.28, WF: .12, AM: .1, CM: .02 })[carrier.group] || 0) });
+      options.push({ kind: 'shoot', xg, score: xg * 2.75 * (0.5 + risk * 0.8) * (0.45 + tac.shootFreedom) * mods.shoot - (1 - xg) * 0.2 - Math.max(0, 0.1 - xg) * 6.5 * (1.2 - tac.shootFreedom) * (['AM', 'WF', 'CM'].indexOf(carrier.group) >= 0 ? (FM.MID_LOWXG == null ? .85 : FM.MID_LOWXG) : 1) + 0.25 * clamp((nearD - 1.2) / 2.5, 0, 1) * clamp((25 - dGoal) / 13, 0, 1) + (through ? .28 * clamp((36 - dGoal) / 20, 0, 1) : 0) + .75 * ((!FM.OLD_SHOOT_W ? ({ ST: 1.0, WF: .9, AM: .55, CM: .4, DM: .25, FB: .2, CB: .08 }) : ({ ST: 0.45, WF: .85, AM: 1, CM: .8, DM: .3, FB: .25, CB: .1 }))[carrier.group] || 0.4) * clamp((26 - dGoal) / 12, 0, 1) * clamp((nearD - 1.2) / 2.5, 0, 1) + .32 - Math.max(0, .045 - xg) * 5 + ((!FM.OLD_SHOOT_W ? ({ ST: .12, WF: .1, AM: 0, CM: 0 }) : ({ ST: -.28, WF: .12, AM: .1, CM: .02 }))[carrier.group] || 0) + (!FM.OLD_SHOOT_W && ['ST', 'WF'].indexOf(carrier.group) >= 0 && nearD > 2 ? (FM.RANGE_B == null ? 0.8 : FM.RANGE_B) * clamp(1 - Math.abs(dGoal - 17) / 8, 0, 1) * clamp(1 - crowd(match, team, carrier), 0.2, 1) : 0) - (!FM.OLD_SHOOT_W ? (FM.LONG_PEN == null ? 1.4 : FM.LONG_PEN) * clamp((dGoal - 23) / 9, 0, 1) : 0) });
     }
 
     // Under severe pressure near their own goal, defenders can deliberately
@@ -1424,7 +1433,7 @@
       if (q.type === 'pass' && q.team === team.id && q.ok && q.to === carrier.number) { lead = q; break; }
     }
     const cur = match.xr && match.xr.cur;
-    record(match, { type: 'shot', team: team.id, player: carrier.number, xg: shotXg, outcome, defDist: nearD, x: carrier.x, y: carrier.y, setPiece: opt.header ? 'header' : undefined,
+    record(match, { type: 'shot', team: team.id, player: carrier.number, xg: shotXg, outcome, defDist: nearD, x: carrier.x, y: carrier.y, ex, ey: clamp(ey, 0.5, W - 0.5), setPiece: opt.header ? 'header' : undefined,
       from: lead ? lead.from : 0, leadDist: lead ? lead.dist : 0, leadAir: lead && lead.aerial ? 1 : 0, movePasses: cur && cur.team === team.id ? cur.passes : 0, moveSecs: cur && cur.team === team.id ? match.clock - cur.t : 0,
       gkDist: gk ? Math.hypot(gk.x - carrier.x, gk.y - carrier.y) : 0, crowd: crowd(match, team, carrier) });
     match.carrier = null; match.carry = null;
