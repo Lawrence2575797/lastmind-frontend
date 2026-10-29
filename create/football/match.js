@@ -364,6 +364,8 @@
     const c = match.carrier;
     if (c) {
       const opp = other(match, c.team);
+      // Lining up a pass or a shot he steps to the ball and stops with it just in front of his kicking foot, on the line the ball is to go (the ball is not brought to him).
+      { const pa0 = match.pendingAct; if (!FM.OLD_SETTLE && pa0 && pa0.player === c.player) { const a0 = Number.isFinite(pa0.ang) ? pa0.ang : (Number.isFinite(c.player.facing) ? c.player.facing : 0); JOB = 'lines up the strike'; ov.set(c.player, { x: match.ball.x - Math.cos(a0) * 0.5, y: match.ball.y - Math.sin(a0) * 0.5 }); } }
       if (match.carry && match.carry.player === c.player && match.clock < match.carry.until) {
         const reach = FM.toTeamSpace(c.team.attackDir, c.player.x, c.player.y).d > 0.66 ? 9 * (FM.CARRY_FINAL == null ? 0.7 : FM.CARRY_FINAL) : 9;   // in the final third the cover is close: a touch past the man, not a run past the whole defence
         JOB = 'carries it';
@@ -1220,10 +1222,22 @@
   function stepFreePass(match, f, dt) {
     const ball = match.ball, rng = match.rng, team = f.team, opp = other(match, team);
     f.t += dt;
-    if (f.v0 == null) { f.v0 = f.speed; f.speed *= (FM.PASS_BOOST == null ? 1.25 : FM.PASS_BOOST); }
+    const DK = FM.DRAG_K == null ? 0.012 : FM.DRAG_K, DA = FM.ROLL_A0 == null ? 0.9 : FM.ROLL_A0;
+    if (f.v0 == null) {
+      f.v0 = f.speed;
+      if (FM.OLD_DRAG) f.speed *= (FM.PASS_BOOST == null ? 1.25 : FM.PASS_BOOST);
+      else {
+        // It is struck so as to arrive with about the pace it was meant to have: hit harder the further it has to go, because on the way it slows under air drag (which grows with the
+        // square of its speed) and rolling resistance. (Solving dv/dx = -(a0 + k v^2) / v for the speed at the foot.)
+        const va = f.v0 * (FM.ARRIVE_K == null ? 0.75 : FM.ARRIVE_K), len = Math.max(0, f.len || 0);
+        f.speed = Math.max(f.v0, Math.sqrt(Math.max(0, ((DA + DK * va * va) * Math.exp(2 * DK * len) - DA) / DK)));
+      }
+    }
     const x0 = ball.x, y0 = ball.y, sp = f.speed, move = sp * dt;
-    // it slows on the grass; past the place it was aimed at it is rolling out
-    if (f.run < f.len) f.speed = Math.max(f.v0 * 0.62, f.speed * Math.exp(-(FM.PASS_DECAY == null ? 0.45 : FM.PASS_DECAY) * dt)); else f.speed = rollSpeed(f.speed, dt, 0.4);
+    // It slows all the way, and does not stop at the place it was aimed at: past it, it is the same drag and the same rolling resistance.
+    if (FM.OLD_DRAG) { if (f.run < f.len) f.speed = Math.max(f.v0 * 0.62, f.speed * Math.exp(-(FM.PASS_DECAY == null ? 0.45 : FM.PASS_DECAY) * dt)); else f.speed = rollSpeed(f.speed, dt, 0.4); }
+    else if (f.run < f.len) f.speed = Math.max(0.4, f.speed - dt * (DA + DK * f.speed * f.speed));
+    else f.speed = rollSpeed(f.speed, dt, 0.4);   // (past the place it was played to it is a ball rolling on the grass, with the grass's own resistance)
     ball.x += f.dir.x * move; ball.y += f.dir.y * move; f.run += move;
     // a pass that has been completed to a man: the ball is his, and he plays it
     const complete = (p) => {
@@ -2374,15 +2388,23 @@
       // He faces the place the ball is going to, all through the turn and the backswing (the aim follows a team-mate who is moving), so it leaves along the line he is facing.
       if (pa.ang != null && !FM.OLD_FACE) { const o = pa.opt, aim = aimOf(pa.team, o), lag = match.clock - pa.start; if (aim) { const tx = o.target ? aim.x + (o.target.vx || 0) * lag * 0.6 : aim.x, ty = o.target ? aim.y + (o.target.vy || 0) * lag * 0.6 : aim.y; pa.ang = Math.atan2(ty - pa.player.y, tx - pa.player.x); pa.player.turnTo = pa.ang; } }
       else if (pa.ang != null && match.clock >= pa.turnEnd && pa.player.turnTo !== undefined) pa.player.turnTo = undefined;
+      // Two phases. First he steps to the ball and lines up with the target (nothing is kicked yet). Once he is there the strike is set for the end of the backswing, and that is the
+      // moment the ball goes: the swing seen on screen and the release are one event, so the ball only moves when the boot is on it.
+      if (!pa.ready) {
+        const pl = pa.player, a0 = Number.isFinite(pa.ang) ? pa.ang : (Number.isFinite(pl.facing) ? pl.facing : 0), sx = match.ball.x - Math.cos(a0) * 0.5, sy = match.ball.y - Math.sin(a0) * 0.5;
+        const near = Math.hypot(pl.x - sx, pl.y - sy) < (FM.READY_D == null ? 1.1 : FM.READY_D) || dist(match.ball, pl) < 0.75, faced = pa.ang == null || !Number.isFinite(pl.facing) || Math.abs(angleDiff(pl.facing, pa.ang)) < (FM.READY_A == null ? 1.0 : FM.READY_A);   // (he arrives and finishes turning during the backswing)
+        if ((near && faced) || match.clock > pa.start + 1.0) { pa.ready = true; pa.release = Math.ceil((match.clock + (pa.wind == null ? 0.3 : pa.wind)) * 10 - 1e-6) / 10; }
+      }
       if (!match.carrier || match.carrier.player !== pa.player) { pa.player.turnTo = undefined; match.pendingAct = null; }
       // He was lining up a sideways or back pass, but the last defender has been beaten while he did: he is through, so the pass is off and he decides again.
       else if (pa.opt.kind === 'pass' && !match.forcePass && !match.restart && pa.player.group !== 'GK' && (pa.opt.tx - pa.player.x) * pa.team.attackDir < 8 && FM.toTeamSpace(pa.team.attackDir, pa.player.x, pa.player.y).d > 0.6 && !other(match, pa.team).players.some((o) => o.group !== 'GK' && (o.x - pa.player.x) * pa.team.attackDir > -1 && Math.abs(o.y - pa.player.y) < 24)) {
         pa.player.turnTo = undefined; match.pendingAct = null; match.nextDecision = match.clock;
       }
-      else if (match.clock >= pa.release && (dist(match.ball, pa.player) < KICK_REACH || match.clock > pa.release + 0.6) && (FM.OLD_FACE || pa.ang == null || !Number.isFinite(pa.player.facing) || Math.abs(angleDiff(pa.player.facing, pa.ang)) < 0.38 || match.clock > pa.release + 0.4)) {
+      else if (match.clock >= pa.release && (FM.OLD_SETTLE ? ((dist(match.ball, pa.player) < KICK_REACH || match.clock > pa.release + 0.6) && (FM.OLD_FACE || pa.ang == null || !Number.isFinite(pa.player.facing) || Math.abs(angleDiff(pa.player.facing, pa.ang)) < 0.38 || match.clock > pa.release + 0.4)) : pa.ready)) {
         pa.player.turnTo = undefined; match.pendingAct = null;
         const o = pa.opt, lag = match.clock - pa.start;
         if (o.target) { o.tx = clamp(o.tx + (o.target.vx || 0) * lag * 0.6, 1, L - 1); o.ty = clamp(o.ty + (o.target.vy || 0) * lag * 0.6, 1, W - 1); }
+        if (FM.lateLog) FM.lateLog.push({ late: match.clock - pa.release, dB: dist(match.ball, pa.player), off: Number.isFinite(pa.player.facing) && pa.ang != null ? Math.abs(angleDiff(pa.player.facing, pa.ang)) : 0, kind: o.kind });
         if (FM.relLog) { const aim = aimOf(pa.team, o); if (aim && Number.isFinite(pa.player.facing)) FM.relLog.push({ kind: o.kind, turned: pa.ang != null, off: Math.abs(angleDiff(pa.player.facing, Math.atan2(aim.y - pa.player.y, aim.x - pa.player.x))) * 180 / Math.PI, wait: match.clock - pa.start, sp: Math.hypot(pa.player.vx || 0, pa.player.vy || 0) }); }
         runAction(match, pa.team, pa.player, o);
       }
@@ -2398,7 +2420,7 @@
         // motion-captured kick in the 3D view is timed to this.)
         const turnT = need > (FM.TURN_FREE == null ? 0.6 : FM.TURN_FREE) ? Math.min(0.9, need / (FM.TURN_RATE == null ? 7 : FM.TURN_RATE)) : 0, wind = (FM.WIND == null ? 0.3 : FM.WIND) * (turnT > 0 ? 0.65 : 1) * (ft ? 0.4 : 1);
         const ang = turnT > 0 || !FM.OLD_FACE ? Math.atan2(aim.y - player.y, aim.x - player.x) : null;
-        match.pendingAct = { opt, team, player, ang, start: match.clock, turnEnd: match.clock + turnT, release: match.clock + turnT + wind, kick: true };
+        match.pendingAct = { opt, team, player, ang, start: match.clock, turnEnd: match.clock + turnT, wind, ready: !!FM.OLD_SETTLE, release: Math.ceil((match.clock + turnT + wind) * 10 - 1e-6) / 10, kick: true };   // (on a step of the match, so the ball leaves at the instant the boot is on it)
         if (ang != null) player.turnTo = ang; match.carry = null;
       } else runAction(match, team, player, opt);
     }
@@ -2478,6 +2500,10 @@
     if (ball.of !== p) { ball.of = p; ball.lastTouch = match.clock - 0.5; ball.side = 1; }
     const pa = match.pendingAct && match.pendingAct.player === p, dB = Math.hypot(ball.x - p.x, ball.y - p.y);
     const cu = ball.ctrl && ball.ctrl.p === p && match.clock < ball.ctrl.t0 + ball.ctrl.dur - 1e-6 ? ball.ctrl : null; if (!cu) ball.ctrl = null;
+    if ((pa || sp < 0.9) && dB < 1.1 && !cu && !FM.OLD_SETTLE) {
+      // Standing, or lining up a pass or a shot, with the ball near his foot: the ball stays where it is, losing what pace it has, until a boot is put on it. It is not slid across to him.
+      const fr = Math.exp(-3.5 * dt); ball.x += ball.vx * dt; ball.y += ball.vy * dt; ball.vx *= fr; ball.vy *= fr; if (Math.hypot(ball.vx, ball.vy) < 0.15) { ball.vx = 0; ball.vy = 0; } return;
+    }
     if ((pa || sp < 0.9) && dB < 1.1 && !cu) {
       // standing, or lining up a pass or shot, with the ball at his foot: it is settled there
       const kk = Math.min(1, dt * (pa ? 12 : 8)), d = pa ? 0.55 : 0.5;
