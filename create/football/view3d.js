@@ -148,7 +148,7 @@
   // moment of contact, tc; distances in metres along the kick direction; heights are the ankle's.)
   const SWING = { kick: { w0: -0.32, w1: -0.2, back: 0.6, lift: 0.34, bT: -0.18, fT: 0.16, fwd: 0.62, fLift: 0.36, o0: 0.16, o1: 0.3 }, touch: { w0: -0.17, w1: -0.09, back: 0.34, lift: 0.17, bT: -0.1, fT: 0.1, fwd: 0.3, fLift: 0.14, o0: 0.1, o1: 0.19 } };
   const swingW = (c, rt) => { const sw = SWING[c.kind]; return sw ? smooth(c.tc + sw.w0, c.tc + sw.w1, rt) * (1 - smooth(c.tc + sw.o0, c.tc + sw.o1, rt)) : smooth(c.tc - 0.14, c.tc - 0.03, rt) * (1 - smooth(c.tc + c.hold, c.tc + c.hold + 0.1, rt)); };
-  function addContact(e, foot, tc, kind, hold) { contacts.push({ e, foot, tc, kind, hold: hold || 0 }); if (contacts.length > 12) contacts.shift(); }
+  function addContact(e, foot, tc, kind, hold, sole) { contacts.push({ e, foot, tc, kind, hold: (hold || 0) + (sole ? 0.14 : 0), sole: !!sole }); if (contacts.length > 12) contacts.shift(); }
   const smooth = (e0, e1, x) => { const t = clamp((x - e0) / (e1 - e0), 0, 1); return t * t * (3 - 2 * t); };
   const down = (y, j, r) => 1 - smooth(j - r, j + r, y);   // 0 above a joint, 1 below it, easing across the joint
   // bone order: 0 body, 1 torso, 2 head, 3-5 left arm/elbow/hand, 6-8 right arm/elbow/hand, 9-11 left hip/knee/ankle, 12-14 right hip/knee/ankle
@@ -664,6 +664,10 @@
         const isC = !!(m.carrier && m.carrier.player === p), fc = Number.isFinite(rp.facing) ? rp.facing : 0, ab = Math.atan2(lastBall.z - z, lastBall.x - x);
         const wBall = isC ? 0 : 0.72 * (1 - smooth(1.6, 4.6, e.speed)), target = fc + angDiff(fc, ab) * wBall;
         e.hd = e.hd == null ? target : e.hd + angDiff(e.hd, target) * Math.min(1, dt * 9);
+        // He keeps facing the way he is kicking through the strike: the match lets go of him as the man with the ball at the instant of release, which the view reaches a moment before the
+        // boot does, and without this he would swing round to look at the ball just as he meets it.
+        { const striking = !replay && contacts.some((c) => c.e === e && c.kind === 'kick' && rt > c.tc - 0.12 && rt < c.tc + 0.3);
+          if (striking) { if (e.hdHold == null) e.hdHold = e.hd; e.hd = e.hdHold; } else e.hdHold = null; }
         e.fig.root.rotation.y = Math.PI / 2 - e.hd;
         { const dF = e.lastF == null ? 0 : angDiff(e.lastF, e.hd); e.lastF = e.hd;
           e.turn += (clamp(dF / Math.max(dt, 0.001), -9, 9) - e.turn) * Math.min(1, dt * 6);
@@ -674,7 +678,7 @@
           { const pa = m.pendingAct; if (FM.anim && FM.anim.ready && pa && pa.player === p && e.kickTag !== pa && (pa.opt.kind === 'pass' || pa.opt.kind === 'shoot' || pa.opt.kind === 'clear')) { const rem = pa.release - m.clock + lagS; if (pa.ready !== false && rem <= 0.6 + lagS) { e.kickTag = pa; e.kickAt = performance.now(); FM.anim.kick(e, rem, { shot: pa.opt.kind === 'shoot', gk: p.group === 'GK' }); addContact(e, e.foot < 0 ? 'Left' : 'Right', pa.release, 'kick'); logAct({ id: p.id, kick: 1, t: recT + rem - 0.12, rem: 0.12 }); } } } }
         { const kc = m.kickCue; if (!replay && FM.anim && FM.anim.ready && kc && kc.player === p && e.kickTag !== kc) { const rem = kc.release - m.clock + lagS; if (rem <= 0.55 + lagS) { e.kickTag = kc; e.kickAt = performance.now(); FM.anim.kick(e, Math.max(0.12, rem), {}); addContact(e, e.foot < 0 ? 'Left' : 'Right', kc.release, 'kick'); logAct({ id: p.id, kick: 1, t: recT + Math.max(0.12, rem) - 0.12, rem: 0.12 }); } } }
         // the first touch: a man who has just received the ball cushions it
-        if (isC && !e.wasC && e.speed < 8) { if (p.group === 'GK' && FM.anim && FM.anim.ready && FM.anim.play(e, 'gkCatch2', { len: 1.1, fi: 0.08, fo: 0.3 })) { /* a keeper's catch */ } else if (Math.hypot(m.ball.x - p.x, m.ball.y - p.y) < 1.0) { const hold = m.ball.ctrl && m.ball.ctrl.p === p ? m.ball.ctrl.dur : 0; setPose(e, 'control', Math.max(0.26, hold + 0.12), e.foot); if (!replay && (hold || Math.hypot(m.ball.vx || 0, m.ball.vy || 0) > 1.2)) addContact(e, e.foot < 0 ? 'Left' : 'Right', m.possessionReceivedAt != null ? m.possessionReceivedAt : rt, 'control', hold); } } e.wasC = isC;
+        if (isC && !e.wasC && e.speed < 8) { if (p.group === 'GK' && FM.anim && FM.anim.ready && FM.anim.play(e, 'gkCatch2', { len: 1.1, fi: 0.08, fo: 0.3 })) { /* a keeper's catch */ } else if (Math.hypot(m.ball.x - p.x, m.ball.y - p.y) < 1.0) { const hold = m.ball.ctrl && m.ball.ctrl.p === p ? m.ball.ctrl.dur : 0; setPose(e, 'control', Math.max(0.26, hold + 0.12), e.foot); if (!replay && (hold || Math.hypot(m.ball.vx || 0, m.ball.vy || 0) > 1.2)) addContact(e, e.foot < 0 ? 'Left' : 'Right', m.possessionReceivedAt != null ? m.possessionReceivedAt : rt, 'control', hold, !!(m.ball.ctrl && m.ball.ctrl.kind === 'sole')); } } e.wasC = isC;
         if (e.pose) { e.pose.t += dt; if (e.pose.t >= e.pose.dur) e.pose = null; else applyPose(e.fig, e.pose.type, e.pose.t, e.pose.dur, e.pose.dir); }
         // the man who is playing the ball puts his boot on it
         if (!replay && contacts.length) {
@@ -700,7 +704,8 @@
               else if (t < 0) { const u = Math.pow((t - sw.bT) / -sw.bT, 2); tx2 = cx - ux * (sw.back + (0.17 - sw.back) * u); ty2 = sw.lift + (0.1 - sw.lift) * u; tz2 = cz - uz * (sw.back + (0.17 - sw.back) * u); }
               else { const u = ease(Math.min(1, t / sw.fT)); tx2 = cx - ux * 0.17 + ux * (0.17 + sw.fwd) * u; ty2 = 0.1 + (sw.fLift - 0.1) * u; tz2 = cz - uz * 0.17 + uz * (0.17 + sw.fwd) * u; }
               reachFoot(e, cb.foot, tx2, ty2, tz2, cw);
-            } else reachFoot(e, cb.foot, aim.x, 0.09, aim.z, cw);
+            } else if (cb.sole) reachFoot(e, cb.foot, tx - (dx / dl) * 0.04, 0.3, tz - (dz / dl) * 0.04, cw);   // the sole trap: the boot is put on top of the ball, sole down
+            else reachFoot(e, cb.foot, aim.x, 0.09, aim.z, cw);
           }
         }
         if (e.fig.mx) e.fig.mx.sync(e.fig);

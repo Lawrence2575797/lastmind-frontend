@@ -2513,7 +2513,7 @@
     if (cu) {
       // the first touch: the ball's velocity eases from what it arrived with to the man's own, with a pull toward his foot (a touch that takes it into his feet)
       const u = clamp((match.clock - cu.t0 + dt) / cu.dur, 0, 1), e = cu.kind === 'sole' ? Math.min(1, u * 1.6) : 0.5 * (u + u * u * (3 - 2 * u)), bdx0 = ball.x - p.x, bdy0 = ball.y - p.y, bl0 = Math.hypot(bdx0, bdy0) || 1, fx = p.x + bdx0 / bl0 * Math.min(0.5, bl0), fy = p.y + bdy0 / bl0 * Math.min(0.5, bl0), ddx = fx - ball.x, ddy = fy - ball.y, dd = Math.hypot(ddx, ddy) || 1, pull = cu.kind === 'sole' ? Math.min(8, dd * 9) : Math.min(dd > 1.5 ? 6 : 3.5, dd * (dd > 1.5 ? 4 : 3));
-      const tvx = (p.vx || 0) + ddx / dd * pull, tvy = (p.vy || 0) + ddy / dd * pull;
+      const keepV = cu.kind === 'sole' ? 0.1 : 1, tvx = (p.vx || 0) * keepV + ddx / dd * pull, tvy = (p.vy || 0) * keepV + ddy / dd * pull;   // (a sole trap kills the ball's pace: it does not carry on at the man's own speed)
       ball.vx = cu.vx0 + (tvx - cu.vx0) * e; ball.vy = cu.vy0 + (tvy - cu.vy0) * e; ball.x += ball.vx * dt; ball.y += ball.vy * dt; ball.lastTouch = match.clock;
       if (ball.y < 0.3 || ball.y > W - 0.3) { ball.y = clamp(ball.y, 0.3, W - 0.3); if ((ball.y < 1 && ball.vy < 0) || (ball.y > W - 1 && ball.vy > 0)) ball.vy *= 0.2; }   // a man who has the ball coming to him on the line controls it there: it does not run out under his foot
     } else { ball.x += ball.vx * dt; ball.y += ball.vy * dt; const fr = Math.exp(-1.25 * dt); ball.vx *= fr; ball.vy *= fr; }
