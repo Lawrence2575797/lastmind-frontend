@@ -21683,8 +21683,21 @@ SQIDAQAB
     }
     function notesPersist() { const ok = notesPersistLocal(); if (typeof notesSyncSchedule === 'function') notesSyncSchedule(); return ok; }
     function notesStatus(text) { const el = document.getElementById('nbStatus'); if (el) el.textContent = text; }
+    // The page's timestamp is what the sync compares when two copies differ, so it has to move whenever its content does (it used to move only when the page was renamed).
+    const nbStamp = {};
+    function nbBumpStamp() {
+        try {
+            const pg = notes.activeId && notesNode(notes.activeId);
+            if (pg && pg.type === 'page' && pg.doc && Array.isArray(pg.doc.blocks)) {
+                const j = JSON.stringify(pg.doc.blocks);
+                if (nbStamp[pg.id] !== undefined && nbStamp[pg.id] !== j) pg.updatedAt = new Date().toISOString();
+                nbStamp[pg.id] = j;
+            }
+        } catch (_) { /* a timestamp never stops a save */ }
+    }
     function notesFlush() {
         if (notesSaveTimer) { clearTimeout(notesSaveTimer); notesSaveTimer = null; }
+        nbBumpStamp();
         try { if (typeof nbSrCapture === 'function' && document.getElementById('nbCanvas')) { const pg = notesNode(notes.activeId); nbHistoryCapture(pg); nbSrCapture(pg); } } catch (_) { /* revision bookkeeping never blocks a save */ }
         notesStatus(notesPersist() ? (notesInIdb ? 'Saving…' : 'Saved') : 'Could not save on this device' + (notesSyncUid ? ', but your account has it' : ''));
     }
@@ -21736,6 +21749,7 @@ SQIDAQAB
         notesDistrustLocal = false;
         if (suffix && !notes.nodes.length) { try { const m = JSON.parse(localStorage.getItem('lastmind-notes-syncmeta-v1:' + suffix.slice(1)) || 'null'); if (m && m.nodes && Object.keys(m.nodes).some((k) => !m.nodes[k].gone)) notesDistrustLocal = true; } catch (_) { /* no record */ } }
         notesLoaded = true;
+        notesAutoRecover();
         notesSyncUid = suffix ? suffix.slice(1) : null;
         if (notesSyncUid) notesSyncNow();
         if (!notesListening) {
@@ -21743,6 +21757,25 @@ SQIDAQAB
             window.addEventListener('beforeunload', notesFlush); window.addEventListener('pagehide', notesFlush);
             document.addEventListener('visibilitychange', () => { if (document.hidden) notesFlush(); else if (notesSyncUid) notesSyncNow(); });
         }
+    }
+
+    // A page that is empty, but has a saved snapshot written after the page was last changed, is a page that lost its text (a typed page whose timestamp never moved, a copy
+    // replaced by an emptier one): it is put back from its History. A page the writer emptied on purpose is left alone, because that edit moves its timestamp past the snapshot.
+    function notesAutoRecover() {
+        let n = 0;
+        try {
+            const all = nbHistLoad();
+            notes.nodes.forEach((pg) => {
+                if (pg.type !== 'page' || !pg.doc || !Array.isArray(pg.doc.blocks) || pg.doc.blocks.length || !all[pg.id]) return;
+                const snaps = all[pg.id].filter((x) => x && Array.isArray(x.blocks) && nbDocChars(x.blocks) >= 30).sort((a, b) => (b.chars || 0) - (a.chars || 0) || b.t - a.t);
+                if (!snaps.length) return;
+                const best = snaps[0], changedAt = Date.parse(pg.updatedAt || '') || 0;
+                if (best.t <= changedAt) return;
+                pg.doc.blocks = JSON.parse(JSON.stringify(best.blocks)); pg.updatedAt = new Date().toISOString(); nbStamp[pg.id] = JSON.stringify(pg.doc.blocks); n++;
+            });
+            if (n) { notesPersist(); try { renderMyNotesTree(); } catch (_) { /* drawn later */ } try { notesStatus(n === 1 ? 'A page that had lost its text was put back from its history' : n + ' pages that had lost their text were put back from their history'); } catch (_) { /* no status line yet */ } }
+        } catch (_) { /* recovery never stops the notes opening */ }
+        return n;
     }
 
     // ----- Notes are kept with the account, not the device -----
@@ -21838,6 +21871,18 @@ SQIDAQAB
                 const typingNow = document.activeElement && document.activeElement.closest && document.activeElement.closest('#nbCanvas');
                 if (d.id === notes.activeId && typingNow && document.getElementById('nbCanvas')) return;
                 const i = notes.nodes.findIndex((x) => x.id === d.id);
+                if (i >= 0 && d.type === 'page' && notes.nodes[i].type === 'page') {
+                    // The account's copy of a page is never allowed to replace a fuller one here with an emptier one. This copy is kept (and sent up), the other is set aside in History;
+                    // and whatever the account's copy does replace is put in History first, so a page can always be got back.
+                    const old = notes.nodes[i], oc = nbDocChars((old.doc && old.doc.blocks) || []), nc = nbDocChars((d.doc && d.doc.blocks) || []);
+                    try {
+                        if (oc > 0 && (nc === 0 || (oc > 200 && nc < oc * 0.25))) {
+                            if (d.doc && d.doc.blocks && d.doc.blocks.length) nbHistPush({ id: d.id }, d.doc.blocks, nc, 'Account copy (it had less), set aside');
+                            toPush.push(old); return;
+                        }
+                        if (JSON.stringify((old.doc && old.doc.blocks) || []) !== JSON.stringify((d.doc && d.doc.blocks) || [])) nbHistPush(old, old.doc.blocks, oc, 'Before a copy from another device replaced it');
+                    } catch (_) { /* History is a safety net; the sync goes on */ }
+                }
                 if (i >= 0) { if (notes.nodes[i].open !== undefined) d.open = notes.nodes[i].open; notes.nodes[i] = d; } else notes.nodes.push(d);
                 if (typeof ord === 'number') serverOrd.set(d.id, ord);
                 if (d.id === notes.activeId) activeChanged = true;
@@ -21887,9 +21932,17 @@ SQIDAQAB
             }
             notesSyncSaveMeta(meta);
             if (toDelete.length > 5 && toDelete.length >= notes.nodes.length) { console.warn('LastMind notes: not sending a deletion of nearly every note', toDelete.length); toDelete.length = 0; }
+            try {
+                toPush.forEach((n) => {
+                    const row = rows.get(n.id); if (!row || !row.data || n.type !== 'page') return;
+                    const sc = nbDocChars((row.data.doc && row.data.doc.blocks) || []), lc = nbDocChars((n.doc && n.doc.blocks) || []);
+                    if (sc > 0 && lc < sc * 0.5) nbHistPush({ id: n.id }, row.data.doc.blocks, sc, 'Account copy, before it was replaced');
+                });
+            } catch (_) { /* History is a safety net */ }
             await notesSyncPush(meta, toPush.filter((n, i, a) => a.indexOf(n) === i), toDelete);
             await notesSyncImages(server.imageIds || []);
             if (changed && uid === notesSyncUid) {
+                notesAutoRecover();
                 renderMyNotesTree();
                 const typing = document.activeElement && document.activeElement.closest && document.activeElement.closest('#nbCanvas');
                 if (activeChanged && !typing) {
