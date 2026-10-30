@@ -118,6 +118,12 @@
     return plan;
   };
 
+  // The plan a test run would use, without asking anyone: the one already made for this opponent and this set-up if there is one (the simulation and the tests keep it), else the plan from the figures.
+  S.labPlanSync = function (league, userTeam, aiTeam) {
+    const profile = S.profile(league), key = hash(JSON.stringify([profile, (userTeam.rules || []).map((r) => r.id + r.off), aiTeam.id]));
+    return (league.oppPlans && league.oppPlans[key]) || S.plan1(profile);
+  };
+
   // ---------- in a match ----------
   S.startMatch = function (league, match) {
     if (match.friendly || !match.aiTeams.length || (match.home.id !== league.userId && match.away.id !== league.userId)) return;

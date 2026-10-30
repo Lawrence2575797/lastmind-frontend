@@ -2269,6 +2269,15 @@
     // shows them compact in their own half. A page for "otherwise" shows the mid block.
     let cond = pageCondOf(key);
     const kick = base === 'buildEnd' || base === 'build';
+    // For our build-up the opposition are drawn exactly where the match puts them: the engine's own defending positions for a ball beside our goalkeeper (the same ones the
+    // simulation starts from), so the board and the simulation agree. (FM.NO_SIMOPP = true goes back to the older block drawing below.)
+    if (kick && !FM.NO_SIMOPP && FM.lab && FM.lab.opposition && FM.scout && FM.scout.labPlanSync) {
+      try {
+        const lg = world.league, user = userTeam(), opp = sc.opp, plan = FM.scout.labPlanSync(lg, user, opp), at = FM.lab.opposition(lg, user, opp, plan, undefined), out = {}; let n = 0;
+        Object.keys(cells).forEach((k) => { const w = at[k]; if (!w) { out[k] = cells[k]; return; } const q = FM.toTeamSpace(opp.attackDir, w.x, w.y); out[k] = Object.assign({}, cells[k], { d: Math.max(0.02, Math.min(0.97, q.d)), w: Math.max(0.03, Math.min(0.97, q.w)) }); n++; });
+        if (n >= 10) return out;
+      } catch (e) { /* fall through to the drawn blocks */ }
+    }
     if (cond === 'opp_press') cond = 'opp_high'; else if (cond === 'opp_sit') cond = 'opp_low';
     // with no condition chosen on the page, they stand as their own tactics put them (a side that presses high is drawn pressing high up the pitch)
     if (cond === 'always') { const tc = oppTacticCond(sc.opp, base); if (tc) cond = tc; else if (kick) cond = 'opp_mid'; }

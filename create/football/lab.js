@@ -178,6 +178,20 @@
     return { dt: 0.5, dtb: 0.25, end: Math.round(end * 100) / 100, mirror: u.attackDir === -1, ru: u.players.map((p) => p.number), ro: o.players.map((p) => p.number), f: rec.f.slice(0, nf), b: rec.b.slice(0, nb), plan: rec.plan.filter((p) => p.t <= end), ev, names, outcome: result.outcome === 'beat' ? 'beat' : 'lost', lost: lostAt != null ? Math.round(lostAt * 100) / 100 : null, kind: lostCause ? lostCause.kind : null };
   };
 
+  // Where the opposition stand when a build-up test begins, set up exactly as a trial sets them up (their manager's plan for the run included): slot key -> metres on the pitch.
+  // The tactics board draws them from this, so what the board shows is what the simulation starts from.
+  LAB.opposition = function (league, userTeam, oppTeam, plan, start) {
+    let oppTactics = null; try { if (oppTeam.id !== league.userId) oppTactics = FM.aiTacticsFor(league, oppTeam, userTeam); } catch (e) { oppTactics = null; }
+    const u = clone(userTeam), o = clone(oppTeam);
+    o.rules = ((plan && plan.rules) || []).map((r) => JSON.parse(JSON.stringify(r)));
+    if (!(league && oppTeam.id === league.userId)) o.phasePos = null;
+    if (oppTactics) o.tactics = Object.assign({}, o.tactics, oppTactics);
+    Object.keys((plan && plan.tactics) || {}).forEach((k) => { if (o.tactics[k] != null) o.tactics[k] = clamp(o.tactics[k] + plan.tactics[k], 0, 1); });
+    const match = FM.createMatch(u, o, 4242); match.userId = u.id; FM.startBuildUpTrial(match, u, start);
+    const out = {}; match.teams.find((t) => t.id === o.id).players.forEach((p) => { if (p.slotKey) out[p.slotKey] = { x: p.x, y: p.y }; });
+    return out;
+  };
+
   // Many trials. onProgress(done, n) lets the page show how far it has got; the work is done in small batches so the page stays alive.
   LAB.run = function (league, opts, onProgress) {
     const n = opts.n || 100, userTeam = opts.user, oppTeam = opts.opp, base = opts.seed || (Date.now() & 0xffffff);
