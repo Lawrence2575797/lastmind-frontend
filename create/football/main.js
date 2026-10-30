@@ -1144,7 +1144,7 @@
     const me = world.league.userId;
     const head = compact ? '' : '<th>GF</th><th>GA</th>';
     const n = rows.length;
-    const cls = (r, i) => [r.id === me ? 'me' : '', level === 1 && i >= n - 2 ? 'rel' : '', level === 1 && i === n - 2 ? 'rel-first' : '', i < (level === 2 ? 2 : 1) ? 'champ' : ''].filter(Boolean).join(' ');
+    const cls = (r, i) => [r.id === me ? 'me' : '', level < 4 && i >= n - 2 ? 'rel' : '', level < 4 && i === n - 2 ? 'rel-first' : '', level > 1 && i < 2 ? 'champ' : '', level === 1 && i === 0 ? 'champ' : ''].filter(Boolean).join(' ');
     return `<div class="tablewrap"><table class="data"><thead><tr><th class="l">#</th><th class="l">Club</th><th>P</th><th>W</th><th>D</th><th>L</th>${head}<th>GD</th><th>Pts</th>${compact ? '' : '<th class="l">Form</th>'}</tr></thead><tbody>` +
       rows.map((r, i) => `<tr class="${cls(r, i)}"><td class="l">${i + 1}</td><td class="l">${esc(r.name)}${compact ? '' : ` <span class="pm">${esc(FM.clubProfile(r).tag)}</span>`}</td><td>${r.p}</td><td>${r.w}</td><td>${r.d}</td><td>${r.l}</td>${compact ? '' : `<td>${r.gf}</td><td>${r.ga}</td>`}<td>${r.gf - r.ga > 0 ? '+' : ''}${r.gf - r.ga}</td><td><b>${r.pts}</b></td>${compact ? '' : `<td class="l">${r.form.slice(-5).map((f) => `<span class="pill ${f}">${f}</span>`).join('')}</td>`}</tr>`).join('') +
       '</tbody></table></div>';
@@ -1168,16 +1168,18 @@
   function renderHomeFull() {
     const lg = world.league, host = el('view-home'), me = lg.userId;
     const rows = FM.tableRows(lg);
-    const other = FM.ensureTwoDivisions(lg), otherRows = FM.divisionTableRows(other);
+    const divisions = FM.allDivisions(lg).sort((a, b) => a.level - b.level);
+    const divisionRows = Object.fromEntries(divisions.map((d) => [d.level, FM.divisionTableRows(d)]));
     const over = FM.seasonOver(lg);
     const nextFx = FM.nextUserFixture(lg);
     const today = FM.userFixtureToday(lg);
     let next = '';
     if (over) {
       const pos = rows.findIndex((r) => r.id === me) + 1;
-      const mine = lg.divisionLevel === 1 ? (pos === 1 ? 'You won the league.' : pos >= 7 ? `You finished ${pos}th of 8 with ${rows[pos - 1].pts} points and are relegated.` : `You finished ${pos}${['st', 'nd', 'rd'][pos - 1] || 'th'} of 8 with ${rows[pos - 1].pts} points, safe from relegation.`) : (pos <= 2 ? `You finished ${pos}${pos === 1 ? 'st' : 'nd'} with ${rows[pos - 1].pts} points and are promoted.` : `You finished ${pos}${['st', 'nd', 'rd'][pos - 1] || 'th'} of 8 with ${rows[pos - 1].pts} points and remain in the Championship.`);
-      const upperRows = lg.divisionLevel === 1 ? rows : otherRows, lowerRows = lg.divisionLevel === 2 ? rows : otherRows;
-      next = `<h2>Season complete</h2><div class="fixture-big">${esc(upperRows[0].name)} are champions.</div><p class="desc">${esc(upperRows[6].name)} and ${esc(upperRows[7].name)} are relegated. ${esc(lowerRows[0].name)} and ${esc(lowerRows[1].name)} are promoted.</p><p class="desc">${mine}</p><div class="row"><button class="primary" id="newSeasonBtn" style="flex:0 0 auto">Continue to season ${lg.season + 1}</button></div>`;
+      const canUp = lg.divisionLevel > 1, canDown = lg.divisionLevel < 4;
+      const mine = pos <= 2 && canUp ? `You finished ${pos}${pos === 1 ? 'st' : 'nd'} with ${rows[pos - 1].pts} points and are promoted.` : pos >= 7 && canDown ? `You finished ${pos}th of 8 with ${rows[pos - 1].pts} points and are relegated.` : pos === 1 && lg.divisionLevel === 1 ? 'You won the Premier Division.' : `You finished ${pos}${['st', 'nd', 'rd'][pos - 1] || 'th'} of 8 and remain in the ${esc(lg.divisionName)}.`;
+      const movement = divisions.slice(0, -1).map((d, i) => `${esc(divisionRows[d.level][6].name)} and ${esc(divisionRows[d.level][7].name)} go down; ${esc(divisionRows[divisions[i + 1].level][0].name)} and ${esc(divisionRows[divisions[i + 1].level][1].name)} go up.`).join(' ');
+      next = `<h2>Season complete</h2><div class="fixture-big">${esc(divisionRows[1][0].name)} are champions.</div><p class="desc">${movement}</p><p class="desc">${mine}</p><div class="row"><button class="primary" id="newSeasonBtn" style="flex:0 0 auto">Continue to season ${lg.season + 1}</button></div>`;
     } else if (nextFx) {
       const home = FM.teamById(lg, nextFx.homeId), away = FM.teamById(lg, nextFx.awayId);
       const opp = home.id === me ? away : home;
@@ -1205,14 +1207,14 @@
       (tired.length ? `<p class="desc">Tired starters: ${tired.map((p) => esc(shortName(p)) + ' ' + Math.round(100 * FM.conditionOf(p)) + '%').join(', ')}.</p><p class="note">Tired players slow down, make more mistakes and risk injury. Rest helps.</p>` : '<p class="note">The starting eleven is fresh.</p>');
     const latest = (world.league.news || []).slice(-3).reverse();
     const newsCard = '<h2>Latest news</h2>' + (latest.length ? latest.map((n) => `<div class="hyp"><div class="hyp-head"><span class="lvl ${n.mine ? 'alevel' : 'gcse'}">${esc(n.kind)}</span> <b>${esc(n.headline)}</b></div></div>`).join('') + '<div class="row"><button data-nav-news>All the news</button></div>' : '<p class="note">News appears after the first round of matches.</p>');
-    const selectedLevel = world.homeTableLevel || lg.divisionLevel;
-    const shownCurrent = selectedLevel === lg.divisionLevel, shownRows = shownCurrent ? rows : otherRows, shownName = shownCurrent ? lg.divisionName : other.name;
+    const selectedLevel = divisions.some((d) => d.level === world.homeTableLevel) ? world.homeTableLevel : lg.divisionLevel;
+    const shownRows = divisionRows[selectedLevel];
     const transfer = FM.transfer ? FM.transfer(lg) : lg.transfer, transferBudget = transfer && transfer.budget ? transfer.budget[me] || 0 : 0;
     const wageRoom = FM.wageRoom ? FM.wageRoom(lg, me) : 0;
     const board = lg.board || {}, currentPos = rows.findIndex((r) => r.id === me) + 1, leaguePlayed = rows.find((r) => r.id === me).p;
     const performance = !leaguePlayed ? 'The season has not started' : currentPos < (board.expectedPosition || currentPos) ? 'Ahead of expectations' : currentPos > (board.expectedPosition || currentPos) ? 'Below expectations' : 'Meeting expectations';
     const approval = (kind, value) => `<div class="approval-line"><span><b>${kind}</b><small>${esc(FM.approvalBand(value))}</small></span><div class="approval-track"><i style="width:${Math.max(0, Math.min(100, value))}%"></i></div><strong>${Math.round(value)}%</strong></div>`;
-    const tableCard = `<div class="card home-league"><div class="card-title-row"><h2>League table</h2><select id="homeLeagueSelect" aria-label="Choose division"><option value="${lg.divisionLevel}">${esc(lg.divisionName)}</option><option value="${other.level}"${selectedLevel === other.level ? ' selected' : ''}>${esc(other.name)}</option></select></div>${tableHtml(shownRows, true, selectedLevel)}<div class="home-approvals">${approval('Public approval', Number.isFinite(lg.publicOpinion) ? lg.publicOpinion : 50)}</div></div>`;
+    const tableCard = `<div class="card home-league"><div class="card-title-row"><h2>League table</h2><select id="homeLeagueSelect" aria-label="Choose division">${divisions.map((d) => `<option value="${d.level}"${selectedLevel === d.level ? ' selected' : ''}>${esc(d.name)}</option>`).join('')}</select></div>${tableHtml(shownRows, true, selectedLevel)}<div class="home-approvals">${approval('Public approval', Number.isFinite(lg.publicOpinion) ? lg.publicOpinion : 50)}</div></div>`;
     host.innerHTML = `<div class="two">
       <div style="display:grid;gap:16px"><div class="card">${next}</div><div class="card">${lastCard}</div><div class="card">${newsCard}</div></div>
       <div style="display:grid;gap:16px">${tableCard}</div></div>`;

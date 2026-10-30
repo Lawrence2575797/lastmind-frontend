@@ -28,8 +28,8 @@
     return Math.max(0.2, v);
   };
   FM.wageOf = (p) => p.wage != null ? p.wage : Math.max(2, r1(FM.valueOf(p) * 1.1 + 2));   // £ thousand a week
-  FM.clubOf = (league, p) => league.teams.find((t) => t.squad.indexOf(p) >= 0) || null;
-  FM.findPlayer = (league, id) => { for (const t of league.teams) { const p = t.squad.find((x) => x.id === id); if (p) return p; } return null; };
+  FM.clubOf = (league, p) => FM.allTeams(league).find((t) => t.squad.indexOf(p) >= 0) || null;
+  FM.findPlayer = (league, id) => { for (const t of FM.allTeams(league)) { const p = t.squad.find((x) => x.id === id); if (p) return p; } return null; };
   const money = (m) => '£' + (m >= 10 ? Math.round(m) : r1(m).toFixed(1)) + 'm';
   FM.money = money;
   const userRounds = (league) => league.fixtures.filter((f) => f.played && (f.homeId === league.userId || f.awayId === league.userId)).length;
@@ -38,7 +38,7 @@
   FM.transfer = function (league) {
     if (!league.transfer) {
       const budget = {}, wageBudget = {};
-      league.teams.forEach((t) => {
+      FM.allTeams(league).forEach((t) => {
         budget[t.id] = r1(14 + 5 * (t.strength || 0));
         wageBudget[t.id] = r1(t.squad.reduce((a, p) => a + FM.wageOf(p), 0) + 25 + 8 * (t.strength || 0));
       });
@@ -99,7 +99,7 @@
   // starts there, one in goal) and a market worth browsing. They are young and rate a little below the club's average.
   function addReserves(league) {
     const t = league.transfer;
-    league.teams.forEach((team) => {
+    FM.allTeams(league).forEach((team) => {
       if (team.id === league.userId) return;
       const avg = team.squad.reduce((a, p) => a + FM.playerRating(p), 0) / Math.max(1, team.squad.length);
       POS.forEach((pos) => {

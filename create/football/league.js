@@ -33,6 +33,28 @@
     { tag: 'The cup specialists', story: 'Never promoted to the top division, but famous for three improbable cup runs and a ground where visiting favourites regularly struggle.', name: 'Alderwich', style: 'counter', formation: '5-3-2', strength: -1.5, home: ['#166534', '#FFFFFF'], away: ['#FFFFFF', '#166534'] },
     { tag: 'The ambitious county side', story: 'A young club financed by local technology firms. Their new training ground has made promotion feel inevitable, which has only increased the pressure.', name: 'Linton County', style: 'balanced', formation: '4-3-3', strength: -0.1, home: ['#DC2626', '#FFFFFF'], away: ['#FFFFFF', '#1E3A8A'] },
   ];
+  // The rest of the pyramid is fully playable too. Their ability bands deliberately overlap: a strong League One side can
+  // contain a player good enough for the Championship, while a struggling Championship side can have players at this level.
+  FM.THIRD_TEAM_DEFS = [
+    { tag: 'The river town club', story: 'A club built around a riverworks community, whose compact old ground is loud whenever a bigger side visits.', name: 'Rivermere FC', style: 'balanced', formation: '4-3-3', strength: -0.4, home: ['#0F766E', '#F8FAFC'], away: ['#F8FAFC', '#0F766E'] },
+    { tag: 'The dockyard revival', story: 'Once a fixture of the old industrial league, now rebuilt with academy graduates and a fierce travelling support.', name: 'Portwell United', style: 'press', formation: '4-4-2', strength: -1.0, home: ['#1D4ED8', '#FBBF24'], away: ['#FBBF24', '#1D4ED8'] },
+    { tag: 'The hill country side', story: 'A tidy club from the uplands, famous for patient possession football and a pitch that catches every winter storm.', name: 'Highmere Town', style: 'possession', formation: '4-2-3-1', strength: -0.7, home: ['#7C2D12', '#FDE68A'], away: ['#FDE68A', '#7C2D12'] },
+    { tag: 'The local rivals', story: 'Born from a breakaway supporters group, they measure every season against the clubs from the neighbouring cities.', name: 'Dunford Borough', style: 'counter', formation: '5-3-2', strength: -1.4, home: ['#6D28D9', '#FFFFFF'], away: ['#FFFFFF', '#6D28D9'] },
+    { tag: 'The factory club', story: 'Their steelworks have long gone, but the club still wears the same colours and produces hard-running midfielders.', name: 'Marlowe Steel', style: 'direct', formation: '4-4-2', strength: -0.9, home: ['#374151', '#EF4444'], away: ['#EF4444', '#FFFFFF'] },
+    { tag: 'The market town club', story: 'Family-run and quietly ambitious, their careful recruitment has made them regular contenders at this level.', name: 'Fenwick Rovers', style: 'balanced', formation: '4-2-2-2', strength: -0.2, home: ['#166534', '#F3E7C8'], away: ['#F3E7C8', '#166534'] },
+    { tag: 'The coastal battlers', story: 'A windy seaside ground, a small budget and an uncompromising team that never gives visitors an easy afternoon.', name: 'Saltwick Athletic', style: 'press', formation: '4-3-3', strength: -1.6, home: ['#0C4A6E', '#FFFFFF'], away: ['#FFFFFF', '#0C4A6E'] },
+    { tag: 'The new city project', story: 'Backed by a local consortium, they have invested in coaching and expect to climb quickly through the pyramid.', name: 'Vallerton City', style: 'possession', formation: '4-2-3-1', strength: 0.1, home: ['#BE123C', '#FDE047'], away: ['#FDE047', '#BE123C'] },
+  ];
+  FM.FOURTH_TEAM_DEFS = [
+    { tag: 'The moorland club', story: 'A small club from the edge of the moors, sustained by volunteers and a generation of local players.', name: 'Moorbridge Town', style: 'direct', formation: '4-4-2', strength: -0.8, home: ['#854D0E', '#FFFFFF'], away: ['#FFFFFF', '#854D0E'] },
+    { tag: 'The university outsiders', story: 'They share a city with bigger names but have built a loyal following around energetic, technical football.', name: 'Belgrave Athletic', style: 'possession', formation: '4-3-3', strength: -0.3, home: ['#1E40AF', '#E0F2FE'], away: ['#E0F2FE', '#1E40AF'] },
+    { tag: 'The railwaymen', story: 'A station-town side with a proud cup history and a patient board that trusts young players to grow.', name: 'Creston Rail', style: 'balanced', formation: '4-2-3-1', strength: -1.1, home: ['#9F1239', '#F8FAFC'], away: ['#F8FAFC', '#9F1239'] },
+    { tag: 'The stubborn underdogs', story: 'They have spent decades punching above their weight through organisation, set pieces and a fierce home crowd.', name: 'Oakridge United', style: 'counter', formation: '5-3-2', strength: -1.5, home: ['#365314', '#FACC15'], away: ['#FACC15', '#365314'] },
+    { tag: 'The foundry club', story: 'Their modern training ground sits beside a former foundry, and the owners believe steady progress beats quick fixes.', name: 'Ironvale FC', style: 'press', formation: '4-3-3', strength: -0.6, home: ['#334155', '#F97316'], away: ['#F97316', '#334155'] },
+    { tag: 'The border county side', story: 'A remote county club with a strong scouting network and a habit of uncovering overlooked talent.', name: 'Kestrel County', style: 'balanced', formation: '4-2-2-2', strength: -0.1, home: ['#0369A1', '#FFFFFF'], away: ['#FFFFFF', '#0369A1'] },
+    { tag: 'The night-game specialists', story: 'Their floodlit ground has become an awkward place to visit, particularly for teams unused to their high press.', name: 'Brindle FC', style: 'press', formation: '4-4-2', strength: -1.7, home: ['#4C1D95', '#F3E8FF'], away: ['#F3E8FF', '#4C1D95'] },
+    { tag: 'The upwardly mobile club', story: 'Promoted from the regional game only recently, they are ambitious, well coached and backed by an expanding town.', name: 'Norchester Vale', style: 'possession', formation: '4-3-3', strength: 0.2, home: ['#B91C1C', '#FFFFFF'], away: ['#FFFFFF', '#B91C1C'] },
+  ];
 
   const STYLES = {
     balanced: {},
@@ -61,7 +83,12 @@
     if (colourDistance(home.kit.shirt, away.kit.shirt) < 110) away.kit = away.kit === awayAway ? awayHome : awayAway;
   };
 
-  FM.teamById = (league, id) => league.teams.find((t) => t.id === id);
+  FM.allDivisions = function (league) {
+    FM.ensureFourDivisions(league);
+    return [{ level: league.divisionLevel, name: league.divisionName, teams: league.teams, fixtures: league.fixtures }].concat(league.otherLeagues || []);
+  };
+  FM.allTeams = (league) => FM.allDivisions(league).flatMap((d) => d.teams);
+  FM.teamById = (league, id) => FM.allTeams(league).find((t) => t.id === id);
   // In a game played with other managers, every club a person manages is looked after by that person's own plan (the computer leaves it alone), and
   // 'watched' clubs also have their matches recorded for highlights. In a single-player game both are just the club you manage.
   FM.isHuman = (league, id) => id === league.userId || (league.humanIds || []).indexOf(id) >= 0;
@@ -73,7 +100,7 @@
     return colourDistance(home.shirt, mine.shirt) < 110 ? away : home;
   };
   // What a club is known for: where it is expected to finish and the story behind it.
-  FM.clubProfile = (team) => FM.TEAM_DEFS.concat(FM.LOWER_TEAM_DEFS || []).find((d) => d.name === (team.origName || team.name)) || { tag: '', story: '' };
+  FM.clubProfile = (team) => FM.TEAM_DEFS.concat(FM.LOWER_TEAM_DEFS || [], FM.THIRD_TEAM_DEFS || [], FM.FOURTH_TEAM_DEFS || []).find((d) => d.name === (team.origName || team.name)) || { tag: '', story: '' };
 
   // ---------- creating a season ----------
   FM.WORLD_SEED = 20261004;
@@ -204,32 +231,52 @@
     return fixtures;
   }
 
-  function makeLowerTeams(league) {
-    const seed = league.seed + 88001, rng = FM.mulberry32(seed), used = new Set();
-    return FM.LOWER_TEAM_DEFS.map((def, i) => {
-      const team = FM.createTeam({ id: 'l' + (i + 1), name: def.name, kit: { shirt: def.home[0], number: def.home[1] }, attackDir: 1, formation: def.formation, strength: def.strength, seed: seed + i * 7919 });
+  function makeDivisionTeams(league, defs, prefix, level, ratingBase, seedOffset) {
+    const seed = league.seed + seedOffset, rng = FM.mulberry32(seed), used = new Set();
+    return defs.map((def, i) => {
+      const team = FM.createTeam({ id: prefix + (i + 1), name: def.name, kit: { shirt: def.home[0], number: def.home[1] }, attackDir: 1, formation: def.formation, strength: def.strength, seed: seed + i * 7919 });
       team.kits = { home: def.home, away: def.away }; team.style = def.style;
       team.tactics = styleTactics(def.style, rng); team.baseTactics = Object.assign({}, team.tactics); team.drift = {};
       team.squad.forEach((p) => { const id = FM.generateIdentity(rng, used); p.name = id.name; p.nation = id.nation; p.stats = { apps: 0, goals: 0, shots: 0, yellows: 0, reds: 0 }; });
       const keys = ['pace', 'dribbling', 'passing', 'finishing', 'tackling', 'heading', 'composure', 'stamina'];
       const xiMean = team.players.reduce((a, p) => a + keys.reduce((m, k) => m + p.ratings[k], 0) / keys.length, 0) / team.players.length;
-      const shift = Math.round((FM.RATING_BASE - 5) + FM.STRENGTH_SCALE * def.strength - xiMean);
+      const shift = Math.round(ratingBase + FM.STRENGTH_SCALE * def.strength - xiMean);
       team.squad.forEach((p) => { keys.forEach((k) => { p.ratings[k] = Math.max(25, Math.min(92, p.ratings[k] + shift)); }); if (p.natural === 'GK') p.ratings.gk = Math.max(40, Math.min(90, p.ratings.gk + shift)); p.maxSpeed = FM.speedFromPace(p.ratings.pace); });
       return team;
     });
   }
 
-  FM.ensureTwoDivisions = function (league) {
+  const DIVISION_NAMES = { 1: 'Premier Division', 2: 'Championship', 3: 'League One', 4: 'League Two' };
+  const divisionConfig = [
+    { level: 1, name: DIVISION_NAMES[1], defs: () => FM.TEAM_DEFS, prefix: 't', ratingBase: FM.RATING_BASE, seed: 1 },
+    { level: 2, name: DIVISION_NAMES[2], defs: () => FM.LOWER_TEAM_DEFS, prefix: 'l', ratingBase: FM.RATING_BASE - 5, seed: 88001 },
+    { level: 3, name: DIVISION_NAMES[3], defs: () => FM.THIRD_TEAM_DEFS, prefix: 'm', ratingBase: FM.RATING_BASE - 10, seed: 176003 },
+    { level: 4, name: DIVISION_NAMES[4], defs: () => FM.FOURTH_TEAM_DEFS, prefix: 'n', ratingBase: FM.RATING_BASE - 15, seed: 264007 },
+  ];
+  const makeDivision = (league, cfg) => {
+    const teams = makeDivisionTeams(league, cfg.defs(), cfg.prefix, cfg.level, cfg.ratingBase, cfg.seed);
+    return { level: cfg.level, name: cfg.name, teams, fixtures: makeFixtures(teams.map((t) => t.id), FM.mulberry32(league.seed + cfg.seed + 110), league.seed + cfg.seed + 200) };
+  };
+
+  FM.ensureFourDivisions = function (league) {
     if (!league.divisionLevel) league.divisionLevel = 1;
-    if (!league.divisionName) league.divisionName = league.divisionLevel === 1 ? 'Premier Division' : 'Championship';
+    if (!league.divisionName) league.divisionName = DIVISION_NAMES[league.divisionLevel] || DIVISION_NAMES[1];
     if (!Number.isFinite(league.boardApproval)) league.boardApproval = 50;
     league.seasonHistory = league.seasonHistory || [];
-    if (!league.otherLeague || !league.otherLeague.teams || league.otherLeague.teams.length !== 8) {
-      const teams = makeLowerTeams(league);
-      league.otherLeague = { level: 2, name: 'Championship', teams, fixtures: makeFixtures(teams.map((t) => t.id), FM.mulberry32(league.seed + 88111), league.seed + 88201) };
-    }
+    // Old saves had one parallel division. Keep it exactly as it was, and add the two new populated tiers around it.
+    const existing = Array.isArray(league.otherLeagues) ? league.otherLeagues.slice() : (league.otherLeague && league.otherLeague.teams ? [league.otherLeague] : []);
+    const byLevel = new Map(existing.filter((d) => d && d.teams && d.teams.length === 8).map((d) => [Number(d.level), d]));
+    const needed = [1, 2, 3, 4].filter((level) => level !== league.divisionLevel);
+    league.otherLeagues = needed.map((level) => {
+      const old = byLevel.get(level);
+      if (old) { old.level = level; old.name = old.name || DIVISION_NAMES[level]; old.fixtures = old.fixtures || makeFixtures(old.teams.map((t) => t.id), FM.mulberry32(league.seed + level * 991), league.seed + level * 997); return old; }
+      return makeDivision(league, divisionConfig.find((c) => c.level === level));
+    });
+    // Compatibility for older multiplayer and saved-game helpers. New solo code always uses otherLeagues/allDivisions.
+    league.otherLeague = league.otherLeagues.find((d) => d.level === (league.divisionLevel === 1 ? 2 : league.divisionLevel - 1)) || league.otherLeagues[0];
     return league.otherLeague;
   };
+  FM.ensureTwoDivisions = FM.ensureFourDivisions;
 
   FM.divisionTableRows = function (division) {
     return FM.tableRows({ teams: division.teams, fixtures: division.fixtures });
@@ -657,9 +704,10 @@
     league.fixtures.filter((f) => f.round === userFx.round && !f.played && f !== userFx).forEach((f) => tasks.push({ lg: league, fx: f, other: false }));
     let shadow = null;
     try {
-      const od = FM.ensureTwoDivisions(league);
-      shadow = { seed: league.seed + 44000, runSeed: league.runSeed || 0, day: league.day, userId: '__none__', teams: od.teams, fixtures: od.fixtures, news: [], friendlies: [], captains: {} };
-      od.fixtures.filter((f) => f.round === userFx.round && !f.played).forEach((f) => tasks.push({ lg: shadow, fx: f, other: true }));
+      FM.allDivisions(league).filter((d) => d.level !== league.divisionLevel).forEach((od) => {
+        const shadow = { seed: league.seed + 44000 + od.level * 701, runSeed: league.runSeed || 0, day: league.day, userId: '__none__', teams: od.teams, fixtures: od.fixtures, news: [], friendlies: [], captains: {} };
+        od.fixtures.filter((f) => f.round === userFx.round && !f.played).forEach((f) => tasks.push({ lg: shadow, fx: f, other: true }));
+      });
     } catch (e) { shadow = null; }
     let cur = null, timer = 0, stopped = false;
     const ctl = { done, shadow, finished: false };
@@ -723,11 +771,12 @@
     FM.finishFixture(league, userFx, userMatch);
     if (bg) await bg.drain(onResult);
     for (const fixture of league.fixtures.filter((f) => f.round === userFx.round && !f.played)) { await FM.simulateFixtureAsync(league, fixture, 0.25); if (onResult) await onResult(fixture, league, false); }
-    // The parallel division plays on the same matchday. It is simulated with
-    // the same engine, but without a human-controlled club or match logs.
-    const other = FM.ensureTwoDivisions(league);
-    const shadow = { seed: league.seed + 44000, runSeed: league.runSeed || 0, day: league.day, userId: '__none__', teams: other.teams, fixtures: other.fixtures, news: [], friendlies: [], captains: {} };
-    for (const fixture of other.fixtures.filter((f) => f.round === userFx.round && !f.played)) { FM.quickFixture(shadow, fixture); if (onResult) await onResult(fixture, shadow, true); }
+    // Every other tier plays on the same matchday too. They use the quick engine because nobody is managing them,
+    // but their squads, results, tables and players are all real and persist through promotion and transfers.
+    for (const other of FM.allDivisions(league).filter((d) => d.level !== league.divisionLevel)) {
+      const shadow = { seed: league.seed + 44000 + other.level * 701, runSeed: league.runSeed || 0, day: league.day, userId: '__none__', teams: other.teams, fixtures: other.fixtures, news: [], friendlies: [], captains: {} };
+      for (const fixture of other.fixtures.filter((f) => f.round === userFx.round && !f.played)) { FM.quickFixture(shadow, fixture); if (onResult) await onResult(fixture, shadow, true); }
+    }
     FM.aiAfterRound(league, userFx.round);
     FM.updateBoardApproval(league);
     if (FM.bizAfterRound) FM.bizAfterRound(league, userFx);   // the club's accounts for the matchday
@@ -782,23 +831,30 @@
 
   FM.startNextSeason = function (league) {
     if (!FM.seasonOver(league)) return false;
-    const other = FM.ensureTwoDivisions(league);
-    const currentRows = FM.tableRows(league), otherRows = FM.divisionTableRows(other);
-    const current = { level: league.divisionLevel, name: league.divisionName, teams: league.teams, fixtures: league.fixtures, rows: currentRows };
-    const second = { level: other.level, name: other.name, teams: other.teams, fixtures: other.fixtures, rows: otherRows };
-    const upper = current.level === 1 ? current : second, lower = current.level === 2 ? current : second;
-    const relegated = upper.rows.slice(-2).map((r) => r.id), promoted = lower.rows.slice(0, 2).map((r) => r.id);
+    const divisions = FM.allDivisions(league).map((d) => Object.assign({}, d, { rows: FM.divisionTableRows(d) })).sort((a, b) => a.level - b.level);
+    const promoted = [], relegated = [], movement = [];
+    const outgoingUp = {}, outgoingDown = {};
+    divisions.forEach((d, i) => {
+      if (i > 0) { const ids = d.rows.slice(0, 2).map((r) => r.id); outgoingUp[d.level] = ids; promoted.push(...ids); movement.push(...d.rows.slice(0, 2).map((r) => r.name + ' promoted from ' + d.name)); }
+      if (i < divisions.length - 1) { const ids = d.rows.slice(-2).map((r) => r.id); outgoingDown[d.level] = ids; relegated.push(...ids); movement.push(...d.rows.slice(-2).map((r) => r.name + ' relegated from ' + d.name)); }
+    });
+    const nextDivisions = divisions.map((d, i) => {
+      const stay = d.teams.filter((t) => (outgoingUp[d.level] || []).indexOf(t.id) < 0 && (outgoingDown[d.level] || []).indexOf(t.id) < 0);
+      const fromAbove = i > 0 ? divisions[i - 1].teams.filter((t) => (outgoingDown[divisions[i - 1].level] || []).indexOf(t.id) >= 0) : [];
+      const fromBelow = i < divisions.length - 1 ? divisions[i + 1].teams.filter((t) => (outgoingUp[divisions[i + 1].level] || []).indexOf(t.id) >= 0) : [];
+      return { level: d.level, name: DIVISION_NAMES[d.level], teams: stay.concat(fromAbove, fromBelow) };
+    });
+    const oldPos = divisions.find((d) => d.level === league.divisionLevel).rows.findIndex((r) => r.id === league.userId) + 1;
+    const userLevel = nextDivisions.find((d) => d.teams.some((t) => t.id === league.userId)).level;
     league.seasonHistory = league.seasonHistory || [];
-    league.seasonHistory.push({ season: league.season, champion: upper.rows[0].name, promoted: lower.rows.slice(0, 2).map((r) => r.name), relegated: upper.rows.slice(-2).map((r) => r.name), divisions: [{ level: 1, name: upper.name, rows: upper.rows }, { level: 2, name: lower.name, rows: lower.rows }] });
-    const upperTeams = upper.teams.filter((t) => relegated.indexOf(t.id) < 0).concat(lower.teams.filter((t) => promoted.indexOf(t.id) >= 0));
-    const lowerTeams = lower.teams.filter((t) => promoted.indexOf(t.id) < 0).concat(upper.teams.filter((t) => relegated.indexOf(t.id) >= 0));
-    const userLevel = upperTeams.some((t) => t.id === league.userId) ? 1 : 2;
-    const activeTeams = userLevel === 1 ? upperTeams : lowerTeams, otherTeams = userLevel === 1 ? lowerTeams : upperTeams;
-    const oldPos = currentRows.findIndex((r) => r.id === league.userId) + 1;
-    league.season += 1; league.day = 0; FM.today = 0; league.divisionLevel = userLevel; league.divisionName = userLevel === 1 ? 'Premier Division' : 'Championship';
-    league.teams = activeTeams; league.fixtures = makeFixtures(activeTeams.map((t) => t.id), FM.mulberry32(league.seed + league.season * 1709 + userLevel), league.seed + league.season * 97003 + userLevel);
-    league.otherLeague = { level: userLevel === 1 ? 2 : 1, name: userLevel === 1 ? 'Championship' : 'Premier Division', teams: otherTeams, fixtures: makeFixtures(otherTeams.map((t) => t.id), FM.mulberry32(league.seed + league.season * 1877 + 9), league.seed + league.season * 99007 + 9) };
-    activeTeams.concat(otherTeams).forEach(resetClubForSeason);
+    league.seasonHistory.push({ season: league.season, champion: divisions[0].rows[0].name, promoted: promoted.map((id) => divisions.flatMap((d) => d.rows).find((r) => r.id === id).name), relegated: relegated.map((id) => divisions.flatMap((d) => d.rows).find((r) => r.id === id).name), movements: movement, divisions: divisions.map((d) => ({ level: d.level, name: d.name, rows: d.rows })) });
+    league.season += 1; league.day = 0; FM.today = 0; league.divisionLevel = userLevel; league.divisionName = DIVISION_NAMES[userLevel];
+    nextDivisions.forEach((d) => { d.fixtures = makeFixtures(d.teams.map((t) => t.id), FM.mulberry32(league.seed + league.season * 1709 + d.level), league.seed + league.season * 97003 + d.level); });
+    const active = nextDivisions.find((d) => d.level === userLevel);
+    league.teams = active.teams; league.fixtures = active.fixtures;
+    league.otherLeagues = nextDivisions.filter((d) => d.level !== userLevel);
+    league.otherLeague = league.otherLeagues.find((d) => d.level === (userLevel === 1 ? 2 : userLevel - 1)) || league.otherLeagues[0];
+    nextDivisions.flatMap((d) => d.teams).forEach(resetClubForSeason);
     league.friendlies = []; league.prepStep = 0; league.prepPhaseMax = 0; league.testPhaseMax = 0; league.labRuns = []; league.phaseLabRuns = {}; league.testLog = []; league.hypotheses = [];
     FM.setBoardExpectation(league);
     league.board.currentPosition = null; league.board.points = 0; league.board.played = 0;
@@ -808,18 +864,19 @@
     if (tr) {
       tr.deals = {}; tr.offers = []; tr.shortlist = []; tr.ai = {}; tr.listed = tr.listed || {}; tr.opening = false;
       const me = FM.teamById(league, league.userId), bill = me.squad.reduce((a, p) => a + (FM.wageOf ? FM.wageOf(p) : 0), 0);
-      activeTeams.forEach((t) => {
+      nextDivisions.flatMap((d) => d.teams).forEach((t) => {
         const wages = t.squad.reduce((a, p) => a + (FM.wageOf ? FM.wageOf(p) : 0), 0);
-        if (!Number.isFinite(tr.budget[t.id])) tr.budget[t.id] = Math.round((league.divisionLevel === 1 ? 12 : 5) * 10) / 10;
-        if (!Number.isFinite(tr.wageBudget[t.id])) tr.wageBudget[t.id] = Math.round((wages + (league.divisionLevel === 1 ? 25 : 12)) * 10) / 10;
+        const level = nextDivisions.find((d) => d.teams.indexOf(t) >= 0).level;
+        if (!Number.isFinite(tr.budget[t.id])) tr.budget[t.id] = Math.round((level === 1 ? 12 : level === 2 ? 5 : level === 3 ? 2.5 : 1.2) * 10) / 10;
+        if (!Number.isFinite(tr.wageBudget[t.id])) tr.wageBudget[t.id] = Math.round((wages + (level === 1 ? 25 : level === 2 ? 12 : level === 3 ? 7 : 4)) * 10) / 10;
       });
-      const performance = league.divisionLevel === 1 ? Math.max(0, 9 - oldPos) * 1.4 : Math.max(0, 9 - oldPos) * 0.75;
-      const status = league.divisionLevel === 1 ? (promoted.indexOf(me.id) >= 0 ? 9 : 12) : 5;
+      const performance = userLevel === 1 ? Math.max(0, 9 - oldPos) * 1.4 : userLevel === 2 ? Math.max(0, 9 - oldPos) * 0.75 : Math.max(0, 9 - oldPos) * 0.4;
+      const status = userLevel === 1 ? (promoted.indexOf(me.id) >= 0 ? 9 : 12) : userLevel === 2 ? 5 : userLevel === 3 ? 2.5 : 1.2;
       tr.budget[me.id] = Math.round((status + performance + Math.max(0, (tr.budget[me.id] || 0) * 0.2)) * 10) / 10;
-      tr.wageBudget[me.id] = Math.round((bill + (league.divisionLevel === 1 ? 30 : 14) + performance * 1.5) * 10) / 10;
+      tr.wageBudget[me.id] = Math.round((bill + (userLevel === 1 ? 30 : userLevel === 2 ? 14 : userLevel === 3 ? 8 : 5) + performance * 1.5) * 10) / 10;
     }
     league.news = league.news || [];
-    league.news.push({ round: -1, day: 0, kind: 'League', headline: 'Season ' + league.season + ' begins in the ' + league.divisionName, body: promoted.indexOf(league.userId) >= 0 ? 'Promotion brings a new division, a larger budget and a tougher board target.' : relegated.indexOf(league.userId) >= 0 ? 'The club begins the work of returning after relegation. The budget has been reset for the Championship.' : 'The board has set its target and confirmed the new season budgets.', club: league.userId, mine: true });
+    league.news.push({ round: -1, day: 0, kind: 'League', headline: 'Season ' + league.season + ' begins in the ' + league.divisionName, body: promoted.indexOf(league.userId) >= 0 ? 'Promotion brings a new division, a larger budget and a tougher board target.' : relegated.indexOf(league.userId) >= 0 ? 'Relegation resets the target, budget and recruitment challenge for the season ahead.' : 'The board has set its target and confirmed the new season budgets.', club: league.userId, mine: true });
     return true;
   };
 
@@ -859,20 +916,22 @@
     return best;
   };
   FM.serializeLeague = function (league) {
-    const teams = league.teams.map(packTeam), other = FM.ensureTwoDivisions(league);
-    return JSON.stringify({ v: 2, cid: league.cid || undefined, saveName: league.saveName || undefined, nameFix: league.nameFix || 0, seed: league.seed, runSeed: league.runSeed || 0, tier: league.tier, userId: league.userId, season: league.season, day: league.day, divisionLevel: league.divisionLevel || 1, divisionName: league.divisionName || 'Premier Division', fixtures: league.fixtures, teams, otherLeague: { level: other.level, name: other.name, fixtures: other.fixtures, teams: other.teams.map(packTeam) }, seasonHistory: league.seasonHistory || [], workbench: league.workbench || null, skin: league.skin || null, injuryLog: league.injuryLog || [], board: league.board || null, boardApproval: Number.isFinite(league.boardApproval) ? league.boardApproval : 50, prepStep: league.prepStep || 0, prepPhaseMax: league.prepPhaseMax || 0, testPhaseMax: league.testPhaseMax || 0, testLog: league.testLog || [], hypotheses: league.hypotheses || [], news: league.news || [], friendlies: league.friendlies || [], labRuns: league.labRuns || [], labCtx: league.labCtx || null, labArchive: league.labArchive || [], phaseLabRuns: league.phaseLabRuns || {}, interviews: league.interviews || [], publicOpinion: Number.isFinite(league.publicOpinion) ? league.publicOpinion : 50, tacticalPlans: league.tacticalPlans || [], activePlanId: league.activePlanId || null, transfer: league.transfer || null, develop: league.develop || null, captains: league.captains || {}, captainIntroSeen: !!league.captainIntroSeen, mp: league.mp || null, biz: league.biz || null });
+    const teams = league.teams.map(packTeam); FM.ensureFourDivisions(league);
+    const otherLeagues = (league.otherLeagues || []).map((d) => ({ level: d.level, name: d.name, fixtures: d.fixtures, teams: d.teams.map(packTeam) }));
+    return JSON.stringify({ v: 3, cid: league.cid || undefined, saveName: league.saveName || undefined, nameFix: league.nameFix || 0, seed: league.seed, runSeed: league.runSeed || 0, tier: league.tier, userId: league.userId, season: league.season, day: league.day, divisionLevel: league.divisionLevel || 1, divisionName: league.divisionName || 'Premier Division', fixtures: league.fixtures, teams, otherLeagues, otherLeague: otherLeagues[0], seasonHistory: league.seasonHistory || [], workbench: league.workbench || null, skin: league.skin || null, injuryLog: league.injuryLog || [], board: league.board || null, boardApproval: Number.isFinite(league.boardApproval) ? league.boardApproval : 50, prepStep: league.prepStep || 0, prepPhaseMax: league.prepPhaseMax || 0, testPhaseMax: league.testPhaseMax || 0, testLog: league.testLog || [], hypotheses: league.hypotheses || [], news: league.news || [], friendlies: league.friendlies || [], labRuns: league.labRuns || [], labCtx: league.labCtx || null, labArchive: league.labArchive || [], phaseLabRuns: league.phaseLabRuns || {}, interviews: league.interviews || [], publicOpinion: Number.isFinite(league.publicOpinion) ? league.publicOpinion : 50, tacticalPlans: league.tacticalPlans || [], activePlanId: league.activePlanId || null, transfer: league.transfer || null, develop: league.develop || null, captains: league.captains || {}, captainIntroSeen: !!league.captainIntroSeen, mp: league.mp || null, biz: league.biz || null });
   };
   FM.deserializeLeague = function (text) {
     const d = JSON.parse(text);
     const teams = d.teams.map(unpackTeam);
     const league = { cid: d.cid || undefined, saveName: typeof d.saveName === 'string' ? d.saveName : undefined, nameFix: d.nameFix || 0, seed: d.seed, runSeed: d.runSeed || 0, tier: d.tier, userId: d.userId, season: d.season, day: d.day, divisionLevel: d.divisionLevel || 1, divisionName: d.divisionName || 'Premier Division', fixtures: d.fixtures, teams, seasonHistory: d.seasonHistory || [], workbench: d.workbench || null, skin: d.skin || null, injuryLog: d.injuryLog || [], board: d.board || null, boardApproval: Number.isFinite(d.boardApproval) ? d.boardApproval : 50, prepStep: d.prepStep || 0, prepPhaseMax: d.prepPhaseMax || 0, testPhaseMax: d.testPhaseMax || 0, testLog: d.testLog || [], hypotheses: d.hypotheses || [], news: d.news || [], friendlies: d.friendlies || [], labRuns: d.labRuns || [], labCtx: d.labCtx || null, labArchive: d.labArchive || [], phaseLabRuns: d.phaseLabRuns || {}, interviews: d.interviews || [], publicOpinion: Number.isFinite(d.publicOpinion) ? d.publicOpinion : 50, tacticalPlans: d.tacticalPlans || [], activePlanId: d.activePlanId || null, transfer: d.transfer || null, develop: d.develop || null, captains: d.captains || {}, captainIntroSeen: !!d.captainIntroSeen, mp: d.mp || null, biz: d.biz || null };
-    if (d.otherLeague && d.otherLeague.teams) league.otherLeague = { level: d.otherLeague.level, name: d.otherLeague.name, fixtures: d.otherLeague.fixtures || [], teams: d.otherLeague.teams.map(unpackTeam) };
-    FM.ensureTwoDivisions(league); FM.setBoardExpectation(league);
+    if (Array.isArray(d.otherLeagues)) league.otherLeagues = d.otherLeagues.filter((x) => x && x.teams).map((x) => ({ level: x.level, name: x.name, fixtures: x.fixtures || [], teams: x.teams.map(unpackTeam) }));
+    else if (d.otherLeague && d.otherLeague.teams) league.otherLeague = { level: d.otherLeague.level, name: d.otherLeague.name, fixtures: d.otherLeague.fixtures || [], teams: d.otherLeague.teams.map(unpackTeam) };
+    FM.ensureFourDivisions(league); FM.setBoardExpectation(league);
     if (FM.fixStaleNames) FM.fixStaleNames(league);   // friendlies written with the earlier player names (see name_fix.js)
     if (FM.installSkin) FM.installSkin(league.skin || null);   // a saved game with a league setting reads its history from that setting
     FM.today = d.day;
     // A match that was abandoned part way: put the lineups back as they were before kick-off.
-    league.teams.concat(league.otherLeague.teams).forEach((t) => { if (t.snap) { FM.restoreLineup(t, t.snap); t.snap = null; } else FM.resetToKickoff(t); });
+    FM.allTeams(league).forEach((t) => { if (t.snap) { FM.restoreLineup(t, t.snap); t.snap = null; } else FM.resetToKickoff(t); });
     return league;
   };
   // The Create page's "Your projects" list reads this entry (same browser storage), so the season shows up there with a Resume button.

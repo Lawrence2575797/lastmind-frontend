@@ -43,7 +43,8 @@
   FM.renderRecruit = function (host, league, h) {
     hooks = h || hooks;
     const t = FM.transfer(league), me = FM.teamById(league, league.userId);
-    const others = league.teams.filter((x) => x.id !== league.userId);
+    // Recruitment is the whole pyramid: promotions and relegations are not the only way to find a player.
+    const others = FM.allTeams(league).filter((x) => x.id !== league.userId);
     const draw = () => FM.renderRecruit(host, league, hooks);
     const save = () => { if (hooks.save) hooks.save(); };
     const room = FM.wageRoom(league, me.id);
@@ -112,7 +113,7 @@
       body = shortlist.length ? `<div class="tablewrap rc-table"><table class="data">${head}<tbody>${shortlist.map((p) => rowHtml({ p, tm: FM.clubOf(league, p) })).join('')}</tbody></table></div>` : '<p class="note">Nobody on your shortlist yet. Declaring interest in a player, or approaching his club, adds him here.</p>';
     } else {
       // after a promotion or relegation some of the clubs named in old offers and moves are in the other division now: they are named all the same
-      const tname = (id) => { const x = FM.teamById(league, id) || (((league.otherLeague || {}).teams) || []).find((y) => y.id === id); return x ? x.name : 'another club'; };
+      const tname = (id) => { const x = FM.teamById(league, id); return x ? x.name : 'another club'; };
       const offerHtml = openOffers.filter((o) => FM.teamById(league, o.from)).map((o) => {
         const p = FM.findPlayer(league, o.pid), buyer = FM.teamById(league, o.from);
         return `<div class="rc-offer"><div><b>${esc(buyer.name)}</b> offer <b>${FM.money(o.fee)}</b> for <b>${esc(p.name)}</b> <small>(${p.natural}, ${FM.ageOf(p)}, ability ${FM.abilityOf(p)}, potential ${FM.potentialOf(p)}; worth about ${FM.money(FM.valueOf(p))})</small>${o.status === 'countered' ? ' ' + chip('They raised their offer', 'st-counter') : ''}</div>
