@@ -115,6 +115,7 @@
   // `extra` (optional): { cells, label, why } puts the report beside a diagram that shows the opposition as their tactics set them up (their structure), so the front line
   // and width quoted are the ones drawn, with a label for the structure and one line on why.
   FM.tacticsPhaseReportHtml = function (league, teamId, ownPhase, extra) {
+    if (!FM.SHOW_PHASE_REPORT) return '';   // the opposition-analysis box on each phase is switched off for now
     const rep = FM.opponentReport(league, teamId), sh = FM.scoutedShape(league, teamId), phase = OPP_PHASE[ownPhase];
     if (!rep.team) return '';
     if (!rep.n || !sh) return `<section class="phase-report"><div class="phase-report-kicker">Opposition analysis</div><h3>${esc(OPP_HEADLINE[ownPhase] || 'The matching opposition phase')}</h3><p>There is no match evidence yet, so there is nothing reliable to say about how ${esc(rep.team.name)} will behave.</p></section>`;

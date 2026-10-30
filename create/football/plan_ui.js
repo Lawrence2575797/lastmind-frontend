@@ -247,7 +247,7 @@
             ${selP ? `<div class="pl-selbar"><b>${esc(selP.name)}</b> <span>${esc((FM.ROLES[selP.roleId] || {}).name || '')}</span><button type="button" data-openp="1">Open role and instructions</button><button type="button" data-unsel="1">Clear</button></div>` : ''}</section>
           <section class="card pl-right"><h4>Team approach: ${esc(info.name.toLowerCase())}</h4>${teamPanel(team, ph)}</section>
         </div>
-        ${dialsHtml(team, ph) ? `<section class="card pl-dials"><h4>Dials for ${esc(info.name.toLowerCase())}</h4>${dialsHtml(team, ph)}</section>` : ''}
+        ${FM.SHOW_PHASE_DIALS && dialsHtml(team, ph) ? `<section class="card pl-dials"><h4>Dials for ${esc(info.name.toLowerCase())}</h4>${dialsHtml(team, ph)}</section>` : ''}
         <section class="card pl-analysis">${FM.planAnalysisHtml ? FM.planAnalysisHtml(team, ph, hooks) : ''}</section>
         <section class="card pl-plans"><h4>On the pitch: areas and triggers</h4>${planItems(team, ph)}${builder(team, ph)}</section>
         <section class="card pl-sum"><h4>The plan so far</h4>${FM.planSummary(team).map((x) => `<p><b>${esc(x.phase)}:</b> ${esc(x.text)}</p>`).join('') || '<p class="pl-empty">Everything is as the roles set it. Make a choice above and it appears here.</p>'}</section></div>`;
