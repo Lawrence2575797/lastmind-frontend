@@ -32,7 +32,9 @@
   FM.isGameRule = (r) => !!(r && r.game);
 
   // opts.stage: the stage of play this box is for. Everything written in it applies to that stage only.
+  // General player instructions are switched off: where a player stands on the board is the instruction (FM.SHOW_INSTRUCTIONS = true brings the panel back).
   FM.renderInstructions = function (host, team, hooks, opts) {
+    if (!FM.SHOW_INSTRUCTIONS) { if (host) { host.innerHTML = ''; host.hidden = true; } return; }
     opts = opts || {};
     // opts.pageId / opts.pageLabel: which tactics page this box is for ('default' for the page that always exists). Instructions written in a
     // page's box apply only while that page is in use.

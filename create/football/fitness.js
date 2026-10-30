@@ -25,12 +25,20 @@
     return dt * (0.000027 + 0.000046 * vr) * intensity * stam;   // (a match now costs about 40% less than it did: it takes real, sustained running to tire a man)
   };
   // Ratings of a tired player: every technical rating and his top speed fall as energy falls.
+  // A man playing out of his natural position is worse: how much worse depends on how close the two jobs are (a centre-back at full-back loses little, a centre-back
+  // up front a lot). Players are only ever 'generally suited' to the positions next to their own.
+  const SUITED = { GK: {}, CB: { FB: .9, DM: .92, CM: .8, AM: .7, WF: .7, ST: .68 }, FB: { CB: .9, WF: .9, CM: .88, DM: .88, AM: .8, ST: .72 }, DM: { CM: .96, CB: .92, FB: .88, AM: .88, WF: .8, ST: .74 }, CM: { DM: .96, AM: .96, WF: .9, FB: .88, ST: .82, CB: .82 }, AM: { CM: .96, WF: .94, ST: .92, DM: .88, FB: .78, CB: .7 }, WF: { AM: .94, ST: .92, FB: .88, CM: .9, DM: .8, CB: .68 }, ST: { AM: .92, WF: .92, CM: .84, DM: .72, FB: .7, CB: .62 } };
+  FM.positionFactor = function (p) {
+    const nat = p.natural, now = p.group; if (!nat || !now || nat === now) return 1;
+    if (now === 'GK' || nat === 'GK') return 0.5;
+    return (SUITED[nat] && SUITED[nat][now]) || 0.7;
+  };
   FM.applyFatigue = function (p) {
     const base = p.baseRatings;
     if (!base) return;
-    const e = clamp(p.energy == null ? 1 : p.energy, 0, 1), m = 0.7 + 0.3 * e;
+    const e = clamp(p.energy == null ? 1 : p.energy, 0, 1), m = (0.7 + 0.3 * e) * (FM.NO_POSFIT ? 1 : FM.positionFactor(p));
     TECH.forEach((k) => { p.ratings[k] = Math.round(base[k] * m); });
-    p.maxSpeed = FM.speedFromPace(base.pace) * (0.82 + 0.18 * e);
+    p.maxSpeed = FM.speedFromPace(base.pace) * (0.82 + 0.18 * e) * (FM.NO_POSFIT ? 1 : (0.9 + 0.1 * FM.positionFactor(p)));
   };
 
   FM.fitnessBegin = function (team) {

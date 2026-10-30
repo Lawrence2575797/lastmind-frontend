@@ -258,10 +258,13 @@
       press:      { GK: 0.10, CB: 0.52, FB: 0.57, DM: 0.63, CM: 0.68, AM: 0.73, WF: 0.77, ST: 0.81 },
       // a low block: everybody behind the ball and inside their own half, the forwards just over the halfway line at most
       withoutLow: { GK: 0.03, CB: 0.17, FB: 0.20, DM: 0.27, CM: 0.33, AM: 0.38, WF: 0.43, ST: 0.48 },
+      // Not pressing their build-up: from a goal kick the ball is far from their goal, so the side stands around the halfway line (the forwards in the ball's half) and just does not
+      // press hard. This is the 'low' end of the press block; the full block drop (withoutLow) is for when the ball has come to them.
+      pressLow:   { GK: 0.06, CB: 0.36, FB: 0.38, DM: 0.44, CM: 0.49, AM: 0.53, WF: 0.56, ST: 0.60 },
     };
     const GROUP_BASE = { GK: 0.03, CB: 0.20, FB: 0.22, DM: 0.41, CM: 0.50, AM: 0.62, WF: 0.78, ST: 0.83 };
     if (POSS_D[phase] && POSS_D[phase][p.group] != null) {
-      const oP = phase === 'without' || phase === 'withoutEnd' || phase === 'withoutLow' ? role.outPoss : role.inPoss;
+      const oP = phase === 'without' || phase === 'withoutEnd' || phase === 'withoutLow' || phase === 'pressLow' ? role.outPoss : role.inPoss;
       let d = POSS_D[phase][p.group] + (p.group === 'GK' ? 0 : (base.d - (GROUP_BASE[p.group] == null ? base.d : GROUP_BASE[p.group])) * 0.5) + (oP.depth || 0) * 0.25 + m.depth;
       if (phase === 'press' && p.group !== 'GK') d += ((team.tactics && team.tactics.lineHeight != null ? team.tactics.lineHeight : 0.5) - 0.5) * 0.16;   // a higher line sets the whole press higher
       if ((phase === 'without' || phase === 'withoutEnd' || phase === 'withoutLow' || phase === 'press') && p.group !== 'GK' && team.dials && team.dials.line) d += team.dials.line / 105 * (phase === 'withoutEnd' ? 0.4 : 1);   // the line dial, in metres

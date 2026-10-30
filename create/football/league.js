@@ -376,7 +376,7 @@
     const entrants = previous ? cup.fixtures.filter((f) => f.stage === previous.key && f.played).map(cupWinner) : cup.entrants.slice();
     if (!entrants.length || entrants.length % 2) return null;
     const rng = FM.mulberry32(league.seed + (league.runSeed || 0) * 31 + league.season * 1009 + cup.draws.length * 917);
-    const shuffled = order && order.length === entrants.length ? order.slice() : entrants.slice().sort(() => rng() - 0.5);
+    const shuffled = order && order.length === entrants.length ? order.slice() : (FM.cupShuffle ? FM.cupShuffle(entrants) : entrants.slice().sort(() => Math.random() - 0.5)); void rng;
     const fixtures = [];
     for (let i = 0; i < shuffled.length; i += 2) fixtures.push({ id: 'cup-' + key + '-' + (i / 2), cup: true, stage: key, round: stage.afterLeagueRound, homeId: shuffled[i], awayId: shuffled[i + 1], played: false, hg: null, ag: null, seed: league.seed + league.season * 100000 + cup.draws.length * 1000 + i * 37 });
     cup.fixtures.push(...fixtures); cup.draws.push({ key, entrants: shuffled.slice() }); cup.activeKey = key; cup.drawPending = null;

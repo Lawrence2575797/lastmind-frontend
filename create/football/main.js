@@ -9,7 +9,7 @@
   const world = { league: null, view: 'home', match: null, fixture: null, running: true, speed: 1, highlightsOnly: false, highlightUntil: 0, highlightSearching: false, highlightRevealFrom: 0, shownEvents: 0, lastStats: '', trails: [], impacts: [], vt: 0, commentaryUntil: 0, commentaryTurns: {}, tab: 'squad', selSlot: null, selBench: null, saveTimer: null, renderPos: new Map(), renderBall: null, frameDt: .016 };
   FM.debugWorld = world;   // a handle for testing the match view from the console
   const REAL_SECONDS_FOR_MATCH = 5400; // a full 90 minutes takes 90 real minutes at 1x (real time); the faster buttons and "Sim to end" are for getting through it
-  const MATCH_SPEED = 1;   // 1x is real time: a second of play is a second on the clock, so passes, runs and build-up look as they do in a real match (the faster buttons are for skipping)
+  const MATCH_SPEED = 1.5;   // (1.5 times real time is what 1x means now: it was found to be the right pace to watch) 1x was real time: a second of play is a second on the clock, so passes, runs and build-up look as they do in a real match (the faster buttons are for skipping)
   const SUBSTEP = 0.1;
   const TIER_NAMES = { gcse: 'GCSE Maths', alevel: 'A-level Maths', above: 'Beyond A-level' };
 
@@ -325,7 +325,7 @@
       const f1 = Number.isFinite(p.facing) ? p.facing : (team.attackDir === 1 ? 0 : Math.PI), pv = FM.prevOf ? FM.prevOf(p) : null;
       let rp = world.renderPos.get(p.id);
       if (!rp) { rp = { x: p.x, y: p.y, facing: f1 }; world.renderPos.set(p.id, rp); }
-      if (pv && Math.hypot(p.x - pv.x, p.y - pv.y) < 5) { const h = herm(pv, p, a); rp.x = h.x; rp.y = h.y; rp.facing = Number.isFinite(pv.f) ? lerpAng(pv.f, f1, a) : f1; }
+      if (pv && Math.hypot(p.x - pv.x, p.y - pv.y) < 5) { const h = herm(pv, p, a), LEAD = FM.RENDER_LEAD == null ? 0.06 : FM.RENDER_LEAD; rp.x = h.x + (p.vx || 0) * LEAD; rp.y = h.y + (p.vy || 0) * LEAD; rp.facing = Number.isFinite(pv.f) ? lerpAng(pv.f, f1, a) : f1; }
       else { rp.x = p.x; rp.y = p.y; rp.facing = f1; }
     }));
     if (!world.renderBall) world.renderBall = { x: m.ball.x, y: m.ball.y };
@@ -819,20 +819,37 @@
     const team = (id) => { const t = FM.teamById(lg, id); return t ? t.name : 'TBD'; };
     return `<div class="cup-tree">${stages.map((s) => `<section><h4>${esc(s.label)}</h4>${byStage(s.key).length ? byStage(s.key).map((f) => `<div class="cup-pair${f.homeId === lg.userId || f.awayId === lg.userId ? ' mine' : ''}"><span>${esc(team(f.homeId))}${f.hg != null ? ` <b>${f.hg}${f.shootout ? ' (' + f.shootout.home + ')' : ''}</b>` : ''}</span><span>${esc(team(f.awayId))}${f.ag != null ? ` <b>${f.ag}${f.shootout ? ' (' + f.shootout.away + ')' : ''}</b>` : ''}</span></div>`).join('') : '<div class="cup-pair pending"><span>TBD</span><span>TBD</span></div>'}</section>`).join('')}</div>`;
   };
+  // A truly random draw: every save and every round is shuffled from the browser's own random numbers, never from the save's seed.
+  function cupShuffle(list) {
+    const a = list.slice(), rnd = () => { try { const u = new Uint32Array(1); crypto.getRandomValues(u); return u[0] / 4294967296; } catch (e) { return Math.random(); } };
+    for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); const t = a[i]; a[i] = a[j]; a[j] = t; }
+    return a;
+  }
+  FM.cupShuffle = cupShuffle;
+  // The draw is shown as pairings, laid out in two columns like a televised draw: each tie is two boxes with a "v" between them, filled in one club at a time.
   function showCupDraw(stage, done) {
-    const lg = world.league, cup = lg.cup, entrants = stage.key === 'r32' ? cup.entrants.slice() : cup.fixtures.filter((f) => f.stage === cup.stages[cup.stages.findIndex((s) => s.key === stage.key) - 1].key && f.played).map((f) => f.shootout ? f.shootout.winnerId : f.hg > f.ag ? f.homeId : f.awayId);
-    // The order is prepared once and revealed one club at a time; cupDraw uses this exact order when the animation ends.
-    const rng = FM.mulberry32(lg.seed + (lg.runSeed || 0) * 31 + lg.season * 1009 + cup.draws.length * 917);
-    const order = entrants.slice().sort(() => rng() - 0.5), names = order.map((id) => FM.teamById(lg, id).name);
+    const lg = world.league, cup = lg.cup, prev = cup.stages[cup.stages.findIndex((s) => s.key === stage.key) - 1];
+    const entrants = !prev ? cup.entrants.slice() : cup.fixtures.filter((f) => f.stage === prev.key && f.played).map((f) => f.shootout ? f.shootout.winnerId : f.hg > f.ag ? f.homeId : f.awayId);
+    const order = cupShuffle(entrants), teamName = (id) => FM.teamById(lg, id).name, ties = order.length / 2, half = Math.ceil(ties / 2);
+    const tieHtml = (k) => `<div class="cd-tie" data-tie="${k}"><div class="cd-name">Tie ${k + 1}</div><div class="cd-box" data-slot="${2 * k}"><span></span></div><div class="cd-v">v</div><div class="cd-box" data-slot="${2 * k + 1}"><span></span></div></div>`;
+    const col = (from, to) => `<div class="cd-col">${Array.from({ length: to - from }, (_, i) => tieHtml(from + i)).join('')}</div>`;
     const shade = document.createElement('div'); shade.className = 'cup-overlay';
-    shade.innerHTML = `<div class="cup-draw card"><div class="eyebrow">League Cup draw</div><h2>${esc(stage.label)}</h2><p class="desc">The draw is being made live. Ashford’s path is highlighted in gold.</p><div class="cup-draw-grid"><div id="cupTreeLive">${FM.cupTreeHtml(lg)}</div><aside><h3>Teams in the draw</h3><ol id="cupEntrants">${names.map((n, i) => `<li data-cup-entry="${i}">${esc(n)}</li>`).join('')}</ol></aside></div><p id="cupDrawStatus" class="cup-status">The first club is about to be drawn…</p></div>`;
+    shade.innerHTML = `<div class="cup-draw card"><div class="eyebrow">League Cup draw</div><h2>${esc(stage.label)}</h2><p class="desc">Clubs are drawn one at a time. Your club is highlighted in gold.</p><div class="cd-board">${col(0, half)}${col(half, ties)}</div><p id="cupDrawStatus" class="cup-status">The draw is about to begin…</p><div class="row"><button type="button" id="cupSkip">Show the whole draw</button></div></div>`;
     document.body.appendChild(shade);
-    let i = 0; const list = shade.querySelector('#cupEntrants'), status = shade.querySelector('#cupDrawStatus');
-    const tick = () => {
-      if (i >= order.length) { FM.cupDraw(lg, stage.key, order); shade.querySelector('#cupTreeLive').innerHTML = FM.cupTreeHtml(lg); status.textContent = 'The draw is complete.'; const b = document.createElement('button'); b.className = 'primary'; b.textContent = 'Continue'; b.addEventListener('click', () => { shade.remove(); FM.saveLeague(lg); done(); }); shade.querySelector('.cup-draw').appendChild(b); return; }
-      const line = list.querySelector('[data-cup-entry="' + i + '"]'); if (line) line.classList.add('drawn'); status.textContent = names[i] + ' are drawn.'; i++; setTimeout(tick, 260);
+    const status = shade.querySelector('#cupDrawStatus'); let i = 0, timer = null, finished = false;
+    const reveal = (n) => { const box = shade.querySelector('[data-slot="' + n + '"]'); if (!box) return; box.classList.add('drawn'); box.firstElementChild.textContent = teamName(order[n]); if (order[n] === lg.userId) box.classList.add('mine'); };
+    const finish = () => {
+      if (finished) return; finished = true; clearTimeout(timer); for (let n = i; n < order.length; n++) reveal(n);
+      FM.cupDraw(lg, stage.key, order); status.textContent = 'The draw is complete.'; const sk = shade.querySelector('#cupSkip'); if (sk) sk.remove();
+      const b = document.createElement('button'); b.className = 'primary'; b.textContent = 'Continue'; b.addEventListener('click', () => { shade.remove(); FM.saveLeague(lg); done(); }); shade.querySelector('.cup-draw').appendChild(b);
     };
-    setTimeout(tick, 600);
+    const tick = () => {
+      if (i >= order.length) { finish(); return; }
+      reveal(i); status.textContent = teamName(order[i]) + (i % 2 ? ' are drawn against ' + teamName(order[i - 1]) + '.' : ' are drawn.'); i++;
+      timer = setTimeout(tick, i % 2 ? 1700 : 1300);
+    };
+    shade.querySelector('#cupSkip').addEventListener('click', finish);
+    timer = setTimeout(tick, 1200);
   }
   function cupPenaltyShootout(fx, match, done) {
     const me = world.league.userId, myTeam = match.teams.find((t) => t.id === me), defaults = myTeam.players.slice(0, 5);
@@ -1044,7 +1061,7 @@
     world.view = v;
     { const sb = el('saveBtn'); if (sb) sb.hidden = !world.league; const nb = el('nameBtn'); if (nb) nb.hidden = !world.league || !!world.league.mp; }
     if (FM.agentHide) FM.agentHide(v === 'match');
-    document.body.dataset.view = v;
+    document.body.dataset.view = v; document.body.dataset.testing = (v === 'tactics' && world.testing) ? '1' : '0';
     VIEWS.forEach((k) => { el('view-' + k).hidden = k !== v; });
     el('newGame').hidden = true;
     el('tactics').hidden = !(v === 'tactics' || v === 'match');
@@ -1087,7 +1104,7 @@
   }
   function renderPrepFlow() {
     const host = el('prepFlow');
-    if (!world.league || world.view === 'match' || world.view === 'workbench') { host.hidden = true; return; }
+    if (!FM.SHOW_PREP_FLOW || !world.league || world.view === 'match' || world.view === 'workbench') { host.hidden = true; return; }
     const active = world.view === 'analysis' ? 'analysis' : world.view === 'tactics' ? (world.testing ? 'test' : 'prepare') : world.view === 'preview' ? 'preview' : '';
     const oneOff = world.league.mp && world.league.mp.kind === 'match';
     const steps = oneOff ? [['prepare', 'Prepare tactics'], ['preview', 'Match preview']] : [['analysis', 'Analysis'], ['prepare', 'Prepare tactics'], ['test', 'Test phases'], ['preview', 'Match preview']];
@@ -1116,16 +1133,22 @@
     const lg = world.league;
     const host = el('topRight');
     if (!lg) { host.innerHTML = ''; el('subtitle').textContent = ''; return; }
-    const user = userTeam();
-    el('subtitle').textContent = user.name + ' · Season ' + lg.season;
+    const subtitle = el('subtitle'); subtitle.textContent = ''; subtitle.hidden = true;
+    const flowOn = (k) => ((k === 'analysis' && world.view === 'analysis') || (k === 'prepare' && world.view === 'tactics' && !world.testing) || (k === 'test' && world.view === 'tactics' && world.testing)) ? 'on' : '';
     host.innerHTML = `<button data-top="home" class="${world.view === 'home' ? 'on' : ''}">Home</button>
-      ${DEMO_MODE ? '' : `<button data-top="workbench" class="tb-workbench ${world.view === 'workbench' ? 'on' : ''}">Workbook</button>`}
+      ${lg.mp && lg.mp.kind === 'match' ? '' : `<button data-flow="analysis" class="${flowOn('analysis')}">Analysis</button>`}<button data-flow="prepare" class="${flowOn('prepare')}">Tactics</button><button data-flow="test" class="${flowOn('test')}">Test phases</button>
       ${lg.mp && lg.mp.kind === 'match' ? '' : `<button data-top="board" class="${world.view === 'board' ? 'on' : ''}">Board</button>`}
       <button data-top="squad" class="${world.view === 'squad' ? 'on' : ''}">Squad</button>
       ${lg.mp ? '' : `<button data-top="recruit" class="${world.view === 'recruit' ? 'on' : ''}">Recruitment</button>`}
       ${lg.mp && lg.mp.kind === 'match' ? '' : `<button data-top="news" class="${world.view === 'news' ? 'on' : ''}">News</button>`}
       ${lg.mp ? `<button data-top="mp" class="${world.view === 'mp' ? 'on' : ''}">Online</button>` : ''}`;
     host.querySelectorAll('[data-top]').forEach((b) => b.addEventListener('click', () => setView(b.dataset.top)));
+    host.querySelectorAll('[data-flow]').forEach((b) => b.addEventListener('click', () => {
+      const k = b.dataset.flow;
+      if (k === 'analysis') { world.league.prepStep = Math.max(world.league.prepStep || 0, 1); saveSoon(); setView('analysis'); }
+      else if (k === 'prepare') { world.testing = false; world.tab = 'squad'; world.league.prepPhaseMax = Math.max(world.league.prepPhaseMax || 0, 1); saveSoon(); setView('tactics'); }
+      else { world.testing = true; world.tab = 'build'; setView('tactics'); }
+    }));
   }
 
   function renderPreview() {
@@ -1758,6 +1781,7 @@
   // Saved match plans. Picking one applies it to the team straight away (it is what plays the next game), and "Save current plan" writes the
   // team as it now stands back into the picked plan; "Save as new plan" keeps the picked one and makes another.
   function renderPlanBar(team) {
+    if (!FM.SHOW_PLAN_BAR) { const hb = el('planBar'); if (hb) { hb.innerHTML = ''; hb.hidden = true; } return; }   // the plan is kept automatically as you change the team
     const host = el('planBar'), lg = world.league, plans = lg.tacticalPlans = lg.tacticalPlans || [];
     const active = plans.find((p) => p.id === lg.activePlanId) || null;
     if (!active) lg.activePlanId = null;
@@ -1892,7 +1916,7 @@
     team.players.forEach((p) => {
       const q = FM.phasePos(team, p, 'without'); FM.setPhasePos(team, p, 'without', kind === 'low' && p.group !== 'GK' ? FM.defaultPhasePos(team, p, 'withoutLow') : { d: Math.max(.03, Math.min(p.group === 'CB' ? .44 : .82, q.d + shift)), w: q.w });   // a low block puts every outfield player in his own half
       // how high they stand to press a build-up is read off the two default shapes: the full press, and the block they drop into; mid is between
-      if (p.group !== 'GK') { const hi = FM.defaultPhasePos(team, p, 'press'), lo = FM.defaultPhasePos(team, p, 'withoutLow'), f = { high: 1, mid: 0.6, low: 0 }[kind]; FM.setPhasePos(team, p, 'press', { d: Math.max(.05, Math.min(.92, lo.d + (hi.d - lo.d) * f)), w: hi.w }); }
+      if (p.group !== 'GK') { const hi = FM.defaultPhasePos(team, p, 'press'), lo = FM.defaultPhasePos(team, p, 'pressLow'), f = { high: 1, mid: 0.6, low: 0 }[kind]; FM.setPhasePos(team, p, 'press', { d: Math.max(.05, Math.min(.92, lo.d + (hi.d - lo.d) * f)), w: hi.w }); }
     });
     team.tactics.block = kind;
     team.tactics.pressing = kind === 'high' ? .82 : kind === 'mid' ? .5 : .22;
@@ -2144,7 +2168,7 @@
       if (key === 'final') s += `<rect x="0" y="0" width="${BW}" height="${BH / 3}" fill="rgba(255,255,255,0.07)"/>`;
       if (key === 'build') s += `<rect x="0" y="${BH * 2 / 3}" width="${BW}" height="${BH / 3}" fill="rgba(255,255,255,0.07)"/>`;
     } else {
-    for (let i = 0; i < 14; i++) s += `<rect x="0" y="${(i * BH / 14).toFixed(1)}" width="${BW}" height="${(BH / 14).toFixed(1)}" fill="${i % 2 ? '#2E7D3E' : '#2A7539'}"/>`;
+    for (let i = 0; i < 14; i++) s += `<rect x="0" y="${(i * BH / 14).toFixed(1)}" width="${BW}" height="${(BH / 14).toFixed(1)}" fill="${i % 2 ? '#3A4A40' : '#36463C'}"/>`;
     if (key === 'final') s += `<rect x="0" y="0" width="${BW}" height="${BH / 3}" fill="rgba(255,255,255,0.07)"/>`;
     if (key === 'build') s += `<rect x="0" y="${BH * 2 / 3}" width="${BW}" height="${BH / 3}" fill="rgba(255,255,255,0.07)"/>`;
     s += `<rect x="0" y="0" width="${BW}" height="${BH}" ${ln}/><line x1="0" y1="${BH / 2}" x2="${BW}" y2="${BH / 2}" ${ln}/>`;
@@ -2259,7 +2283,8 @@
     const front = outfield.slice().sort((a, b) => cells[b].d - cells[a].d).slice(0, 3);
     const out = {}, cl = (v) => Math.max(0.02, Math.min(0.97, v));
     // where the block's average depth sits (0 their goal, 1 ours), how much of the scouted spread it keeps, and how wide it stands
-    const BLOCK = { opp_high: { m: kick ? 0.56 : 0.62, spread: 0.85, wide: 0.95 }, opp_mid: { m: 0.43, spread: 0.8, wide: 0.85 }, opp_low: { m: 0.28, spread: 0.6, wide: 0.7 } }[cond];
+    // (From a goal kick a side that sits off does not retreat to its own box: the ball is a long way from their goal, so a low block there is around the halfway line, mostly in the ball's half but not pressing. It only sits deep when the ball comes to it.)
+    const BLOCK = { opp_high: { m: kick ? 0.60 : 0.62, spread: 0.85, wide: 0.95 }, opp_mid: { m: kick ? 0.51 : 0.43, spread: 0.8, wide: 0.85 }, opp_low: { m: kick ? 0.45 : 0.28, spread: kick ? 0.75 : 0.6, wide: 0.7 } }[cond];
     slots.forEach((k) => {
       const c = cells[k]; let d = c.d, w = c.w;
       if (!/^GK/.test(k)) {
@@ -2278,7 +2303,7 @@
     }
     if (kick) {
       // goal kick: nobody in the penalty area, and even a high press stands on its edge (the area ends 0.157 of the pitch from our goal line)
-      const cap = cond === 'opp_high' ? 0.72 : cond === 'opp_low' ? 0.46 : 0.58;
+      const cap = cond === 'opp_high' ? 0.78 : cond === 'opp_low' ? 0.62 : 0.68;
       const top = Math.max.apply(null, outfield.map((k) => out[k].d));
       if (top > cap) outfield.forEach((k) => { out[k].d = Math.max(0.02, out[k].d * cap / top); });
     }
@@ -2517,7 +2542,7 @@
     host.innerHTML = `
       <div class="tb-grid${pair ? ' tb-pair' : ''}${isShape ? ' tb-shape' : ''}">
         <aside class="tb-controls">
-          ${isShape ? `<label>Formation<select id="formSel">${team.formationLabel ? `<option value="__custom" selected disabled>Current shape: ${esc(formationTitle)}</option>` : ''}${formationOptions}</select></label>${world.view === 'match' ? '' : '<button type="button" class="primary" id="useFormationDefaults">Use default tactics with this formation</button><p class="note">This keeps the formation, replaces manual phase pages and written tactical instructions with sensible defaults, and takes you straight to testing.</p>'}` : ((world.oppMoved && world.oppMoved[key] && Object.keys(world.oppMoved[key]).length) ? '<button class="phase-report-reset" id="oppReset">Reset their shirts to the scouted positions</button>' : '')}
+          ${isShape ? `<label>Formation<select id="formSel">${team.formationLabel ? `<option value="__custom" selected disabled>Current shape: ${esc(formationTitle)}</option>` : ''}${formationOptions}</select></label>${world.view === 'match' ? '' : '<button type="button" class="primary" id="useFormationDefaults">Use default tactics with this formation</button>'}` : ((world.oppMoved && world.oppMoved[key] && Object.keys(world.oppMoved[key]).length) ? '<button class="phase-report-reset" id="oppReset">Reset their shirts to the scouted positions</button>' : '')}
           ${tab === 'organised' ? '<div class="block-presets"><b>Defensive block</b><button data-block="low">Low block</button><button data-block="mid">Mid block</button><button data-block="high">High press</button></div>' : ''}
           <div id="phaseSliders"></div>
         </aside>

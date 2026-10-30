@@ -1066,6 +1066,25 @@
   .fit-row .fit-bar i { display: block; height: 100%; background: #7fd49a; }
   .fit-row.low .fit-bar i { background: var(--gold); } .fit-row.out { opacity: .6; } .fit-row.out .fit-bar i { background: #ff8a7a; }
   .fit-row b { text-align: right; font-weight: 700; }
+
+  .cd-board { display: grid; grid-template-columns: 1fr 1fr; gap: 22px 40px; margin: 14px 0 6px; }
+  .cd-col { display: grid; gap: 9px; align-content: start; }
+  .cd-tie { display: grid; grid-template-columns: 4.2rem minmax(0,1fr) 1.4rem minmax(0,1fr); align-items: center; gap: 6px; }
+  .cd-name { font-size: .68rem; letter-spacing: .1em; text-transform: uppercase; color: var(--cream-soft); }
+  .cd-box { min-height: 2rem; padding: 6px 10px; border: 1px solid var(--line); background: rgba(255,255,255,.03); font-family: var(--sans); font-weight: 700; font-size: .82rem; display: flex; align-items: center; }
+  .cd-box.drawn { background: rgba(215,184,107,.1); border-color: rgba(215,184,107,.5); animation: cdIn .5s ease; } .cd-box.mine { background: var(--gold); color: #1f2322; border-color: var(--gold); }
+  .cd-v { text-align: center; font-weight: 800; color: var(--cream-soft); font-size: .8rem; }
+  @keyframes cdIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+  @media (max-width: 760px) { .cd-board { grid-template-columns: 1fr; } }
+
+  .topright button.on { background: transparent; color: var(--gold); border: 1px solid var(--gold); }
+  .nav button.on { background: transparent; color: var(--gold); border: 1px solid var(--gold); }
+  body[data-testing="1"] svg.board, body[data-testing="1"] .board-pair svg.board, body[data-testing="1"] .tb-grid svg.board { max-width: 400px !important; max-height: 56vh; margin-left: 0; margin-right: auto; }
+
+  .topbar .topright { flex-wrap: nowrap; gap: 5px; }
+  .topbar .topright button { white-space: nowrap; padding: 6px 10px; }
+  .topbar .topright button.on { background: transparent !important; color: var(--gold) !important; border: 1px solid var(--gold) !important; }
+  .topname h1 { font-size: 1.3rem; }
 </style>
 <link rel="stylesheet" href="/create/football/maths-editor.css?v=20261125b">
 <link rel="stylesheet" href="/create/football/workbench.css?v=20261030a">
@@ -1275,6 +1294,6 @@
 <script src="/create/football/stadium.js?v=20261028b"></script>
 <script src="/create/football/playermodel.js?v=20261028c"></script>
 <script src="/create/football/view3d.js?v=20261029pjkmnrstu"></script>
-<script src="/create/football/main.js?v=20261030leaguecup"></script>
+<script src="/create/football/main.js?v=20261030cleanheader"></script>
 </body>
 </html>

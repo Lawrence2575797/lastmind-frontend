@@ -31,9 +31,9 @@
   function surface(id) {
     let s = `<defs><pattern id="${id}n" width="96" height="96" patternUnits="userSpaceOnUse">${noiseTile() ? `<image href="${noiseTile()}" width="96" height="96"/>` : ''}</pattern>
       <marker id="${id}a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5.5" markerHeight="5.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#FFD54A"/></marker></defs>`;
-    s += `<rect width="${PW}" height="${PH}" fill="#2D6B40"/>`;
+    s += `<rect width="${PW}" height="${PH}" fill="#3A4A40"/>`;   // a muted charcoal-green that sits on the charcoal page
     for (let i = 0; i < 15; i++) s += `<rect y="${(i * 7 * SC).toFixed(1)}" width="${PW}" height="${(7 * SC).toFixed(1)}" fill="${i % 2 ? '#000' : '#fff'}" fill-opacity="${i % 2 ? 0.045 : 0.035}"/>`;
-    if (noiseTile()) s += `<rect width="${PW}" height="${PH}" fill="url(#${id}n)" opacity=".55"/>`;
+    if (noiseTile()) s += `<rect width="${PW}" height="${PH}" fill="url(#${id}n)" opacity=".3"/>`;
     return s;
   }
   function markings() {
@@ -331,9 +331,9 @@
     }).join('');
     host.innerHTML = `<div class="pl-pop pl-pop-top" role="dialog" aria-label="Role and instructions for ${esc(p.name)}"><button type="button" class="pl-pop-x" data-close="1" aria-label="Close">×</button>
       <div class="pl-who"><b>${esc(p.name)}</b><span>#${p.number} · ${esc(p.group)}${FM.playerRating ? ' · ' + FM.playerRating(p, p.group).toFixed(1) : ''}</span></div>
-      <h5>Role</h5><div class="pl-roles">${roleBtns}</div>
+      ${FM.SHOW_INSTRUCTIONS ? `<h5>Role</h5><div class="pl-roles">${roleBtns}</div>
       <p class="pl-roledesc" id="plRoleDesc"><b>${esc(role.name || '')}.</b> ${esc(role.desc || '')}</p>
-      <h5>General instructions</h5>${general}
+      <h5>General instructions</h5>${general}` : ''}
       <h5>By phase of play</h5>${phases || '<p class="pl-empty">Nothing to choose by phase for this player.</p>'}</div>`;
     // Choosing something rebuilds the panel (and the page behind it): where it and the page were scrolled to is kept, so a click never throws you back to the top.
     const redraw = () => {
