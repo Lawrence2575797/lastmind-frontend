@@ -15,7 +15,7 @@
 <meta name="theme-color" content="#0a1512">
 <script>
     if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js?v=20261030a').catch(() => {}));
+        window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js?v=20261030b').catch(() => {}));
     }
 </script>
 <style>
@@ -4921,7 +4921,7 @@
     /* LastMind Simulate - same look as Rewards: ink text on the page, panel-coloured cards and buttons. */
     /* Simulate home: the old chat page's greeting, quote and mark, then the projects as a stack of cards. */
     .content:has(.sim-home) { padding-bottom: 8px; }
-    .sim-home { width: 100%; max-width: 640px; min-height: calc(100vh - 180px); margin: 0 auto; padding: 4vh 16px 16px; color: var(--ink); display: flex; flex-direction: column; align-items: center; justify-content: center; }
+    .sim-home { width: 100%; max-width: 1100px; min-height: calc(100vh - 180px); margin: 0 auto; padding: 4vh 16px 16px; color: var(--ink); display: flex; flex-direction: column; align-items: center; justify-content: center; }
     .sim-greeting, .sim-quote { margin: 0; max-width: 480px; text-align: center; font: italic 1.05rem/1.6 'Lora', Georgia, serif; }
     .sim-greeting { margin-bottom: 10px; font: italic 700 clamp(1.5rem, 3.4vw, 2.1rem)/1.25 'Lora', Georgia, serif; opacity: 0.9; min-height: 1.25em; } .sim-quote { opacity: 0.78; font-size: 1.1rem; min-height: 1.6em; margin-bottom: 30px; }
     .sim-mark { display: flex; flex-direction: column; align-items: center; gap: 8px; margin: 3vh 0 4vh; color: var(--ink); font: 900 clamp(1.8rem, 5vw, 2.6rem)/1.1 'Lora', Georgia, serif; letter-spacing: 0.02em; }
@@ -4931,10 +4931,11 @@
     .sim-wallet-head { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 22px; }
     .sim-wallet-head h2 { margin: 0; font: 700 1.2rem 'Lora', Georgia, serif; }
     .sim-wallet-head .create-cta { padding: 10px 22px; font-size: 0.9rem; }
-    .sim-wallet { position: relative; width: 100%; max-width: 440px; height: clamp(400px, calc(100vh - 385px), 500px); touch-action: pan-x;   /* shorter on a short screen, so the page fits above the strip without scrolling */
-    outline: none; perspective: 1200px; user-select: none; -webkit-user-select: none; }
-    .sim-wallet:focus-visible { outline: 2px solid var(--accent); outline-offset: 8px; border-radius: 18px; }
-    .sim-card { position: absolute; left: 0; right: 0; top: 0; height: 330px; border-radius: 18px; overflow: hidden; background: var(--panel); color: var(--text); border: 1px solid rgba(26,26,28,0.28); box-shadow: 0 14px 34px rgba(26,26,28,0.28); transform-origin: 0 100%; will-change: transform, opacity; cursor: pointer; display: flex; flex-direction: column; }
+    .sim-wallet { position: relative; width: 100%; outline: none; }
+    .sim-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; align-items: start; }
+    @media (max-width: 860px) { .sim-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } } @media (max-width: 560px) { .sim-grid { grid-template-columns: minmax(0, 1fr); } }
+    .sim-card { position: relative; min-height: 320px; border-radius: 14px; overflow: hidden; background: var(--panel); color: var(--text); border: 1px solid rgba(244,237,218,0.14); box-shadow: 0 8px 22px rgba(0,0,0,0.3); cursor: pointer; display: flex; flex-direction: column; transition: transform .18s, border-color .18s; }
+    .sim-card:hover { transform: translateY(-3px); border-color: rgba(215,184,107,0.55); }
     .sim-card:not(.front) { cursor: pointer; }
     .sim-card-img { display: block; width: 100%; height: 170px; object-fit: cover; pointer-events: none; }
     .sim-card-body { padding: 14px 18px 16px; display: grid; gap: 6px; }
@@ -4942,8 +4943,9 @@
     .sim-card-meta { margin: 0; font: 0.8rem Arial, sans-serif; opacity: 0.72; }
     .sim-card-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
     .sim-card-actions .create-cta { padding: 8px 18px; font-size: 0.85rem; }
-    .sim-wallet-nav { position: absolute; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; gap: 14px; }
-    .sim-nav-btn { width: 36px; height: 36px; border-radius: 50%; border: 1px solid rgba(26,26,28,0.32); background: var(--panel); color: var(--text); font: 700 1rem Arial, sans-serif; cursor: pointer; }
+    .sim-wallet-nav { position: static; margin-top: 18px; display: flex; align-items: center; justify-content: center; gap: 14px; }
+    .sim-nav-btn:disabled { opacity: .35; cursor: default; }
+    .sim-nav-btn { width: 36px; height: 36px; border-radius: 50%; border: 1px solid rgba(244,237,218,0.3); background: var(--panel); color: var(--text); font: 700 1rem Arial, sans-serif; cursor: pointer; }
     .sim-count { font: 700 0.8rem Arial, sans-serif; opacity: 0.7; min-width: 64px; text-align: center; }
     @media (prefers-reduced-motion: reduce) { .sim-card { will-change: auto; } }
     .create-view { width: 100%; padding-bottom: 44px; color: var(--ink); }
@@ -12133,98 +12135,38 @@ SQIDAQAB
         return { id: p.id, image, title, meta, open, openLabel, extras, deletable, isRef };
     }
     function simWalletMount(host, cards, onDelete) {
+        // The projects sit side by side, three at a time (a fourth and beyond go on the next page), so the page has little empty space.
         if (simWalletCleanup) { simWalletCleanup(); simWalletCleanup = null; }
-        const n = cards.length;
-        host.innerHTML = cards.map((c, i) => `
-            <article class="sim-card" data-i="${i}" aria-label="${escapeHtml(c.title)}">
-                <img class="sim-card-img" src="${c.image}" alt="" loading="lazy" draggable="false">
-                <div class="sim-card-body">
-                    <h3>${escapeHtml(c.title)}</h3>
-                    <p class="sim-card-meta">${escapeHtml(c.meta)}${c.isRef ? ' · Reference example' : ''}</p>
-                    <div class="sim-card-actions">
-                        <button type="button" class="create-cta" data-act="open">${escapeHtml(c.openLabel)}</button>
-                        ${c.extras.map((x, k) => `<button type="button" class="create-secondary" data-act="x${k}">${escapeHtml(x.label)}</button>`).join('')}
-                        ${c.deletable ? '<button type="button" class="create-secondary" data-act="del">Delete</button>' : ''}
-                    </div>
-                </div>
-            </article>`).join('') + (n > 1 ? '<div class="sim-wallet-nav"><button type="button" class="sim-nav-btn" data-nav="-1" aria-label="Previous project">↑</button><span class="sim-count" aria-live="polite"></span><button type="button" class="sim-nav-btn" data-nav="1" aria-label="Next project">↓</button></div>' : '');
-        const els = Array.from(host.querySelectorAll('.sim-card'));
-        const countEl = host.querySelector('.sim-count');
-        const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-        let target = 0, pos = 0, raf = 0, lockUntil = 0, wheelAcc = 0, lastWheel = 0, wheelSpent = false, wheelMin = 0;
+        const PER = 3, n = cards.length, pages = Math.max(1, Math.ceil(n / PER));
+        let page = 0;
         const paint = () => {
-            els.forEach((el, i) => {
-                const d = i - pos;
-                let y, x = 0, rot = 0, sc, o;
-                if (d >= 0) { y = Math.min(d, 3.5) * 30; sc = 1 - Math.min(d, 3.5) * 0.05; o = d > 3 ? Math.max(0, 1 - (d - 3) * 2) * 0.55 : 1 - d * 0.1; }
-                else { const t = Math.min(1, -d); y = -t * 380; x = -t * 70; rot = -t * 16; sc = 1 + t * 0.04; o = 1 - t * 1.15; }
-                el.style.transform = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0) rotate(${rot.toFixed(2)}deg) scale(${sc.toFixed(3)})`;
-                el.style.opacity = String(Math.max(0, Math.min(1, o)));
-                el.style.zIndex = String(d < 0 ? 200 + i : 100 - i);
-                el.style.pointerEvents = d < -0.5 || d > 3.5 ? 'none' : 'auto';
-                el.classList.toggle('front', Math.abs(d) < 0.5);
-                el.setAttribute('aria-hidden', Math.abs(d) < 0.5 ? 'false' : 'true');
-                el.querySelectorAll('button').forEach((b) => { b.tabIndex = Math.abs(d) < 0.5 ? 0 : -1; });
-            });
-            if (countEl) countEl.textContent = `${Math.round(pos) + 1} of ${n}`;
-        };
-        const tick = () => {
-            raf = 0;
-            if (reduce) pos = target; else pos += (target - pos) * 0.16;
-            if (Math.abs(target - pos) < 0.002) pos = target;
-            paint();
-            if (pos !== target) raf = setTimeout(tick, 16);
-        };
-        const go = (t) => { target = Math.max(0, Math.min(n - 1, t)); if (!raf) raf = setTimeout(tick, 16); };
-        const step = (dir) => { if (Date.now() < lockUntil) return; lockUntil = Date.now() + 260; go(target + dir); };
-        paint();
-        const onWheel = (e) => {
-            if (n < 2) return;
-            // A page that can still scroll the other way keeps the wheel: only take it while the stack can move.
-            const dir = e.deltaY > 0 ? 1 : -1;
-            if ((dir > 0 && target >= n - 1) || (dir < 0 && target <= 0)) return;
-            e.preventDefault();
-            // One scroll gesture moves one project, however long it carries on (a trackpad keeps sending events for a second or more as it
-            // coasts): after a move, nothing more is taken until the wheel has been quiet for a moment.
-            // A new scroll starts after a short quiet gap, or when the wheel speeds up again after slowing down (a fresh flick on top of the
-            // coasting of the last one). The tail of a coast only ever slows, so it never counts.
-            const now = Date.now(), a = Math.abs(e.deltaY), gap = now - lastWheel;
-            lastWheel = now;
-            if (gap > 50) { wheelSpent = false; wheelAcc = 0; wheelMin = a; }
-            if (wheelSpent) {
-                wheelMin = Math.min(wheelMin, a);
-                if (now >= lockUntil && a > wheelMin * 1.5 + 10) { wheelSpent = false; wheelAcc = 0; } else return;
-            }
-            wheelAcc += e.deltaY;
-            if (Math.abs(wheelAcc) > 14) { wheelSpent = true; wheelMin = a; wheelAcc = 0; go(target + (e.deltaY > 0 ? 1 : -1)); lockUntil = now + 250; }
-        };
-        let startY = null, moved = false;
-        const onDown = (e) => { startY = e.clientY; moved = false; };
-        const onMove = (e) => { if (startY !== null && Math.abs(e.clientY - startY) > 10) moved = true; };
-        const onUp = (e) => { if (startY === null) return; const dy = e.clientY - startY; startY = null; if (Math.abs(dy) > 38) step(dy < 0 ? 1 : -1); };
-        const onKey = (e) => {
-            if (e.key === 'ArrowDown' || e.key === 'PageDown') { e.preventDefault(); step(1); }
-            else if (e.key === 'ArrowUp' || e.key === 'PageUp') { e.preventDefault(); step(-1); }
-            else if (e.key === 'Home') { e.preventDefault(); go(0); }
-            else if (e.key === 'End') { e.preventDefault(); go(n - 1); }
+            page = Math.max(0, Math.min(pages - 1, page));
+            host.innerHTML = '<div class="sim-grid">' + cards.slice(page * PER, page * PER + PER).map((c, k) => { const i = page * PER + k; return `
+                <article class="sim-card" data-i="${i}" aria-label="${escapeHtml(c.title)}">
+                    <img class="sim-card-img" src="${c.image}" alt="" loading="lazy" draggable="false">
+                    <div class="sim-card-body">
+                        <h3>${escapeHtml(c.title)}</h3>
+                        <p class="sim-card-meta">${escapeHtml(c.meta)}${c.isRef ? ' · Reference example' : ''}</p>
+                        <div class="sim-card-actions">
+                            <button type="button" class="create-cta" data-act="open">${escapeHtml(c.openLabel)}</button>
+                            ${c.extras.map((x, j) => `<button type="button" class="create-secondary" data-act="x${j}">${escapeHtml(x.label)}</button>`).join('')}
+                            ${c.deletable ? '<button type="button" class="create-secondary" data-act="del">Delete</button>' : ''}
+                        </div>
+                    </div>
+                </article>`; }).join('') + '</div>' + (pages > 1 ? `<div class="sim-wallet-nav"><button type="button" class="sim-nav-btn" data-page="-1" aria-label="Previous projects"${page === 0 ? ' disabled' : ''}>&larr;</button><span class="sim-count" aria-live="polite">${page * PER + 1}–${Math.min(n, page * PER + PER)} of ${n}</span><button type="button" class="sim-nav-btn" data-page="1" aria-label="More projects"${page >= pages - 1 ? ' disabled' : ''}>&rarr;</button></div>` : '');
         };
         const onClick = (e) => {
-            const nav = e.target.closest('[data-nav]');
-            if (nav) { step(Number(nav.dataset.nav)); return; }
-            const card = e.target.closest('.sim-card');
-            if (!card || moved) { moved = false; return; }
-            const i = Number(card.dataset.i), c = cards[i];
-            const act = e.target.closest('[data-act]');
-            if (i !== Math.round(target)) { go(i); return; }
+            const pg = e.target.closest('[data-page]');
+            if (pg) { page += Number(pg.dataset.page); paint(); return; }
+            const card = e.target.closest('.sim-card'); if (!card) return;
+            const c = cards[Number(card.dataset.i)], act = e.target.closest('[data-act]');
             if (!act || act.dataset.act === 'open') { c.open(); return; }
             if (act.dataset.act === 'del') { onDelete(c); return; }
             const k = Number(act.dataset.act.slice(1)); if (c.extras[k]) c.extras[k].run();
         };
-        host.addEventListener('wheel', onWheel, { passive: false });
-        host.addEventListener('pointerdown', onDown); host.addEventListener('pointermove', onMove); host.addEventListener('pointerup', onUp); host.addEventListener('pointercancel', () => { startY = null; });
-        host.addEventListener('keydown', onKey);
+        paint();
         host.addEventListener('click', onClick);
-        simWalletCleanup = () => { if (raf) clearTimeout(raf); host.removeEventListener('wheel', onWheel); };
+        simWalletCleanup = () => { host.removeEventListener('click', onClick); };
     }
     async function renderSimulateHome(contentInner) {
         contentInner.innerHTML = `
@@ -12232,7 +12174,7 @@ SQIDAQAB
                 <h1 class="sim-greeting" id="simGreeting"></h1>
                 <p class="sim-quote" id="simQuote"></p>
                 <div class="sim-wallet-head"><h2>Your projects</h2><button type="button" class="create-cta" id="simAdd">+ Add</button></div>
-                <div class="sim-wallet" id="simWallet" tabindex="0" role="group" aria-label="Your projects. Scroll or use the arrow keys to move through them."><div class="mt-empty">Loading your projects…</div></div>
+                <div class="sim-wallet" id="simWallet" tabindex="0" role="group" aria-label="Your projects"><div class="mt-empty">Loading your projects…</div></div>
             </section>`;
         contentInner.querySelector('#simAdd').addEventListener('click', () => renderCreatePage('gallery'));
         sfGetStudentName().then((name) => { const el = document.getElementById('simGreeting'); if (el) el.textContent = name ? `${sfTimeOfDayGreeting()}, ${name}.` : `${sfTimeOfDayGreeting()}.`; }).catch(() => {});
