@@ -880,6 +880,8 @@
   }
 
   // a record of what players in the final third chose, for tuning (FM.DBG = {} switches it on)
+  // The furthest a man can play a pass: on the ground and in the air. Passing skill and (for the air) his physical power set it.
+  FM.passRange = (p) => { const r = p.ratings || {}, ps = r.passing == null ? 60 : r.passing, st = r.strength == null ? 60 : r.strength; return { ground: 20 + 0.28 * ps, air: 22 + 0.4 * ps + 0.1 * st }; };
   function chooseAction(match, team, carrier) {
     const opt = chooseActionInner(match, team, carrier);
     if (FM.DBG) {
@@ -1008,7 +1010,16 @@
         // recycling is for when the way on is shut: with room and a forward pass on, going back or square for nothing is not what he does
         if (zone !== 'final' && nearNow > 4 && back > 4) zoneAim -= (FM.RECYCLE_PEN == null ? 0.35 : FM.RECYCLE_PEN) * (0.5 + 0.5 * (1 - live.pressure));
       }
-      options.push({ kind: 'pass', target: t, tx, ty, d, lane, press, p, score: off === 'off' ? -4 : score + adj + chance + attackSpread + zoneAim });
+      // How far a pass can be played is limited by the man's power: along the ground by what his boot can put on it, in the air by what he can lift and carry.
+      // Beyond that the pass is not on, whatever the picture looks like.
+      const prng = FM.passRange(carrier), baseScore = off === 'off' ? -4 : score + adj + chance + attackSpread + zoneAim;
+      if (d <= prng.ground || FM.NO_LOFT) options.push({ kind: 'pass', target: t, tx, ty, d, lane, press, p, score: baseScore });
+      // A lofted pass goes over the men in the lane (only the landing spot has to be free), at the price of being harder to place and to control.
+      if (!FM.NO_LOFT && d >= 13 && d <= prng.air && carrier.group !== 'GK' && (lane < (FM.LOFT_LANE == null ? 1.8 : FM.LOFT_LANE) || d > 0.72 * prng.ground || ((tx - carrier.x) * team.attackDir > 14 && ['ST', 'WF', 'AM'].indexOf(t.group) >= 0 && directness > 0.45))) {
+        const pAir = FM.passProb(carrier, d * 1.25, Math.max(lane, 5.5), press, FM.edgeFor(match, team)) * (team.tacticalFactor || 1) * (FM.LOFT_P == null ? 0.93 : FM.LOFT_P) * clamp(1.05 - 0.0035 * Math.max(0, d - 25), 0.8, 1);
+        const behindBack = (carrier.x - t.x) * team.attackDir > 6;
+        options.push({ kind: 'pass', air: true, target: t, tx, ty, d, lane: 6, press, p: pAir, score: baseScore + 1.1 * (pAir - p) - (FM.LOFT_COST == null ? 0.4 : FM.LOFT_COST) - (behindBack ? 0.3 : 0) });
+      }
     });
 
     // Beating the press. How likely a team is to go long depends on how the other side press its build-up. Against a side that press high
@@ -1046,7 +1057,7 @@
     // With open grass ahead in the attacking half a forward runs at goal instead of standing and passing: he drives until a defender engages him or
     // he is in range to shoot.
     const drive = ownDepth0 > 0.5 && nearD > 2.2 && !(!FM.OLD_SHOOT_W && dGoal < (FM.DRIVE_STOP == null ? 24 : FM.DRIVE_STOP) && ['ST', 'WF', 'AM'].indexOf(carrier.group) >= 0 && !through) && ['AM', 'WF', 'ST', 'CM', 'FB', 'DM'].includes(carrier.group) && clearAhead(match, team, carrier, ownDepth0 > 0.72 ? 9 : 14);
-    if ((nearD > 3.5 || drive) && carrier.group !== 'GK') options.push({ kind: 'carry', nearD, drive, score: .38 + (.4 + (FM.CARRY_BONUS == null ? .3 : FM.CARRY_BONUS)) * carrySpace + .22 * directness + .18 * counter - .22 * (zone === 'build' && carrier.group === 'CB' && FM.NO_AIM ? 1 : 0) + (!FM.NO_AIM && zone === 'build' && ['CB', 'FB', 'DM'].indexOf(carrier.group) >= 0 ? (FM.CARRY_AIM == null ? 0.45 : FM.CARRY_AIM) * carrySpace * (0.6 + 0.4 * tac.tempo) : 0) + (drive ? (FM.DRIVE_K == null ? 0.5 : FM.DRIVE_K) * (ownDepth0 > 0.72 ? 1.7 : 1) * (['WF', 'ST', 'AM'].includes(carrier.group) ? 1 : .7) : 0) });
+    if ((nearD > 3.5 || drive) && carrier.group !== 'GK' && (FM.NO_BOXSHOT || !(dGoal < 12 && !through))) options.push({ kind: 'carry', nearD, drive, score: .38 + (.4 + (FM.CARRY_BONUS == null ? .3 : FM.CARRY_BONUS)) * carrySpace + .22 * directness + .18 * counter - .22 * (zone === 'build' && carrier.group === 'CB' && FM.NO_AIM ? 1 : 0) + (!FM.NO_AIM && zone === 'build' && ['CB', 'FB', 'DM'].indexOf(carrier.group) >= 0 ? (FM.CARRY_AIM == null ? 0.45 : FM.CARRY_AIM) * carrySpace * (0.6 + 0.4 * tac.tempo) : 0) + (drive ? (FM.DRIVE_K == null ? 0.5 : FM.DRIVE_K) * (ownDepth0 > 0.72 ? 1.7 : 1) * (['WF', 'ST', 'AM'].includes(carrier.group) ? 1 : .7) : 0) });
     let dribbleOption = null;
     const willingDribbler = ['WF', 'AM', 'ST', 'CM'].includes(carrier.group) || mods.dribble > 0 || tac.dribbleFreedom > .65;
     if (nearD < 3.1 && willingDribbler && (zone === 'final' || mods.dribble > 0 || tac.dribbleFreedom > .72)) {
@@ -1079,7 +1090,7 @@
     const attackingThird = FM.toTeamSpace(team.attackDir, carrier.x, carrier.y).d > 0.6;
     if (((dGoal < FM.dialM(team, 'shootRange') && attackingThird) || (through && dGoal < FM.dialM(team, 'shootRange') + 6)) && carrier.group !== 'GK') {
       const xg = sig(FM.xgLogit(carrier, carrier.x, carrier.y, team.attackDir, nearD) - 0.55 * crowd(match, team, carrier));
-      options.push({ kind: 'shoot', xg, score: xg * 2.75 * (0.5 + risk * 0.8) * (0.45 + tac.shootFreedom) * mods.shoot - (1 - xg) * 0.2 - Math.max(0, 0.1 - xg) * 6.5 * (1.2 - tac.shootFreedom) * (['AM', 'WF', 'CM'].indexOf(carrier.group) >= 0 ? (FM.MID_LOWXG == null ? .85 : FM.MID_LOWXG) : 1) + 0.25 * clamp((nearD - 1.2) / 2.5, 0, 1) * clamp((25 - dGoal) / 13, 0, 1) + (through ? .28 * clamp((36 - dGoal) / 20, 0, 1) : 0) + .75 * ((!FM.OLD_SHOOT_W ? ({ ST: 1.0, WF: .9, AM: .55, CM: .4, DM: .25, FB: .2, CB: .08 }) : ({ ST: 0.45, WF: .85, AM: 1, CM: .8, DM: .3, FB: .25, CB: .1 }))[carrier.group] || 0.4) * clamp((26 - dGoal) / 12, 0, 1) * clamp((nearD - 1.2) / 2.5, 0, 1) + .32 - Math.max(0, .045 - xg) * 5 + ((!FM.OLD_SHOOT_W ? ({ ST: .12, WF: .1, AM: 0, CM: 0 }) : ({ ST: -.28, WF: .12, AM: .1, CM: .02 }))[carrier.group] || 0) + (!FM.OLD_SHOOT_W && ['ST', 'WF'].indexOf(carrier.group) >= 0 && nearD > 2 ? (FM.RANGE_B == null ? 0.8 : FM.RANGE_B) * clamp(1 - Math.abs(dGoal - 17) / 8, 0, 1) * clamp(1 - crowd(match, team, carrier), 0.2, 1) : 0) - (!FM.OLD_SHOOT_W ? (FM.LONG_PEN == null ? 1.4 : FM.LONG_PEN) * clamp((dGoal - 23) / 9, 0, 1) : 0) });
+      options.push({ kind: 'shoot', xg, score: xg * 2.75 * (0.5 + risk * 0.8) * (0.45 + tac.shootFreedom) * mods.shoot - (1 - xg) * 0.2 - Math.max(0, 0.1 - xg) * 6.5 * (1.2 - tac.shootFreedom) * (['AM', 'WF', 'CM'].indexOf(carrier.group) >= 0 ? (FM.MID_LOWXG == null ? .85 : FM.MID_LOWXG) : 1) + 0.25 * clamp((nearD - 1.2) / 2.5, 0, 1) * clamp((25 - dGoal) / 13, 0, 1) + (through ? .28 * clamp((36 - dGoal) / 20, 0, 1) : 0) + .75 * ((!FM.OLD_SHOOT_W ? ({ ST: 1.0, WF: .9, AM: .55, CM: .4, DM: .25, FB: .2, CB: .08 }) : ({ ST: 0.45, WF: .85, AM: 1, CM: .8, DM: .3, FB: .25, CB: .1 }))[carrier.group] || 0.4) * clamp((26 - dGoal) / 12, 0, 1) * clamp((nearD - 1.2) / 2.5, 0, 1) + .32 - Math.max(0, .045 - xg) * 5 + ((!FM.OLD_SHOOT_W ? ({ ST: .12, WF: .1, AM: 0, CM: 0 }) : ({ ST: -.28, WF: .12, AM: .1, CM: .02 }))[carrier.group] || 0) + (!FM.OLD_SHOOT_W && ['ST', 'WF'].indexOf(carrier.group) >= 0 && nearD > 2 ? (FM.RANGE_B == null ? 0.8 : FM.RANGE_B) * clamp(1 - Math.abs(dGoal - 17) / 8, 0, 1) * clamp(1 - crowd(match, team, carrier), 0.2, 1) : 0) - (!FM.OLD_SHOOT_W ? (FM.LONG_PEN == null ? 1.4 : FM.LONG_PEN) * clamp((dGoal - 23) / 9, 0, 1) : 0) + (FM.NO_BOXSHOT ? 0 : (FM.BOX_SHOOT == null ? 0.8 : FM.BOX_SHOOT) * clamp((21 - dGoal) / 9, 0, 1)) });
     }
 
     // Under severe pressure near their own goal, defenders can deliberately
@@ -1187,19 +1198,20 @@
     // How well the ball is struck depends on how good the pass is (its lane, the pressure, the distance): the worse it is, the more the direction and the weight can go
     // astray. Nothing else is decided here: where the ball ends up is what happens to it on the way.
     const err = 1 - pEff, g = () => (rng() + rng() + rng() - 1.5) / 0.5;
-    const sigma = (FM.PASS_SIGMA == null ? 0.75 : FM.PASS_SIGMA) * (0.012 + 0.22 * Math.pow(err, 1.2)) * (0.7 + 0.5 * (1 - (carrier.ratings.passing || 60) / 100));
+    const sigma = (opt.air ? 1.4 : 1) * (FM.PASS_SIGMA == null ? 0.75 : FM.PASS_SIGMA) * (0.012 + 0.22 * Math.pow(err, 1.2)) * (0.7 + 0.5 * (1 - (carrier.ratings.passing || 60) / 100));
     // the pass is played to where the man will be, not to where he is: his run is led by the time the ball takes
     const tf = opt.d / Math.max(10, clamp(11 + opt.d * 0.4, 12, 23) * 0.85), aimX = clamp(opt.tx, 4.5, L - 4.5), aimY = opt.ty;   // nobody plays a pass to a spot on the end line: it is played just inside it
     const wideK = 1 + (FM.WIDE_ERR == null ? 1.8 : FM.WIDE_ERR) * clamp((Math.abs(aimY - W / 2) - 20) / 10, 0, 1);   // a ball played to a man on the touchline is harder to weight
     const ang = Math.atan2(aimY - carrier.y, aimX - carrier.x) + g() * sigma * wideK, len = Math.max(2, Math.hypot(aimX - carrier.x, aimY - carrier.y) * (1 + g() * 0.045 * (0.4 + 2 * err)));
     // Metres per simulated second. A routine ground pass should be readable on the pitch rather than flashing between players.
     const speed = clamp(11 + opt.d * 0.4, 12, 23) * (1 + g() * 0.03);
-    const flight = { kind: 'pass', team, passer: carrier, speed, target: opt.target, ex: carrier.x + Math.cos(ang) * len, ey: carrier.y + Math.sin(ang) * len, free: true, dir: { x: Math.cos(ang), y: Math.sin(ang) }, len, run: 0, t: 0, outcome: 'pending' };
+    const air = !!opt.air, first = !!match.passFirst;
+    const flight = { kind: 'pass', air: air ? { H: clamp(0.1 * opt.d, 2.5, 11) } : null, first, team, passer: carrier, speed: air ? clamp(13 + 0.38 * opt.d, 15, 27) * (1 + g() * 0.03) : speed, target: opt.target, ex: carrier.x + Math.cos(ang) * len, ey: carrier.y + Math.sin(ang) * len, free: true, dir: { x: Math.cos(ang), y: Math.sin(ang) }, len, run: 0, t: 0, outcome: 'pending' };
     const os = match.noOffside ? 'on' : offsideStatus(match, team, carrier, opt.target.x);
     flight.offside = os === 'off' || (os === 'marginal' && rng() < 0.1 + 0.3 * other(match, team).tactics.offsideTrap);
     // for the manager's analysis: where the pass was going, and how many team-mates were in the box when it left
     let boxMates = 0; { const gxA = team.attackDir === 1 ? L : 0; team.players.forEach((q) => { if (q !== carrier && Math.abs(q.x - gxA) <= 16.5 && Math.abs(q.y - W / 2) <= 20.2) boxMates++; }); }
-    record(match, { type: 'pass', kd: dist(match.ball, carrier), team: team.id, from: carrier.number, to: opt.target.number, tx: opt.tx, ty: opt.ty, box: boxMates, p: opt.p, ok: false, outcome: 'pending', dist: opt.d, lane: opt.lane, press: opt.press, forced: !!match.forcePass, carrierPressure: nearestOpponent(match, team, carrier).d });
+    record(match, { type: 'pass', air: air ? 1 : 0, first: first ? 1 : 0, kd: dist(match.ball, carrier), team: team.id, from: carrier.number, to: opt.target.number, tx: opt.tx, ty: opt.ty, box: boxMates, p: opt.p, ok: false, outcome: 'pending', dist: opt.d, lane: opt.lane, press: opt.press, forced: !!match.forcePass, carrierPressure: nearestOpponent(match, team, carrier).d });
     flight.ev = match.events[match.events.length - 1];
     flight.ev.hold = match.clock - (match.possessionReceivedAt == null ? match.clock : match.possessionReceivedAt); flight.ev.zone = FM.toTeamSpace(team.attackDir, carrier.x, carrier.y).d; flight.ev.grp = carrier.group;
     match.carrier = null; match.carry = null;
@@ -1242,12 +1254,15 @@
         f.speed = Math.max(f.v0, Math.sqrt(Math.max(0, ((DA + DK * va * va) * Math.exp(2 * DK * len) - DA) / DK)));
       }
     }
-    const x0 = ball.x, y0 = ball.y, sp = f.speed, move = sp * dt;
+    // A first-time pass is struck as the ball arrives and goes at once, like the ball coming off him; after a touch it leaves more slowly, the man bringing the boot through it.
+    const ramp = (f.first || f.air || FM.NO_RAMP) ? 1 : 0.5 + 0.5 * Math.min(1, f.t / 0.24), x0 = ball.x, y0 = ball.y, sp = f.speed * ramp, move = sp * dt;
     // It slows all the way, and does not stop at the place it was aimed at: past it, it is the same drag and the same rolling resistance.
     if (FM.OLD_DRAG) { if (f.run < f.len) f.speed = Math.max(f.v0 * 0.62, f.speed * Math.exp(-(FM.PASS_DECAY == null ? 0.45 : FM.PASS_DECAY) * dt)); else f.speed = rollSpeed(f.speed, dt, 0.4); }
     else if (f.run < f.len) f.speed = Math.max(0.4, f.speed - dt * (DA + DK * f.speed * f.speed));
     else f.speed = rollSpeed(f.speed, dt, 0.4);   // (past the place it was played to it is a ball rolling on the grass, with the grass's own resistance)
     ball.x += f.dir.x * move; ball.y += f.dir.y * move; f.run += move;
+    // a lofted pass is in the air: it rises and falls over the length of the pass, goes over the men in its path, and comes down where it was played to
+    if (f.air) { const u = Math.min(1, f.run / Math.max(1, f.len)); ball.z = f.landed ? 0 : 4 * f.air.H * u * (1 - u); if (f.run >= f.len && !f.landed) { f.landed = true; ball.z = 0; f.speed *= 0.62; } } else ball.z = 0;
     // a pass that has been completed to a man: the ball is his, and he plays it
     const complete = (p) => {
       const ev = f.ev;
@@ -1289,6 +1304,7 @@
     const consider = (p, tm) => {
       if (f.claim && p === f.claim.p) return;
       if (p === f.passer && f.t < 0.5) return;
+      if (f.air && !f.landed && (ball.z || 0) > (p.group === 'GK' ? 3.2 : 2.3)) return;   // it is over his head
       const s = segInfo(p.x, p.y, x0, y0, ball.x, ball.y), reach = (p === f.target ? (FM.RECV_REACH == null ? 3.3 : FM.RECV_REACH) : tm === team ? 1.1 : 0.9) + (p.group === 'GK' ? 1.0 : 0) + (p.sliding ? 0.6 : 0);
       if (p === f.target) f.minD = Math.min(f.minD == null ? 99 : f.minD, s.d);
       if (s.d > reach) return; if (!hit || s.t < hit.t) hit = { p, tm, t: s.t, c: 1 - s.d / reach };
@@ -1399,7 +1415,7 @@
     const nearD = nearestOpponent(match, team, carrier).d;
     // The true chance of this shot going in: it must get past a defender on the line, then the goalkeeper. This is what is recorded as
     // its xG, so that over many shots expected goals and goals agree (the chance the shooter weighed up beforehand, opt.xg, ignores both).
-    const pBlock = blocker ? 0.8 * Math.exp(-bd / 1.5) : 0;
+    const pBlock = blocker ? (FM.BLOCK_K == null ? 0.55 : FM.BLOCK_K) * Math.exp(-bd / 1.5) : 0;
     const xgAdj = sig(FM.xgLogit(shooter, carrier.x, carrier.y, team.attackDir, nearD, FM.edgeFor(match, team)) - 0.55 * crowd(match, team, carrier) - 0.03 * (gk ? SK(gk, 'gk') : 0));
     const pOn = sig(0.15 + 0.03 * SK(shooter, 'finishing') - 0.6 * Math.exp(-nearD / 2));
     // Record the probability the actual outcome routine uses. Previously xG
@@ -1407,7 +1423,7 @@
     // long-run goals described two different models.
     // The geometric model describes the chance before the keeper, imperfect
     // contact and the small target inside the goal are considered.
-    const scoringChance = xgAdj * (FM.GOAL_K == null ? 1.9 : FM.GOAL_K);
+    const scoringChance = xgAdj * (FM.GOAL_K == null ? 3.0 : FM.GOAL_K);
     const conditionalGoal = clamp(scoringChance / pOn, 0.02, 0.97);
     const shotXg = (1 - pBlock) * pOn * conditionalGoal;
     st.xg += shotXg;
@@ -2350,7 +2366,7 @@
         }
         if (dd0 > 1.8 + (FM.MOVE_REACH == null ? 0.25 : FM.MOVE_REACH) * cSpeed) continue;   // (the man or the ball, whichever is nearer)
         if (!FM.TACKLE_ANY && (d.x - c.player.x) * team.attackDir < -0.6 && c.player.vx * team.attackDir > 1.5) continue;   // beaten: a defender chasing a man who is running on cannot tackle him from behind
-        const rate = (FM.TACKLE_RATE == null ? 1.0 : FM.TACKLE_RATE) * (1 + (FM.MOVE_TACKLE == null ? 0.5 : FM.MOVE_TACKLE) * cSpeed / 3) * .65 * (opp.tacticalFactor || 1) * (0.05 + 0.08 * opp.tactics.pressing + (d.roleId === 'ball_winning_midfielder' ? 0.06 : 0)) * (0.6 + 0.8 * opp.tactics.tackleAggression) * ((FM.CLOSE_TACKLE == null ? 1 : FM.CLOSE_TACKLE) > 1 && dist(c.player, { x: opp.attackDir === 1 ? 0 : L, y: W / 2 }) < 24 ? (FM.CLOSE_TACKLE == null ? 1 : FM.CLOSE_TACKLE) : 1) * (1 + 0.35 * (FM.instrMods(d).tackle + FM.rulesDelta(opp, d, 'tackle', match.ball, false)));
+        const rate = (FM.TACKLE_RATE == null ? 1.0 : FM.TACKLE_RATE) * (1 + (FM.MOVE_TACKLE == null ? 0.5 : FM.MOVE_TACKLE) * cSpeed / 3) * .65 * (opp.tacticalFactor || 1) * (0.05 + 0.08 * opp.tactics.pressing + (d.roleId === 'ball_winning_midfielder' ? 0.06 : 0)) * (0.6 + 0.8 * opp.tactics.tackleAggression) * ((FM.CLOSE_TACKLE == null ? 1.8 : FM.CLOSE_TACKLE) > 1 && dist(c.player, { x: opp.attackDir === 1 ? 0 : L, y: W / 2 }) < 26 ? (FM.CLOSE_TACKLE == null ? 1.8 : FM.CLOSE_TACKLE) : 1) * (1 + 0.35 * (FM.instrMods(d).tackle + FM.rulesDelta(opp, d, 'tackle', match.ball, false)));
         if (match.clock >= (match.tackleLock || 0) && match.rng() < rate * dt) {
           match.tackleLock = match.clock + 1.2;
           const p = FM.tackleProb(d, c.player, FM.edgeFor(match, opp)) * (opp.tacticalFactor || 1);
@@ -2415,7 +2431,7 @@
         if (o.target) { o.tx = clamp(o.tx + (o.target.vx || 0) * lag * 0.6, 1, L - 1); o.ty = clamp(o.ty + (o.target.vy || 0) * lag * 0.6, 1, W - 1); }
         if (FM.lateLog) FM.lateLog.push({ late: match.clock - pa.release, dB: dist(match.ball, pa.player), off: Number.isFinite(pa.player.facing) && pa.ang != null ? Math.abs(angleDiff(pa.player.facing, pa.ang)) : 0, kind: o.kind });
         if (FM.relLog) { const aim = aimOf(pa.team, o); if (aim && Number.isFinite(pa.player.facing)) FM.relLog.push({ kind: o.kind, turned: pa.ang != null, off: Math.abs(angleDiff(pa.player.facing, Math.atan2(aim.y - pa.player.y, aim.x - pa.player.x))) * 180 / Math.PI, wait: match.clock - pa.start, sp: Math.hypot(pa.player.vx || 0, pa.player.vy || 0) }); }
-        runAction(match, pa.team, pa.player, o);
+        match.passFirst = !!pa.first; runAction(match, pa.team, pa.player, o); match.passFirst = false;
       }
     }
     if (match.carrier && !match.pendingAct && match.clock >= match.nextDecision) {
@@ -2429,7 +2445,7 @@
         // motion-captured kick in the 3D view is timed to this.)
         const turnT = need > (FM.TURN_FREE == null ? 0.6 : FM.TURN_FREE) ? Math.min(0.9, need / (FM.TURN_RATE == null ? 7 : FM.TURN_RATE)) : 0, wind = (FM.WIND == null ? 0.3 : FM.WIND) * (turnT > 0 ? 0.65 : 1) * (ft ? 0.4 : 1);
         const ang = turnT > 0 || !FM.OLD_FACE ? Math.atan2(aim.y - player.y, aim.x - player.x) : null;
-        match.pendingAct = { opt, team, player, ang, start: match.clock, turnEnd: match.clock + turnT, wind, ready: !!FM.OLD_SETTLE, release: Math.ceil((match.clock + turnT + wind) * 10 - 1e-6) / 10, kick: true };   // (on a step of the match, so the ball leaves at the instant the boot is on it)
+        match.pendingAct = { first: !!ft, opt, team, player, ang, start: match.clock, turnEnd: match.clock + turnT, wind, ready: !!FM.OLD_SETTLE, release: Math.ceil((match.clock + turnT + wind) * 10 - 1e-6) / 10, kick: true };   // (on a step of the match, so the ball leaves at the instant the boot is on it)
         if (ang != null) player.turnTo = ang; match.carry = null;
       } else runAction(match, team, player, opt);
     }
@@ -2557,7 +2573,7 @@
   }
 
   function updateBall(match, dt) {
-    const ball = match.ball;
+    const ball = match.ball; if (!(match.flight && match.flight.air)) ball.z = 0;
     if (match.carrier) { carryBall(match, dt); return; }
     const f = match.flight;
     if (f && f.free) { stepFreePass(match, f, dt); return; }

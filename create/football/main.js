@@ -118,8 +118,10 @@
       });
     });
     if (!world.renderBall) world.renderBall = { x: m.ball.x, y: m.ball.y };
-    const bx = px(world.renderBall.x), by = py(world.renderBall.y);
-    ctx.beginPath(); ctx.arc(bx, by, Math.max(5, scale * 0.9), 0, Math.PI * 2);
+    const bx = px(world.renderBall.x), by = py(world.renderBall.y), bz = Math.max(0, m.ball.z || 0), br = Math.max(5, scale * 0.9);
+    // a ball in the air is bigger (it is nearer the eye) and throws a shadow on the grass that stays on the ground line
+    if (bz > 0.15) { ctx.beginPath(); ctx.ellipse(bx + bz * scale * 0.35, by + bz * scale * 0.55, br * (1 - Math.min(0.35, bz * 0.03)), br * 0.7 * (1 - Math.min(0.35, bz * 0.03)), 0, 0, Math.PI * 2); ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fill(); }
+    ctx.beginPath(); ctx.arc(bx, by - bz * scale * 0.5, br * (1 + Math.min(0.9, bz * 0.07)), 0, Math.PI * 2);
     ctx.fillStyle = '#FFFFFF'; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = '#111'; ctx.stroke();
   }
 
@@ -260,8 +262,9 @@
       const col = tr.kind === 'pass' ? '255,255,255' : tr.kind === 'fail' ? '255,110,110' : tr.kind === 'goal' ? '242,193,78' : '255,205,130';
       ctx.strokeStyle = `rgba(${col},${(0.8 * a).toFixed(2)})`;
       ctx.lineWidth = Math.max(2, scale * (tr.kind === 'pass' || tr.kind === 'fail' ? 0.3 : 0.55));
-      ctx.setLineDash(tr.kind === 'fail' ? [7, 7] : []);
-      ctx.beginPath(); ctx.moveTo(px(tr.x0), py(tr.y0)); ctx.lineTo(px(tr.x1), py(tr.y1)); ctx.stroke();
+      ctx.setLineDash(tr.kind === 'fail' ? [7, 7] : tr.air ? [2, 9] : []);
+      if (tr.air) { ctx.lineCap = 'round'; ctx.lineWidth = Math.max(3, scale * 0.45); }
+      ctx.beginPath(); ctx.moveTo(px(tr.x0), py(tr.y0)); ctx.lineTo(px(tr.x1), py(tr.y1)); ctx.stroke(); ctx.lineCap = 'butt';
       ctx.setLineDash([]);
       ctx.beginPath(); ctx.arc(px(tr.x1), py(tr.y1), Math.max(3, scale * 0.55), 0, Math.PI * 2); ctx.fillStyle = `rgba(${col},${(0.95 * a).toFixed(2)})`; ctx.fill();
     });
@@ -420,7 +423,7 @@
       if (!team) continue;
       const who = (n) => { const p = playerBy(team, n); return p ? shortName(p) : 'number ' + n; };
       const reveal = !world.highlightsOnly || world.shownEvents >= world.highlightRevealFrom;
-      if (reveal && e.type === 'pass' && e.tx != null) world.trails.push({ x0: e.x, y0: e.y, x1: e.tx, y1: e.ty, kind: e.ok ? 'pass' : 'fail', born: world.vt });
+      if (reveal && e.type === 'pass' && e.tx != null) world.trails.push({ x0: e.x, y0: e.y, x1: e.tx, y1: e.ty, kind: e.ok ? 'pass' : 'fail', air: !!e.air, born: world.vt });
       else if (reveal && e.type === 'shot') world.trails.push({ x0: e.x, y0: e.y, x1: e.ex != null ? e.ex : (team.attackDir === 1 ? L : 0), y1: e.ey != null ? e.ey : W / 2, kind: e.outcome === 'goal' ? 'goal' : 'shot', born: world.vt });
       if (reveal && e.type === 'tackle' && e.x != null) world.impacts.push({ x: e.x, y: e.y, kind: 'tackle', born: world.vt });
       let text = null;
