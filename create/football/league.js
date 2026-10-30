@@ -163,6 +163,9 @@
     if (league.friendlies && FM.namesFromSquads) FM.namesFromSquads(league, league.friendlies);
     league.runSeed = runSeed;
     FM.ensureTwoDivisions(league);
+    // Intentionally created here, rather than repaired into deserializeLeague: the League Cup is for new careers only.
+    // Existing saves keep their original season structure exactly as the manager left it.
+    league.cup = FM.newCup(league);
     FM.setBoardExpectation(league);
     // a new game replaces the account's saved one: marked on THIS league, so that a save of the old season that happens while the new one is being set up cannot use up the
     // replacement (and leave the new game to be refused as 'further back' than the old one)
@@ -320,14 +323,18 @@
 
   // ---------- calendar ----------
   FM.userFixtureToday = function (league) {
+    const cup = FM.cupUserFixture && FM.cupUserFixture(league);
+    if (cup) return cup;
     const r = FM.roundOfDay(league.day);
     if (r == null) return null;
     return league.fixtures.find((f) => f.round === r && (f.homeId === league.userId || f.awayId === league.userId)) || null;
   };
   FM.nextUserFixture = function (league) {
+    const cup = FM.cupUserFixture && FM.cupUserFixture(league);
+    if (cup) return cup;
     return league.fixtures.find((f) => !f.played && (f.homeId === league.userId || f.awayId === league.userId)) || null;
   };
-  FM.seasonOver = (league) => league.fixtures.every((f) => f.played);
+  FM.seasonOver = (league) => league.fixtures.every((f) => f.played) && (!league.cup || league.cup.completed);
   FM.daysUntilMatch = function (league) {
     const f = FM.nextUserFixture(league);
     if (!f) return null;
@@ -342,6 +349,59 @@
     FM.today = league.day;
     FM.recoverDay(league);
     return null;
+  };
+
+  // ---------- League Cup (new saves only) ----------
+  FM.newCup = function (league) { return { name: 'League Cup', entrants: FM.allTeams(league).map((t) => t.id), stages: [
+    { key: 'r32', label: 'Round of 32', afterLeagueRound: 0 }, { key: 'r16', label: 'Round of 16', afterLeagueRound: 3 },
+    { key: 'qf', label: 'Quarter-finals', afterLeagueRound: 6 }, { key: 'sf', label: 'Semi-finals', afterLeagueRound: 9 }, { key: 'final', label: 'Final', afterLeagueRound: 13 },
+  ], activeKey: null, drawPending: 'r32', completed: false, draws: [], fixtures: [] }; };
+  FM.cupStage = (league, key) => league.cup && league.cup.stages.find((s) => s.key === key);
+  FM.cupUserFixture = function (league) {
+    const cup = league.cup;
+    if (!cup || cup.completed || !cup.activeKey) return null;
+    return (cup.fixtures || []).find((f) => f.stage === cup.activeKey && !f.played && (f.homeId === league.userId || f.awayId === league.userId)) || null;
+  };
+  FM.cupNeedsDrawAfterRound = function (league, round) {
+    const cup = league.cup;
+    if (!cup || cup.completed || !cup.drawPending) return null;
+    const stage = FM.cupStage(league, cup.drawPending);
+    return stage && stage.afterLeagueRound === round ? stage : null;
+  };
+  const cupWinner = (fx) => fx.shootout ? fx.shootout.winnerId : (fx.hg > fx.ag ? fx.homeId : fx.awayId);
+  FM.cupDraw = function (league, key, order) {
+    const cup = league.cup, stage = FM.cupStage(league, key);
+    if (!cup || !stage || cup.drawPending !== key) return null;
+    const previous = cup.stages[cup.stages.findIndex((s) => s.key === key) - 1];
+    const entrants = previous ? cup.fixtures.filter((f) => f.stage === previous.key && f.played).map(cupWinner) : cup.entrants.slice();
+    if (!entrants.length || entrants.length % 2) return null;
+    const rng = FM.mulberry32(league.seed + (league.runSeed || 0) * 31 + league.season * 1009 + cup.draws.length * 917);
+    const shuffled = order && order.length === entrants.length ? order.slice() : entrants.slice().sort(() => rng() - 0.5);
+    const fixtures = [];
+    for (let i = 0; i < shuffled.length; i += 2) fixtures.push({ id: 'cup-' + key + '-' + (i / 2), cup: true, stage: key, round: stage.afterLeagueRound, homeId: shuffled[i], awayId: shuffled[i + 1], played: false, hg: null, ag: null, seed: league.seed + league.season * 100000 + cup.draws.length * 1000 + i * 37 });
+    cup.fixtures.push(...fixtures); cup.draws.push({ key, entrants: shuffled.slice() }); cup.activeKey = key; cup.drawPending = null;
+    return { stage, entrants: shuffled, fixtures };
+  };
+  function cupQuickResult(league, fx) {
+    FM.quickFixture(league, fx);
+    if (fx.hg === fx.ag) {
+      const rng = FM.mulberry32((fx.seed || 1) + 4444), homeWins = rng() < 0.5;
+      fx.shootout = { home: 3 + Math.floor(rng() * 3), away: 3 + Math.floor(rng() * 3), winnerId: homeWins ? fx.homeId : fx.awayId, summary: 'won on penalties' };
+      if (fx.shootout.home === fx.shootout.away) fx.shootout[homeWins ? 'home' : 'away']++;
+    }
+  }
+  FM.completeCupFixture = async function (league, fx, match, onResult) {
+    FM.finishFixture(league, fx, match);
+    const cup = league.cup;
+    for (const other of cup.fixtures.filter((f) => f.stage === fx.stage && !f.played)) { cupQuickResult(league, other); if (onResult) await onResult(other, league, true); }
+    const stageIndex = cup.stages.findIndex((s) => s.key === fx.stage), next = cup.stages[stageIndex + 1];
+    cup.activeKey = null;
+    if (next) cup.drawPending = next.key;
+    else {
+      cup.completed = true;
+      const winner = FM.teamById(league, cupWinner(fx));
+      if (FM.pushNews) FM.pushNews(league, { round: fx.round, day: league.day, kind: 'League Cup', headline: (winner ? winner.name : 'The winners') + ' lift the League Cup', body: 'The League Cup final is complete. Open this article to see the completed tournament tree.', cupTree: true, cupWinner: winner && winner.name, mine: cupWinner(fx) === league.userId });
+    }
   };
 
   // ---------- lineups ----------
@@ -768,6 +828,7 @@
 
   // After the user's match: record it, then play the rest of that round (most of it has usually been played already, see roundBackground).
   FM.completeRound = async function (league, userFx, userMatch, onResult, bg) {
+    if (userFx && userFx.cup) return FM.completeCupFixture(league, userFx, userMatch, onResult);
     FM.finishFixture(league, userFx, userMatch);
     if (bg) await bg.drain(onResult);
     for (const fixture of league.fixtures.filter((f) => f.round === userFx.round && !f.played)) { await FM.simulateFixtureAsync(league, fixture, 0.25); if (onResult) await onResult(fixture, league, false); }
@@ -854,6 +915,8 @@
     league.teams = active.teams; league.fixtures = active.fixtures;
     league.otherLeagues = nextDivisions.filter((d) => d.level !== userLevel);
     league.otherLeague = league.otherLeagues.find((d) => d.level === (userLevel === 1 ? 2 : userLevel - 1)) || league.otherLeagues[0];
+    // Only careers which started with the cup receive it again; older saves have no cup property and remain cup-free.
+    if (league.cup) league.cup = FM.newCup(league);
     nextDivisions.flatMap((d) => d.teams).forEach(resetClubForSeason);
     league.friendlies = []; league.prepStep = 0; league.prepPhaseMax = 0; league.testPhaseMax = 0; league.labRuns = []; league.phaseLabRuns = {}; league.testLog = []; league.hypotheses = [];
     FM.setBoardExpectation(league);
@@ -918,12 +981,12 @@
   FM.serializeLeague = function (league) {
     const teams = league.teams.map(packTeam); FM.ensureFourDivisions(league);
     const otherLeagues = (league.otherLeagues || []).map((d) => ({ level: d.level, name: d.name, fixtures: d.fixtures, teams: d.teams.map(packTeam) }));
-    return JSON.stringify({ v: 3, cid: league.cid || undefined, saveName: league.saveName || undefined, nameFix: league.nameFix || 0, seed: league.seed, runSeed: league.runSeed || 0, tier: league.tier, userId: league.userId, season: league.season, day: league.day, divisionLevel: league.divisionLevel || 1, divisionName: league.divisionName || 'Premier Division', fixtures: league.fixtures, teams, otherLeagues, otherLeague: otherLeagues[0], seasonHistory: league.seasonHistory || [], workbench: league.workbench || null, skin: league.skin || null, injuryLog: league.injuryLog || [], board: league.board || null, boardApproval: Number.isFinite(league.boardApproval) ? league.boardApproval : 50, prepStep: league.prepStep || 0, prepPhaseMax: league.prepPhaseMax || 0, testPhaseMax: league.testPhaseMax || 0, testLog: league.testLog || [], hypotheses: league.hypotheses || [], news: league.news || [], friendlies: league.friendlies || [], labRuns: league.labRuns || [], labCtx: league.labCtx || null, labArchive: league.labArchive || [], phaseLabRuns: league.phaseLabRuns || {}, interviews: league.interviews || [], publicOpinion: Number.isFinite(league.publicOpinion) ? league.publicOpinion : 50, tacticalPlans: league.tacticalPlans || [], activePlanId: league.activePlanId || null, transfer: league.transfer || null, develop: league.develop || null, captains: league.captains || {}, captainIntroSeen: !!league.captainIntroSeen, mp: league.mp || null, biz: league.biz || null });
+    return JSON.stringify({ v: 4, cid: league.cid || undefined, saveName: league.saveName || undefined, nameFix: league.nameFix || 0, seed: league.seed, runSeed: league.runSeed || 0, tier: league.tier, userId: league.userId, season: league.season, day: league.day, divisionLevel: league.divisionLevel || 1, divisionName: league.divisionName || 'Premier Division', fixtures: league.fixtures, teams, otherLeagues, otherLeague: otherLeagues[0], cup: league.cup || null, seasonHistory: league.seasonHistory || [], workbench: league.workbench || null, skin: league.skin || null, injuryLog: league.injuryLog || [], board: league.board || null, boardApproval: Number.isFinite(league.boardApproval) ? league.boardApproval : 50, prepStep: league.prepStep || 0, prepPhaseMax: league.prepPhaseMax || 0, testPhaseMax: league.testPhaseMax || 0, testLog: league.testLog || [], hypotheses: league.hypotheses || [], news: league.news || [], friendlies: league.friendlies || [], labRuns: league.labRuns || [], labCtx: league.labCtx || null, labArchive: league.labArchive || [], phaseLabRuns: league.phaseLabRuns || {}, interviews: league.interviews || [], publicOpinion: Number.isFinite(league.publicOpinion) ? league.publicOpinion : 50, tacticalPlans: league.tacticalPlans || [], activePlanId: league.activePlanId || null, transfer: league.transfer || null, develop: league.develop || null, captains: league.captains || {}, captainIntroSeen: !!league.captainIntroSeen, mp: league.mp || null, biz: league.biz || null });
   };
   FM.deserializeLeague = function (text) {
     const d = JSON.parse(text);
     const teams = d.teams.map(unpackTeam);
-    const league = { cid: d.cid || undefined, saveName: typeof d.saveName === 'string' ? d.saveName : undefined, nameFix: d.nameFix || 0, seed: d.seed, runSeed: d.runSeed || 0, tier: d.tier, userId: d.userId, season: d.season, day: d.day, divisionLevel: d.divisionLevel || 1, divisionName: d.divisionName || 'Premier Division', fixtures: d.fixtures, teams, seasonHistory: d.seasonHistory || [], workbench: d.workbench || null, skin: d.skin || null, injuryLog: d.injuryLog || [], board: d.board || null, boardApproval: Number.isFinite(d.boardApproval) ? d.boardApproval : 50, prepStep: d.prepStep || 0, prepPhaseMax: d.prepPhaseMax || 0, testPhaseMax: d.testPhaseMax || 0, testLog: d.testLog || [], hypotheses: d.hypotheses || [], news: d.news || [], friendlies: d.friendlies || [], labRuns: d.labRuns || [], labCtx: d.labCtx || null, labArchive: d.labArchive || [], phaseLabRuns: d.phaseLabRuns || {}, interviews: d.interviews || [], publicOpinion: Number.isFinite(d.publicOpinion) ? d.publicOpinion : 50, tacticalPlans: d.tacticalPlans || [], activePlanId: d.activePlanId || null, transfer: d.transfer || null, develop: d.develop || null, captains: d.captains || {}, captainIntroSeen: !!d.captainIntroSeen, mp: d.mp || null, biz: d.biz || null };
+    const league = { cid: d.cid || undefined, saveName: typeof d.saveName === 'string' ? d.saveName : undefined, nameFix: d.nameFix || 0, seed: d.seed, runSeed: d.runSeed || 0, tier: d.tier, userId: d.userId, season: d.season, day: d.day, divisionLevel: d.divisionLevel || 1, divisionName: d.divisionName || 'Premier Division', fixtures: d.fixtures, teams, cup: d.cup || null, seasonHistory: d.seasonHistory || [], workbench: d.workbench || null, skin: d.skin || null, injuryLog: d.injuryLog || [], board: d.board || null, boardApproval: Number.isFinite(d.boardApproval) ? d.boardApproval : 50, prepStep: d.prepStep || 0, prepPhaseMax: d.prepPhaseMax || 0, testPhaseMax: d.testPhaseMax || 0, testLog: d.testLog || [], hypotheses: d.hypotheses || [], news: d.news || [], friendlies: d.friendlies || [], labRuns: d.labRuns || [], labCtx: d.labCtx || null, labArchive: d.labArchive || [], phaseLabRuns: d.phaseLabRuns || {}, interviews: d.interviews || [], publicOpinion: Number.isFinite(d.publicOpinion) ? d.publicOpinion : 50, tacticalPlans: d.tacticalPlans || [], activePlanId: d.activePlanId || null, transfer: d.transfer || null, develop: d.develop || null, captains: d.captains || {}, captainIntroSeen: !!d.captainIntroSeen, mp: d.mp || null, biz: d.biz || null };
     if (Array.isArray(d.otherLeagues)) league.otherLeagues = d.otherLeagues.filter((x) => x && x.teams).map((x) => ({ level: x.level, name: x.name, fixtures: x.fixtures || [], teams: x.teams.map(unpackTeam) }));
     else if (d.otherLeague && d.otherLeague.teams) league.otherLeague = { level: d.otherLeague.level, name: d.otherLeague.name, fixtures: d.otherLeague.fixtures || [], teams: d.otherLeague.teams.map(unpackTeam) };
     FM.ensureFourDivisions(league); FM.setBoardExpectation(league);

@@ -293,6 +293,7 @@
           <p class="note news-byline">${esc(open.reporter || 'The LastMind Football desk')} · ${esc(open.publication || 'The Touchline')}</p>
           ${p ? `<figure class="nw-photo"><div id="nwPhoto" class="rc-scene"></div><figcaption>${esc(p.name)}, ${esc((FM.clubOf(league, p) || {}).name || '')}</figcaption></figure>` : ''}
           ${paras.map((x, i) => `<p class="nw-body">${esc(x)}</p>${i === 0 && quote ? `<blockquote>“${esc(quote)}”</blockquote>` : ''}`).join('')}
+          ${open.cupTree && FM.cupTreeHtml ? `<h2>League Cup tree</h2>${FM.cupTreeHtml(league)}` : ''}
           ${open.offer && FM.bizOfferBlock ? FM.bizOfferBlock(league, open.offer) : ''}
         </article>
         <aside class="card"><h3>More stories</h3>${more.map((n) => `<button type="button" class="nw-more" data-story="${esc(n.id)}"><span class="nw-kind ${n.mine ? 'mine' : ''}">${esc(n.kind)}</span> ${esc(n.headline)}</button>`).join('')}</aside></div>`;

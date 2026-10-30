@@ -813,8 +813,56 @@
     if (!fx || fx.played) return;
     runInterview('pre', fx, null, startMatch);
   }
+  FM.cupTreeHtml = function (lg) {
+    const cup = lg.cup; if (!cup) return '';
+    const stages = cup.stages || [], byStage = (key) => (cup.fixtures || []).filter((f) => f.stage === key);
+    const team = (id) => { const t = FM.teamById(lg, id); return t ? t.name : 'TBD'; };
+    return `<div class="cup-tree">${stages.map((s) => `<section><h4>${esc(s.label)}</h4>${byStage(s.key).length ? byStage(s.key).map((f) => `<div class="cup-pair${f.homeId === lg.userId || f.awayId === lg.userId ? ' mine' : ''}"><span>${esc(team(f.homeId))}${f.hg != null ? ` <b>${f.hg}${f.shootout ? ' (' + f.shootout.home + ')' : ''}</b>` : ''}</span><span>${esc(team(f.awayId))}${f.ag != null ? ` <b>${f.ag}${f.shootout ? ' (' + f.shootout.away + ')' : ''}</b>` : ''}</span></div>`).join('') : '<div class="cup-pair pending"><span>TBD</span><span>TBD</span></div>'}</section>`).join('')}</div>`;
+  };
+  function showCupDraw(stage, done) {
+    const lg = world.league, cup = lg.cup, entrants = stage.key === 'r32' ? cup.entrants.slice() : cup.fixtures.filter((f) => f.stage === cup.stages[cup.stages.findIndex((s) => s.key === stage.key) - 1].key && f.played).map((f) => f.shootout ? f.shootout.winnerId : f.hg > f.ag ? f.homeId : f.awayId);
+    // The order is prepared once and revealed one club at a time; cupDraw uses this exact order when the animation ends.
+    const rng = FM.mulberry32(lg.seed + (lg.runSeed || 0) * 31 + lg.season * 1009 + cup.draws.length * 917);
+    const order = entrants.slice().sort(() => rng() - 0.5), names = order.map((id) => FM.teamById(lg, id).name);
+    const shade = document.createElement('div'); shade.className = 'cup-overlay';
+    shade.innerHTML = `<div class="cup-draw card"><div class="eyebrow">League Cup draw</div><h2>${esc(stage.label)}</h2><p class="desc">The draw is being made live. Ashford’s path is highlighted in gold.</p><div class="cup-draw-grid"><div id="cupTreeLive">${FM.cupTreeHtml(lg)}</div><aside><h3>Teams in the draw</h3><ol id="cupEntrants">${names.map((n, i) => `<li data-cup-entry="${i}">${esc(n)}</li>`).join('')}</ol></aside></div><p id="cupDrawStatus" class="cup-status">The first club is about to be drawn…</p></div>`;
+    document.body.appendChild(shade);
+    let i = 0; const list = shade.querySelector('#cupEntrants'), status = shade.querySelector('#cupDrawStatus');
+    const tick = () => {
+      if (i >= order.length) { FM.cupDraw(lg, stage.key, order); shade.querySelector('#cupTreeLive').innerHTML = FM.cupTreeHtml(lg); status.textContent = 'The draw is complete.'; const b = document.createElement('button'); b.className = 'primary'; b.textContent = 'Continue'; b.addEventListener('click', () => { shade.remove(); FM.saveLeague(lg); done(); }); shade.querySelector('.cup-draw').appendChild(b); return; }
+      const line = list.querySelector('[data-cup-entry="' + i + '"]'); if (line) line.classList.add('drawn'); status.textContent = names[i] + ' are drawn.'; i++; setTimeout(tick, 260);
+    };
+    setTimeout(tick, 600);
+  }
+  function cupPenaltyShootout(fx, match, done) {
+    const me = world.league.userId, myTeam = match.teams.find((t) => t.id === me), defaults = myTeam.players.slice(0, 5);
+    const shade = document.createElement('div'); shade.className = 'cup-overlay';
+    shade.innerHTML = `<div class="cup-shootout card"><div class="eyebrow">League Cup · penalties</div><h2>Choose your five takers</h2><p class="desc">The shootout is level after 90 minutes. Your order is used for the first five kicks; sudden death follows if needed.</p><div class="cup-takers">${[0,1,2,3,4].map((n) => `<label>${n + 1}<select data-taker="${n}">${myTeam.players.map((p) => `<option value="${p.id}"${p.id === defaults[n].id ? ' selected' : ''}>${esc(p.name)}</option>`).join('')}</select></label>`).join('')}</div><button class="primary" id="cupTake">Start shootout</button></div>`;
+    document.body.appendChild(shade);
+    shade.querySelector('#cupTake').addEventListener('click', () => {
+      const order = Array.from(shade.querySelectorAll('[data-taker]')).map((s) => myTeam.squad.find((p) => p.id === s.value)).filter(Boolean);
+      shade.querySelector('.cup-shootout').innerHTML = `<div class="eyebrow">League Cup · penalties</div><h2 id="cupPenaltyHead">Penalty shootout</h2><div class="penalty-stage"><i class="penalty-taker"></i><i class="penalty-ball"></i><i class="penalty-goal"></i></div><p id="cupPenaltyLog" class="cup-status"></p>`;
+      const teams = [match.home, match.away], takers = Object.fromEntries(teams.map((t) => [t.id, t.id === me ? order : t.players.slice(0, 5)])), score = { [teams[0].id]: 0, [teams[1].id]: 0 }, kicks = [], rng = FM.mulberry32((fx.seed || 1) + 7767);
+      let round = 0, side = 0, sudden = 0;
+      const kick = () => {
+        const team = teams[side], taker = takers[team.id][round % takers[team.id].length], goal = rng() < Math.min(.88, .57 + (FM.playerRating(taker) - 6.5) * .09); if (goal) score[team.id]++;
+        kicks.push({ teamId: team.id, taker: taker.name, goal });
+        shade.querySelector('#cupPenaltyHead').textContent = `${taker.name} · ${score[teams[0].id]}–${score[teams[1].id]}`;
+        shade.querySelector('#cupPenaltyLog').textContent = goal ? 'Goal.' : 'Saved or missed.';
+        const ball = shade.querySelector('.penalty-ball'); ball.classList.remove('kick'); void ball.offsetWidth; ball.classList.add('kick');
+        side = 1 - side;
+        if (side === 0) { round++; const left = Math.max(0, 5 - round); if (round >= 5 && score[teams[0].id] !== score[teams[1].id]) return finish(); if (round < 5 && Math.abs(score[teams[0].id] - score[teams[1].id]) > left) return finish(); if (round >= 5) sudden++; if (sudden > 8 && score[teams[0].id] === score[teams[1].id]) { score[teams[0].id]++; return finish(); } }
+        setTimeout(kick, 700);
+      };
+      const finish = () => { const winnerId = score[teams[0].id] > score[teams[1].id] ? teams[0].id : teams[1].id; fx.shootout = { home: score[teams[0].id], away: score[teams[1].id], winnerId, kicks }; setTimeout(() => { shade.remove(); done(); }, 900); };
+      kick();
+    });
+  }
+
   el('finishBtn').addEventListener('click', () => {
     const btn = el('finishBtn');
+    const cupFx = world.fixture, cupMatch = world.match;
+    if (cupFx && cupFx.cup && cupMatch.score[cupMatch.home.id] === cupMatch.score[cupMatch.away.id] && !cupFx.shootout) { cupPenaltyShootout(cupFx, cupMatch, () => btn.click()); return; }
     btn.disabled = true; btn.textContent = 'Playing the other matches...';
     setTimeout(async () => {
       const fx = world.fixture, m = world.match, me = world.league.userId;
@@ -852,7 +900,17 @@
       FM.saveLeague(world.league);
       btn.disabled = false; btn.textContent = 'Finish and see the table';
       // the shareholders may have called a vote on the manager
-      boardVerdict(world.league, () => { if (DEMO_MODE) showDemoComplete(); else runInterview('post', fx, result, () => setView('home')); });
+      const afterMatch = () => {
+        const due = !fx.cup && FM.cupNeedsDrawAfterRound ? FM.cupNeedsDrawAfterRound(world.league, fx.round) : null;
+        if (due) {
+          const entrants = due.key === 'r32' ? world.league.cup.entrants : world.league.cup.fixtures.filter((f) => f.stage === world.league.cup.stages[world.league.cup.stages.findIndex((s) => s.key === due.key) - 1].key && f.played).map((f) => f.shootout ? f.shootout.winnerId : f.hg > f.ag ? f.homeId : f.awayId);
+          // Once eliminated, the competition carries on silently in the background; active managers see every draw.
+          if (entrants.indexOf(world.league.userId) >= 0) return showCupDraw(due, () => setView('home'));
+          FM.cupDraw(world.league, due.key); FM.saveLeague(world.league);
+        }
+        setView('home');
+      };
+      boardVerdict(world.league, () => { if (DEMO_MODE) showDemoComplete(); else runInterview('post', fx, result, afterMatch); });
     }, 40);
   });
 
@@ -884,7 +942,7 @@
     world.match = FM.startFixture(world.league, fx, { interactive: true });
     // the other matches of the round are played in the background while this one is on the screen
     if (world.bg) world.bg.stop(); world.bg = null;
-    if (!world.league.mp && !fx.friendly && FM.roundBackground) { const mref = world.match; world.bg = FM.roundBackground(world.league, fx); world.bg.start(() => ({ alive: world.match === mref, paused: !world.running, over: mref.phase === 'fulltime' })); }
+    if (!world.league.mp && !fx.friendly && !fx.cup && FM.roundBackground) { const mref = world.match; world.bg = FM.roundBackground(world.league, fx); world.bg.start(() => ({ alive: world.match === mref, paused: !world.running, over: mref.phase === 'fulltime' })); }
     world.startSig = shapeSig(FM.teamById(world.league, world.league.userId));
     { const t0 = FM.teamById(world.league, world.league.userId); world.matchSnap = JSON.parse(JSON.stringify({ phasePos: t0.phasePos || {}, shape: t0.shape || {}, phaseBall: t0.phaseBall || {}, tactics: t0.tactics })); world.liveMoved = {}; }
     world.renderPos.clear(); world.renderBall = null;
@@ -1093,7 +1151,7 @@
     const mpButtonLabel = mpYourPlan ? (mpEveryoneReady ? 'Start match' : 'Waiting for other players') : 'Lock in my plan';
     const findings = result ? `${last.n} build-up tests gave a ${rate}% press-beating rate${result.beat.lo != null ? `, with a ${Math.round(result.beat.lo * 100)}–${Math.round(result.beat.hi * 100)}% interval` : ''}.` : 'No phase experiment has been run for this opponent. That is optional—you can still use the current plan.';
     host.innerHTML = `<div class="match-preview">
-      <div class="preview-hero"><div class="eyebrow">Round ${fx.round + 1} · ${home.id === me.id ? 'Home' : 'Away'}</div>
+      <div class="preview-hero"><div class="eyebrow">${fx.cup ? 'League Cup · ' + esc((lg.cup.stages.find((s) => s.key === fx.stage) || {}).label || 'Knockout round') : 'Round ' + (fx.round + 1)} · ${home.id === me.id ? 'Home' : 'Away'}</div>
         <div class="preview-clubs"><div class="preview-club"><strong>${esc(home.name)}</strong><span>${esc(FM.formationName ? FM.formationName(home) : home.formationKey)}</span></div><div class="preview-v">VS</div><div class="preview-club"><strong>${esc(away.name)}</strong><span>${esc(FM.formationName ? FM.formationName(away) : away.formationKey)}</span></div></div>
         <div class="preview-actions"><button id="previewTactics">Review tactics</button>${lg.mp && lg.mp.kind === 'match' ? '' : '<button id="previewTest">Run an experiment</button>'}<button class="primary" id="enterMatch"${canPlay && (!lg.mp || !mpYourPlan || mpEveryoneReady) ? '' : ' disabled'}>${canPlay ? (lg.mp ? mpButtonLabel : 'Play match') : 'Season complete'}</button></div></div>
       <div class="preview-grid">
@@ -1187,7 +1245,7 @@
       const when = days === 0 ? 'Today, matchday' : days === 1 ? 'Tomorrow' : 'In ' + days + ' days, on Saturday';
       next = `<h2>Next match</h2>
         <div class="fixture-big">${esc(home.name)} <span style="opacity:.6">v</span> ${esc(away.name)}</div>
-        <p class="desc">${when} · Round ${nextFx.round + 1} of 14 · ${home.id === me ? 'Home' : 'Away'} against ${esc(opp.name)}</p>
+        <p class="desc">${when} · ${nextFx.cup ? 'League Cup · ' + esc((lg.cup.stages.find((s) => s.key === nextFx.stage) || {}).label || 'Knockout round') : 'Round ' + (nextFx.round + 1) + ' of 14'} · ${home.id === me ? 'Home' : 'Away'} against ${esc(opp.name)}</p>
         ${today && !today.played ? '' : '<p class="note">Work through the preparation flow above. The match begins from Match preview.</p>'}${lessonLine(lg)}`;
     }
     const played = lg.fixtures.filter((f) => f.played && (f.homeId === me || f.awayId === me)).sort((a, b) => b.round - a.round);
