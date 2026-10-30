@@ -1060,7 +1060,7 @@
     if (v !== 'tactics' && backBtn) dropBackBtn();
     world.view = v;
     { const sb = el('saveBtn'); if (sb) sb.hidden = !world.league; const nb = el('nameBtn'); if (nb) nb.hidden = !world.league || !!world.league.mp; }
-    if (FM.agentHide) FM.agentHide(v === 'match');
+    if (FM.agentHide) FM.agentHide(v !== 'analysis');
     document.body.dataset.view = v; document.body.dataset.testing = (v === 'tactics' && world.testing) ? '1' : '0';
     VIEWS.forEach((k) => { el('view-' + k).hidden = k !== v; });
     el('newGame').hidden = true;
@@ -1240,7 +1240,6 @@
       try {
         const me = lg.userId, rows = FM.tableRows(lg), nf = FM.nextUserFixture(lg);
         if (nf) { const h = FM.teamById(lg, nf.homeId), a = FM.teamById(lg, nf.awayId); body += `<div class="card"><h2>Next match</h2><div class="fixture-big">${esc(h ? h.name : '?')} <span style="opacity:.6">v</span> ${esc(a ? a.name : '?')}</div><p class="desc">Round ${nf.round + 1} of 14. Work through the preparation flow above, then play from Match preview.</p></div>`; }
-        { const ll = lessonLine(lg); if (ll) body += `<div class="card"><h2>Maths lesson</h2>${ll}</div>`; }
         body += `<div class="card"><h2>League table</h2><div class="tablewrap"><table class="data"><thead><tr><th class="l">#</th><th class="l">Club</th><th>P</th><th>W</th><th>D</th><th>L</th><th>Pts</th></tr></thead><tbody>${rows.map((r, i) => `<tr class="${r.id === me ? 'me' : ''}"><td class="l">${i + 1}</td><td class="l">${esc(r.name)}</td><td>${r.p}</td><td>${r.w}</td><td>${r.d}</td><td>${r.l}</td><td>${r.pts}</td></tr>`).join('')}</tbody></table></div></div>`;
       } catch (e3) { /* the note below is all there is */ }
       host.innerHTML = `<div style="display:grid;gap:16px;max-width:900px">${body}<p class="note">Part of the home page could not be drawn (${esc(e && e.message ? e.message : 'unknown error')}). Your game is safe and the other pages work. If this keeps happening, tell me this message.</p></div>`;
@@ -1269,7 +1268,7 @@
       next = `<h2>Next match</h2>
         <div class="fixture-big">${esc(home.name)} <span style="opacity:.6">v</span> ${esc(away.name)}</div>
         <p class="desc">${when} · ${nextFx.cup ? 'League Cup · ' + esc((lg.cup.stages.find((s) => s.key === nextFx.stage) || {}).label || 'Knockout round') : 'Round ' + (nextFx.round + 1) + ' of 14'} · ${home.id === me ? 'Home' : 'Away'} against ${esc(opp.name)}</p>
-        ${today && !today.played ? '' : '<p class="note">Work through the preparation flow above. The match begins from Match preview.</p>'}${lessonLine(lg)}`;
+        <div class="row"><button class="primary" id="homePreview" style="flex:0 0 auto">Match preview</button></div>`;
     }
     const played = lg.fixtures.filter((f) => f.played && (f.homeId === me || f.awayId === me)).sort((a, b) => b.round - a.round);
     const myFriendlies = (lg.friendlies || []).filter((f) => f.played && (f.homeId === me || f.awayId === me));
@@ -1300,6 +1299,7 @@
       <div style="display:grid;gap:16px"><div class="card">${next}</div><div class="card">${lastCard}</div><div class="card">${newsCard}</div></div>
       <div style="display:grid;gap:16px">${tableCard}</div></div>`;
     const leagueSelect = host.querySelector('#homeLeagueSelect'); if (leagueSelect) leagueSelect.addEventListener('change', () => { world.homeTableLevel = +leagueSelect.value; renderHome(); });
+    const hp = host.querySelector('#homePreview'); if (hp) hp.addEventListener('click', () => setView('preview'));
     const nb = host.querySelector('[data-nav-news]'); if (nb) nb.addEventListener('click', () => setView('news'));
     const ns = host.querySelector('#newSeasonBtn'); if (ns) ns.addEventListener('click', () => { ns.disabled = true; ns.textContent = 'Preparing the new season...'; if (FM.startNextSeason(lg)) { world.homeTableLevel = lg.divisionLevel; FM.saveLeague(lg); renderTop(); renderHome(); } });
   }
@@ -1373,7 +1373,7 @@
       if (!list.length) return '';
       return `<details class="sq-group" data-group="${title}"${open[title] === false ? '' : ' open'}><summary>${title} <small>${list.length} player${list.length === 1 ? '' : 's'}</small></summary><div class="tablewrap"><table class="data">${head}<tbody>${list.map(row).join('')}</tbody></table></div></details>`;
     }).join('');
-    const capIntro = !world.league.captainIntroSeen && captain ? `<div class="cap-modal" role="dialog" aria-modal="true" aria-label="A message from your captain"><div class="card cap-intro"><div class="cap-intro-who">${portraitCache[captain.id] ? `<img class="squad-thumb" src="${portraitCache[captain.id]}" alt="">` : `<span class="squad-thumb fallback">${esc(captain.name.split(/\s+/).map((x) => x[0]).slice(0, 2).join(''))}</span>`}<div><b>${esc(captain.name)}</b><small>Captain</small></div></div><p>“Welcome boss, the lads and I are really excited to have you here. To help you get started, this is the list of all of us.</p><p>Take a look through when you get the chance, then work through the numbered stages to prepare us for our first game.”</p><button type="button" class="cap-intro-ok">Thanks, captain</button></div></div>` : '';
+    const capIntro = !world.league.captainIntroSeen ? `<div class="cap-modal" role="dialog" aria-modal="true" aria-label="A message from your assistant manager"><div class="card cap-intro"><div class="cap-intro-who"><span class="squad-thumb fallback">FM</span><div><b>Francesco Moretti</b><small>Assistant manager</small></div></div><p>“Salve, mister, and welcome. I am Francesco, your assistant. I will be at your side all season: after every match I will tell you honestly how it went, and help you see what the numbers are saying.</p><p>This is the squad. Look through it when you have a moment, then open Analysis to see where we stand, and Tactics to prepare for our first game. Buona fortuna.”</p><button type="button" class="cap-intro-ok">Grazie, Francesco</button></div></div>` : '';
     host.innerHTML = `<div class="sq-layout"><div class="sq-main">${capIntro}<div id="playerProfile"></div><div class="card"><div class="row" style="justify-content:space-between"><h2>${esc(team.name)}: squad of ${all.length}</h2></div>
       <p class="sq-key"><span><i class="g"></i>Well above the other players in the league in that position</span><span><i class="r"></i>Well below</span></p>
       ${groups}

@@ -1,4 +1,4 @@
-// The LastMind AI Agent: a tab on the right-hand edge of the game that opens a panel with a guide who takes the manager through analysing their
+// The Francesco: a tab on the right-hand edge of the game that opens a panel with a guide who takes the manager through analysing their
 // own matches by asking questions. It is sent a compact summary of the latest matches and the page the manager is on, nothing else.
 (function () {
   const FM = (window.FM = window.FM || {});
@@ -98,12 +98,15 @@
     state.busy = false; draw();
   }
 
-  FM.agentOpen = async function (starter) {
+  FM.keepSideAgent = true;
+  FM.agentOpen = async function (starter, opts) {
     state.open = true; draw();
     await loadHistory();   // the earlier conversation comes back
-    if (!state.messages.length) push({ role: 'agent', text: 'Hello, I am the LastMind AI Agent. Ask me anything: what a term means, how to read a heat map, or ask me to show you your build-up play, a pass network or how your shots have changed over the season. I can also take you through your matches step by step.' });
+    if (!state.messages.length) push({ role: 'agent', text: 'Salve, I am Francesco, your assistant manager. Ask me anything: what a term means, how to read a heat map, or ask me to show you your build-up play, a pass network or how your shots have changed over the season. I can also take you through your matches step by step.' });
     draw();
     if (starter) send(starter);
+    // a question that is prepared but not sent: it is in the box, and the manager can change it or send it
+    if (opts && opts.prefill) { const root = document.getElementById('lmAgent'), ta = root && root.querySelector('textarea'); if (ta) { ta.value = opts.prefill; ta.focus(); } }
   };
 
   FM.mountAgent = function (getContext) {
@@ -111,9 +114,9 @@
     if (document.getElementById('lmAgent')) return;
     const root = document.createElement('aside');
     root.id = 'lmAgent';
-    root.setAttribute('aria-label', 'LastMind AI Agent');
-    root.innerHTML = `<button type="button" class="ag-tab" aria-expanded="false">LastMind AI Agent</button>
-      <div class="ag-panel"><div class="ag-head"><b>LastMind AI Agent</b><span><button type="button" class="ag-clear" title="Clear the chat history">Clear history</button><button type="button" class="ag-close" aria-label="Close">×</button></span></div>
+    root.setAttribute('aria-label', 'Francesco');
+    root.innerHTML = `<button type="button" class="ag-tab" aria-expanded="false">Francesco</button>
+      <div class="ag-panel"><div class="ag-head"><b>Francesco</b><span><button type="button" class="ag-clear" title="Clear the chat history">Clear history</button><button type="button" class="ag-close" aria-label="Close">×</button></span></div>
         <div class="ag-log" role="log" aria-live="polite"></div>
         <form class="ag-form"><textarea rows="2" placeholder="Say what you notice, or ask what to look at…" aria-label="Message to the agent"></textarea><button class="ag-send primary" type="submit">Send</button></form></div>`;
     document.body.appendChild(root);

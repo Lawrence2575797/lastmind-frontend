@@ -1,7 +1,7 @@
 // The Workbook: a page in the game for studying your own club's data with whatever method, at whatever depth, you want.
 //   centre  - a document of cells (text, a calculator with the maths keyboard, queries and analyses you build by hand, and whatever the agent adds)
 //   left    - the data drawer: every table and column the simulation recorded, with a preview (open and close it with the Data button)
-//   right   - the LastMind AI Agent. It plans: it picks queries and methods and explains the results, but every number comes from the Workbook's own code
+//   right   - the LastMind Francesco. It plans: it picks queries and methods and explains the results, but every number comes from the Workbook's own code
 // The document, its chat and any tables made by experiments are kept inside the saved game (league.workbench).
 (function () {
   const FM = (window.FM = window.FM || {});
@@ -917,7 +917,7 @@
         <span class="wb2-hint">Open as many as you like side by side.</span></div>
       <div class="wb2-body">
         <section class="wb2-notes wb2-panel" data-panel="notes" aria-label="Your notebook"><div class="wb2-ph"><b>Notes</b><button type="button" class="wb-clear" data-close="notes" aria-label="Close the notes" title="Close the notes">×</button></div><iframe id="wbNotes" title="Your notebook" src="/learn/?embed=wbnotes"></iframe></section>
-        <aside class="wb-agent wb2-chat wb2-panel" id="wbAgent" data-panel="agent" aria-label="LastMind AI Agent"><div class="wb-pane-h"><b>AI Agent</b><span class="wb-agent-btns"><span class="wb-lk" id="wbLkTotal"></span><select id="wbDepth" class="wb-depth" aria-label="How deeply the agent teaches" title="Standard: the key ideas, quickly and cheaply. High: a fuller lesson with the reasoning behind each step, from a stronger model; it uses more Locks."><option value="standard">Standard</option><option value="high">High</option></select><button type="button" class="wb-clear" data-tool="exportdata" title="Save your club's match statistics, finances, squad and tactics as one file you can give to any AI assistant to talk through examples. It costs no Locks.">Export</button><button type="button" class="wb-clear" data-tool="clearchat">Clear</button><button type="button" class="wb-clear" data-close="agent" aria-label="Close the agent" title="Close the agent">×</button></span></div><div class="wb-log" id="wbLog" role="log" aria-live="polite"></div>
+        <aside class="wb-agent wb2-chat wb2-panel" id="wbAgent" data-panel="agent" aria-label="LastMind Francesco"><div class="wb-pane-h"><b>Francesco</b><span class="wb-agent-btns"><span class="wb-lk" id="wbLkTotal"></span><select id="wbDepth" class="wb-depth" aria-label="How deeply the agent teaches" title="Standard: the key ideas, quickly and cheaply. High: a fuller lesson with the reasoning behind each step, from a stronger model; it uses more Locks."><option value="standard">Standard</option><option value="high">High</option></select><button type="button" class="wb-clear" data-tool="exportdata" title="Save your club's match statistics, finances, squad and tactics as one file you can give to any AI assistant to talk through examples. It costs no Locks.">Export</button><button type="button" class="wb-clear" data-tool="clearchat">Clear</button><button type="button" class="wb-clear" data-close="agent" aria-label="Close the agent" title="Close the agent">×</button></span></div><div class="wb-log" id="wbLog" role="log" aria-live="polite"></div>
           <form class="wb-form" id="wbForm"><div id="wbAsk" class="wb-ask" aria-label="Message to the agent"></div><button class="wb-send" id="wbSend" type="submit">Send</button></form></aside>
         <section class="wb2-panel kn-panel" data-panel="map" aria-label="Knowledge map" hidden><div class="wb2-ph"><b>Knowledge map</b><button type="button" class="wb-clear" data-close="map" aria-label="Close the knowledge map" title="Close the knowledge map">×</button></div><div class="wb2-pb" id="knMap"></div></section>
         <section class="wb2-panel kn-panel" data-panel="sug" aria-label="Lesson schedule" hidden><div class="wb2-ph"><b>Lesson schedule</b><button type="button" class="wb-clear" data-close="sug" aria-label="Close the schedule" title="Close the schedule">×</button></div><div class="wb2-pb" id="knSug"></div></section>
@@ -931,7 +931,7 @@
         <span class="wb-menu"><button type="button" data-tool="add">+ Add to this page</button><div class="wb-pop" id="wbAdd" hidden>
           <button type="button" data-add="control">Change something</button><button type="button" data-add="forecast">Forecast</button><button type="button" data-add="analysis">Analysis or table</button><button type="button" data-add="calc">Calculator</button><button type="button" data-add="text">Text</button></div></span>
         <button type="button" data-tool="kb">Maths keyboard</button>
-        <button type="button" data-tool="agent">AI Agent</button>
+        <button type="button" data-tool="agent">Francesco</button>
       </div>
       <div class="wb-body">
         <aside class="wb-data" id="wbData" aria-label="Data and controls"><div class="wb-pane-h"><span class="wb-dtabs"><button type="button" data-dtab="data">Data</button><button type="button" data-dtab="controls">Controls</button></span><span class="wb-dbtns"><button type="button" class="wb-dx" data-tool="dwide" aria-label="Make the data panel wider or narrower" title="Wider / narrower">⇔</button><button type="button" class="wb-dx" data-tool="data" aria-label="Fold the data panel away" title="Fold away">‹</button></span></div><div class="wb-dlist"></div><button type="button" class="wb-drail" data-tool="data" aria-label="Open the data panel">DATA ›</button></aside>
@@ -1064,6 +1064,6 @@
   };
 
   // anywhere in the game that used to open the side agent now opens the Workbook
-  FM.agentOpen = function (starter) { if (FM.goWorkbench) FM.goWorkbench(starter); };
+  if (!FM.keepSideAgent) FM.agentOpen = function (starter) { if (FM.goWorkbench) FM.goWorkbench(starter); };
   FM.workbenchRunCalc = (league, line) => makeCalc(league, {}).evaluate(line);
 })();
