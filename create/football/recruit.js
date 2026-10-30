@@ -83,23 +83,16 @@
       <td><b>${FM.abilityOf(p)}</b></td><td>${FM.potentialOf(p)}</td>${['pace', 'dribbling', 'passing', 'finishing', 'tackling', 'heading', 'composure', 'stamina', 'gk'].map((s) => cell(p, s)).join('')}
       <td><b>${FM.money(FM.askingPrice(league, p))}</b></td><td class="l">${status(p)}</td></tr>`;
     const head = `<thead><tr><th class="l">Player</th><th class="l">Club</th><th class="l">Pos</th><th>Age</th><th class="l">Nation</th><th title="What he is worth to a team now, out of 100">Ability</th><th title="The most he can reach, out of 100">Potential</th><th>Pace</th><th>Dri</th><th>Pas</th><th>Fin</th><th>Tac</th><th>Hea</th><th>Com</th><th>Sta</th><th>GK</th><th>Price</th><th class="l">Status</th></tr></thead>`;
-    const clubIdx = rs.club === 'all' ? -1 : others.findIndex((x) => x.id === rs.club);
-    const filters = `<div class="rc-search"><input id="rcSearch" type="search" value="${esc(rs.q)}" placeholder="Search by name" autocomplete="off" aria-label="Search players by name"></div><div class="rc-filters">
-        <label>Position<select id="rcPos"><option value="all">Any</option>${POSITIONS.map(([k, n]) => `<option value="${k}"${rs.pos === k ? ' selected' : ''}>${n}</option>`).join('')}</select></label>
+    const filters = `<div class="rc-search"><input id="rcSearch" type="search" value="${esc(rs.q)}" placeholder="Search by name" autocomplete="off" aria-label="Search players by name"></div>
+      <div class="rc-player-browser"><aside class="rc-filter-rail" aria-label="Player filters">
+        <label>Position<select id="rcPos"><option value="all">Any position</option>${POSITIONS.map(([k, n]) => `<option value="${k}"${rs.pos === k ? ' selected' : ''}>${n}</option>`).join('')}</select></label>
         <label>Sort by<select id="rcSort">${[['rating', 'Rating'], ['price', 'Price, high to low'], ['priceLow', 'Price, low to high'], ['potential', 'Potential, high to low'], ['age', 'Youngest first'], ['name', 'Name']].map(([k, n]) => `<option value="${k}"${rs.sort === k ? ' selected' : ''}>${n}</option>`).join('')}</select></label>
-        <details class="rc-more"${rs.moreOpen || rs.club !== 'all' || rs.nation !== 'all' || rs.ageMin || rs.ageMax || rs.ratingMin || rs.potMin || rs.priceMax || rs.fit ? ' open' : ''}><summary>More filters</summary><div class="rc-filters-more">
-        <div class="rc-club"><button type="button" id="rcPrev" aria-label="Previous club">‹</button>
-          <select id="rcClub"><option value="all">All clubs</option>${others.map((tm) => `<option value="${tm.id}"${rs.club === tm.id ? ' selected' : ''}>${esc(tm.name)}</option>`).join('')}</select>
-          <button type="button" id="rcNext" aria-label="Next club">›</button></div>
-        <label>Nation<select id="rcNation"><option value="all">Any</option>${nations.map((n) => `<option${rs.nation === n ? ' selected' : ''}>${esc(n)}</option>`).join('')}</select></label>
-        <label>Age from<input id="rcAgeMin" type="number" min="16" max="40" value="${esc(rs.ageMin)}"></label>
-        <label>to<input id="rcAgeMax" type="number" min="16" max="40" value="${esc(rs.ageMax)}"></label>
+        <label>Club<select id="rcClub"><option value="all">All clubs</option>${others.map((tm) => `<option value="${tm.id}"${rs.club === tm.id ? ' selected' : ''}>${esc(tm.name)}</option>`).join('')}</select></label>
+        <fieldset class="rc-age"><legend>Age</legend><label>Min<input id="rcAgeMin" type="number" min="16" max="40" value="${esc(rs.ageMin)}"></label><span>–</span><label>Max<input id="rcAgeMax" type="number" min="16" max="40" value="${esc(rs.ageMax)}"></label></fieldset>
         <label>Rating at least<input id="rcRating" type="number" step="0.1" min="5" max="10" value="${esc(rs.ratingMin)}"></label>
         <label>Potential at least<input id="rcPot" type="number" step="1" min="40" max="99" value="${esc(rs.potMin)}"></label>
-        <label>Price up to (£m)<input id="rcPrice" type="number" step="0.5" min="0" value="${esc(rs.priceMax)}"></label>
-        <label class="rc-check"><input id="rcFit" type="checkbox"${rs.fit ? ' checked' : ''}> Fit only</label>
-        <button type="button" id="rcClear">Clear filters</button></div></details></div>`;
-    void clubIdx;
+        <label>Max price (£m)<input id="rcPrice" type="number" step="0.5" min="0" value="${esc(rs.priceMax)}"></label>
+        <button type="button" id="rcClear">Clear filters</button></aside>`;
 
     const shortlist = t.shortlist.map((id) => FM.findPlayer(league, id)).filter(Boolean).filter((p) => FM.clubOf(league, p) !== me);
     const openOffers = t.offers.filter((o) => FM.findPlayer(league, o.pid) && FM.clubOf(league, FM.findPlayer(league, o.pid)) === me);
@@ -107,8 +100,8 @@
 
     let body = '';
     if (rs.tab === 'players') {
-      body = `${filters}<p class="rc-count">${rows.length} player${rows.length === 1 ? '' : 's'}</p>
-        <div class="tablewrap rc-table"><table class="data">${head}<tbody>${rows.slice(0, rs.shown || 25).map(rowHtml).join('') || '<tr><td colspan="18" class="l">No players match those filters.</td></tr>'}</tbody></table></div>${rows.length > (rs.shown || 25) ? `<div class="rc-showmore"><button type="button" id="rcShowMore">Show 25 more (${rows.length - (rs.shown || 25)} not shown)</button></div>` : ''}`;
+      body = `${filters}<section class="rc-player-results"><p class="rc-count">${rows.length} player${rows.length === 1 ? '' : 's'}</p>
+        <div class="tablewrap rc-table"><table class="data">${head}<tbody>${rows.slice(0, rs.shown || 25).map(rowHtml).join('') || '<tr><td colspan="18" class="l">No players match those filters.</td></tr>'}</tbody></table></div>${rows.length > (rs.shown || 25) ? `<div class="rc-showmore"><button type="button" id="rcShowMore">Show 25 more (${rows.length - (rs.shown || 25)} not shown)</button></div>` : ''}</section></div>`;
     } else if (rs.tab === 'shortlist') {
       body = shortlist.length ? `<div class="tablewrap rc-table"><table class="data">${head}<tbody>${shortlist.map((p) => rowHtml({ p, tm: FM.clubOf(league, p) })).join('')}</tbody></table></div>` : '<p class="note">Nobody on your shortlist yet. Declaring interest in a player, or approaching his club, adds him here.</p>';
     } else {
