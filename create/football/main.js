@@ -335,7 +335,8 @@
   }
   function stepRender(m) { interpolate(m); }
   // How the match is watched: the 2D birds-eye pitch, or the same match in 3D from the touchline or from the stands.
-  try { world.viewMode = localStorage.getItem('lm_football_view') || '2d'; } catch (e) { world.viewMode = '2d'; }
+  // The 3D views are switched off for now (FM.ENABLE_3D = true brings the choice back); the code for them is all still here.
+  try { world.viewMode = FM.ENABLE_3D ? (localStorage.getItem('lm_football_view') || '2d') : '2d'; } catch (e) { world.viewMode = '2d'; }
   function applyViewMode() {
     const v = world.viewMode, three = v === 'touchline' || v === 'stands', host = el('pitch3d'), sel = el('viewMode');
     const note = el('viewNote'), say = (t, bad) => { if (note) { note.textContent = t; note.className = 'view-note' + (t ? (bad ? ' bad' : ' busy') : ''); } };
@@ -1059,9 +1060,7 @@
     if (!lg) { host.innerHTML = ''; el('subtitle').textContent = ''; return; }
     const user = userTeam();
     el('subtitle').textContent = user.name + ' · Season ' + lg.season;
-    host.innerHTML = `<span class="hint" style="color:inherit;opacity:0.8">${esc(FM.dayLabel(lg.day))}</span>
-      <span class="top-level top-level-fixed" title="The level is set for this save">${esc((LEVELS.find(([k]) => k === lg.tier) || [0, lg.tier])[1])}</span>
-      <button data-top="home" class="${world.view === 'home' ? 'on' : ''}">Home</button>
+    host.innerHTML = `<button data-top="home" class="${world.view === 'home' ? 'on' : ''}">Home</button>
       ${DEMO_MODE ? '' : `<button data-top="workbench" class="tb-workbench ${world.view === 'workbench' ? 'on' : ''}">Workbook</button>`}
       ${lg.mp && lg.mp.kind === 'match' ? '' : `<button data-top="board" class="${world.view === 'board' ? 'on' : ''}">Board</button>`}
       <button data-top="squad" class="${world.view === 'squad' ? 'on' : ''}">Squad</button>
@@ -1100,6 +1099,7 @@
       <div class="preview-grid">
         <div class="card"><h2>Your match plan</h2><p class="fixture-big">${esc(FM.formationName ? FM.formationName(me) : me.formationKey)}</p><p class="desc">${(me.rules || []).filter((r) => !r.off).length} active player or team instruction${(me.rules || []).filter((r) => !r.off).length === 1 ? '' : 's'}.</p>${problems.length ? `<p class="note">${problems.length} positional issue${problems.length === 1 ? '' : 's'} still need attention.</p>` : ''}</div>
         <div class="card"><h2>Tactical familiarity</h2><p class="fixture-big">${familiarity.score}% · ${esc(familiarity.label)}</p><p class="desc">${esc(familiarityChange)}</p><p class="note">The plan at kick-off is compared with your previous match. Frequent formation, positioning and instruction changes temporarily reduce passing, pressing and defensive coordination. Preparation edits do not count separately.</p></div>
+        <div class="card"><h2>Fitness</h2>${(() => { const rows = me.players.map((p) => { const inj = FM.isInjured(p), c = Math.round(100 * FM.conditionOf(p)); return `<div class="fit-row${inj ? ' out' : c < 70 ? ' low' : ''}"><span class="fit-pos">${esc(p.natural)}</span><span class="fit-name">${esc(shortName(p))}</span><span class="fit-bar"><i style="width:${inj ? 0 : c}%"></i></span><b>${inj ? 'Injured' : c + '%'}</b></div>`; }); return rows.join(''); })()}<p class="note">Below 70% a player slows down and makes more mistakes.</p></div>
         <div class="card"><h2>Opponent</h2><p class="fixture-big">${esc(opp.name)}</p><p class="desc">${FM.derbyBetween && FM.derbyBetween(me.name, opp.name) ? '<b>' + esc(FM.derbyBetween(me.name, opp.name).name) + '</b> · ' : ''}${esc(profile.tag || 'Opponent')} · likely ${esc(opp.formationKey)} · ${esc({ balanced:'balanced',possession:'patient in possession',counter:'dangerous in transition',press:'aggressive without the ball',direct:'direct with the ball' }[opp.style] || opp.style)}.</p></div>
         <div class="card"><h2>Evidence so far</h2><p class="desc">${findings}</p></div>
       </div></div>`;
@@ -1214,11 +1214,10 @@
     const approval = (kind, value) => `<div class="approval-line"><span><b>${kind}</b><small>${esc(FM.approvalBand(value))}</small></span><div class="approval-track"><i style="width:${Math.max(0, Math.min(100, value))}%"></i></div><strong>${Math.round(value)}%</strong></div>`;
     const tableCard = `<div class="card home-league"><div class="card-title-row"><h2>League table</h2><select id="homeLeagueSelect" aria-label="Choose division"><option value="${lg.divisionLevel}">${esc(lg.divisionName)}</option><option value="${other.level}"${selectedLevel === other.level ? ' selected' : ''}>${esc(other.name)}</option></select></div>${tableHtml(shownRows, true, selectedLevel)}<div class="home-approvals">${approval('Public approval', Number.isFinite(lg.publicOpinion) ? lg.publicOpinion : 50)}</div></div>`;
     host.innerHTML = `<div class="two">
-      <div style="display:grid;gap:16px"><div class="card">${next}</div><div class="card">${lastCard}</div><div class="card">${fitCard}</div><div class="card">${newsCard}</div></div>
+      <div style="display:grid;gap:16px"><div class="card">${next}</div><div class="card">${lastCard}</div><div class="card">${newsCard}</div></div>
       <div style="display:grid;gap:16px">${tableCard}</div></div>`;
     const leagueSelect = host.querySelector('#homeLeagueSelect'); if (leagueSelect) leagueSelect.addEventListener('change', () => { world.homeTableLevel = +leagueSelect.value; renderHome(); });
     const nb = host.querySelector('[data-nav-news]'); if (nb) nb.addEventListener('click', () => setView('news'));
-    if (!DEMO_MODE && !lg.mp && FM.recoveryPanel) { const rh = document.createElement('div'); rh.style.marginTop = '16px'; host.appendChild(rh); FM.recoveryPanel(rh); }
     const ns = host.querySelector('#newSeasonBtn'); if (ns) ns.addEventListener('click', () => { ns.disabled = true; ns.textContent = 'Preparing the new season...'; if (FM.startNextSeason(lg)) { world.homeTableLevel = lg.divisionLevel; FM.saveLeague(lg); renderTop(); renderHome(); } });
   }
 

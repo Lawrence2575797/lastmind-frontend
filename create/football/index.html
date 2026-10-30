@@ -1026,6 +1026,30 @@
     body[data-view="match"]:not(.show-stats) .layout > aside.panel { display: none; }
     body[data-view="match"] .layout > aside.panel { padding: 12px; }
   }
+
+  /* A calmer, smaller layout: everything a little smaller, and the buttons on the same line as the name of the game. */
+  html { font-size: 13.5px; }
+  body { padding: 14px 14px 36px; }
+  h1 { font-size: clamp(1.25rem, 3vw, 1.6rem); letter-spacing: .01em; }
+  .sub { font-size: .8rem; margin-top: 2px; }
+  .topbar { flex-wrap: nowrap; align-items: center; gap: 18px; }
+  .topname { flex: 0 0 auto; }
+  .topgroup { flex: 1 1 auto; min-width: 0; justify-content: space-between; flex-wrap: nowrap; gap: 10px; }
+  .topright { flex: 1 1 auto; gap: 6px; }
+  .topright button, .topgroup > button, .lm-back { padding: 6px 12px; font-size: .8rem; }
+  .panel, .card { padding: 14px; gap: 10px; }
+  .panel h2, .card h2, .tactics h2 { font-size: .8rem; }
+  button { padding: 6px 10px; font-size: .8rem; }
+  button.primary { padding: 8px 14px; font-size: .86rem; }
+  select { padding: 6px 8px; font-size: .82rem; }
+  .shell { gap: 12px; }
+  @media (max-width: 760px) { .topbar, .topgroup { flex-wrap: wrap; } }
+  .fit-row { display: grid; grid-template-columns: 2.4rem 1fr 5rem 3.4rem; align-items: center; gap: 8px; font-family: var(--sans); font-size: .82rem; padding: 2px 0; }
+  .fit-row .fit-pos { color: var(--cream-soft); font-size: .72rem; letter-spacing: .06em; }
+  .fit-row .fit-bar { height: 5px; background: rgba(241,234,214,.14); overflow: hidden; }
+  .fit-row .fit-bar i { display: block; height: 100%; background: #7fd49a; }
+  .fit-row.low .fit-bar i { background: var(--gold); } .fit-row.out { opacity: .6; } .fit-row.out .fit-bar i { background: #ff8a7a; }
+  .fit-row b { text-align: right; font-weight: 700; }
 </style>
 <link rel="stylesheet" href="/create/football/maths-editor.css?v=20261125b">
 <link rel="stylesheet" href="/create/football/workbench.css?v=20261029c">
@@ -1033,7 +1057,7 @@
 <body>
 <div class="shell">
   <header class="topbar">
-    <div>
+    <div class="topname">
       <h1>LastMind Football</h1>
       <p class="sub" id="subtitle"></p>
     </div>
@@ -1107,7 +1131,7 @@
             <button id="pitchPause" class="pitch-pause" type="button" hidden>Pause</button>
             <div class="match-commentary" id="matchCommentary" role="status" aria-live="polite">The teams are ready. The match is about to begin.</div>
             <div class="controls">
-              <label class="view-pick"><span>View</span><select id="viewMode" aria-label="How to watch the match"><option value="2d">2D birds-eye</option><option value="touchline">3D touchline</option><option value="stands">3D from the stands</option></select></label> <button type="button" id="jobsBtn" class="view-jobs" title="Write what each player is doing above his head (3D views)" aria-pressed="false">Show jobs</button> <span class="view-note" id="viewNote" role="status"></span>
+              <label class="view-pick" hidden><span>View</span><select id="viewMode" aria-label="How to watch the match"><option value="2d">2D birds-eye</option><option value="touchline">3D touchline</option><option value="stands">3D from the stands</option></select></label> <button type="button" id="jobsBtn" class="view-jobs" title="Write what each player is doing above his head (3D views)" aria-pressed="false">Show jobs</button> <span class="view-note" id="viewNote" role="status"></span>
               <button id="playBtn" class="on">Pause</button>
               <button data-speed="0.5">0.5x</button><button data-speed="1" class="on">1x</button><button data-speed="1.5">1.5x</button><button data-speed="3">3x</button><button data-speed="6">6x</button><button data-speed="24">24x</button>
               <button id="highlightBtn" aria-pressed="false" title="Fast-forward quiet passages and watch dangerous attacks at normal speed">Important highlights</button>
@@ -1159,7 +1183,7 @@
 <script src="/create/football/plan.js?v=20261028z"></script>
 <script src="/create/football/plan_analysis.js?v=20261029a"></script>
 <script src="/create/football/plan_ui.js?v=20261029cs"></script>
-<script src="/create/football/fitness.js?v=20261127a"></script>
+<script src="/create/football/fitness.js?v=20261030c"></script>
 <script src="/create/football/match.js?v=20261030b"></script>
 <script src="/create/football/league.js?v=20261029bnp"></script>
 <script src="/create/football/preseason.js?v=20261208a"></script>
@@ -1235,6 +1259,6 @@
 <script src="/create/football/stadium.js?v=20261028b"></script>
 <script src="/create/football/playermodel.js?v=20261028c"></script>
 <script src="/create/football/view3d.js?v=20261029pjkmnrstu"></script>
-<script src="/create/football/main.js?v=20261030a"></script>
+<script src="/create/football/main.js?v=20261030c"></script>
 </body>
 </html>

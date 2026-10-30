@@ -22,7 +22,7 @@
     const t = team.tactics;
     const intensity = 0.8 + 0.4 * t.pressing + 0.2 * (t.tempo - 0.5);
     const stam = 1.7 - FM.stamina(p) / 100;
-    return dt * (0.000045 + 0.000075 * vr) * intensity * stam;
+    return dt * (0.000027 + 0.000046 * vr) * intensity * stam;   // (a match now costs about 40% less than it did: it takes real, sustained running to tire a man)
   };
   // Ratings of a tired player: every technical rating and his top speed fall as energy falls.
   FM.applyFatigue = function (p) {
@@ -52,7 +52,7 @@
   };
   FM.recoverDay = function (league) {
     FM.curLeague = league;
-    league.teams.forEach((t) => { const k = t.id === league.userId && FM.userMod ? FM.userMod('recovery') : 1; t.squad.forEach((p) => { if (p.condition != null && p.condition < 1) p.condition = Math.min(1, p.condition + 0.05 * k); }); });
+    league.teams.forEach((t) => { const k = t.id === league.userId && FM.userMod ? FM.userMod('recovery') : 1; t.squad.forEach((p) => { if (p.condition != null && p.condition < 1) p.condition = Math.min(1, p.condition + 0.1 * k); }); });
   };
 
   // ---------- injuries ----------
