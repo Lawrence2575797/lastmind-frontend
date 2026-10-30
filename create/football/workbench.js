@@ -913,7 +913,7 @@
     FM.richHtml = richHtml;
     host.innerHTML = `<div class="wb wb2">
       <div class="wb2-bar" role="toolbar" aria-label="Open or close panels"><span class="wb2-lab">Show</span>
-        <button type="button" class="wb2-tog" data-panel="notes" aria-pressed="true">Notes</button><button type="button" class="wb2-tog" data-panel="agent" aria-pressed="true">AI agent</button><button type="button" class="wb2-tog" data-panel="map" aria-pressed="false">Knowledge map</button><button type="button" class="wb2-tog" data-panel="sug" aria-pressed="false">Schedule</button><button type="button" class="wb2-tog" data-panel="lesson" aria-pressed="false">Lesson</button>
+        <button type="button" class="wb2-tog" data-panel="notes" aria-pressed="true">Notes</button><button type="button" class="wb2-tog" data-panel="agent" aria-pressed="true">Francesco</button><button type="button" class="wb2-tog" data-panel="map" aria-pressed="false">Knowledge map</button><button type="button" class="wb2-tog" data-panel="sug" aria-pressed="false">Schedule</button><button type="button" class="wb2-tog" data-panel="lesson" aria-pressed="false">Lesson</button>
         <span class="wb2-hint">Open as many as you like side by side.</span></div>
       <div class="wb2-body">
         <section class="wb2-notes wb2-panel" data-panel="notes" aria-label="Your notebook"><div class="wb2-ph"><b>Notes</b><button type="button" class="wb-clear" data-close="notes" aria-label="Close the notes" title="Close the notes">×</button></div><iframe id="wbNotes" title="Your notebook" src="/learn/?embed=wbnotes"></iframe></section>

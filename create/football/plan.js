@@ -52,7 +52,8 @@
       T('keeper', 'Goalkeeper', 'A keeper who plays short is another passer; one who kicks long saves a risk and gives the ball away.', [
         o('short', 'Plays short', { r: [['GK', [E.len('short', 1)]]] }), STD('Either'), o('long', 'Kicks it long', { r: [['GK', [E.len('long', 1)]]] })]),
       T('tempo', 'Tempo', 'How quickly the ball is moved on.', [o('slow', 'Slow it down', { r: [['team', [E.tempo(-0.6)]]] }), STD('Normal'), o('fast', 'Quick', { r: [['team', [E.tempo(0.6)]]] })]),
-      T('fullbacks', 'Full-backs', '', [o('hold', 'Stay back', { pos: [['FB', -6, 0]] }), STD('Balanced'), o('push', 'Push on high', { pos: [['FB', 8, 2]] })]),
+      // (the full-backs' height is set by their cards on the pitch, not by a toggle: the toggle is kept in the code for now but not shown)
+      ...(FM.SHOW_FB_TOGGLE ? [T('fullbacks', 'Full-backs', '', [o('hold', 'Stay back', { pos: [['FB', -6, 0]] }), STD('Balanced'), o('push', 'Push on high', { pos: [['FB', 8, 2]] })])] : []),
       T('pressed', 'When they press us', 'What we do when the other side come to close us down.', [
         o('through', 'Play through the press', { r: [['team', [E.risk(0.3), E.dir('forward', 0.3)], { pressed: 'pressed' }]] }), STD('Whatever is on'),
         o('long', 'Go long over it', { r: [['team', [E.len('long', 0.8), E.dir('forward', 0.5)], { pressed: 'pressed' }]] }), o('safe', 'Go back and keep it', { r: [['team', [E.dir('backward', 0.6), E.risk(-0.4)], { pressed: 'pressed' }]] })]),
