@@ -419,10 +419,25 @@
       const lostIt = match.lastChange && match.lastChange.team === c.team && match.clock - match.lastChange.t < PRESS_WINDOW;
       const cpx = lostIt ? (opp.tactics.counterPress > 0.6 ? 1 : 0) + (opp.tactics.counterPress > 0.85 ? 1 : 0) : 0, cpl = lostIt ? (opp.tactics.counterPress < 0.3 ? -1 : 0) : 0;   // the counter-press setting: how many close the ball down just after it is lost
       const n = Math.max(1, 1 + (press > 0.65 && (lostIt || nearGoal || (deep && pbu > 0.6)) ? 1 : 0) + cpx + cpl);
-      const ranked = opp.players.filter((p) => p.group !== 'GK').map((p) => ({ p, d: dist(p, c.player) })).sort((a, b) => a.d - b.d);
+      let ranked = opp.players.filter((p) => p.group !== 'GK').map((p) => ({ p, d: dist(p, c.player) })).sort((a, b) => a.d - b.d);
+      // The manager's press: when the ball goes to a named man (their goalkeeper, centre-backs, or a full-back on one side), a named player closes him down, and he does it from the
+      // side that shows the man which way to go (out wide to the full-back, or inside). 'Both sides' makes it the same on the left and the right.
+      let engageP = null, showSide = 0;
+      { const cfg = FM.NO_PRESSCFG ? null : opp.pressCfg;
+        if (cfg && deep && cfg.on) {
+          const g = c.player.group, right = (c.player.y - W / 2) * c.team.attackDir > 0, mir = !!cfg.mirror, rbOn = cfg.on.rb || (mir && cfg.on.lb), lbOn = cfg.on.lb || (mir && cfg.on.rb);
+          const hit = (g === 'GK' && cfg.on.gk) || (g === 'CB' && cfg.on.cb) || (g === 'FB' && ((right && rbOn) || (!right && lbOn)));
+          if (hit) {
+            const want = { forward: ['ST'], wing: ['WF'], am: ['AM'], cm: ['CM', 'DM'] }[cfg.engage || 'forward'] || ['ST'];
+            const pool = opp.players.filter((p) => want.indexOf(p.group) >= 0 && dist(p, c.player) < 36).sort((a, b) => Math.abs(a.y - c.player.y) - Math.abs(b.y - c.player.y));
+            engageP = pool[0] || null;
+            showSide = cfg.force === 'wide' ? 1 : cfg.force === 'inside' ? -1 : 0;   // 1: stand on the inside shoulder, so the way out is wide
+            if (engageP) { ranked = [{ p: engageP, d: dist(engageP, c.player) }].concat(ranked.filter((r) => r.p !== engageP)); }
+          }
+        } }
       JOB = 'presses the ball';
-      ranked.slice(0, n).forEach(({ p, d }, i) => {
-        if (d >= (i === 0 ? Math.max(pressTrigger(opp, p, press, match), (FM.FIRST_PRESS == null ? 0 : FM.FIRST_PRESS) * (0.4 + 0.6 * press)) : pressTrigger(opp, p, press, match))) return;   // the nearest man always comes to the ball
+      ranked.slice(0, Math.max(n, engageP ? 1 : 0)).forEach(({ p, d }, i) => {
+        if (p !== engageP && d >= (i === 0 ? Math.max(pressTrigger(opp, p, press, match), (FM.FIRST_PRESS == null ? 0 : FM.FIRST_PRESS) * (0.4 + 0.6 * press)) : pressTrigger(opp, p, press, match))) return;   // the nearest man always comes to the ball
         const stand = 0.5 + 2.2 * (1 - press) + 0.8 * i; // how far off the carrier he stops, in metres
         const dx = p.x - c.player.x, dy = p.y - c.player.y, dd = Math.max(d, 0.1);
         // He closes from the goal side and from the inside, not straight down the line he happens to be on: he is between the man and his goal, and when the man is near a touchline
@@ -430,7 +445,8 @@
         const ownGX = opp.attackDir === 1 ? 0 : L, gx = ownGX - c.player.x, gy = W / 2 - c.player.y, gl = Math.hypot(gx, gy) || 1, wide = Math.abs(c.player.y - W / 2) > W / 2 - 13 ? Math.sign(W / 2 - c.player.y) * 1.3 : 0;
         const k = FM.PRESS_ANGLE == null ? 0.6 : FM.PRESS_ANGLE;
         JOB = i === 0 ? (lostIt ? 'counter-presses' : 'closes the ball down') : 'supports the press';
-        ov.set(p, { x: c.player.x + c.player.vx * 0.4 + (gx / gl * k + dx / dd * (1 - k)) * stand, y: c.player.y + c.player.vy * 0.4 + (gy / gl * k + dy / dd * (1 - k)) * stand + wide });
+        const toward = p === engageP && showSide ? Math.sign(W / 2 - c.player.y) * showSide * stand * 1.1 : 0;   // (the engaging man stands on the shoulder that leaves the carrier the way the manager wants him to go)
+        ov.set(p, { x: c.player.x + c.player.vx * 0.4 + (gx / gl * k + dx / dd * (1 - k)) * stand, y: c.player.y + c.player.vy * 0.4 + (gy / gl * k + dy / dd * (1 - k)) * stand + wide + toward });
       });
       // Recovery. A defender who has been beaten does not stay behind the ball: he sprints to get goal-side again, between the man with the ball and
       // his goal, rather than trailing after him.
@@ -732,7 +748,9 @@
     // neutral setting the nearest forward now holds the block until the ball
     // is roughly ten metres away; aggressive pressing roles and instructions
     // still jump much earlier.
-    return (FM.PRESS_BASE == null ? 6 : FM.PRESS_BASE) + 8 * press + bonus + FM.dialM(team, 'press') + 5 * (FM.instrMods(player, false).closeDown + (match ? FM.rulesDelta(team, player, 'closeDown', match.ball, false) : 0));
+    // The press starts higher up the pitch: when the ball is in the attacking half for the pressing side (their build-up, their goal kick) the trigger distance grows, so the first man goes for it from further away.
+    const hiBall = match ? clamp((FM.toTeamSpace(team.attackDir, match.ball.x, match.ball.y).d - 0.45) / 0.35, 0, 1) : 0;
+    return (FM.PRESS_BASE == null ? 8 : FM.PRESS_BASE) + 8 * press + bonus + (FM.PRESS_HIGH == null ? 7 : FM.PRESS_HIGH) * hiBall * (0.4 + press) + FM.dialM(team, 'press') + 5 * (FM.instrMods(player, false).closeDown + (match ? FM.rulesDelta(team, player, 'closeDown', match.ball, false) : 0));
   }
   // Pressing as the manager set it, adjusted for the seconds just after losing the ball:
   // a high counter-press instruction hunts it back at once, a low one drops into shape first.

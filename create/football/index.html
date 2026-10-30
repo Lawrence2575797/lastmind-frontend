@@ -1087,6 +1087,9 @@
   .topname h1 { font-size: 1.3rem; }
   @media (max-width: 1180px) { .topbar { flex-wrap: wrap; } .topgroup { flex-wrap: wrap; } .topbar .topright { flex-wrap: wrap; } }
   .an2-cols > * { min-width: 0; }
+  .pd { gap: 10px; } .pd h3 { margin: 0; font: 700 .9rem var(--sans); } .pd-row { display: grid; gap: 6px; } .pd-row b { font: 700 .8rem var(--sans); } .pd-checks { display: flex; flex-wrap: wrap; gap: 6px 14px; } .pd-ck { display: inline-flex; align-items: center; gap: 6px; font-size: .84rem; } .pd-ck input { width: auto; }
+  /* The Workbook's pre-set lessons (knowledge map, schedule, lesson) are kept in the code but not shown for now. */
+  .wb2-tog[data-panel="map"], .wb2-tog[data-panel="sug"], .wb2-tog[data-panel="lesson"], .wb2-panel[data-panel="map"], .wb2-panel[data-panel="sug"], .wb2-panel[data-panel="lesson"], .wb2-hint { display: none !important; }
 </style>
 <link rel="stylesheet" href="/create/football/maths-editor.css?v=20261125b">
 <link rel="stylesheet" href="/create/football/workbench.css?v=20261030a">
@@ -1211,7 +1214,7 @@
 <script src="/create/football/ratings.js?v=20261105z"></script>
 <script src="/create/football/names.js?v=20261201a"></script>
 <script src="/create/football/name_fix.js?v=20261208a"></script>
-<script src="/create/football/engine.js?v=20261029d"></script>
+<script src="/create/football/engine.js?v=20261030d"></script>
 <script src="/create/football/edge.js?v=20261127a"></script>
 <script src="/create/football/rules.js?v=20261216b"></script>
 <script src="/create/football/instructions.js?v=20261219b"></script>
@@ -1219,10 +1222,10 @@
 <script src="/create/football/dials.js?v=20261028z"></script>
 <script src="/create/football/plan.js?v=20261028z"></script>
 <script src="/create/football/plan_analysis.js?v=20261029a"></script>
-<script src="/create/football/plan_ui.js?v=20261029cs"></script>
-<script src="/create/football/fitness.js?v=20261030c"></script>
-<script src="/create/football/match.js?v=20261030b"></script>
-<script src="/create/football/league.js?v=20261030leaguecup"></script>
+<script src="/create/football/plan_ui.js?v=20261030d"></script>
+<script src="/create/football/fitness.js?v=20261030d"></script>
+<script src="/create/football/match.js?v=20261030d"></script>
+<script src="/create/football/league.js?v=20261030d"></script>
 <script src="/create/football/preseason.js?v=20261208a"></script>
 <script src="/create/football/stats_math.js?v=20261010c"></script>
 <script src="/create/football/stats.js?v=20261013a"></script>
@@ -1238,7 +1241,7 @@
 <script src="/assets/vendor/supabase-js-2.118.0.js"></script><script>if (!window.supabase) { document.write('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"><\/script>'); }</script>
 <script src="/create/football/api.js?v=20261110b"></script>
 <script src="/create/football/scout.js?v=20261222a"></script>
-<script src="/create/football/instructions_ui.js?v=20261222a"></script>
+<script src="/create/football/instructions_ui.js?v=20261030d"></script>
 <script src="/create/football/lab_replay.js?v=20261106i"></script>
 <script src="/create/football/lab_board.js?v=20261202a"></script>
 <script src="/create/football/lab_results.js?v=20261202a"></script>
@@ -1284,11 +1287,11 @@
 <script src="/create/football/workbench_econ.js?v=20261214a"></script>
 <script src="/create/football/workbench_teach.js?v=20261223a"></script>
 <script src="/create/football/workbench_pitch.js?v=20261216c"></script>
-<script src="/create/football/agent.js?v=20261030a"></script>
+<script src="/create/football/agent.js?v=20261030d"></script>
 <script src="/create/football/maths-editor.js?v=20261125b"></script>
 <script src="/create/football/kn_tex.js?v=20261028a"></script>
-<script src="/create/football/workbench.js?v=20261030a"></script>
-<script src="/create/football/moretti.js?v=20261030a"></script>
+<script src="/create/football/workbench.js?v=20261030d"></script>
+<script src="/create/football/moretti.js?v=20261030d"></script>
 <script src="/create/football/form.js?v=20261029a"></script>
 <script src="/create/football/cases.js?v=20261028a"></script>
 <script src="/create/football/scenario.js?v=20261208a"></script>
@@ -1297,6 +1300,6 @@
 <script src="/create/football/stadium.js?v=20261028b"></script>
 <script src="/create/football/playermodel.js?v=20261028c"></script>
 <script src="/create/football/view3d.js?v=20261029pjkmnrstu"></script>
-<script src="/create/football/main.js?v=20261030cleanheader"></script>
+<script src="/create/football/main.js?v=20261030d"></script>
 </body>
 </html>

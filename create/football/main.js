@@ -851,6 +851,7 @@
     shade.querySelector('#cupSkip').addEventListener('click', finish);
     timer = setTimeout(tick, 1200);
   }
+  FM.showCupDraw = showCupDraw;
   function cupPenaltyShootout(fx, match, done) {
     const me = world.league.userId, myTeam = match.teams.find((t) => t.id === me), defaults = myTeam.players.slice(0, 5);
     const shade = document.createElement('div'); shade.className = 'cup-overlay';
@@ -1897,11 +1898,11 @@
       }
       saveSoon(); renderTactics(); renderPrepFlow();
     }));
-    clearInterval(world.liveTimer);
+    clearInterval(world.liveTimer); { const exOld = el('phaseExtras'); if (exOld) exOld.remove(); if (world.phaseObs) { try { world.phaseObs.disconnect(); } catch (e) { /* none */ } world.phaseObs = null; } }
     if (inMatch) (['build', 'midfield', 'final', 'organised'].indexOf(world.tab) >= 0 ? renderLiveBoard(team, world.tab) : renderBoardTab(team, world.tab));
     else if (world.testing) renderTestPhase(team, world.tab);
     else if (world.tab === 'setpieces') renderSetPieces(team);
-    else if (FM.renderPlanTab && ['build', 'midfield', 'final', 'organised', 'transdef', 'transatt'].indexOf(world.tab) >= 0) FM.renderPlanTab(el('tabBody'), team, world.tab, { save: saveSoon, openPlayer: (slot) => { const p = team.players.find((q) => q.slotKey === slot); if (p) { world.selSlot = p; world.selBench = null; world.tab = 'squad'; renderTactics(); } }, opp: (key) => { const sc = scoutFor(), cells = sc && oppCellsFor(sc, key); return cells ? { cells, opp: sc.opp, kit: FM.kitAgainst(sc.opp, userTeam()) } : null; }, report: (key) => { const sc = scoutFor(); if (!sc || !FM.tacticsPhaseReportHtml) return ''; const base = FM.baseKey(key), cells = oppCellsFor(sc, key); let cond = pageCondOf(key); if (cond === 'opp_press') cond = 'opp_high'; else if (cond === 'opp_sit') cond = 'opp_low'; if (cond === 'always') cond = oppTacticCond(sc.opp, base) || (base === 'build' ? 'opp_mid' : null); return FM.tacticsPhaseReportHtml(world.league, sc.opp.id, base, { cells: cells || undefined, tacticValue: sc.opp.tactics && OPP_TACTIC_FOR[base] ? sc.opp.tactics[OPP_TACTIC_FOR[base]] : undefined, label: cond ? COND_LABEL[cond] : '', why: cond ? oppWhy(sc.opp, base, cond) : '' }); } });
+    else if (FM.renderPlanTab && ['build', 'midfield', 'final', 'organised', 'transdef', 'transatt'].indexOf(world.tab) >= 0) { mountPhaseExtras(team, world.tab); FM.renderPlanTab(el('tabBody'), team, world.tab, { save: saveSoon, openPlayer: (slot) => { const p = team.players.find((q) => q.slotKey === slot); if (p) { world.selSlot = p; world.selBench = null; world.tab = 'squad'; renderTactics(); } }, opp: (key) => { const sc = scoutFor(), cells = sc && oppCellsFor(sc, key); return cells ? { cells, opp: sc.opp, kit: FM.kitAgainst(sc.opp, userTeam()) } : null; }, report: (key) => { const sc = scoutFor(); if (!sc || !FM.tacticsPhaseReportHtml) return ''; const base = FM.baseKey(key), cells = oppCellsFor(sc, key); let cond = pageCondOf(key); if (cond === 'opp_press') cond = 'opp_high'; else if (cond === 'opp_sit') cond = 'opp_low'; if (cond === 'always') cond = oppTacticCond(sc.opp, base) || (base === 'build' ? 'opp_mid' : null); return FM.tacticsPhaseReportHtml(world.league, sc.opp.id, base, { cells: cells || undefined, tacticValue: sc.opp.tactics && OPP_TACTIC_FOR[base] ? sc.opp.tactics[OPP_TACTIC_FOR[base]] : undefined, label: cond ? COND_LABEL[cond] : '', why: cond ? oppWhy(sc.opp, base, cond) : '' }); } }); }
     else if (world.tab === 'transdef' || world.tab === 'transatt') renderTransitionTab(team, world.tab);
     else if (['build', 'midfield', 'final', 'organised'].indexOf(world.tab) >= 0 && FM.renderScenario && nextOpponent()) renderScenarioTab(team, world.tab);
     else renderBoardTab(team, world.tab);
@@ -2545,6 +2546,8 @@
           ${isShape ? `<label>Formation<select id="formSel">${team.formationLabel ? `<option value="__custom" selected disabled>Current shape: ${esc(formationTitle)}</option>` : ''}${formationOptions}</select></label>${world.view === 'match' ? '' : '<button type="button" class="primary" id="useFormationDefaults">Use default tactics with this formation</button>'}` : ((world.oppMoved && world.oppMoved[key] && Object.keys(world.oppMoved[key]).length) ? '<button class="phase-report-reset" id="oppReset">Reset their shirts to the scouted positions</button>' : '')}
           ${tab === 'organised' ? '<div class="block-presets"><b>Defensive block</b><button data-block="low">Low block</button><button data-block="mid">Mid block</button><button data-block="high">High press</button></div>' : ''}
           <div id="phaseSliders"></div>
+          ${key === 'press' ? '<div id="pressDetail"></div>' : ''}
+          ${['build', 'midfield', 'final', 'press', 'without'].indexOf(key) >= 0 ? '<div id="simCard"></div>' : ''}
         </aside>
         <div class="tb-left">
           ${inDef ? '<div class="def-sub" role="tablist"><button data-msub="press" class="' + (key === 'press' ? 'on' : '') + '">Pressing their build-up</button><button data-msub="organised" class="' + (key === 'without' ? 'on' : '') + '">Defending your third</button></div>' : ''}
@@ -2573,6 +2576,8 @@
     const oppReset = host.querySelector('#oppReset');
     if (oppReset) oppReset.addEventListener('click', () => { delete world.oppMoved[key]; renderTactics(); });
     if (SLIDER_TABS[tab]) renderSliderTab(team, SLIDER_TABS[tab], host.querySelector('#phaseSliders'));
+    if (key === 'press') renderPressDetail(team, host.querySelector('#pressDetail'));
+    if (host.querySelector('#simCard')) renderSimCard(team, host.querySelector('#simCard'), key);
     if (!isShape) {
       const hooks = { save: saveSoon, opp: nextOpponent };
     }
@@ -2656,6 +2661,69 @@
     const player = world.tab === 'squad' && world.selSlot && team.players.includes(world.selSlot) ? world.selSlot : null;
     if (!player || !FM.planPlayerPanel) { rp.innerHTML = ''; return; }
     FM.planPlayerPanel(rp, team, player, { save: saveSoon, close: () => { world.selSlot = null; afterBoardChange(team); }, changed: () => { if (world.redrawBoards) { try { world.redrawBoards(); } catch (e) { /* the page is redrawn on the next change */ } } } });
+  }
+  // The press in detail (this phase only): who sets it off, who goes, and which way he shows the man. 'The same on the other side' makes a right-back trigger work on the left too.
+  function renderPressDetail(team, host) {
+    if (!host) return;
+    const cfg = team.pressCfg = Object.assign({ on: { gk: true, cb: false, rb: true, lb: false }, engage: 'forward', force: 'wide', mirror: true }, team.pressCfg || {});
+    cfg.on = Object.assign({ gk: false, cb: false, rb: false, lb: false }, cfg.on || {});
+    const ck = (k, label) => `<label class="pd-ck"><input type="checkbox" data-on="${k}"${cfg.on[k] ? ' checked' : ''}> ${label}</label>`;
+    const opt = (v, label, cur) => `<option value="${v}"${cur === v ? ' selected' : ''}>${label}</option>`;
+    host.innerHTML = `<div class="group pd"><h3>Press triggers and shape</h3>
+      <p class="desc">When does the press start, who goes, and which way does he show the man?</p>
+      <div class="pd-row"><b>The press starts when the ball goes to their</b><div class="pd-checks">${ck('gk', 'goalkeeper')}${ck('cb', 'centre-backs')}${ck('rb', 'right-back')}${ck('lb', 'left-back')}</div></div>
+      <div class="pd-row"><b>Who engages</b><select data-f="engage">${opt('forward', 'The centre-forward', cfg.engage)}${opt('wing', 'The winger on that side', cfg.engage)}${opt('am', 'The attacking midfielder', cfg.engage)}${opt('cm', 'A central midfielder', cfg.engage)}</select></div>
+      <div class="pd-row"><b>He shows the man</b><select data-f="force">${opt('wide', 'Out wide, towards the full-back', cfg.force)}${opt('inside', 'Inside, away from the touchline', cfg.force)}${opt('none', 'No particular way', cfg.force)}</select></div>
+      <label class="pd-ck"><input type="checkbox" data-f="mirror"${cfg.mirror ? ' checked' : ''}> The same on the other side (a right-back trigger works for the left-back too)</label></div>`;
+    host.querySelectorAll('[data-on]').forEach((c) => c.addEventListener('change', () => { cfg.on[c.dataset.on] = c.checked; saveSoon(); }));
+    host.querySelectorAll('select[data-f]').forEach((s) => s.addEventListener('change', () => { cfg[s.dataset.f] = s.value; saveSoon(); }));
+    const mi = host.querySelector('input[data-f="mirror"]'); if (mi) mi.addEventListener('change', () => { cfg.mirror = mi.checked; saveSoon(); });
+  }
+  // Under a phase's planning page: the press in detail (the pressing page only) and the simulation of the phase. They sit outside the planning page, which redraws itself, and follow it when it
+  // changes between "Defending your third" and "Pressing their build-up".
+  function mountPhaseExtras(team, tab) {
+    if (world.phaseObs) { try { world.phaseObs.disconnect(); } catch (e) { /* none */ } world.phaseObs = null; }
+    const body = el('tabBody'); if (!body) return;
+    let ex = el('phaseExtras'); if (!ex) { ex = document.createElement('div'); ex.id = 'phaseExtras'; ex.className = 'phase-extras'; body.insertAdjacentElement('afterend', ex); }
+    let shown = '';
+    const draw = () => {
+      let key = tab;
+      if (tab === 'organised') { const on = body.querySelector('.pl-sub button.on, .def-sub button.on, [data-msub].on'); key = on && /pressing/i.test(on.textContent) ? 'press' : 'without'; }
+      else if (['build', 'midfield', 'final'].indexOf(tab) < 0) key = '';
+      if (key === shown) return; shown = key; ex.innerHTML = '';
+      if (!key) return;
+      if (key === 'press') { const pd = document.createElement('div'); pd.id = 'pressDetail'; pd.className = 'card'; ex.appendChild(pd); renderPressDetail(team, pd); }
+      const sc = document.createElement('div'); sc.id = 'simCard'; sc.className = 'card'; ex.appendChild(sc); renderSimCard(team, sc, key);
+    };
+    draw();
+    let t = 0; world.phaseObs = new MutationObserver(() => { clearTimeout(t); t = setTimeout(draw, 80); }); world.phaseObs.observe(body, { subtree: true, childList: true, attributes: true, attributeFilter: ['class'] });
+  }
+  // A simulation of this phase: the tests of the Test phases page, run quietly (a couple of dozen), and the most typical one of the most likely outcome played back as a video: the ball
+  // and every player moving as they would. It is what this setup most probably does, not the best or worst case.
+  const SIM_PHASE = { build: 'build', midfield: 'midfield', final: 'final', press: 'press', without: 'organised' };
+  const SIM_CACHE = {};
+  function renderSimCard(team, host, key) {
+    const lg = world.league, opp = nextOpponent(), lp = SIM_PHASE[key];
+    if (!host || !lg || !opp || !FM.lab || !FM.labReplay || !lp) { if (host) host.hidden = true; return; }
+    const reverse = lp === 'organised' || lp === 'press', attackTest = lp === 'final' || lp === 'organised';
+    host.innerHTML = `<div class="group sim"><h3>Simulation</h3><p class="desc">Run this phase against ${esc(opp.name)} and watch what most probably happens.</p><div class="row"><button type="button" class="primary" id="simGo">Start simulation</button></div><div id="simOut"></div></div>`;
+    const out = host.querySelector('#simOut'), go = host.querySelector('#simGo');
+    const show = (res) => {
+      const lost = res.lost.p, beat = res.beat.p, likely = beat >= lost ? 'beat' : 'lost';
+      const clip = (res.clips.find((c) => (likely === 'beat' ? c.key === 'beat' : c.key !== 'beat')) || res.clips[0]);
+      const said = likely === 'beat' ? `Most likely: the phase works (${Math.round(100 * beat)} in 100 tests).` : `Most likely: the ball is lost (${Math.round(100 * lost)} in 100 tests).`;
+      out.innerHTML = `<p class="note">${said} The replay is a typical one.</p><div id="simReplay"></div>`;
+      if (clip) FM.labReplay.mount(out.querySelector('#simReplay'), clip.clip, { team: reverse ? opp : team, opp: reverse ? team : opp });
+    };
+    go.addEventListener('click', async () => {
+      go.disabled = true; go.textContent = 'Simulating…';
+      try {
+        let oppPlan = null; try { oppPlan = await FM.scout.labPlan(lg, team, opp); } catch (e) { oppPlan = FM.scout.plan1(FM.scout.profile(lg)); }
+        const res = await FM.lab.run(lg, { n: 24, phase: attackTest ? 'final' : (lp === 'midfield' ? 'midfield' : 'build'), user: reverse ? opp : team, opp: reverse ? team : opp, record: true, oppRules: reverse ? (team.rules || []) : oppPlan.rules, oppNudge: reverse ? {} : oppPlan.tactics }, (d) => { go.textContent = 'Simulating ' + d + '/24'; });
+        SIM_CACHE[key] = res; show(res);
+      } catch (err) { out.innerHTML = '<p class="err">The simulation could not run.</p>'; }
+      go.disabled = false; go.textContent = 'Run again';
+    });
   }
   function renderPlayerPanel(team) {
     renderRolePanel(team);
