@@ -919,7 +919,7 @@
       btn.disabled = false; btn.textContent = 'Finish and see the table';
       // the shareholders may have called a vote on the manager
       const afterMatch = () => {
-        const due = !fx.cup && FM.cupNeedsDrawAfterRound ? FM.cupNeedsDrawAfterRound(world.league, fx.round) : null;
+        const due = !fx.cup && !fx.preseason && FM.cupNeedsDrawAfterRound ? FM.cupNeedsDrawAfterRound(world.league, fx.round) : null;
         if (due) {
           const entrants = due.key === 'r32' ? world.league.cup.entrants : world.league.cup.fixtures.filter((f) => f.stage === world.league.cup.stages[world.league.cup.stages.findIndex((s) => s.key === due.key) - 1].key && f.played).map((f) => f.shootout ? f.shootout.winnerId : f.hg > f.ag ? f.homeId : f.awayId);
           // Once eliminated, the competition carries on silently in the background; active managers see every draw.
@@ -1086,6 +1086,10 @@
     else if (v === 'recruit') FM.renderRecruit(el('view-recruit'), world.league, { save: saveSoon, openSquad: () => setView('squad') });
     else if (v === 'analysis') {
       const av = el('view-analysis');
+      if (FM.preseasonPending(world.league)) {
+        av.innerHTML = '<div class="card"><div class="eyebrow">Analysis</div><h2>Analysis opens after the pre-season match</h2><p class="desc">Francesco has nothing to look back on yet. Play the pre-season friendly first, and the analysis of it will be here.</p><div class="row"><button class="primary" id="anLockGo">Go to the match preview</button></div></div>';
+        av.querySelector('#anLockGo').addEventListener('click', () => setView('preview'));
+      } else
       // the analysis is of the match just played; who the next opponent are (and the history behind a derby) is on the match preview
       FM.renderAnalysis(av, world.league);
     }
@@ -1138,7 +1142,7 @@
     const subtitle = el('subtitle'); subtitle.textContent = ''; subtitle.hidden = true;
     const flowOn = (k) => ((k === 'analysis' && world.view === 'analysis') || (k === 'prepare' && world.view === 'tactics' && !world.testing) || (k === 'test' && world.view === 'tactics' && world.testing)) ? 'on' : '';
     host.innerHTML = `<button data-top="home" class="${world.view === 'home' ? 'on' : ''}">Home</button>
-      ${lg.mp && lg.mp.kind === 'match' ? '' : `<button data-flow="analysis" class="${flowOn('analysis')}">Analysis</button>`}<button data-flow="prepare" class="${flowOn('prepare')}">Tactics</button><button data-flow="test" class="${flowOn('test')}">Test phases</button>
+      ${lg.mp && lg.mp.kind === 'match' ? '' : `<button data-flow="analysis" class="${flowOn('analysis')}"${FM.preseasonPending(lg) ? ' disabled title="Analysis opens after the pre-season match"' : ''}>Analysis</button>`}<button data-flow="prepare" class="${flowOn('prepare')}">Tactics</button><button data-flow="test" class="${flowOn('test')}">Test phases</button>
       ${lg.mp && lg.mp.kind === 'match' ? '' : `<button data-top="board" class="${world.view === 'board' ? 'on' : ''}">The Books</button>`}
       <button data-top="squad" class="${world.view === 'squad' ? 'on' : ''}">Squad</button>
       ${lg.mp ? '' : `<button data-top="recruit" class="${world.view === 'recruit' ? 'on' : ''}">Recruitment</button>`}
@@ -1176,7 +1180,7 @@
     const mpButtonLabel = mpYourPlan ? (mpEveryoneReady ? 'Start match' : 'Waiting for other players') : 'Lock in my plan';
     const findings = result ? `${last.n} build-up tests gave a ${rate}% press-beating rate${result.beat.lo != null ? `, with a ${Math.round(result.beat.lo * 100)}–${Math.round(result.beat.hi * 100)}% interval` : ''}.` : 'No phase experiment has been run for this opponent. That is optional—you can still use the current plan.';
     host.innerHTML = `<div class="match-preview">
-      <div class="preview-hero"><div class="eyebrow">${fx.cup ? 'League Cup · ' + esc((lg.cup.stages.find((s) => s.key === fx.stage) || {}).label || 'Knockout round') : 'Round ' + (fx.round + 1)} · ${home.id === me.id ? 'Home' : 'Away'}</div>
+      <div class="preview-hero"><div class="eyebrow">${fx.preseason ? 'Pre-season friendly' : fx.cup ? 'League Cup · ' + esc((lg.cup.stages.find((s) => s.key === fx.stage) || {}).label || 'Knockout round') : 'Round ' + (fx.round + 1)} · ${home.id === me.id ? 'Home' : 'Away'}</div>
         <div class="preview-clubs"><div class="preview-club"><strong>${esc(home.name)}</strong><span>${esc(FM.formationName ? FM.formationName(home) : home.formationKey)}</span></div><div class="preview-v">VS</div><div class="preview-club"><strong>${esc(away.name)}</strong><span>${esc(FM.formationName ? FM.formationName(away) : away.formationKey)}</span></div></div>
         <div class="preview-actions"><button id="previewTactics">Review tactics</button>${lg.mp && lg.mp.kind === 'match' ? '' : '<button id="previewTest">Run an experiment</button>'}<button class="primary" id="enterMatch"${canPlay && (!lg.mp || !mpYourPlan || mpEveryoneReady) ? '' : ' disabled'}>${canPlay ? (lg.mp ? mpButtonLabel : 'Play match') : 'Season complete'}</button></div></div>
       <div class="preview-grid">
@@ -1266,10 +1270,10 @@
       const home = FM.teamById(lg, nextFx.homeId), away = FM.teamById(lg, nextFx.awayId);
       const opp = home.id === me ? away : home;
       const days = FM.daysUntilMatch(lg);
-      const when = days === 0 ? 'Today, matchday' : days === 1 ? 'Tomorrow' : 'In ' + days + ' days, on Saturday';
+      const when = nextFx.preseason ? 'Before the season starts' : days === 0 ? 'Today, matchday' : days === 1 ? 'Tomorrow' : 'In ' + days + ' days, on Saturday';
       next = `<h2>Next match</h2>
         <div class="fixture-big">${esc(home.name)} <span style="opacity:.6">v</span> ${esc(away.name)}</div>
-        <p class="desc">${when} · ${nextFx.cup ? 'League Cup · ' + esc((lg.cup.stages.find((s) => s.key === nextFx.stage) || {}).label || 'Knockout round') : 'Round ' + (nextFx.round + 1) + ' of 14'} · ${home.id === me ? 'Home' : 'Away'} against ${esc(opp.name)}</p>
+        <p class="desc">${when} · ${nextFx.preseason ? 'Pre-season friendly' : nextFx.cup ? 'League Cup · ' + esc((lg.cup.stages.find((s) => s.key === nextFx.stage) || {}).label || 'Knockout round') : 'Round ' + (nextFx.round + 1) + ' of 14'} · ${home.id === me ? 'Home' : 'Away'} against ${esc(opp.name)}</p>
         <div class="row"><button class="primary" id="homePreview" style="flex:0 0 auto">Match preview</button></div>`;
     }
     const played = lg.fixtures.filter((f) => f.played && (f.homeId === me || f.awayId === me)).sort((a, b) => b.round - a.round);
@@ -2802,6 +2806,7 @@
     // The league is the same each time (clubs, squads, fixtures, last season), but each new game rolls its own dice: injuries and results differ.
     world.league = FM.createLeague({ userIndex: 0, tier, runSeed: Math.floor(Math.random() * 1e9) });   // Ashford Rovers is the only club to take charge of
     if (FM.ensurePreseasonNews) FM.ensurePreseasonNews(world.league);
+    if (!DEMO_MODE && FM.ensurePreseason) FM.ensurePreseason(world.league);
     { const sk = ngSkin && ngSkin.value(); if (sk) FM.applySkin(world.league, sk); }   // a league setting from a period of history, if one was chosen (the stories already written are renamed)
     if (FM.transfer) FM.transfer(world.league);   // the opening offers are made now and saved with the game, not when a screen first asks
     if (FM.biz) { FM.biz(world.league); FM.bizSyncBudget(world.league); }
@@ -2840,6 +2845,7 @@
   { const wantSave = (location.search.match(/[?&]save=([A-Za-z0-9-]+)/) || [])[1]; if (wantSave && FM.openSave) await FM.openSave(wantSave); }   // a particular saved game, chosen in Your projects
   const wantGame = (location.search.match(/[?&]game=(solo|mp)\b/) || [])[1];
   world.league = FM.loadLeague(wantGame);
+  if (world.league && !DEMO_MODE && FM.ensurePreseason) FM.ensurePreseason(world.league);
   if (world.league && !(world.league.mp && world.league.mp.kind === 'match') && FM.biz) { FM.biz(world.league); FM.bizSyncBudget(world.league); }   // the club's books
   // "New project" comes here with ?new=1: the set-up choices, even when a game is saved (resuming is what Your projects is for)
   const wantsNew = /[?&]new=1/.test(location.search);

@@ -14,7 +14,7 @@
   const overall = (p) => { const r = p.ratings || {}; return p.natural === 'GK' ? (r.gk || 60) : ((r.pace || 60) + (r.dribbling || 60) + (r.passing || 60) + (r.finishing || 60) + (r.tackling || 60)) / 5; };
   const strength = (team) => { const ps = team.players || []; return ps.length ? ps.reduce((a, p) => a + overall(p), 0) / ps.length : 60; };
   function userFixtures(lg) {
-    const all = (lg.fixtures || []).concat((lg.cup && lg.cup.fixtures) || []).filter((f) => f.played && (f.homeId === lg.userId || f.awayId === lg.userId));
+    const all = (lg.fixtures || []).concat((lg.cup && lg.cup.fixtures) || []).concat(lg.preseason ? [lg.preseason] : []).filter((f) => f.played && (f.homeId === lg.userId || f.awayId === lg.userId));
     return all.sort((a, b) => (a.round - b.round) || (a.cup ? 1 : 0) - (b.cup ? 1 : 0));
   }
   function expectation(lg, fx) {
@@ -28,6 +28,7 @@
     const mine = fx.homeId === lg.userId, gf = mine ? fx.hg : fx.ag, ga = mine ? fx.ag : fx.hg, gd = gf - ga;
     const ex = expectation(lg, fx), opp = ex.opp.name, over = gd - ex.expGd, key = fx.id + '|prev';
     const hello = pick(HELLO, key + 'h'), score = `${gf}-${ga} against ${opp}`;
+    if (fx.preseason) return `${hello} ${score} in the pre-season friendly, against a club from a lower division. Nothing is at stake, so it is how we played that matters, not the score. Let us see what the match shows us.`;
     const fav = ex.expGd > 0.6 ? 'favourites' : ex.expGd < -0.6 ? 'underdogs' : 'an even match';
     let body;
     if (gd >= 4) body = pick([`Che partita! ${score}. I have rarely seen us so good. Enjoy it tonight, and tomorrow we will ask ourselves what worked, so that we can do it again.`, `${score}: a real statement. The lads were superb. But keep your feet on the ground, mister: a big win is also when we get careless.`], key);
