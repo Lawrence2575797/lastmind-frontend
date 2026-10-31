@@ -291,6 +291,7 @@
       if (dd < 9.5) { const u = dd > 0.01 ? 1 / dd : 0; if (dd > 0.01) { p.x = sx + dx * u * 9.6; p.y = W / 2 + dy * u * 9.6; } else { p.x = sx + inward * 9.6; } p.vx = 0; p.vy = 0; if (Math.abs(p.x - gx) < 17.4) p.x = gx + inward * 17.4; }
     });
   }
+  FM.clearBoxOfOpponents = clearBoxOfOpponents;
   FM.startBuildUpTrial = function (match, team, kind) {
     const opp = other(match, team), dir = team.attackDir;
     match.phase = 'play'; match.kickoffTimer = 0; match.clock = 0; match.restart = null; match.flight = null; match.carry = null; match.events = [];
@@ -1011,7 +1012,7 @@
       // more patient the setting, the less the player wants it. (A team set to go long has no such penalty.)
       if (zone === 'build' && tac.buildDirect < 0.5) adj -= Math.pow(0.5 - tac.buildDirect, 2) * (FM.SHORT_PREF == null ? 14 : FM.SHORT_PREF) * clamp((d - 12) / 20, 0, 1);
       if (RE) {
-        if (RE.short) adj -= RE.short * 3 * clamp((d - 18) / 22, 0, 1);
+        if (RE.short) adj -= carrier.group === 'GK' ? RE.short * 9 * clamp((d - 14) / 12, 0, 1) : RE.short * 3 * clamp((d - 18) / 22, 0, 1);   // a keeper told to play short does: only a pass he cannot make short is long
         if (RE.long) adj -= RE.long * 3.2 * clamp((24 - d) / 14, 0, 1);
         RE.passTo.forEach((pt) => { if (FM.rulesReceiver(pt.to, t, carrier, team)) adj += pt.w * 1.1; });
         adj += (RE.dir[back < -3 ? 'forward' : back > 3 ? 'backward' : 'sideways'] || 0) * 0.9;

@@ -111,6 +111,7 @@
       });
     };
     roll(0, true);
+    if (match.boxLock && FM.clearBoxOfOpponents) FM.clearBoxOfOpponents(match, u);   // a man sent to follow one of ours does not start in our box either
     let nextRoll = RESPOND_EVERY, lostAt = null, lostZone = null, lostCause = null, result = null, passes = 0, evSeen = 0;
     let guard = 0, planNow = null, firstPass = null, firstSeen = 0, planLogged = null;
     // For the replays: where everyone was (players every half second, the ball every quarter), and who the opposition were going to.
