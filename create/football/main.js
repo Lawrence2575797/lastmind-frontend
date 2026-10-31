@@ -1774,6 +1774,16 @@
   const overall = (p) => { const r = p.ratings; return p.natural === 'GK' ? r.gk : Math.round((r.pace + r.dribbling + r.passing + r.finishing + r.tackling) / 5); };
   const inLive = () => world.match && world.match.clock > 0 && world.match.phase !== 'fulltime';
 
+  // Puts back everything "Use default tactics" replaced.
+  function undoDefaultTactics(team) {
+    const u = world.undoDefaults; if (!u || !team) return;
+    restorePlan(team, u.plan);
+    Object.keys(u.extra).forEach((k) => { if (u.extra[k] !== undefined) team[k] = JSON.parse(JSON.stringify(u.extra[k])); else delete team[k]; });
+    if (FM.ensurePages) FM.ensurePages(team);
+    world.league.prepPhaseMax = u.prep.max; world.league.prepStep = u.prep.step; world.testing = u.testing; world.tab = u.tab; world.selSlot = null;
+    world.undoDefaults = null;
+    saveSoon(); renderTactics(); renderPrepFlow(); window.scrollTo(0, 0);
+  }
   // the shape of the team in every phase, as one string, to tell whether it was changed
   function shapeSig(team) { return team ? JSON.stringify([team.phasePos || {}, team.shape || {}, team.phaseBall || {}, team.formationKey]) : ''; }
   function capturePlan(team, name) {
@@ -1908,6 +1918,7 @@
       }
       saveSoon(); renderTactics(); renderPrepFlow();
     }));
+    if (!inMatch && world.undoDefaults) { el('tabs').insertAdjacentHTML('beforeend', '<button type="button" id="undoDefaultsTop" class="take-back" title="Put back everything the default tactics replaced">Undo default tactics</button>'); el('undoDefaultsTop').addEventListener('click', () => undoDefaultTactics(team)); }
     clearInterval(world.liveTimer); { const exOld = el('phaseExtras'); if (exOld) exOld.remove(); if (world.phaseObs) { try { world.phaseObs.disconnect(); } catch (e) { /* none */ } world.phaseObs = null; } }
     if (inMatch) (['build', 'midfield', 'final', 'organised'].indexOf(world.tab) >= 0 ? renderLiveBoard(team, world.tab) : renderBoardTab(team, world.tab));
     else if (world.testing) renderTestPhase(team, world.tab);
@@ -2579,7 +2590,7 @@
     host.innerHTML = `
       <div class="tb-grid${pair ? ' tb-pair' : ''}${isShape ? ' tb-shape' : ''}">
         <aside class="tb-controls">
-          ${isShape ? `<label>Formation<select id="formSel">${team.formationLabel ? `<option value="__custom" selected disabled>Current shape: ${esc(formationTitle)}</option>` : ''}${formationOptions}</select></label>${world.view === 'match' ? '' : '<button type="button" class="primary" id="useFormationDefaults">Use default tactics with this formation</button>'}` : ((world.oppMoved && world.oppMoved[key] && Object.keys(world.oppMoved[key]).length) ? '<button class="phase-report-reset" id="oppReset">Reset their shirts to the scouted positions</button>' : '')}
+          ${isShape ? `<label>Formation<select id="formSel">${team.formationLabel ? `<option value="__custom" selected disabled>Current shape: ${esc(formationTitle)}</option>` : ''}${formationOptions}</select></label>${world.view === 'match' ? '' : '<button type="button" class="primary" id="useFormationDefaults">Use default tactics with this formation</button>' + (world.undoDefaults ? '<button type="button" id="undoFormationDefaults" title="Put back everything the default tactics replaced">Undo</button>' : '')}` : ((world.oppMoved && world.oppMoved[key] && Object.keys(world.oppMoved[key]).length) ? '<button class="phase-report-reset" id="oppReset">Reset their shirts to the scouted positions</button>' : '')}
           ${tab === 'organised' ? '<div class="block-presets"><b>Defensive block</b><button data-block="low">Low block</button><button data-block="mid">Mid block</button><button data-block="high">High press</button></div>' : ''}
           <div id="phaseSliders"></div>
           ${key === 'press' ? '<div id="pressDetail"></div>' : ''}
@@ -2621,6 +2632,9 @@
     if (isShape) host.querySelector('#formSel').addEventListener('change', (e) => { FM.setFormation(team, e.target.value); world.selSlot = null; saveSoon(); renderTactics(); });
     const defaultsBtn = host.querySelector('#useFormationDefaults');
     if (defaultsBtn) defaultsBtn.addEventListener('click', () => {
+      // everything the defaults replace is kept, so one press of Undo puts it all back
+      { const keep = ['scenarios', 'defScenarios', 'scenarioEnd', 'scenarioInfo', 'scenarioBall', 'scenarioEvidence', 'scenarioDefEvidence'];
+        world.undoDefaults = { plan: capturePlan(team, 'before defaults'), extra: JSON.parse(JSON.stringify(keep.reduce((o, k) => { o[k] = team[k]; return o; }, {}))), prep: { max: world.league.prepPhaseMax, step: world.league.prepStep }, testing: world.testing, tab: world.tab }; }
       team.tactics = FM.defaultTactics();
       team.phasePos = {}; team.phaseBall = {}; team.pages = {}; team.pageDefaults = {};
       team.scenarios = []; team.defScenarios = []; team.scenarioEnd = {}; team.scenarioInfo = {}; team.scenarioBall = {}; team.scenarioEvidence = {}; team.scenarioDefEvidence = {};
@@ -2631,6 +2645,8 @@
       world.testing = true; world.tab = 'build'; world.selSlot = null;
       saveSoon(); renderTactics(); renderPrepFlow(); window.scrollTo(0, 0);
     });
+    const undoBtn = host.querySelector('#undoFormationDefaults');
+    if (undoBtn) undoBtn.addEventListener('click', () => undoDefaultTactics(team));
     const resetBtn = host.querySelector('#resetPhase');
     if (resetBtn) resetBtn.addEventListener('click', () => { FM.clearPhase(team, key); saveSoon(); renderTactics(); });
 
