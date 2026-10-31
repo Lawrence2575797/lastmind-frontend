@@ -11,7 +11,7 @@
   const REAL_SECONDS_FOR_MATCH = 5400; // a full 90 minutes takes 90 real minutes at 1x (real time); the faster buttons and "Sim to end" are for getting through it
   const MATCH_SPEED = 1.5;   // (1.5 times real time is what 1x means now: it was found to be the right pace to watch) 1x was real time: a second of play is a second on the clock, so passes, runs and build-up look as they do in a real match (the faster buttons are for skipping)
   const SUBSTEP = 0.1;
-  const TIER_NAMES = { gcse: 'GCSE Maths', alevel: 'A-level Maths', above: 'Beyond A-level' };
+  const TIER_NAMES = { gcse: 'GCSE', alevel: 'A-level', above: 'Beyond A-level' };
 
   const userTeam = () => FM.teamById(world.league, world.league.userId);
   const shortName = (p) => { const parts = p.name.split(' '); return parts.length > 1 ? parts[0][0] + '. ' + parts.slice(1).join(' ') : p.name; };
@@ -994,7 +994,7 @@
   // ---------- views and navigation ----------
   const VIEWS = ['home', 'board', 'league', 'squad', 'recruit', 'analysis', 'workbench', 'reports', 'news', 'preview', 'mp', 'match'];
   const NAV = [];
-  const SCREEN_TITLES = { home: 'Club overview', board: 'The board', league: 'League centre', squad: 'First-team squad', recruit: 'Recruitment', develop: 'Player development', reports: 'Opposition intelligence', news: 'Football world', analysis: 'Performance analysis', preview: 'Match preview', mp: 'Playing with other managers' };
+  const SCREEN_TITLES = { home: 'Club overview', board: 'The Books', league: 'League centre', squad: 'First-team squad', recruit: 'Recruitment', develop: 'Player development', reports: 'Opposition intelligence', news: 'Football world', analysis: 'Performance analysis', preview: 'Match preview', mp: 'Playing with other managers' };
   function demoMatchPlayed() {
     return !!(DEMO_MODE && world.league && world.league.fixtures.some((f) => f.played && (f.homeId === world.league.userId || f.awayId === world.league.userId)));
   }
@@ -1062,6 +1062,7 @@
     world.view = v;
     { const sb = el('saveBtn'); if (sb) sb.hidden = !world.league; const nb = el('nameBtn'); if (nb) nb.hidden = !world.league || !!world.league.mp; }
     if (FM.agentHide) FM.agentHide(v !== 'analysis');
+    if (FM.rafaelHide) FM.rafaelHide(v !== 'board');
     document.body.dataset.view = v; document.body.dataset.testing = (v === 'tactics' && world.testing) ? '1' : '0';
     VIEWS.forEach((k) => { el('view-' + k).hidden = k !== v; });
     el('newGame').hidden = true;
@@ -1122,7 +1123,7 @@
   }
   // The level (GCSE, A-level, beyond) is chosen when a game is started and stays with that save: the lessons, the knowledge map and what has been learnt all belong to it.
   // what the student is studying: GCSE Maths or A-level Maths, both Edexcel. (A game saved earlier at a level called Beyond A-level keeps it.)
-  const LEVELS = [['gcse', 'GCSE Maths'], ['alevel', 'A-level Maths'], ['above', 'Beyond A-level']];
+  const LEVELS = [['gcse', 'GCSE'], ['alevel', 'A-level'], ['above', 'Beyond A-level']];
   FM.setLevel = (lg, v) => {
     if (!lg || !LEVELS.some((l) => l[0] === v) || lg.tier === v || lg.tier) return;   // a save that has a level keeps it
     lg.tier = v; try { localStorage.setItem('lm_football_level', v); } catch (e) { /* the choice is also in the game */ }
@@ -1138,7 +1139,7 @@
     const flowOn = (k) => ((k === 'analysis' && world.view === 'analysis') || (k === 'prepare' && world.view === 'tactics' && !world.testing) || (k === 'test' && world.view === 'tactics' && world.testing)) ? 'on' : '';
     host.innerHTML = `<button data-top="home" class="${world.view === 'home' ? 'on' : ''}">Home</button>
       ${lg.mp && lg.mp.kind === 'match' ? '' : `<button data-flow="analysis" class="${flowOn('analysis')}">Analysis</button>`}<button data-flow="prepare" class="${flowOn('prepare')}">Tactics</button><button data-flow="test" class="${flowOn('test')}">Test phases</button>
-      ${lg.mp && lg.mp.kind === 'match' ? '' : `<button data-top="board" class="${world.view === 'board' ? 'on' : ''}">Board</button>`}
+      ${lg.mp && lg.mp.kind === 'match' ? '' : `<button data-top="board" class="${world.view === 'board' ? 'on' : ''}">The Books</button>`}
       <button data-top="squad" class="${world.view === 'squad' ? 'on' : ''}">Squad</button>
       ${lg.mp ? '' : `<button data-top="recruit" class="${world.view === 'recruit' ? 'on' : ''}">Recruitment</button>`}
       ${lg.mp && lg.mp.kind === 'match' ? '' : `<button data-top="news" class="${world.view === 'news' ? 'on' : ''}">News</button>`}

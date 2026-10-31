@@ -436,20 +436,22 @@
     const save = (hooks && hooks.save) || (() => {}), go = (hooks && hooks.goto) || (() => {});
     const b0 = FM.biz(lg);
     FM.bizSyncBudget(lg);
-    st.tab = TAB_OF[st.tab] || 'home';
-    const tabs = [['home', 'Overview'], ['ground', 'Tickets'], ['funding', 'Finance'], ['books', 'Accounts'], ['controls', 'Controls']];
+    const BL = FM.booksLearn;
+    st.tab = BL && BL.isTab(st.tab) ? st.tab : (TAB_OF[st.tab] || 'home');
+    const tabs = [['home', 'Overview'], ['ground', 'Tickets'], ['funding', 'Finance'], ['books', 'Accounts'], ['controls', 'Controls']].concat(BL ? BL.tabs(lg) : []);
+    if (BL && !document.getElementById('bkCss')) { const sty = document.createElement('style'); sty.id = 'bkCss'; sty.textContent = FM.booksLearnCss; document.head.appendChild(sty); }
     const NAMES = Object.assign({}, ...tabs.map(([k, l]) => ({ [k]: l })));
     const ap0 = FM.bizApprovals(lg), yr0 = FM.bizSeasonSum(lg, 'net');
     const owed = b0.loans.reduce((a, l) => a + l.balance, 0), endBal = (() => { const c = FM.bizCashFlow(lg); return c.length ? c[c.length - 1].closing : b0.cash; })();
     const strip = `<div class="board-strip"><span>Cash<b${b0.cash < 0 ? ' class="neg"' : ''}>${gbp(b0.cash)}</b></span><span>Profit this season<b${yr0 < 0 ? ' class="neg"' : ''}>${gbp(yr0)}</b></span><span>Forecast, season end<b${endBal < 0 ? ' class="neg"' : ''}>${gbp(endBal)}</b></span><span>Owed on loans<b>${gbp(owed)}</b></span><span>Approval<b>${Math.round((ap0.financial + ap0.football) / 2)}%</b></span><span>Share price<b>£${ap0.share.toFixed(2)}</b></span></div>`;
     const back = false && st.trail.length ? `<button type="button" class="board-back" id="bzBack">← Back to ${esc(NAMES[st.trail[st.trail.length - 1].tab] || 'the board')}</button>` : '';
     const sec = (id, html) => `<div id="sec-${id}" class="board-sec">${html}</div>`;
-    const body = st.tab === 'home' ? overviewMin(lg) : st.tab === 'ground' ? `<div style="display:grid;gap:22px">${sec('matchday', matchday(lg))}${sec('stadium', stadium(lg))}</div>` : st.tab === 'books' ? books(lg) : st.tab === 'controls' ? controlsTab(lg) : `<div style="display:grid;gap:22px">${sec('finance', finance(lg))}${sec('commercial', commercial(lg))}</div>`;
+    const body = BL && BL.isTab(st.tab) ? BL.html(lg, st.tab) : st.tab === 'home' ? overviewMin(lg) : st.tab === 'ground' ? `<div style="display:grid;gap:22px">${sec('matchday', matchday(lg))}${sec('stadium', stadium(lg))}</div>` : st.tab === 'books' ? books(lg) : st.tab === 'controls' ? controlsTab(lg) : `<div style="display:grid;gap:22px">${sec('finance', finance(lg))}${sec('commercial', commercial(lg))}</div>`;
     const ro = '';
-    host.innerHTML = `<div class="board-page">${strip}<div class="board-nav"><div class="row board-tabs" role="tablist">${tabs.map(([k, l]) => `<button type="button" role="tab" data-tab="${k}" class="${st.tab === k ? 'on' : ''}">${l}</button>`).join('')}</div><button type="button" class="wb-go" data-wb="open">Workbook ›</button></div>${st.ok ? `<p class="banner ok" role="status"><b>${esc(st.ok.title)}</b> ${esc(st.ok.text)}</p>` : ''}${body}</div>`;
+    host.innerHTML = `<div class="board-page">${strip}<div class="board-nav"><div class="row board-tabs" role="tablist">${tabs.map(([k, l]) => `<button type="button" role="tab" data-tab="${k}" class="${st.tab === k ? 'on' : ''}">${l}</button>`).join('')}</div></div>${st.ok ? `<p class="banner ok" role="status"><b>${esc(st.ok.title)}</b> ${esc(st.ok.text)}</p>` : ''}${body}</div>`;
     const redo = () => FM.renderBoard(host, lg, hooks);
     if (st.anchor) { const target = host.querySelector('#sec-' + st.anchor); st.anchor = null; if (target && target.scrollIntoView) target.scrollIntoView(); }
-    host.querySelectorAll('[data-tab]').forEach((b) => b.addEventListener('click', () => { st.tab = TAB_OF[b.dataset.tab] || 'home'; st.trail = []; st.msg = ''; st.ok = null; redo(); }));
+    host.querySelectorAll('[data-tab]').forEach((b) => b.addEventListener('click', () => { st.tab = BL && BL.isTab(b.dataset.tab) ? b.dataset.tab : (TAB_OF[b.dataset.tab] || 'home'); st.trail = []; st.msg = ''; st.ok = null; redo(); }));
     host.querySelectorAll('[data-btab]').forEach((b) => b.addEventListener('click', () => { st.tab = TAB_OF[b.dataset.btab] || 'home'; st.trail = []; st.msg = ''; st.ok = null; redo(); }));
     // shortcuts from the money report: they remember where they came from, so there is always a way back
     host.querySelectorAll('[data-short]').forEach((b) => b.addEventListener('click', () => {
@@ -463,5 +465,17 @@
     FM.bizBindControls(host, lg, () => { save(); redo(); });
     host.querySelectorAll('[data-books]').forEach((b) => b.addEventListener('click', () => { st.books = b.dataset.books; redo(); }));
     host.querySelectorAll('[data-goto]').forEach((b) => b.addEventListener('click', () => go(b.dataset.goto)));
+    if (BL) BL.bind(host, lg, redo);
+    if (FM.mountRafael && !document.getElementById('lmRafael')) FM.mountRafael(() => (FM.agentContext ? FM.agentContext(lg, 'the books') : ''));
+    if (FM.rafaelHide) FM.rafaelHide(false);
+    if (!b0.rafaelSeen && !document.getElementById('rafaelWelcome')) {
+      const m = document.createElement('div'); m.id = 'rafaelWelcome'; m.className = 'cap-modal';
+      m.innerHTML = '<div class="card" style="max-width:520px;margin:12vh auto 0;position:relative;padding:24px 24px 64px;display:grid;gap:10px"><div class="eyebrow">Director of Finance</div><h2 style="margin:0">Rafael Morales</h2><p class="desc">Welcome to The Books. I am Rafael Morales, the Director of Finance at Ashford Rovers plc. I look after the money, and I would like to give you a short introduction to how the club works as a business.</p><button type="button" class="primary" id="rafaelOk" style="position:absolute;right:18px;bottom:16px">OK</button></div>';
+      document.body.appendChild(m);
+      m.querySelector('#rafaelOk').addEventListener('click', () => {
+        m.remove(); b0.rafaelSeen = true; save();
+        if (FM.rafaelSay) FM.rafaelSay('Thank you, boss. First of all, Ashford Rovers plc supplies both goods (our physical products, like club shirts) and services (actions, like actually playing the football matches). To supply these goods and services and satisfy what our customers want, we take a risk. To get the reward for that risk, it will take lots of long hours and hard work.' + String.fromCharCode(10, 10) + 'Every business idea in The Books is explained in the tabs above. Click any underlined word and I will explain it here, or ask me anything in the box below.');
+      });
+    }
   };
 })();

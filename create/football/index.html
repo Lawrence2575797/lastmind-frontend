@@ -1090,6 +1090,22 @@
   .pd { gap: 10px; } .pd h3 { margin: 0; font: 700 .9rem var(--sans); } .pd-row { display: grid; gap: 6px; } .pd-row b { font: 700 .8rem var(--sans); } .pd-checks { display: flex; flex-wrap: wrap; gap: 6px 14px; } .pd-ck { display: inline-flex; align-items: center; gap: 6px; font-size: .84rem; } .pd-ck input { width: auto; }
   /* The Workbook's pre-set lessons (knowledge map, schedule, lesson) are kept in the code but not shown for now. */
   .wb2-tog[data-panel="map"], .wb2-tog[data-panel="sug"], .wb2-tog[data-panel="lesson"], .wb2-panel[data-panel="map"], .wb2-panel[data-panel="sug"], .wb2-panel[data-panel="lesson"], .wb2-hint { display: none !important; }
+  .ds-table { font-size: .82rem; } #lmRafael .ds-fig { margin-top: 8px; }
+  #lmRafael[hidden] { display: none; }
+  #lmRafael { position: fixed; right: 0; top: 0; bottom: 0; z-index: 60; pointer-events: none; }
+  #lmRafael .ag-tab { pointer-events: auto; position: absolute; right: 0; top: 38%; transform-origin: right top; writing-mode: vertical-rl; padding: 14px 9px; border-radius: 0; background: var(--gold, #d7b86b); color: #14181a; font-weight: 800; letter-spacing: .04em; border: 0; cursor: pointer; box-shadow: -4px 6px 18px rgba(0,0,0,.35); }
+  #lmRafael .ag-panel { pointer-events: auto; position: absolute; right: 0; top: 0; bottom: 0; width: min(460px, 94vw); display: none; flex-direction: column; background: #101a16; border-left: 1px solid rgba(244,237,218,.18); box-shadow: -10px 0 30px rgba(0,0,0,.4); }
+  #lmRafael.open .ag-panel { display: flex; } #lmRafael.open .ag-tab { right: min(460px, 94vw); }
+  #lmRafael .ag-head { display: flex; justify-content: space-between; align-items: center; padding: 14px 16px; border-bottom: 1px solid rgba(244,237,218,.14); }
+  #lmRafael .ag-demo { padding: 18px 16px; display: grid; gap: 10px; align-content: start; flex: 1; overflow: auto; line-height: 1.55; } #lmRafael .ag-demo[hidden], #lmRafael .ag-log[hidden] { display: none; } #lmRafael .ag-demo h3 { margin: 0; font-size: 1.05rem; } #lmRafael .ag-demo p { margin: 0; font-size: .92rem; opacity: .9; }
+  #lmRafael .ag-clear { background: none; border: 0; color: inherit; opacity: .65; font-size: .8rem; text-decoration: underline; cursor: pointer; margin-right: 10px; }
+  #lmRafael .ag-close { background: none; border: 0; color: inherit; font-size: 1.5rem; cursor: pointer; }
+  #lmRafael .ag-log { flex: 1; overflow: auto; padding: 14px 16px; display: grid; align-content: start; gap: 10px; }
+  #lmRafael .ag-msg { padding: 10px 12px; border-radius: 0; line-height: 1.5; font-size: .93rem; max-width: 92%; white-space: pre-wrap; }
+  #lmRafael .ag-msg.agent { background: rgba(255,255,255,.07); justify-self: start; } #lmRafael .ag-msg.manager { background: rgba(215,184,107,.2); justify-self: end; }
+  #lmRafael .ag-think { opacity: .6; font-style: italic; }
+  #lmRafael .ag-form { display: grid; gap: 8px; padding: 12px 16px 16px; border-top: 1px solid rgba(244,237,218,.14); } #lmRafael .ag-form textarea { width: 100%; resize: none; }
+  @media (max-width: 700px) { #lmRafael .ag-tab { top: auto; bottom: 16px; padding: 10px 7px; } }
 </style>
 <link rel="stylesheet" href="/create/football/maths-editor.css?v=20261125b">
 <link rel="stylesheet" href="/create/football/workbench.css?v=20261030a">
@@ -1118,8 +1134,8 @@
     <div class="ng-modes">
       <div class="ng-mode">
         <h3>A season on your own</h3>
-        <div class="ng-field"><label class="ng-lab" for="ngSubject">What do you want to study?</label>
-          <select id="ngSubject" class="ng-select" aria-label="What you want to study"><option value="gcse" selected>GCSE Maths (Edexcel)</option><option value="alevel">A-level Maths (Edexcel)</option></select>
+        <div class="ng-field"><label class="ng-lab" for="ngSubject">Which level are you studying?</label>
+          <select id="ngSubject" class="ng-select" aria-label="What you want to study"><option value="gcse" selected>GCSE (Edexcel)</option><option value="alevel">A-level (Edexcel)</option></select>
         </div>
         <div class="row"><button class="primary" id="ngStart" style="flex:0 0 auto">Start the season</button></div>
       </div>
@@ -1249,7 +1265,7 @@
 <script src="/create/football/recruit.js?v=20261030leaguecup"></script>
 <script src="/create/football/development.js?v=20261222ap"></script>
 <script src="/create/football/club.js?v=20261125a"></script>
-<script src="/create/football/club_ui.js?v=20261201g"></script>
+<script src="/create/football/club_ui.js?v=20261201h"></script>
 <script src="/create/football/controls.js?v=20261125a"></script>
 <script src="/create/football/recovery.js?v=20261122a"></script>
 <script src="/create/football/review_teach.js?v=20261110b"></script>
@@ -1291,6 +1307,9 @@
 <script src="/create/football/maths-editor.js?v=20261125b"></script>
 <script src="/create/football/kn_tex.js?v=20261028a"></script>
 <script src="/create/football/workbench.js?v=20261030e"></script>
+<script src="/create/football/rafael.js?v=20261031b"></script>
+<script src="/create/football/books_data.js?v=20261031a"></script>
+<script src="/create/football/books_learn.js?v=20261031b"></script>
 <script src="/create/football/moretti.js?v=20261030d"></script>
 <script src="/create/football/form.js?v=20261029a"></script>
 <script src="/create/football/cases.js?v=20261028a"></script>
@@ -1300,6 +1319,6 @@
 <script src="/create/football/stadium.js?v=20261028b"></script>
 <script src="/create/football/playermodel.js?v=20261028c"></script>
 <script src="/create/football/view3d.js?v=20261029pjkmnrstu"></script>
-<script src="/create/football/main.js?v=20261030h"></script>
+<script src="/create/football/main.js?v=20261031a"></script>
 </body>
 </html>
