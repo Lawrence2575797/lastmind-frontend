@@ -71,7 +71,13 @@
     const list = [];
     (league.friendlies || []).filter((f) => f.played && f.scout && f.scout[teamId]).forEach((f) => list.push({ fx: f, friendly: true }));
     league.fixtures.filter((f) => f.played && f.scout && f.scout[teamId]).sort((a, b) => a.round - b.round).forEach((f) => list.push({ fx: f, friendly: false }));
-    if (!list.length) return null;
+    if (!list.length) {
+      // A club nobody has seen play (a lower-division side met in the pre-season match): its shape is how its own formation stands in each phase.
+      const t = FM.teamById(league, teamId); if (!t || !t.players || !FM.phasePos) return null;
+      const phases = {};
+      ['build', 'midfield', 'final', 'press', 'without', 'transAtt', 'transDef'].forEach((ph) => { t.players.forEach((p) => { if (!p.slotKey) return; let q = null; try { q = FM.phasePos(t, p, ph); } catch (e) { q = null; } if (q) (phases[ph] = phases[ph] || {})[p.slotKey] = { d: q.d, w: q.w, n: 1, ws: 1 }; }); });
+      return Object.keys(phases).length ? { formation: t.formationKey, matches: 0, friendlies: 0, phases, unseen: true } : null;
+    }
     list.forEach((m, i) => { m.w = Math.pow(0.8, list.length - 1 - i) * (m.friendly ? 0.5 : 1); });
     const byForm = {};
     list.forEach((m) => { const sc = m.fx.scout[teamId]; const seen = {}; Object.keys(sc).forEach((ph) => Object.keys(sc[ph]).forEach((k) => { const f = k.split('|')[0]; if (!seen[f]) { seen[f] = 1; byForm[f] = (byForm[f] || 0) + m.w; } })); });
