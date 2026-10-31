@@ -153,8 +153,9 @@
     .an2-pre-demo { border-bottom: 1px dashed var(--gold); color: var(--gold); font-weight: 700; } .an2-ask { font-size: .82rem; opacity: .8; }
     .an2-apply { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; } .an2-wb { position: fixed; left: 0; top: 0; bottom: 0; width: min(1000px, 96vw); z-index: 80; background: #1f2322; border-right: 1px solid var(--line); display: grid; grid-template-rows: auto 1fr; box-shadow: 20px 0 60px rgba(0,0,0,.4); }
     .an2-wb-head { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; border-bottom: 1px solid var(--line); } .an2-wb-host { overflow: auto; }
-    .an2-good { color: #7fd49a; font-weight: 700; }
+    .an2-good { color: #7fd49a; font-weight: 700; } .an2-bar-r { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; } #anPick { background: #2f3533; color: var(--cream); border: 1px solid var(--line); padding: 8px 10px; font: inherit; max-width: 340px; }
   `;
+  let PICK = null;
   FM.renderAnalysis = function (host, league) {
     if (!document.getElementById('an2css')) { const st = document.createElement('style'); st.id = 'an2css'; st.textContent = css + (FM.anLab ? FM.anLab.css : ''); document.head.appendChild(st); }
     if (FM.mountAgent && !document.getElementById('lmAgent')) FM.mountAgent(() => (FM.agentContext ? FM.agentContext(league, 'analysis') : ''));
@@ -165,14 +166,14 @@
     const prevOpp = oppOf(prev), nxOpp = oppOf(nx);
     const note = (html) => `<div class="an2-note"><span class="an2-av">FM</span><div><b>Francesco Moretti, assistant manager</b>${html}</div></div>`;
     const para = (t) => `<p>${t}</p>`;
-    const issue = prev && AL ? AL.pickIssue(league, prev) : null, lesson = issue && AL.LESSONS[issue.id];
+    const picked = prev && AL ? AL.pickIssue(league, prev) : null, issue = picked && PICK ? { id: PICK, why: ['You picked this lesson yourself, so we will work through it with the numbers from that match.'] } : picked, lesson = issue && AL.LESSONS[issue.id];
     const prevHead = prev ? `Previous match vs ${esc(prevOpp.name)}` : 'Previous match', nxHead = nx ? `Next match vs ${esc(nxOpp.name)}` : 'Next match';
     const prevNote = prev ? para(esc(previousNote(league, prev))) + (issue ? issue.why.map((t) => para(esc(t))).join('') + para(esc('Let me show you with that match, and then you can try it yourself against ' + (nxOpp ? nxOpp.name : 'the next side') + '.')) : '') : para(esc(`${pick(HELLO, 'start')} We have not played yet, so there is nothing to look back on. Play a match and I will pick out what mattered most.`));
     const nxNote = nx ? para(esc(nextNote(league, nx, prev))) : para('There is no match to prepare for at the moment.');
-    const skills = AL ? (AL.SKILLS.gcse.map((k) => ['GCSE', k]).concat(level === 'alevel' ? AL.SKILLS.alevel.map((k) => ['A-level', k]) : [])) : [];
+    const X = (AL && AL.SKILLS_EXTRA) || { gcse: [], alevel: [] }, skills = AL ? (AL.SKILLS.gcse.concat(X.gcse).map((k) => ['GCSE', k]).concat(level === 'alevel' ? AL.SKILLS.alevel.concat(X.alevel).map((k) => ['A-level', k]) : [])) : [];
     const done = league.anaMaths || {};
     host.innerHTML = `<div class="an2">
-      <div class="an2-bar"><h2>${lesson ? esc(lesson.title) : 'Analysis'}</h2><button type="button" id="anWbOpen">Workbook</button></div>
+      <div class="an2-bar"><h2>${lesson ? esc(lesson.title) : 'Analysis'}</h2><span class="an2-bar-r">${AL && prev ? `<select id="anPick" aria-label="Choose a lesson"><option value="">Francesco's pick${picked ? ': ' + esc(AL.LESSONS[picked.id].title) : ''}</option>${Object.keys(AL.LESSONS).map((k) => `<option value="${k}"${PICK === k ? ' selected' : ''}>${esc(AL.LESSONS[k].title)}</option>`).join('')}</select>` : ''}<button type="button" id="anWbOpen">Workbook</button></span></div>
       <div class="an2-cols">
         <section class="an2-col" id="anPrev"><h3>${prevHead}</h3>${note(prevNote)}<div class="card" id="anWorked" style="padding:14px">${prev ? '' : '<p>Once we have played, the picture of that match will be here.</p>'}</div></section>
         <section class="an2-col" id="anNext"><h3>${nxHead}</h3>${note(nxNote)}<div class="card" id="anDrill" style="padding:14px">${nx && lesson ? '' : '<p>Play a match first, and I will set you a drill on what went wrong.</p>'}</div></section>
@@ -180,9 +181,10 @@
       ${skills.length ? `<div class="an2-col" style="border:1px solid var(--line)"><h3>Maths you have used so far</h3><div class="al-skills">${skills.map(([lv, k]) => `<span class="${done[k[0]] ? 'on' : ''}" title="${lv}">${esc(k[1])}${done[k[0]] ? ' ✓' : ''}</span>`).join('')}</div></div>` : ''}
       <aside class="an2-wb" id="anWb" hidden><div class="an2-wb-head"><b>Workbook</b><button type="button" id="anWbClose">Close</button></div><div class="an2-wb-host" id="anWbHost"></div></aside></div>`;
     try {
-      if (prev && lesson && prevOpp) { const Sp = lesson.scenario(me, prevOpp); AL.worked(host.querySelector('#anWorked'), Sp, lesson, level); }
-      if (nx && lesson && nxOpp) { const Sn = lesson.scenario(me, nxOpp); AL.mountDrill(host.querySelector('#anDrill'), league, Sn, lesson, level); }
+      if (prev && lesson && prevOpp) { const Sp = lesson.scenario(me, prevOpp, league, prev); AL.worked(host.querySelector('#anWorked'), Sp, lesson, level); }
+      if (nx && lesson && nxOpp) { const Sn = lesson.scenario(me, nxOpp, league, null); AL.mountDrill(host.querySelector('#anDrill'), league, Sn, lesson, level); }
     } catch (e) { host.querySelector('#anDrill').innerHTML = '<p>I could not set the drill up from the current shape. Check the tactics page and come back.</p>'; }
+    const pk = host.querySelector('#anPick'); if (pk) pk.addEventListener('change', () => { PICK = pk.value || null; FM.renderAnalysis(host, league); });
     host.querySelectorAll('.an2-pre').forEach((b) => b.addEventListener('click', () => { if (FM.agentOpen) FM.agentOpen(null, { prefill: b.dataset.q }); }));
     const wb = host.querySelector('#anWb'), wbHost = host.querySelector('#anWbHost');
     host.querySelector('#anWbOpen').addEventListener('click', () => { wb.hidden = false; if (!wbHost.dataset.ready && FM.renderWorkbench) { wbHost.dataset.ready = '1'; try { FM.renderWorkbench(wbHost, league, { save: () => FM.saveLeague(league) }); } catch (e) { wbHost.textContent = 'The Workbook could not open.'; } } });

@@ -1274,7 +1274,7 @@
       else {
         // It is struck so as to arrive with about the pace it was meant to have: hit harder the further it has to go, because on the way it slows under air drag (which grows with the
         // square of its speed) and rolling resistance. (Solving dv/dx = -(a0 + k v^2) / v for the speed at the foot.)
-        const va = f.v0 * (FM.ARRIVE_K == null ? 0.75 : FM.ARRIVE_K), len = Math.max(0, f.len || 0);
+        const va = f.v0 * (FM.ARRIVE_K == null ? 0.62 : FM.ARRIVE_K), len = Math.max(0, f.len || 0);
         f.speed = Math.max(f.v0, Math.sqrt(Math.max(0, ((DA + DK * va * va) * Math.exp(2 * DK * len) - DA) / DK)));
       }
     }
@@ -1302,12 +1302,12 @@
     // A man who has the ball coming to him (it passed within his reach) does not take it from three metres away: he goes onto it, and it is his when it is at his feet.
     if (f.claim) {
       const cp = f.claim.p, g = Math.hypot(cp.x - ball.x, cp.y - ball.y); f.claim.gap = Math.min(f.claim.gap, g);
-      const reach = FM.CLAIM_AT == null ? 1.6 : FM.CLAIM_AT;
+      const reach = FM.CLAIM_AT == null ? 2.3 : FM.CLAIM_AT;
       if (FM.OLD_CLAIM) {
       // the ball bends toward his feet at a limited rate (a pass with a little curl on it), so a man who is a few metres off the line can still be met by it
       { const tx = cp.x + (cp.vx || 0) * 0.15 - ball.x, ty = cp.y + (cp.vy || 0) * 0.15 - ball.y, want = Math.atan2(ty, tx), cur = Math.atan2(f.dir.y, f.dir.x); let d = want - cur; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2;
         if (g > 0.4 && Math.abs(d) < 1.6) { const a = cur + clamp(d, -(FM.STEER == null ? 1.6 : FM.STEER) * dt, (FM.STEER == null ? 1.6 : FM.STEER) * dt); f.dir.x = Math.cos(a); f.dir.y = Math.sin(a); } }
-      if (g < (FM.CLAIM_AT == null ? 1.6 : FM.CLAIM_AT) || f.t > f.claim.until || g > f.claim.gap + 0.3) { f.claimWhy = g < (FM.CLAIM_AT == null ? 1.6 : FM.CLAIM_AT) ? 'arrived' : f.t > f.claim.until ? 'timeout' : 'passed'; complete(cp); return; }   // at his feet, or it has gone by him, or he has been waiting long enough
+      if (g < (FM.CLAIM_AT == null ? 2.3 : FM.CLAIM_AT) || f.t > f.claim.until || g > f.claim.gap + 0.3) { f.claimWhy = g < (FM.CLAIM_AT == null ? 2.3 : FM.CLAIM_AT) ? 'arrived' : f.t > f.claim.until ? 'timeout' : 'passed'; complete(cp); return; }   // at his feet, or it has gone by him, or he has been waiting long enough
       }
       else {
         // He controls it when it reaches his foot, not before. Until then the pass is weighted to him: it slows so that it arrives when he does (he is running onto it), and it
@@ -1329,7 +1329,7 @@
       if (f.claim && p === f.claim.p) return;
       if (p === f.passer && f.t < 0.5) return;
       if (f.air && !f.landed && (ball.z || 0) > (p.group === 'GK' ? 3.2 : 2.3)) return;   // it is over his head
-      const s = segInfo(p.x, p.y, x0, y0, ball.x, ball.y), reach = (p === f.target ? (FM.RECV_REACH == null ? 3.3 : FM.RECV_REACH) : tm === team ? 1.1 : 0.9) + (p.group === 'GK' ? 1.0 : 0) + (p.sliding ? 0.6 : 0);
+      const s = segInfo(p.x, p.y, x0, y0, ball.x, ball.y), reach = (p === f.target ? (FM.RECV_REACH == null ? 4.2 : FM.RECV_REACH) : tm === team ? 1.1 : 0.9) + (p.group === 'GK' ? 1.0 : 0) + (p.sliding ? 0.6 : 0);
       if (p === f.target) f.minD = Math.min(f.minD == null ? 99 : f.minD, s.d);
       if (s.d > reach) return; if (!hit || s.t < hit.t) hit = { p, tm, t: s.t, c: 1 - s.d / reach };
     };
@@ -1337,16 +1337,16 @@
     if (hit) {
       const p = hit.p, mine = hit.tm === team, sk = (k) => ((p.ratings && p.ratings[k]) == null ? 60 : p.ratings[k]) / 100, ev = f.ev, tmx = hit.tm;
       if (mine) {
-        const markD = nearestOpponent(match, team, p).d, ctrl = clamp((FM.CONTROL_BASE == null ? 0.92 : FM.CONTROL_BASE) + 0.2 * sk('composure') - 0.008 * Math.max(0, sp - 14) - (markD < 2.2 ? 0.06 : 0), 0.35, 0.985) * (p === f.target ? clamp(0.88 + 0.12 * Math.min(1, hit.c / 0.45), 0.88, 1) : 0.92);   // the man it is meant for stretches for it: a ball far from his feet is less sure to be controlled
+        const markD = nearestOpponent(match, team, p).d, ctrl = clamp((FM.CONTROL_BASE == null ? 0.98 : FM.CONTROL_BASE) + 0.2 * sk('composure') - (FM.CTRL_SPEED == null ? 0.004 : FM.CTRL_SPEED) * Math.max(0, sp - 14) - (markD < 2.2 ? 0.04 : 0), 0.35, 0.985) * (p === f.target ? clamp(0.94 + 0.06 * Math.min(1, hit.c / 0.45), 0.94, 1) : 0.95);   // the man it is meant for stretches for it: a ball far from his feet is less sure to be controlled
         if (rng() < ctrl) {
           const gap = Math.hypot(p.x - ball.x, p.y - ball.y);
-          if (!FM.NO_CLAIM && gap > (FM.CLAIM_AT == null ? 1.6 : FM.CLAIM_AT) && p.group !== 'GK') { f.claim = { p, until: f.t + 1.4, gap }; return; }
+          if (!FM.NO_CLAIM && gap > (FM.CLAIM_AT == null ? 2.3 : FM.CLAIM_AT) && p.group !== 'GK') { f.claim = { p, until: f.t + 1.4, gap }; return; }
           complete(p); return;
         }
         if (ev) { ev.outcome = 'loose'; ev.how = 'heavy'; }
         knockLoose(match, p, team, f.dir.x, f.dir.y, Math.max(1.2, sp * (p === f.target ? 0.16 : 0.3)), 1.2); return;   // a heavy touch: it runs away from him (less far when it was meant for him: he was already on it)
       }
-      const pi = clamp(((FM.INTERCEPT_BASE == null ? 0.24 : FM.INTERCEPT_BASE) + 0.45 * hit.c) * (0.7 + 0.5 * sk('tackling')) * clamp(1.25 - sp / 30, 0.5, 1), 0.05, 0.95) * (p.group === 'GK' ? 1.4 : 1);
+      const pi = clamp(((FM.INTERCEPT_BASE == null ? 0.08 : FM.INTERCEPT_BASE) + (FM.INTERCEPT_C == null ? 0.26 : FM.INTERCEPT_C) * hit.c) * (0.7 + 0.5 * sk('tackling')) * clamp(1.25 - sp / 30, 0.5, 1), 0.05, 0.95) * (p.group === 'GK' ? 1.4 : 1);
       if (rng() < pi) {
         if (rng() < 0.55 + 0.3 * sk('tackling')) { if (ev) { ev.outcome = 'intercepted'; ev.by = p.number; } giveBall(match, opp, p, 0.4 + delayBeforeNextDecision(match, opp, p) * 0.5); return; }
         if (ev) { ev.outcome = 'loose'; ev.how = 'deflect'; }

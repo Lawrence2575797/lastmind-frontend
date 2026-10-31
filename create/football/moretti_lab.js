@@ -264,15 +264,18 @@
   const rate = (s) => (s && s.passes ? (s.passesOk != null ? s.passesOk : (s.passesCompleted || 0)) / s.passes : null);
   const BASE_ACC = 0.55;   // about what a side completes in this game
   FM.anLab = { LESSONS };
+  FM.anLab.titleOf = (k) => (LESSONS[k] ? LESSONS[k].title : k);
   FM.anLab.pickIssue = function (lg, fx) {
     const me = lg.userId, opp = fx.homeId === me ? fx.awayId : fx.homeId, a = fx.stats && fx.stats[me], b = fx.stats && fx.stats[opp];
     const gf = fx.homeId === me ? fx.hg : fx.ag, ga = fx.homeId === me ? fx.ag : fx.hg;
     if (!a || !b) return { id: 'build', why: ['I do not have the numbers from that match, so let us start where most good teams start: getting out from the back.'] };
     const accA = rate(a), accB = rate(b), tot = (a.possession || 0) + (b.possession || 0) || 1, pos = (a.possession || 0) / tot;
+    const conv = (a.shots || 0) ? (gf / a.shots) : 0;
     const score = {
       restdef: ga * 1.1 + Math.max(0, ((b.shots || 0) - (a.shots || 0)) / 8) + (pos > 0.52 && ga > 1 ? 0.6 : 0),
       build: accA == null || accB == null ? 0 : Math.max(0, (accB - accA) * 20 + (BASE_ACC - accA) * 6) + ((b.tackles || 0) > (a.tackles || 0) + 8 ? 0.6 : 0),
       holdup: Math.max(0, ((b.shots || 0) - (a.shots || 0)) / 5) + (gf === 0 ? 0.9 : 0) + ((a.xg || 0) < 1 ? 0.6 : 0),
+      finishing: ((a.shots || 0) >= 12 ? Math.max(0, (0.12 - conv) * 22) : 0) + ((a.xg || 0) - gf > 1.2 ? 0.8 : 0),
       press: accB == null ? 0 : Math.max(0, (accB - BASE_ACC) * 16) + (accA != null && accB > accA ? (accB - accA) * 6 : 0),
     };
     const id = Object.keys(score).sort((x, y) => score[y] - score[x])[0];
@@ -281,6 +284,7 @@
       restdef: ['We conceded ' + ga + ' and they had ' + (b.shots || 0) + ' shots.', pos > 0.5 ? 'We had the ball more than they did, so the goals did not come from them attacking us for long. They came from what happened the moment we lost it.' : 'Several of those chances came quickly after we lost the ball.', 'So I want us to look at who is back when the ball is lost.'],
       build: ['Only ' + pcs(accA == null ? 0.5 : accA) + ' of our passes found a team-mate' + (accB != null ? ', against ' + pcs(accB) + ' for them' : '') + '.', 'A lot of that happens when we try to play out from the back under pressure.', 'So let us look at the passes we choose, and why some of them were never really on.'],
       holdup: ['We only had ' + (a.shots || 0) + ' shots' + (gf === 0 ? ' and did not score' : '') + '.', 'When the ball goes up to our striker he is often on his own, with no-one near enough to play off him.', 'So let us look at how quickly help can reach him.'],
+      finishing: ['We had ' + (a.shots || 0) + ' shots and scored ' + gf + '.', 'Before we change how we play, let me check whether that is a real weakness or just the way the ball bounced.', 'A good analyst asks that first.'],
       press: ['They completed ' + pcs(accB == null ? 0.85 : accB) + ' of their passes.', 'That tells me they played through our press more easily than they should have.', 'Let us look at whether our pressers arrive together or one at a time.'],
     }[id];
     return { id, why };
@@ -313,15 +317,16 @@
   function mountDrill(host, lg, S, lesson, level, onDone) {
     const tag = 'd' + Math.floor(Math.random() * 1e6), steps = lesson.steps(S, level), state = { i: 0, tries: 0, ran: false, ok: false };
     const mkStep = (st, i) => `<div class="al-step" data-step="${i}" ${i > state.i ? 'hidden' : ''}><div class="al-q">${lines(st.ask())}</div>${st.drag ? `<div class="al-row"><button type="button" class="primary" data-try>Try the pass</button><button type="button" data-reset>Put them back</button></div>` : st.choice ? `<div class="al-row">${st.choice.map((c) => `<button type="button" data-choice="${esc(c)}">${esc(c)}</button>`).join('')}</div>` : `<div class="al-row"><input type="number" step="any" inputmode="decimal" data-val aria-label="Your answer"><span class="al-unit">${esc(st.unit || '')}</span><button type="button" class="primary" data-check>Check</button></div>`}<div class="al-fb" aria-live="polite"></div></div>`;
-    host.innerHTML = `<div class="al-board">${boardSvg(S, tag)}<div class="al-read" id="${tag}-read">Click or drag a player to see where he stands.</div><div class="al-play"><span id="${tag}-out" class="al-out"></span><input type="range" min="0" max="100" value="0" id="${tag}-scrub" aria-label="Scrub the simulation" hidden></div></div><div class="al-steps">${steps.map(mkStep).join('')}</div>`;
-    const svg = host.querySelector('svg'), q = (id) => host.querySelector('#' + tag + '-' + id), original = JSON.parse(JSON.stringify(S.ours.map((o) => ({ x: o.x, y: o.y }))));
+    host.innerHTML = S.chart ? `<div class="al-board">${S.chart(tag)}</div><div class="al-steps">${steps.map(mkStep).join('')}</div>` : `<div class="al-board">${boardSvg(S, tag)}<div class="al-read" id="${tag}-read">Click or drag a player to see where he stands.</div><div class="al-play"><span id="${tag}-out" class="al-out"></span><input type="range" min="0" max="100" value="0" id="${tag}-scrub" aria-label="Scrub the simulation" hidden></div></div><div class="al-steps">${steps.map(mkStep).join('')}</div>`;
+    const svg = host.querySelector('svg'), q = (id) => host.querySelector('#' + tag + '-' + id), original = JSON.parse(JSON.stringify((S.ours || []).map((o) => ({ x: o.x, y: o.y }))));
     const place = (frame) => {
+      if (!S.ours) return;
       S.ours.forEach((o, i) => { const e = q(o.id); if (e) e.setAttribute('transform', `translate(${frame.ours[i].x.toFixed(2)},${frame.ours[i].y.toFixed(2)})`); });
       S.theirs.forEach((c, i) => { const e = q(c.id); if (e) e.setAttribute('transform', `translate(${frame.theirs[i].x.toFixed(2)},${frame.theirs[i].y.toFixed(2)})`); });
       const b = q('ball'); if (b) { b.setAttribute('cx', frame.ball.x.toFixed(2)); b.setAttribute('cy', frame.ball.y.toFixed(2)); }
     };
     const drawLines = () => {
-      const g = svg.querySelector('.al-lines'); if (!g) return; const A = S.ours[S.passer], B = S.ours[S.target];
+      if (!S.ours) return; const g = svg.querySelector('.al-lines'); if (!g) return; const A = S.ours[S.passer], B = S.ours[S.target];
       g.innerHTML = S.pickTarget && B ? `<line x1="${A.x}" y1="${A.y}" x2="${B.x}" y2="${B.y}" stroke="#d7b86b" stroke-width="0.35"/>` : '';
       const bl = q('ball'); if (bl && S.pickTarget) { bl.setAttribute('cx', A.x); bl.setAttribute('cy', A.y); }
       if (!S.pickTarget && lesson === LESSONS.holdup) { const st = S.ours[S.striker], bl2 = q('ball'); if (bl2) { bl2.setAttribute('cx', st.x); bl2.setAttribute('cy', st.y); } }
@@ -334,7 +339,7 @@
     svg.addEventListener('pointermove', (e) => { if (!drag || !S.draggable) return; const p = point(e), v = S.view || [0, 62]; const nx = clamp(p.x, Math.max(1, v[0]), Math.min(L - 1, v[1])), ny = clamp(p.y, 1, W - 1); if (Math.hypot(nx - drag.o.x, ny - drag.o.y) > 0.3) drag.moved = true; if (drag.moved) { drag.o.x = nx; drag.o.y = ny; drag.el.setAttribute('transform', `translate(${nx.toFixed(2)},${ny.toFixed(2)})`); readout(drag.o); drawLines(); } });
     svg.addEventListener('pointerup', () => { if (!drag) return; if (!drag.moved && S.pickTarget && drag.i !== S.passer) { S.target = drag.i; svg.querySelectorAll('.al-me circle:nth-of-type(2)').forEach(() => {}); host.querySelectorAll('.al-me').forEach((g) => { const c = g.querySelectorAll('circle')[1], i = +g.dataset.i; c.setAttribute('stroke', i === S.passer ? '#d7b86b' : i === S.target ? '#7fd49a' : '#fff'); c.setAttribute('stroke-width', i === S.passer || i === S.target ? 0.5 : 0.25); }); drawLines(); } drag = null; });
     const fb = (i) => host.querySelector(`[data-step="${i}"] .al-fb`);
-    const unlock = (i) => { state.i = i + 1; state.tries = 0; const nx = host.querySelector(`[data-step="${state.i}"]`); if (nx) { nx.hidden = false; nx.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); } };
+    const unlock = (i) => { state.i = i + 1; state.tries = 0; const nx = host.querySelector(`[data-step="${state.i}"]`); if (nx) { nx.hidden = false; nx.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); } else if (S.chart && !host.querySelector('.al-end')) host.querySelector('.al-steps').insertAdjacentHTML('beforeend', '<div class="al-step al-end"><div class="al-good">That is the lesson done.</div><p>Everything you used is now ticked off in the list at the bottom of the page.</p></div>'); };
     const correct = (i, st) => { FM.anLab.mark(lg, st.skills); try { FM.saveLeague(lg); } catch (e) { /* kept in the game */ } fb(i).innerHTML = `<div class="al-good">${(st.choice ? 'Yes.' : 'Yes: ' + f1(st.answer()) + (st.unit ? ' ' + esc(st.unit) : '') + '.')}</div>${lines(st.why ? st.why() : [])}`; host.querySelectorAll(`[data-step="${i}"] button, [data-step="${i}"] input`).forEach((b) => { b.disabled = true; }); unlock(i); };
     const wrong = (i, st) => { state.tries++; const ans = st.choice ? st.answer() : f1(st.answer()); fb(i).innerHTML = state.tries >= 3 ? `<div class="al-warn">Not quite, and that is fine. Here is how I get it.</div>${lines([st.worked ? st.worked() : ''])}<p>The answer is ${esc(ans)}${st.unit ? ' ' + esc(st.unit) : ''}. Type it in to carry on.</p>` : `<div class="al-warn">${state.tries === 1 ? 'Not quite.' : 'Still not quite.'}</div>${lines(st.hint ? st.hint() : [])}`; };
     host.querySelectorAll('[data-check]').forEach((b) => b.addEventListener('click', () => { const i = +b.closest('.al-step').dataset.step, st = steps[i], inp = b.closest('.al-step').querySelector('[data-val]'), v = parseFloat(inp.value); if (!Number.isFinite(v)) { fb(i).innerHTML = '<div class="al-warn">Put a number in the box first.</div>'; return; } if (Math.abs(v - st.answer()) <= st.tol) correct(i, st); else wrong(i, st); }));
@@ -359,7 +364,8 @@
   function worked(host, S, lesson, level) {
     const tag = 'w' + Math.floor(Math.random() * 1e6), steps = lesson.steps(S, level).filter((s) => s.worked);
     const SS = Object.assign({}, S, { draggable: false });
-    host.innerHTML = `<div class="al-board">${boardSvg(SS, tag)}</div><div class="al-story">${steps.map((s) => `<div class="al-line">${s.worked()}</div>`).join('')}</div>`;
+    host.innerHTML = `<div class="al-board">${S.chart ? S.chart(tag) : boardSvg(SS, tag)}</div><div class="al-story">${steps.map((s) => `<div class="al-line">${s.worked()}</div>`).join('')}</div>`;
+    if (S.chart) return;
     const svg = host.querySelector('svg'), g = svg.querySelector('.al-lines'), A = S.ours[S.passer], B = S.ours[S.target];
     if (S.pickTarget && B) { g.innerHTML = `<line x1="${A.x}" y1="${A.y}" x2="${B.x}" y2="${B.y}" stroke="#ff8a7a" stroke-width="0.35"/>`; const ball = svg.querySelector('#' + tag + '-ball'); ball.setAttribute('cx', A.x); ball.setAttribute('cy', A.y); }
   }
