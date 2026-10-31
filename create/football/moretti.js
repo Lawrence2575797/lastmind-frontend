@@ -156,34 +156,36 @@
     .an2-good { color: #7fd49a; font-weight: 700; }
   `;
   FM.renderAnalysis = function (host, league) {
-    if (!document.getElementById('an2css')) { const st = document.createElement('style'); st.id = 'an2css'; st.textContent = css; document.head.appendChild(st); }
+    if (!document.getElementById('an2css')) { const st = document.createElement('style'); st.id = 'an2css'; st.textContent = css + (FM.anLab ? FM.anLab.css : ''); document.head.appendChild(st); }
     if (FM.mountAgent && !document.getElementById('lmAgent')) FM.mountAgent(() => (FM.agentContext ? FM.agentContext(league, 'analysis') : ''));
     if (FM.agentHide) FM.agentHide(false);
-    const played = userFixtures(league), prev = played[played.length - 1] || null, nx = FM.nextUserFixture(league);
+    const played = userFixtures(league), prev = played[played.length - 1] || null, nx = FM.nextUserFixture(league), AL = FM.anLab;
     const me = FM.teamById(league, league.userId), level = league.tier === 'gcse' ? 'gcse' : 'alevel';
-    const prevOpp = prev ? FM.teamById(league, prev.homeId === league.userId ? prev.awayId : prev.homeId) : null, nxOpp = nx ? FM.teamById(league, nx.homeId === league.userId ? nx.awayId : nx.homeId) : null;
-    const g = pointsOf(league), cs = g.opp ? findCase(g) : null, fix = cs ? fixFor(g, cs) : null;
-    const note = (html) => `<div class="an2-note"><span class="an2-av">FM</span><div><b>Francesco Moretti, assistant manager</b><p>${html}</p></div></div>`;
+    const oppOf = (fx) => (fx ? FM.teamById(league, fx.homeId === league.userId ? fx.awayId : fx.homeId) : null);
+    const prevOpp = oppOf(prev), nxOpp = oppOf(nx);
+    const note = (html) => `<div class="an2-note"><span class="an2-av">FM</span><div><b>Francesco Moretti, assistant manager</b>${html}</div></div>`;
+    const para = (t) => `<p>${t}</p>`;
+    const issue = prev && AL ? AL.pickIssue(league, prev) : null, lesson = issue && AL.LESSONS[issue.id];
     const prevHead = prev ? `Previous match vs ${esc(prevOpp.name)}` : 'Previous match', nxHead = nx ? `Next match vs ${esc(nxOpp.name)}` : 'Next match';
-    const prevNoteHtml = prev ? esc(previousNote(league, prev)) : `${esc(pick(HELLO, 'start'))} We have not played yet, so there is nothing to look back on. Below is a first look at the shape you have chosen: it is a good place to begin.`;
-    const nxNoteHtml = nx ? esc(nextNote(league, nx, prev)) : 'There is no match to prepare for at the moment.';
+    const prevNote = prev ? para(esc(previousNote(league, prev))) + (issue ? issue.why.map((t) => para(esc(t))).join('') + para(esc('Let me show you with that match, and then you can try it yourself against ' + (nxOpp ? nxOpp.name : 'the next side') + '.')) : '') : para(esc(`${pick(HELLO, 'start')} We have not played yet, so there is nothing to look back on. Play a match and I will pick out what mattered most.`));
+    const nxNote = nx ? para(esc(nextNote(league, nx, prev))) : para('There is no match to prepare for at the moment.');
+    const skills = AL ? (AL.SKILLS.gcse.map((k) => ['GCSE', k]).concat(level === 'alevel' ? AL.SKILLS.alevel.map((k) => ['A-level', k]) : [])) : [];
+    const done = league.anaMaths || {};
     host.innerHTML = `<div class="an2">
-      <div class="an2-bar"><span></span><button type="button" id="anWbOpen">Workbook</button></div>
+      <div class="an2-bar"><h2>${lesson ? esc(lesson.title) : 'Analysis'}</h2><button type="button" id="anWbOpen">Workbook</button></div>
       <div class="an2-cols">
-        <section class="an2-col" id="anPrev"><h3>${prevHead}</h3>${note(prevNoteHtml)}
-          <div class="card" style="padding:14px">${cs ? `<h2>Our build-up against the press</h2>${pitchSvg(g, cs, null)}${maths(g, cs, level)}` : '<p>Set up your build-up on the tactics page and I will have something to show you.</p>'}</div></section>
-        <section class="an2-col" id="anNext"><h3>${nxHead}</h3>${note(nxNoteHtml)}
-          <div class="card" style="padding:14px">${cs && cs.chosen ? (fix ? `<h2>A change that clears the pass</h2>${pitchSvg(g, cs, fix)}<p>I would move <b>#${cs.chosen.to.p.number} ${esc(cs.chosen.to.p.name)}</b> about <b>${f1(fix.moved)} m</b> across, to (${f1(fix.to.x)}, ${f1(fix.to.y)}). Now the line from #${cs.carrier.p.number} stays <b class="an2-good">${f1(fix.clearance)} m</b> from every circle, outside the ${R} m reach, so the pass is open. The same working as before, with the new coordinates, gives a negative discriminant.</p><div class="an2-apply"><button type="button" class="primary" id="anApply">Apply this change</button><span class="note" id="anApplied"></span></div>${nxOpp && strength(nxOpp) - strength(me) >= 3 ? `<p class="note">${esc(nxOpp.name)} are stronger than us, so we may be defending for long spells. A physically strong striker who can hold the ball up would give us an outlet when we win it back.</p>` : ''}` : (cs.chosen.blocked ? '<p>I could not find a small move that clears this pass without pulling the player out of shape. A different build-up pattern is worth a look on the tactics page.</p>' : '<h2>Nothing to change</h2><p>Every passing line in this shape stays outside the circles, so I would leave the build-up as it is and look at the next phase.</p>')) : '<p>Once the build-up shape is set up I will suggest one change here.</p>'}</div></section>
+        <section class="an2-col" id="anPrev"><h3>${prevHead}</h3>${note(prevNote)}<div class="card" id="anWorked" style="padding:14px">${prev ? '' : '<p>Once we have played, the picture of that match will be here.</p>'}</div></section>
+        <section class="an2-col" id="anNext"><h3>${nxHead}</h3>${note(nxNote)}<div class="card" id="anDrill" style="padding:14px">${nx && lesson ? '' : '<p>Play a match first, and I will set you a drill on what went wrong.</p>'}</div></section>
       </div>
+      ${skills.length ? `<div class="an2-col" style="border:1px solid var(--line)"><h3>Maths you have used so far</h3><div class="al-skills">${skills.map(([lv, k]) => `<span class="${done[k[0]] ? 'on' : ''}" title="${lv}">${esc(k[1])}${done[k[0]] ? ' ✓' : ''}</span>`).join('')}</div></div>` : ''}
       <aside class="an2-wb" id="anWb" hidden><div class="an2-wb-head"><b>Workbook</b><button type="button" id="anWbClose">Close</button></div><div class="an2-wb-host" id="anWbHost"></div></aside></div>`;
+    try {
+      if (prev && lesson && prevOpp) { const Sp = lesson.scenario(me, prevOpp); AL.worked(host.querySelector('#anWorked'), Sp, lesson, level); }
+      if (nx && lesson && nxOpp) { const Sn = lesson.scenario(me, nxOpp); AL.mountDrill(host.querySelector('#anDrill'), league, Sn, lesson, level); }
+    } catch (e) { host.querySelector('#anDrill').innerHTML = '<p>I could not set the drill up from the current shape. Check the tactics page and come back.</p>'; }
     host.querySelectorAll('.an2-pre').forEach((b) => b.addEventListener('click', () => { if (FM.agentOpen) FM.agentOpen(null, { prefill: b.dataset.q }); }));
     const wb = host.querySelector('#anWb'), wbHost = host.querySelector('#anWbHost');
-    host.querySelector('#anWbOpen').addEventListener('click', () => { wb.hidden = false; if (!wbHost.dataset.ready && FM.renderWorkbench) { wbHost.dataset.ready = '1'; try { FM.renderWorkbench(wbHost, league, { save: () => FM.saveLeague(league) }); } catch (e) { wbHost.innerHTML = '<p style="padding:16px">The Workbook could not open here.</p>'; } } });
+    host.querySelector('#anWbOpen').addEventListener('click', () => { wb.hidden = false; if (!wbHost.dataset.ready && FM.renderWorkbench) { wbHost.dataset.ready = '1'; try { FM.renderWorkbench(wbHost, league, { save: () => FM.saveLeague(league) }); } catch (e) { wbHost.textContent = 'The Workbook could not open.'; } } });
     host.querySelector('#anWbClose').addEventListener('click', () => { wb.hidden = true; });
-    const ap = host.querySelector('#anApply');
-    if (ap && fix) ap.addEventListener('click', () => {
-      const o = cs.chosen.to; FM.setPhasePos(g.me, o.p, 'build', { d: fix.to.x / g.L, w: fix.to.y / g.W }); try { FM.saveLeague(league); } catch (e) { /* kept in the game */ }
-      host.querySelector('#anApplied').textContent = 'Done: #' + o.p.number + ' now starts there in the build-up.'; ap.disabled = true;
-    });
   };
 })();
