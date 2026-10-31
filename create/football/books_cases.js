@@ -62,7 +62,7 @@
         { id: 'wait', label: 'Wait a year', text: () => 'Nothing changes, and neither does the risk.', do: () => ({ ok: true, text: 'We wait. I will show you at the review what that cost us.' }) },
       ], snap: (lg, m) => ({ att: m.f.att, turned: m.turned, yr: m.best ? m.best.yr : 0, rev: m.f.revHead }) },
       { k: 'review', title: 'The review', after: 6, body: (lg, m, st) => {
-        const b = m.b, att = ledgerAvg(b, 'att', 3), away = ledgerAvg(b, 'away', 3), s = st.snap || {}, built = st.choice !== 'wait';
+        const b = m.b, att = ledgerAvg(b, 'att', 3), away = ledgerAvg(b, 'away', 3), s = st.snap || {}, built = !!(st.values && st.values.stand && st.values.stand !== 'none');
         const extra = Math.max(0, att - (s.att || 0)), fcast = (s.yr || 0) / m.home, actual = extra * (s.rev || m.f.revHead), variance = actual - fcast;
         return { lines: [built ? 'Six matchdays on, let us compare what we forecast with what happened. That comparison is {{Variance}} analysis.' : 'We waited, so let me show you what waiting cost.', built ? 'Before the build the average crowd was ' + num(s.att) + '. Over the last three home matches it has been ' + num(att) + '. We now turn away about ' + num(away) + ' a match, against ' + num(s.turned) + ' before.' : 'We turned away about ' + num(away) + ' supporters a match. At ' + gbp(s.rev || m.f.revHead) + ' each, that is ' + gbp(away * (s.rev || m.f.revHead)) + ' of income we did not earn at each home match.', built ? 'We forecast ' + gbp(fcast) + ' of extra income a match and the new seats have brought in about ' + gbp(actual) + ': a ' + (variance >= 0 ? 'favourable' : 'adverse') + ' variance of ' + gbp(Math.abs(variance)) + '.' : 'A decision not to invest is still a decision, and it has a cost.', 'In the end the case rests on the {{Risk}} we took and the {{Reward}} we earned. Well done, Manager.'] };
       } },
@@ -119,7 +119,7 @@
         { id: 'shares', label: '£500,000 of new shares', text: () => 'No interest, existing owners diluted.', do: (lg) => run(lg, 'issueShares', { amount: 500000 }) },
         { id: 'none', label: 'Neither: rely on retained profit', text: () => 'No cost, no flexibility.', do: () => ({ ok: true, text: 'We carry on from our own cash.' }) },
       ], snap: (lg, m) => ({ cash: m.b.cash, loans: m.b.loans.reduce((a, l) => a + l.balance, 0), shares: m.b.shares.issued }) },
-      { k: 'review', title: 'The review', after: 4, body: (lg, m, st) => { const b = m.b, interest = b.ledger.slice(-4).reduce((a, e) => a + e.outflow.interest, 0); return { lines: ['Four matchdays on, we have paid ' + gbp(interest) + ' in interest.', st.choice === 'loan' ? 'That is the price of borrowing. It is {{Revenue expenditure}}: it comes out of this season\'s profit.' : st.choice === 'shares' ? 'Shares carry no interest, but the owners now share the dividend with more holders.' : 'No new finance, no new cost: our flexibility is our cash.', 'Cash today is ' + gbp(b.cash) + '. Day-to-day money like that is {{Working capital}}: current assets less current liabilities.'] }; } },
+      { k: 'review', title: 'The review', after: 4, body: (lg, m, st) => { const b = m.b, interest = b.ledger.slice(-4).reduce((a, e) => a + e.outflow.interest, 0); return { lines: ['Four matchdays on, we have paid ' + gbp(interest) + ' in interest.', (st.values && (st.values.source === 'loan' || st.values.source === 'half')) ? 'That is the price of borrowing. It is {{Revenue expenditure}}: it comes out of this season\'s profit.' : (st.values && st.values.source === 'shares') ? 'Shares carry no interest, but the owners now share the dividend with more holders.' : 'No new finance, no new cost: our flexibility is our cash.', 'Cash today is ' + gbp(b.cash) + '. Day-to-day money like that is {{Working capital}}: current assets less current liabilities.'] }; } },
     ],
   });
 
@@ -171,7 +171,7 @@
         { id: 'bonus', label: 'Introduce a win bonus (policy)', text: () => 'Financial motivation tied to results.', do: (lg) => rec(lg, 'A win bonus is agreed. Rafael will watch the cost.', -1) },
         { id: 'culture', label: 'Invest in team culture (policy)', text: () => 'Non-financial motivation.', do: (lg) => rec(lg, 'You hold a squad away day and open a recognition scheme.', 1) },
       ], snap: (lg, m) => ({ wages: m.wages }) },
-      { k: 'review', title: 'The review', after: 4, body: (lg, m, st) => ({ lines: ['Four matchdays on, the wage bill is ' + gbp(m.wages) + ' a week.', st.choice === 'train' ? 'The training ground is {{Off-the-job training}}: players learn away from match day. Do check that squad development has picked up on the squad page.' : 'Decisions about motivation show over a season, not in four matches. Check the club\'s results, then judge it.', 'Hiring is the other side of the same coin: a {{Job description}} lists the work, a {{Person specification}} lists the person; we recruit {{Internal recruitment}} from the academy or {{External recruitment}} in the market.'] }) },
+      { k: 'review', title: 'The review', after: 4, body: (lg, m, st) => ({ lines: ['Four matchdays on, the wage bill is ' + gbp(m.wages) + ' a week.', (st.values && st.values.training === 'yes') ? 'The training ground is {{Off-the-job training}}: players learn away from match day. Do check that squad development has picked up on the squad page.' : 'Decisions about motivation show over a season, not in four matches. Check the club\'s results, then judge it.', 'Hiring is the other side of the same coin: a {{Job description}} lists the work, a {{Person specification}} lists the person; we recruit {{Internal recruitment}} from the academy or {{External recruitment}} in the market.'] }) },
     ],
   });
 
@@ -320,13 +320,28 @@
   const stateOf = (lg, id) => { const b = FM.biz(lg); b.cases = b.cases || {}; return (b.cases[id] = b.cases[id] || { s: 0, q: {}, choice: null, r0: null, snap: null, done: false }); };
   const covered = (lg) => { const b = FM.biz(lg), c = b.cases || {}, done = new Set(), started = new Set(); CASES.forEach((k) => { const st = c[k.id]; if (st && st.done) k.concepts.forEach((x) => done.add(x)); else if (st && (st.s > 0 || st.choice)) k.concepts.forEach((x) => started.add(x)); }); return { done, started }; };
 
+  // ---------- where each paper stands ----------
+  // Not started, under consideration (opened, no decision), approved and waiting for its outcome, the review ready, or complete.
+  function statusOf(lg, c) {
+    const b = FM.biz(lg), st = (b.cases || {})[c.id], rv = c.stages.find((x) => x.k === 'review');
+    if (st && st.done) return { k: 'done', label: 'Completed', line: 'Reviewed and closed' };
+    if (st && st.choice) { const left = rv.after - (rounds(b) - (st.r0 || 0)); return left > 0 ? { k: 'wait', label: 'Awaiting outcome', line: 'Approved: the review is due in ' + left + ' matchday' + (left === 1 ? '' : 's') } : { k: 'ready', label: 'Review ready', line: 'The outcome can be reviewed now' }; }
+    if (st && st.opened) return { k: 'open', label: 'Under consideration', line: 'Opened, no decision yet' };
+    return { k: 'new', label: 'Not started', line: 'Waiting for the manager' };
+  }
   // ---------- the pages ----------
+  function activeStrip(lg) {
+    const rows = CASES.map((k) => ({ k, sx: statusOf(lg, k) })).filter((r) => r.sx.k === 'wait' || r.sx.k === 'ready' || r.sx.k === 'open');
+    if (!rows.length) return '';
+    return `<div class="card bk-card"><h3>Projects under way</h3><div class="tablewrap"><table class="data"><thead><tr><th class="l">Paper</th><th class="l">Status</th><th class="l">Next</th></tr></thead><tbody>${rows.map((r) => `<tr><td class="l"><button type="button" class="bc-link" data-case="${r.k.id}">${esc(r.k.title)}</button></td><td class="l"><span class="bc-status st-${r.sx.k}">${esc(r.sx.label)}</span></td><td class="l">${esc(r.sx.line)}</td></tr>`).join('')}</tbody></table></div></div>`;
+  }
   function listHtml(lg) {
     const b = FM.biz(lg), cov = covered(lg), list = (FM.BOOKS[LEVEL] || []).reduce((a, th) => a.concat(th.topics.reduce((x, t) => x.concat(t.c.map((c) => c[0])), [])), []), uniq = Array.from(new Set(list)), mapped = new Set(); CASES.forEach((k) => k.concepts.forEach((x) => mapped.add(x)));
     const n = uniq.length, nd = uniq.filter((x) => cov.done.has(x)).length, nm = uniq.filter((x) => mapped.has(x)).length;
-    const cards = CASES.map((k, i) => { const st = (b.cases || {})[k.id], status = st && st.done ? 'Complete' : st && (st.s > 0 || st.choice) ? 'In progress' : 'New', k2 = k.concepts.filter((x) => uniq.indexOf(x) >= 0).length; return `<button type="button" class="bc-card ${status === 'Complete' ? 'done' : ''}" data-case="${k.id}"><span class="bc-tag">Board paper ${i + 1} · ${esc(k.tag)}</span><b>${esc(k.title)}</b><span class="bc-meta">${status} · ${k2} concepts</span></button>`; }).join('');
+    const cards = CASES.map((k, i) => { const st = (b.cases || {})[k.id], sx = statusOf(lg, k), status = sx.label, k2 = k.concepts.filter((x) => uniq.indexOf(x) >= 0).length; return `<button type="button" class="bc-card st-${sx.k}" data-case="${k.id}"><span class="bc-tag">Board paper ${i + 1} · ${esc(k.tag)}</span><b>${esc(k.title)}</b><span class="bc-status st-${sx.k}">${esc(status)}</span><span class="bc-meta">${esc(sx.line)}</span></button>`; }).join('');
     const missing = uniq.filter((x) => !mapped.has(x));
     return `<div class="bc-head"><div class="eyebrow">From the Director of Finance</div><h2>Board papers</h2><p class="bk-lead">Each paper is a decision the club has to make. Work through it with the club's own figures and controls, then review how it turned out a few matchdays later.</p></div>
+      ${activeStrip(lg)}
       <div class="bc-grid">${cards}</div>
       <div class="card bk-card"><h3>Course coverage</h3><div class="bc-bar"><i style="width:${(100 * nm / n).toFixed(0)}%"></i></div><p class="bk-lead">${nm} of ${n} ${LEVEL === 'gcse' ? 'GCSE' : 'A-level'} concepts are covered by a paper, and you have completed papers covering <b>${nd}</b> of them.</p>
       <details class="bk-keys"><summary>Concepts met so far (${nd})</summary><div class="bc-chips">${uniq.filter((x) => cov.done.has(x)).map((x) => '<span class="bc-chip">' + esc(x) + '</span>').join(' ') || '<span class="bk-why">None yet.</span>'}</div></details>
@@ -342,29 +357,43 @@
     if (u === '%') return (Math.round(v * 10) / 10) + '%';
     return (Math.round(v * 100) / 100) + (u ? ' ' + u : '');
   };
+  const mFor = (lg) => { const m = M(lg); m.lg = lg; m.wages = FM.bizInternals.wageBill(lg); const rev = FM.bizSeasonSum(lg, 'revenue'); m.wagePct = rev ? 100 * m.wages * m.K.ROUNDS / (rev / Math.max(1, m.b.ledger.length) * m.K.ROUNDS) : 0; m.net = m.b.ledger.length ? FM.bizSeasonSum(lg, 'net') / Math.max(1, m.b.ledger.length) * m.K.ROUNDS : m.K.PROFIT_TARGET; return m; };
+  const fieldHtml = (f, val) => {
+    const id = `data-f="${f.id}"`, opts = typeof f.options === 'function' ? f.options() : f.options;
+    if (f.type === 'select') return `<label class="bc-f"><span>${esc(f.label)}</span><select ${id}>${opts.map((o) => `<option value="${esc(o[0])}"${String(o[0]) === String(val) ? ' selected' : ''}>${esc(o[1])}</option>`).join('')}</select>${f.help ? `<small>${esc(f.help)}</small>` : ''}</label>`;
+    if (f.type === 'range') return `<label class="bc-f"><span>${esc(f.label)}: <b data-out="${f.id}">${esc((f.prefix || '') + (f.prefix === '£' ? Number(val).toLocaleString('en-GB') : val) + (f.suffix || ''))}</b></span><input type="range" ${id} min="${f.min}" max="${f.max}" step="${f.step}" value="${val}" data-prefix="${esc(f.prefix || '')}" data-suffix="${esc(f.suffix || '')}">${f.help ? `<small>${esc(f.help)}</small>` : ''}</label>`;
+    return '';
+  };
+  const readForm = (root, fields) => { const v = {}; fields.forEach((f) => { const e = root.querySelector(`[data-f="${f.id}"]`); if (e) v[f.id] = e.value; }); return v; };
+  const previewHtml = (rows) => `<table class="data"><tbody>${rows.map((r) => `<tr><td class="l">${esc(r[0])}</td><td><b>${esc(r[1])}</b></td></tr>`).join('')}</tbody></table>`;
   function caseHtml(lg, c) {
-    const st = stateOf(lg, c.id), m = M(lg); m.lg = lg; m.wages = FM.bizInternals.wageBill(lg); const rev = FM.bizSeasonSum(lg, 'revenue'); m.wagePct = rev ? 100 * m.wages * m.K.ROUNDS / (rev / Math.max(1, m.b.ledger.length) * m.K.ROUNDS) : 0; m.net = m.b.ledger.length ? FM.bizSeasonSum(lg, 'net') / Math.max(1, m.b.ledger.length) * m.K.ROUNDS : m.K.PROFIT_TARGET;
+    const st = stateOf(lg, c.id), m = mFor(lg), sx = statusOf(lg, c);
     const memo = (lines) => `<div class="bc-memo"><div class="bc-from"><b>Rafael Morales</b> Director of Finance · to the Manager</div>${P(lines)}</div>`;
-    const head = `<div class="bc-head"><button type="button" class="bc-back" data-case-list>← All board papers</button><div class="eyebrow">Board paper · ${esc(c.tag)}</div><h2>${esc(c.title)}</h2></div>`;
+    const banner = `<div class="bc-banner st-${sx.k}"><span class="bc-status st-${sx.k}">${esc(sx.label)}</span><span>${esc(sx.line)}</span></div>`;
+    const head = `<div class="bc-head"><button type="button" class="bc-back" data-case-list>← All board papers</button><div class="eyebrow">Board paper · ${esc(c.tag)}</div><h2>${esc(c.title)}</h2>${banner}</div>`;
     if (c.needsMatch && !m.b.ledger.length) return head + `<div class="card bk-card"><p class="bk-lead">${P(['Manager, this paper uses the real accounts, and we have not played yet.', 'Come back after your first match.'])}</p></div>`;
-    const read = c.stages.find((x) => x.k === 'read'), calcs = c.stages.filter((x) => x.k === 'calc'), dec = c.stages.find((x) => x.k === 'decide'), rev2 = c.stages.find((x) => x.k === 'review');
+    const read = c.stages.find((x) => x.k === 'read'), calcs = c.stages.filter((x) => x.k === 'calc'), dec = c.stages.find((x) => x.k === 'decide'), rev2 = c.stages.find((x) => x.k === 'review'), form = FM.booksForms && FM.booksForms[c.id];
     const D = FM.booksDiagrams;
-    // the brief: the memo, the headline figures, the club's own exhibit, the diagrams and the project file
-    const brief = `<section class="bc-sec" id="bc-brief"><h3>The brief</h3>${memo(read.memo(m))}${read.facts ? factsTable(read.facts(m)) : ''}<div class="bd-block">${D ? D.figs(c.id, m, lg) : ''}${read.exhibit ? exhibitHtml(lg, m, read.exhibit) : ''}${D ? D.detail(c.id, m, lg) : ''}</div></section>`;
-    // the working: every measure the paper rests on, how it is worked out, and what it comes to for the club
-    const rowsW = [], notes = [];
-    calcs.forEach((stg) => stg.qs.forEach((q) => { let v; try { v = q.ans(m, lg); } catch (e) { v = null; } rowsW.push([q.label || 'Measure', q.how || '', v == null ? '–' : fmtRes(q, v)]); try { notes.push(...q.why(m, lg)); } catch (e) { /* no note */ } }));
-    const working = `<section class="bc-sec" id="bc-working"><h3>The working</h3><p class="bk-lead">The figures this paper rests on, and how each is worked out from the club's own numbers.</p>${rowsW.length ? `<div class="tablewrap"><table class="data"><thead><tr><th class="l">Measure</th><th class="l">How it is worked out</th><th>Result</th></tr></thead><tbody>${rowsW.map((r) => `<tr><td class="l"><b>${esc(r[0])}</b></td><td class="l">${esc(r[1])}</td><td><b>${esc(r[2])}</b></td></tr>`).join('')}</tbody></table></div>` : ''}${notes.length ? `<div class="bc-notes">${P(notes)}</div>` : ''}</section>`;
-    // the options: the decision uses the club's real controls, and is not forced
-    const chosen = dec.options.find((o) => o.id === st.choice);
-    const options = `<section class="bc-sec" id="bc-options"><h3>The decision</h3>${memo(dec.ask(m))}${chosen ? `<div class="bc-done"><b>You chose: ${esc(chosen.label)}.</b><span>${esc(UI.msg && UI.msg.d ? UI.msg.d : '')}</span></div>` : `<div class="bc-opts">${dec.options.map((o) => `<button type="button" class="bc-opt" data-decide="${o.id}"><b>${esc(o.label)}</b><span>${esc(String(o.text(m)).replace(/\{\{|\}\}/g, ''))}</span></button>`).join('')}</div>${UI.msg && UI.msg.d ? `<p class="bc-fb">${esc(UI.msg.d)}</p>` : ''}`}</section>`;
-    // the review: comes round a few matchdays after the decision
+    // the situation
+    const brief = `<section class="bc-sec" id="bc-brief"><h3>The situation</h3>${memo(read.memo(m))}${read.facts ? factsTable(read.facts(m)) : ''}<div class="bd-block">${read.exhibit ? exhibitHtml(lg, m, read.exhibit) : ''}</div></section>`;
+    // what the numbers say: each measure with the explanation that belongs to it, and the pictures this scenario needs
+    const rowsW = [];
+    calcs.forEach((stg) => stg.qs.forEach((q) => { let v, why = []; try { v = q.ans(m, lg); } catch (e) { v = null; } try { why = q.why(m, lg); } catch (e) { why = []; } rowsW.push({ label: q.label || 'Measure', how: q.how || '', res: v == null ? '–' : fmtRes(q, v), why }); }));
+    const working = `<section class="bc-sec" id="bc-working"><h3>What the numbers say</h3><div class="bc-measures">${rowsW.map((r) => `<div class="bc-measure"><div class="bc-mhead"><b>${esc(r.label)}</b><span class="bc-res">${esc(r.res)}</span></div><div class="bc-how">${esc(r.how)}</div>${r.why.length ? `<div class="bc-meaning">${P(r.why)}</div>` : ''}</div>`).join('')}</div><div class="bd-block">${D ? D.figs(c.id, m, lg) : ''}${D ? D.detail(c.id, m, lg) : ''}</div></section>`;
+    // the decision: several choices, a preview of what they would mean, and the real controls behind them
+    let options;
+    if (st.choice) options = `<section class="bc-sec" id="bc-options"><h3>The decision</h3><div class="bc-done"><b>Approved.</b>${(st.result || []).map((t) => `<span>${esc(t)}</span>`).join('')}</div>${st.values && form ? `<details class="bk-keys"><summary>What was chosen</summary>${previewHtml(form.fields(m).map((f) => [f.label, (typeof f.options === 'function' ? f.options() : (f.options || [])).find((o) => String(o[0]) === String(st.values[f.id])) ? (typeof f.options === 'function' ? f.options() : f.options).find((o) => String(o[0]) === String(st.values[f.id]))[1] : (f.prefix || '') + st.values[f.id] + (f.suffix || '')]))}</details>` : ''}</section>`;
+    else {
+      const fields = form.fields(m), vals = {}; fields.forEach((f) => { vals[f.id] = (UI.draft && UI.draft[c.id] && UI.draft[c.id][f.id] != null) ? UI.draft[c.id][f.id] : (typeof f.def === 'function' ? f.def(m) : f.def); });
+      options = `<section class="bc-sec" id="bc-options"><h3>The decision</h3>${memo(dec.ask(m))}<div class="bc-form" id="bcForm">${fields.map((f) => fieldHtml(f, vals[f.id])).join('')}</div><div class="bc-prev"><h4>What this would mean for the club</h4><div id="bcPreview">${previewHtml(form.preview(vals, m, lg))}</div></div><div class="bk-ctl"><button type="button" class="primary" data-approve>Approve and carry it out</button></div>${UI.msg && UI.msg.d ? `<p class="bc-fb">${esc(UI.msg.d)}</p>` : ''}</section>`;
+    }
+    // the outcome
     let review;
-    if (st.done) review = `<section class="bc-sec" id="bc-review"><h3>The review</h3>${memo(rev2.body(lg, m, st).lines)}<p class="bk-why">This paper is closed.</p></section>`;
-    else if (!st.choice) review = `<section class="bc-sec" id="bc-review"><h3>The review</h3><p class="bk-lead">The review follows a decision, a few matchdays on.</p></section>`;
-    else if (!sinceOk(lg, st, rev2.after)) { const left = rev2.after - (rounds(m.b) - (st.r0 || 0)); review = `<section class="bc-sec" id="bc-review"><h3>The review</h3>${memo(['Manager, it is too soon to judge this one.', 'The review will be ready after ' + left + ' more matchday' + (left === 1 ? '' : 's') + '. Play on and come back.'])}</section>`; }
-    else review = `<section class="bc-sec" id="bc-review"><h3>The review</h3>${memo(rev2.body(lg, m, st).lines)}<div class="bk-ctl"><button type="button" class="primary" data-finish>Close this paper</button></div></section>`;
-    const nav = `<nav class="bc-nav" aria-label="Sections of this paper">${[['brief', 'The brief'], ['working', 'The working'], ['options', 'The decision'], ['review', 'The review']].map(([k, n]) => `<a href="#bc-${k}" data-jump="bc-${k}">${n}</a>`).join('')}</nav>`;
+    if (st.done) review = `<section class="bc-sec" id="bc-review"><h3>The outcome</h3>${memo(rev2.body(lg, m, st).lines)}<p class="bk-why">This paper is closed.</p></section>`;
+    else if (!st.choice) review = `<section class="bc-sec" id="bc-review"><h3>The outcome</h3><p class="bk-lead">The outcome follows a decision, a few matchdays on.</p></section>`;
+    else if (!sinceOk(lg, st, rev2.after)) { const left = rev2.after - (rounds(m.b) - (st.r0 || 0)); review = `<section class="bc-sec" id="bc-review"><h3>The outcome</h3>${memo(['Manager, it is too soon to judge this one.', 'The review will be ready after ' + left + ' more matchday' + (left === 1 ? '' : 's') + '. Play on and come back.'])}</section>`; }
+    else review = `<section class="bc-sec" id="bc-review"><h3>The outcome</h3>${memo(rev2.body(lg, m, st).lines)}<div class="bk-ctl"><button type="button" class="primary" data-finish>Close this paper</button></div></section>`;
+    const nav = `<nav class="bc-nav" aria-label="Sections of this paper">${[['brief', 'The situation'], ['working', 'What the numbers say'], ['options', 'The decision'], ['review', 'The outcome']].map(([k, n]) => `<a href="#bc-${k}" data-jump="bc-${k}">${n}</a>`).join('')}</nav>`;
     return head + nav + `<div class="bc-body">${brief}${working}${options}${review}</div>`;
   }
 
@@ -377,24 +406,39 @@
     },
     reset() { UI.open = null; UI.msg = null; },
     bind(host, lg, redo, save) {
-      host.querySelectorAll('[data-case]').forEach((b) => b.addEventListener('click', () => { UI.open = b.dataset.case; UI.msg = null; redo(); try { window.scrollTo(0, 0); } catch (e) { /* fine */ } }));
+      host.querySelectorAll('[data-case]').forEach((b) => b.addEventListener('click', () => { UI.open = b.dataset.case; UI.msg = null; { const stx = stateOf(lg, b.dataset.case); if (!stx.opened) { stx.opened = true; save && save(); } } redo(); try { window.scrollTo(0, 0); } catch (e) { /* fine */ } }));
       host.querySelectorAll('[data-case-list]').forEach((b) => b.addEventListener('click', () => { UI.open = null; UI.msg = null; redo(); }));
       const c = UI.open && CASES.find((x) => x.id === UI.open); if (!c) return;
       const st = stateOf(lg, c.id), sg = c.stages.find((x) => x.k === 'decide');
       const m = () => { const mm = M(lg); mm.lg = lg; mm.wages = FM.bizInternals.wageBill(lg); const rev = FM.bizSeasonSum(lg, 'revenue'); mm.wagePct = rev ? 100 * mm.wages * mm.K.ROUNDS / (rev / Math.max(1, mm.b.ledger.length) * mm.K.ROUNDS) : 0; mm.net = mm.b.ledger.length ? FM.bizSeasonSum(lg, 'net') / Math.max(1, mm.b.ledger.length) * mm.K.ROUNDS : mm.K.PROFIT_TARGET; return mm; };
       host.querySelectorAll('[data-jump]').forEach((a) => a.addEventListener('click', (e) => { e.preventDefault(); const t = host.querySelector('#' + a.dataset.jump); if (t && t.scrollIntoView) t.scrollIntoView({ behavior: 'smooth', block: 'start' }); }));
-      host.querySelectorAll('[data-decide]').forEach((b) => b.addEventListener('click', () => {
-        const o = sg.options.find((x) => x.id === b.dataset.decide), mm = m(), snap = sg.snap ? sg.snap(lg, mm) : {}, r = o.do(lg, mm);
-        UI.msg = { d: r.text };
-        if (r.ok) { st.choice = o.id; st.r0 = rounds(mm.b); st.snap = snap; UI.msg = { d: r.text }; }
-        save && save(); redo();
-      }));
+      const form = FM.booksForms && FM.booksForms[c.id], root = host.querySelector('#bcForm');
+      if (form && root && !st.choice) {
+        const fields = form.fields(m()), update = () => {
+          const v = readForm(root, fields); UI.draft = UI.draft || {}; UI.draft[c.id] = v;
+          fields.forEach((f) => { const o = root.querySelector('[data-out="' + f.id + '"]'); if (o) { const e = root.querySelector('[data-f="' + f.id + '"]'); o.textContent = (f.prefix || '') + (f.prefix === '£' ? Number(e.value).toLocaleString('en-GB') : e.value) + (f.suffix || ''); } });
+          const pv = host.querySelector('#bcPreview'); if (pv) { try { pv.innerHTML = previewHtml(form.preview(v, m(), lg)); } catch (e) { pv.textContent = ''; } }
+        };
+        root.querySelectorAll('[data-f]').forEach((e) => { e.addEventListener('input', update); e.addEventListener('change', update); });
+        host.querySelectorAll('[data-approve]').forEach((bt) => bt.addEventListener('click', () => {
+          const mm = m(), v = readForm(root, fields), snap = sg.snap ? sg.snap(lg, mm) : {}, out = form.apply(lg, v, mm);
+          st.choice = 'approved'; st.values = v; st.result = out; st.r0 = rounds(mm.b); st.snap = snap; if (UI.draft) delete UI.draft[c.id];
+          UI.msg = null; save && save(); redo();
+        }));
+      }
       host.querySelectorAll('[data-finish]').forEach((b) => b.addEventListener('click', () => { st.done = true; UI.msg = null; save && save(); redo(); }));
     },
   };
   FM.booksLearnCss = (FM.booksLearnCss || '') + (FM.booksCases.css = `
     .bc-memo .bk-term, .bc-body .bk-term, .bc-chips .bk-term, .bc-head .bk-term { display: inline; width: auto; min-height: 0; height: auto; padding: 0 1px; margin: 0; border: 0; border-bottom: 1px dashed var(--gold); border-radius: 0; background: transparent; box-shadow: none; color: var(--gold); font: inherit; letter-spacing: normal; text-transform: none; cursor: pointer; text-align: left; line-height: inherit; }
     .bc-body .bk-ctl input[type=number] { width: 8rem; padding: 8px 10px; background: #2f3533; color: var(--cream); border: 1px solid var(--line); font: inherit; min-height: 0; } .bc-body .bk-ctl { align-items: center; }
+    .bc-status { display: inline-block; padding: 2px 10px; border: 1px solid var(--line); font-size: .74rem; letter-spacing: .06em; text-transform: uppercase; align-self: start; justify-self: start; } .bc-status.st-wait { color: #f2c14e; border-color: #f2c14e; } .bc-status.st-ready { color: #7fd49a; border-color: #7fd49a; } .bc-status.st-done { color: #7fd49a; border-color: #7fd49a; background: rgba(127,212,154,.1); } .bc-status.st-open { color: var(--gold); border-color: var(--gold); }
+    .bc-card.st-wait { border-left: 3px solid #f2c14e; } .bc-card.st-ready { border-left: 3px solid #7fd49a; } .bc-card.st-done { border-left: 3px solid #7fd49a; opacity: .85; } .bc-card.st-open { border-left: 3px solid var(--gold); }
+    .bc-banner { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; font-size: .9rem; } .bc-link { background: none; border: 0; color: var(--gold); cursor: pointer; padding: 0; font: inherit; text-align: left; }
+    .bc-measures { display: grid; gap: 0; border-top: 1px solid var(--line); } .bc-measure { padding: 12px 0; border-bottom: 1px solid var(--line); display: grid; gap: 4px; } .bc-mhead { display: flex; justify-content: space-between; gap: 14px; align-items: baseline; } .bc-res { color: var(--gold); font-weight: 700; font-size: 1.05rem; white-space: nowrap; } .bc-how { font-size: .8rem; opacity: .65; } .bc-meaning p { margin: 0 0 4px; line-height: 1.6; font-size: .92rem; opacity: .92; }
+    .bc-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; } .bc-f { display: grid; gap: 6px; font-size: .88rem; } .bc-f select, .bc-f input[type=range] { width: 100%; } .bc-f select { background: #2f3533; color: var(--cream); border: 1px solid var(--line); padding: 8px 10px; font: inherit; } .bc-f small { opacity: .65; font-size: .76rem; line-height: 1.4; }
+    .bc-prev { border: 1px solid var(--line); padding: 12px 14px; background: rgba(255,255,255,.025); } .bc-prev h4 { margin: 0 0 8px; font: 700 .85rem var(--sans); } .bc-prev table { width: 100%; }
+    .bc-done span { display: block; opacity: .9; }
     .bc-sec { display: grid; gap: 14px; padding: 18px 0; border-top: 1px solid var(--line); } .bc-sec h3 { margin: 0; font-size: 1.05rem; } .bc-nav { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 4px; } .bc-nav a { padding: 6px 14px; border: 1px solid var(--line); color: inherit; text-decoration: none; font-size: .82rem; } .bc-nav a:hover { border-color: var(--gold); color: var(--gold); }
     .bc-notes p { margin: 0 0 6px; line-height: 1.6; opacity: .9; } .bc-done { border: 1px solid #7fd49a; padding: 12px 14px; display: grid; gap: 4px; } .bc-chip { display: inline-block; padding: 2px 9px; border: 1px solid var(--line); font-size: .78rem; margin: 2px 4px 2px 0; opacity: .85; }
     .bc-head { display: grid; gap: 6px; margin-bottom: 14px; } .bc-head h2 { margin: 0; font-size: 1.5rem; } .bc-back { justify-self: start; background: none; border: 0; color: var(--gold); cursor: pointer; padding: 0; font: inherit; }
