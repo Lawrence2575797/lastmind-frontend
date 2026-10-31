@@ -286,6 +286,9 @@
     opp.players.forEach((p) => {
       if (p.group === 'GK') return;
       if (Math.abs(p.x - gx) < 17 && Math.abs(p.y - W / 2) < 20.7) { p.x = gx + inward * 17.4; p.vx = 0; }
+      // nor in the D: the arc beyond the box, 9.15 m from the penalty spot
+      const sx = gx + inward * 11, dx = p.x - sx, dy = p.y - W / 2, dd = Math.hypot(dx, dy);
+      if (dd < 9.5) { const u = dd > 0.01 ? 1 / dd : 0; if (dd > 0.01) { p.x = sx + dx * u * 9.6; p.y = W / 2 + dy * u * 9.6; } else { p.x = sx + inward * 9.6; } p.vx = 0; p.vy = 0; if (Math.abs(p.x - gx) < 17.4) p.x = gx + inward * 17.4; }
     });
   }
   FM.startBuildUpTrial = function (match, team, kind) {

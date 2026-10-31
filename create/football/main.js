@@ -2278,7 +2278,7 @@
     // simulation starts from), so the board and the simulation agree. (FM.NO_SIMOPP = true goes back to the older block drawing below.)
     if (kick && !FM.NO_SIMOPP && FM.lab && FM.lab.opposition && FM.scout && FM.scout.labPlanSync) {
       try {
-        const lg = world.league, user = userTeam(), opp = sc.opp, plan = FM.scout.labPlanSync(lg, user, opp), at = FM.lab.opposition(lg, user, opp, plan, undefined), out = {}; let n = 0;
+        const lg = world.league, user = userTeam(), opp = sc.opp, plan = FM.scout.labPlanSync(lg, user, opp), at = FM.lab.opposition(lg, user, opp, plan, 'goalkick'), out = {}; let n = 0;
         Object.keys(cells).forEach((k) => { const w = at[k]; if (!w) { out[k] = cells[k]; return; } const q = FM.toTeamSpace(at.__dir != null ? at.__dir : opp.attackDir, w.x, w.y); out[k] = Object.assign({}, cells[k], { d: Math.max(0.02, Math.min(0.97, q.d)), w: Math.max(0.03, Math.min(0.97, q.w)) }); n++; });
         if (n >= 10) return out;
       } catch (e) { /* fall through to the drawn blocks */ }
