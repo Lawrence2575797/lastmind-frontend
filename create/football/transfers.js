@@ -28,8 +28,9 @@
     return Math.max(0.2, v);
   };
   FM.wageOf = (p) => p.wage != null ? p.wage : Math.max(2, r1(FM.valueOf(p) * 1.1 + 2));   // £ thousand a week
-  FM.clubOf = (league, p) => FM.allTeams(league).find((t) => t.squad.indexOf(p) >= 0) || null;
-  FM.findPlayer = (league, id) => { for (const t of FM.allTeams(league)) { const p = t.squad.find((x) => x.id === id); if (p) return p; } return null; };
+  const poolOf = (league) => (league.transfer && league.transfer.pool) || null;
+  FM.clubOf = (league, p) => FM.allTeams(league).find((t) => t.squad.indexOf(p) >= 0) || ((poolOf(league) && poolOf(league).squad.indexOf(p) >= 0) ? poolOf(league) : null);
+  FM.findPlayer = (league, id) => { for (const t of FM.allTeams(league)) { const p = t.squad.find((x) => x.id === id); if (p) return p; } const pool = poolOf(league); if (pool) { const q = pool.squad.find((x) => x.id === id); if (q) return q; } return null; };
   const money = (m) => '£' + (m >= 10 ? Math.round(m) : r1(m).toFixed(1)) + 'm';
   FM.money = money;
   const userRounds = (league) => league.fixtures.filter((f) => f.played && (f.homeId === league.userId || f.awayId === league.userId)).length;
@@ -46,6 +47,9 @@
       if (FM.bizSyncBudget && !league.mp) FM.bizSyncBudget(league);   // the money to spend is the cash in the club's books
     }
     if (!league.transfer.reserves) { league.transfer.reserves = true; addReserves(league); }
+    if (!league.transfer.contracts) { league.transfer.contracts = true; FM.allTeams(league).forEach((tm) => tm.squad.forEach((q) => { if (q.contract == null) q.contract = contractFor(q); })); }
+    if (!league.transfer.pool) { league.transfer.pool = { id: '__free', name: 'Free agents', isPool: true, squad: [], bench: [], players: [] }; }
+    if (!league.transfer.poolSeeded) { league.transfer.poolSeeded = true; seedPool(league); }
     // A new game opens with a few offers already waiting: clubs have been looking at the squad all summer. Which clubs, and for whom, differs
     // from one game to the next.
     if (!league.transfer.opening) {
@@ -170,6 +174,7 @@
   };
   FM.askingPrice = function (league, p) {
     const club = FM.clubOf(league, p), t = FM.transfer(league);
+    if (club && club.isPool) return 0;
     let price = FM.valueOf(p);
     if (club) {
       const d = depth(club, p.natural), need = needDepth(club, p.natural);
@@ -185,7 +190,7 @@
   };
   FM.priceReasons = function (league, p) {
     const club = FM.clubOf(league, p), out = [], t = FM.transfer(league);
-    if (!club) return out;
+    if (!club || club.isPool) return out;
     const d = depth(club, p.natural), need = needDepth(club, p.natural);
     if (d < need) out.push(club.name + ' are short of ' + POS_NAME[p.natural] + 's, so they are reluctant to sell');
     else if (d >= need + 2) out.push(club.name + ' have plenty of cover in his position');
@@ -193,6 +198,102 @@
     if ((t.hikes[p.id] || 1) > 1.01) out.push('rival interest has pushed the price up');
     if ((t.ai[p.id])) out.push('another club is already in talks for him');
     return out;
+  };
+
+  // ---------- contracts and free agents ----------
+  // A contract is the number of seasons left, this one included. A new player's runs longer the younger he is (a veteran is on a short deal), with a little
+  // chance in it. When the last season ends the contract is over: the club renews it, or he leaves and is a free agent anyone can sign.
+  function contractFor(p) {
+    const a = FM.ageOf(p), h = hsh(p.id + ':contract');
+    return Math.max(1, Math.min(5, Math.round(4.5 - 0.14 * (a - 18) + ((h % 5) - 2) * 0.55)));
+  }
+  FM.contractFor = contractFor;
+  FM.contractLeft = (p) => (p.contract == null ? contractFor(p) : p.contract);
+  function seedPool(league) {
+    const t = league.transfer, pool = t.pool, rng = FM.mulberry32(league.seed + (league.runSeed || 0) + 8181);
+    const all = FM.allTeams(league).reduce((a, tm) => a.concat(tm.squad), []);
+    const avg = all.length ? all.reduce((a, q) => a + FM.playerRating(q), 0) / all.length : 8;
+    ['GK', 'CB', 'CB', 'FB', 'FB', 'DM', 'CM', 'CM', 'AM', 'WF', 'WF', 'ST', 'ST', 'CB', 'FB', 'CM'].forEach((pos) => {
+      const y = youth(league, pool, pos, avg - 0.15 - rng() * 0.5);
+      y.age = 20 + Math.floor(rng() * 15); y.contract = 0; y.freeSince = 0; delete y.wage;
+      pool.squad.push(y);
+    });
+  }
+  function releaseToPool(league, team, p) {
+    const t = league.transfer, pool = t.pool;
+    detach(league, team, p);
+    p.contract = 0; p.freeSince = league.season; p.index = -1; p.slotKey = null; p.group = p.natural; p.roleId = null; p.options = {}; p.instr = {};
+    delete p.wage; pool.squad.push(p);
+    t.offers = t.offers.filter((o) => o.pid !== p.id); if (t.listed) delete t.listed[p.id];
+    delete t.deals[p.id]; delete t.ai[p.id]; t.shortlist = t.shortlist.filter((x) => x !== p.id);
+    if (team.id !== league.userId) { topUp(league, team); autoPick(team); }
+  }
+  function signFromPool(league, p, team, years) {
+    const t = league.transfer, pool = t.pool;
+    pool.squad = pool.squad.filter((q) => q !== p);
+    attach(team, p); p.wage = FM.wageOf(p); p.contract = years || 2 + (hsh(p.id + ':fa') % 3); p.joined = league.day; delete p.freeSince;
+    t.moves.push({ pid: p.id, name: p.name, from: pool.id, to: team.id, fee: 0, day: league.day });
+    autoPick(team);
+  }
+  // Computer-run clubs that are short of a position pick up the best free agent for it.
+  function aiFillFromPool(league, rng, limit) {
+    const t = league.transfer, pool = t.pool; let done = 0;
+    const clubs = league.teams.filter((x) => x.id !== league.userId).concat(...(league.otherLeagues || []).map((d) => d.teams)).sort(() => rng() - 0.5);
+    for (const team of clubs) {
+      if (limit && done >= limit) break;
+      const need = FM.clubNeeds(team); if (!need.length || rng() > 0.75) continue;
+      const cand = pool.squad.filter((q) => need.indexOf(q.natural) >= 0).sort((a, b) => FM.playerRating(b) - FM.playerRating(a))[0]; if (!cand) continue;
+      signFromPool(league, cand, team); done++;
+      if (league.teams.indexOf(team) >= 0 && done <= 3) story(league, { kind: 'Signing', headline: `${team.name} sign free agent ${cand.name}`, dek: 'A free transfer: no fee was paid.', body: `${team.name} have signed the ${FM.ageOf(cand)}-year-old ${POS_NAME[cand.natural]} ${cand.name} on a free transfer after his contract ended.`, playerId: cand.id, teams: [team.id] });
+    }
+    // the market does not grow without limit: free agents nobody wants for two seasons retire
+    pool.squad = pool.squad.filter((q) => !(q.freeSince != null && league.season - q.freeSince >= 2 && FM.playerRating(q) < 7.8));
+    if (pool.squad.length > 45) pool.squad = pool.squad.sort((a, b) => FM.playerRating(b) - FM.playerRating(a)).slice(0, 40);
+  }
+  // Who on the manager's squad is in the last season of his contract.
+  FM.expiringContracts = (league) => FM.teamById(league, league.userId).squad.filter((q) => FM.contractLeft(q) <= 1);
+  // The end of a season: every contract has one season fewer. A club renews most of its good players, and the rest leave for the free-agent market; the manager's own
+  // players leave unless he has extended them.
+  FM.processContracts = function (league) {
+    const t = FM.transfer(league), rng = FM.mulberry32(league.seed + (league.runSeed || 0) + (league.season || 1) * 5393 + 17), left = [];
+    FM.allTeams(league).forEach((team) => {
+      team.squad.slice().forEach((p) => {
+        if (p.contract == null) p.contract = contractFor(p);
+        p.contract -= 1; if (p.contract > 0) return;
+        if (team.id !== league.userId) {
+          const keep = 0.55 + Math.min(0.3, Math.max(0, (FM.playerRating(p) - 8) * 0.25));
+          if (rng() < keep || !FM.canSell(team, p)) { p.contract = contractFor(p); return; }
+        }
+        releaseToPool(league, team, p);
+        if (team.id === league.userId) left.push(p);
+      });
+    });
+    aiFillFromPool(league, rng);
+    const me = FM.teamById(league, league.userId);
+    left.forEach((p) => story(league, { kind: 'Contract', headline: `${p.name} leaves ${me.name} as his contract ends`, dek: 'He is now a free agent.', body: `${p.name}'s contract ran out and was not extended, so he leaves ${me.name} for nothing. He can be signed again from the free agents in Recruitment.`, playerId: p.id, mine: true, teams: [me.id] }));
+    return left;
+  };
+  // Extending a contract: the new wage follows his value (a little more than now), and a longer deal is slightly cheaper for the club.
+  FM.extensionTerms = function (league, p, years) {
+    const age = FM.ageOf(p), base = FM.wageOf(p), adj = years >= 4 ? 0.97 : years <= 1 ? 1.05 : 1;
+    return r1(Math.max(base, FM.valueOf(p) * 1.1 + 2) * (age <= 21 ? 0.95 : 1.06) * adj);
+  };
+  FM.extendContract = function (league, pid, years) {
+    const me = FM.teamById(league, league.userId), p = me.squad.find((q) => q.id === pid);
+    if (!p) return { ok: false, text: 'He is not in your squad.' };
+    years = Math.max(1, Math.min(5, Math.round(Number(years)) || 3));
+    const wage = FM.extensionTerms(league, p, years), rise = wage - FM.wageOf(p);
+    if (rise > FM.wageRoom(league, me.id) + 1e-9) return { ok: false, text: 'The wage budget cannot take that: his new wage is ' + wage + 'k a week and you have ' + FM.wageRoom(league, me.id) + 'k of room.' };
+    p.wage = wage; p.contract = years;
+    return { ok: true, wage, years, text: p.name + ' signs a new ' + years + '-year contract on ' + wage + 'k a week.' };
+  };
+  FM.signFreeAgent = function (league, pid) {
+    const p = FM.findPlayer(league, pid), club = p && FM.clubOf(league, p);
+    if (!club || !club.isPool) return { ok: false, text: 'He is not a free agent.' };
+    const deal = ensureDeal(league, p);
+    deal.declared = true; deal.fee = 0; deal.stage = 'fee_agreed'; deal.agreedRound = userRounds(league);
+    deal.history.push({ who: 'agent', text: 'His contract has ended, so there is no fee to pay: only his terms to agree.' });
+    return FM.startWageTalks(league, pid);
   };
 
   // ---------- moving a player between clubs ----------
@@ -222,6 +323,7 @@
     return best;
   }
   function detach(league, team, p) {
+    if (team.isPool) { team.squad = team.squad.filter((q) => q !== p); return; }
     if (team.players.indexOf(p) >= 0) {
       let rep = bestReplacement(team, p);
       if (!rep) { rep = youth(league, team, p.natural, 8); team.squad.push(rep); team.bench.push(rep); }
@@ -260,13 +362,13 @@
     detach(league, from, p);
     attach(to, p);
     p.wage = wage != null ? wage : FM.wageOf(p); p.contract = years || 3; p.joined = league.day;
-    t.budget[to.id] = r1((t.budget[to.id] || 0) - fee); t.budget[from.id] = r1((t.budget[from.id] || 0) + fee);
+    t.budget[to.id] = r1((t.budget[to.id] || 0) - fee); if (!from.isPool) t.budget[from.id] = r1((t.budget[from.id] || 0) + fee);
     t.wageBudget[from.id] = r1((t.wageBudget[from.id] || 0) + 0); // wage room frees itself, as the bill drops
     delete t.hikes[p.id]; delete t.ai[p.id];
     t.offers = t.offers.filter((o) => o.pid !== p.id); if (t.listed) delete t.listed[p.id];
     t.moves.push({ pid: p.id, name: p.name, from: from.id, to: to.id, fee, day: league.day });
     if (FM.bizTransfer && (to.id === league.userId || from.id === league.userId)) FM.bizTransfer(league, p, from, to, fee, p.wage, years || 3);   // the club's books
-    if (from.id !== league.userId) { topUp(league, from); autoPick(from); }
+    if (from.id !== league.userId && !from.isPool) { topUp(league, from); autoPick(from); }
     if (to.id !== league.userId) autoPick(to);
     return true;
   }
@@ -301,6 +403,7 @@
     const club = FM.clubOf(league, p);
     if (club === me) return { ok: false, text: 'He already plays for you.' };
     const deal = ensureDeal(league, p);
+    if (club && club.isPool) { deal.declared = true; return { ok: true, ask: 0, free: true, deal }; }
     if (deal.declared) return { ok: true, again: true, ask: FM.askingPrice(league, p), deal };
     deal.declared = true;
     const before = FM.askingPrice(league, p), rng = rngFor(league, 'interest' + pid);
@@ -450,8 +553,9 @@
     if (!move(league, p, me, fee, wage, years)) return { ok: false, text: 'The move could not be completed.' };
     deal.stage = 'signed'; deal.wage = wage; deal.years = years; deal.history.push({ who: 'agent', text: 'Agreed: ' + wage + 'k a week for ' + years + ' years. He signs.' });
     const first = p.name.split(' ')[0];
-    news(league, 'Signing', p, `${p.name} signs for ${me.name}!`, `${money(fee)} from ${from.name}, on ${wage}k a week for ${years} years.`,
-      `${me.name} have completed the signing of ${p.name} from ${from.name} for ${money(fee)}. The ${FM.ageOf(p)}-year-old ${p.nation} ${POS_NAME[p.natural]} has signed a ${years}-year contract worth ${wage}k a week. "${first} is exactly the kind of player we wanted," a club source said. He joins the squad immediately and is available for selection.`,
+    const origin = from.isPool ? 'on a free transfer' : `from ${from.name}`, price = from.isPool ? 'no fee' : money(fee);
+    news(league, 'Signing', p, `${p.name} signs for ${me.name}!`, `${from.isPool ? 'A free transfer' : money(fee) + ' from ' + from.name}, on ${wage}k a week for ${years} years.`,
+      `${me.name} have completed the signing of ${p.name} ${origin} for ${price}. The ${FM.ageOf(p)}-year-old ${p.nation} ${POS_NAME[p.natural]} has signed a ${years}-year contract worth ${wage}k a week. "${first} is exactly the kind of player we wanted," a club source said. He joins the squad immediately and is available for selection.`,
       { mine: true, scene: 'signing', teams: [me.id, from.id] });
     return { ok: true, status: 'signed', deal, player: p };
   }
@@ -528,6 +632,8 @@
         story(league, { kind: 'Transfer collapse', headline: `${p.name} deal with ${me.name} runs out of time`, dek: `The talks went cold.`, body: `${me.name}'s agreed move for ${p.name} has fallen through after ${seller.name} withdrew permission to talk.`, playerId: p.id, mine: true, teams: [me.id] });
       }
     });
+    // 2a. a free agent is picked up now and then by a club that is short of his position
+    if (t.pool && t.pool.squad.length && rng() < 0.35) aiFillFromPool(league, rng, 1);
     // 3. offers for the manager's players only stay open for a couple of rounds
     t.offers.forEach((o) => { o.age = (o.age || 0) + 1; });
     t.offers = t.offers.filter((o) => (o.age || 0) <= 2);

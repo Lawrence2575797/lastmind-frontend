@@ -896,7 +896,6 @@
     team.squad.forEach((p) => {
       p.stats = { apps: 0, goals: 0, shots: 0, yellows: 0, reds: 0 };
       p.condition = 1; p.form = (p.form || 0) * 0.5; delete p.injury; p.age = FM.ageOf ? FM.ageOf(p) + 1 : (p.age || 24) + 1;
-      if (p.contract != null) p.contract = Math.max(1, p.contract - 1);
     });
     team.momentum = (team.momentum || 0) * 0.5;
     team.drift = {}; team.rules = []; team.scenarios = []; team.defScenarios = []; team.scenarioEvidence = {}; team.scenarioDefEvidence = {};
@@ -932,6 +931,7 @@
     league.otherLeague = league.otherLeagues.find((d) => d.level === (userLevel === 1 ? 2 : userLevel - 1)) || league.otherLeagues[0];
     // Only careers which started with the cup receive it again; older saves have no cup property and remain cup-free.
     if (league.cup) league.cup = FM.newCup(league);
+    if (FM.processContracts) FM.processContracts(league);   // contracts run down: players whose last season this was leave for the free-agent market
     nextDivisions.flatMap((d) => d.teams).forEach(resetClubForSeason);
     league.friendlies = []; league.preseason = undefined; FM.ensurePreseason(league); league.prepStep = 0; league.prepPhaseMax = 0; league.testPhaseMax = 0; league.labRuns = []; league.phaseLabRuns = {}; league.testLog = []; league.hypotheses = [];
     FM.setBoardExpectation(league);

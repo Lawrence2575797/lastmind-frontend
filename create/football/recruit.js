@@ -45,11 +45,12 @@
     const t = FM.transfer(league), me = FM.teamById(league, league.userId);
     // Recruitment is the whole pyramid: promotions and relegations are not the only way to find a player.
     const others = FM.allTeams(league).filter((x) => x.id !== league.userId);
+    const pool = t.pool, universe = others.concat(pool ? [pool] : []);
     const draw = () => FM.renderRecruit(host, league, hooks);
     const save = () => { if (hooks.save) hooks.save(); };
     const room = FM.wageRoom(league, me.id);
     // ----- the list of players, with the filters applied
-    const all = [].concat.apply([], others.map((tm) => tm.squad.map((p) => ({ p, tm }))));
+    const all = [].concat.apply([], universe.map((tm) => tm.squad.map((p) => ({ p, tm }))));
     const nations = Array.from(new Set(all.map((x) => x.p.nation))).sort();
     let rows = all.filter(({ p, tm }) => {
       if (rs.club !== 'all' && tm.id !== rs.club) return false;
@@ -79,15 +80,15 @@
     const cell = (p, s) => { const k = marks[p.id] && marks[p.id][s]; return `<td${k ? ' class="hl-' + k + '"' : ''}>${s === 'gk' && p.natural !== 'GK' ? '-' : stat(p, s)}</td>`; };
     const status = (p) => { const d = t.deals[p.id]; return d && d.stage !== 'signed' ? chip(STAGE_TEXT[d.stage] || d.stage, 'st-' + d.stage) : (t.shortlist.indexOf(p.id) >= 0 ? chip('Shortlisted') : ''); };
     const rowHtml = ({ p, tm }) => `<tr class="player-row${rs.open === p.id ? ' sel' : ''}" data-open="${esc(p.id)}" tabindex="0">
-      <td class="l"><b>${esc(p.name)}</b> ${FM.isInjured(p) ? '<span class="out">injured</span>' : ''}</td><td class="l">${esc(tm.name)}</td><td class="l">${p.natural === 'FB' ? (FM.sideOf(p) === 'L' ? 'LB' : 'RB') : p.natural}</td><td>${FM.ageOf(p)}</td><td class="l">${esc(p.nation)}</td>
+      <td class="l"><b>${esc(p.name)}</b> ${FM.isInjured(p) ? '<span class="out">injured</span>' : ''}</td><td class="l">${tm.isPool ? '<b>Free agent</b>' : esc(tm.name) + ' <small>' + FM.contractLeft(p) + ' yr</small>'}</td><td class="l">${p.natural === 'FB' ? (FM.sideOf(p) === 'L' ? 'LB' : 'RB') : p.natural}</td><td>${FM.ageOf(p)}</td><td class="l">${esc(p.nation)}</td>
       <td><b>${FM.abilityOf(p)}</b></td><td>${FM.potentialOf(p)}</td>${['pace', 'dribbling', 'passing', 'finishing', 'tackling', 'heading', 'composure', 'stamina', 'gk'].map((s) => cell(p, s)).join('')}
-      <td><b>${FM.money(FM.askingPrice(league, p))}</b></td><td class="l">${status(p)}</td></tr>`;
+      <td><b>${tm.isPool ? 'Free' : FM.money(FM.askingPrice(league, p))}</b></td><td class="l">${status(p)}</td></tr>`;
     const head = `<thead><tr><th class="l">Player</th><th class="l">Club</th><th class="l">Pos</th><th>Age</th><th class="l">Nation</th><th title="What he is worth to a team now, out of 100">Ability</th><th title="The most he can reach, out of 100">Potential</th><th>Pace</th><th>Dri</th><th>Pas</th><th>Fin</th><th>Tac</th><th>Hea</th><th>Com</th><th>Sta</th><th>GK</th><th>Price</th><th class="l">Status</th></tr></thead>`;
     const filters = `<div class="rc-search"><input id="rcSearch" type="search" value="${esc(rs.q)}" placeholder="Search by name" autocomplete="off" aria-label="Search players by name"></div>
       <div class="rc-player-browser"><aside class="rc-filter-rail" aria-label="Player filters">
         <label>Position<select id="rcPos"><option value="all">Any position</option>${POSITIONS.map(([k, n]) => `<option value="${k}"${rs.pos === k ? ' selected' : ''}>${n}</option>`).join('')}</select></label>
         <label>Sort by<select id="rcSort">${[['rating', 'Rating'], ['price', 'Price, high to low'], ['priceLow', 'Price, low to high'], ['potential', 'Potential, high to low'], ['age', 'Youngest first'], ['name', 'Name']].map(([k, n]) => `<option value="${k}"${rs.sort === k ? ' selected' : ''}>${n}</option>`).join('')}</select></label>
-        <label>Club<select id="rcClub"><option value="all">All clubs</option>${others.map((tm) => `<option value="${tm.id}"${rs.club === tm.id ? ' selected' : ''}>${esc(tm.name)}</option>`).join('')}</select></label>
+        <label>Club<select id="rcClub"><option value="all">All clubs</option>${universe.map((tm) => `<option value="${tm.id}"${rs.club === tm.id ? ' selected' : ''}>${esc(tm.name)}${tm.isPool ? ' (' + tm.squad.length + ')' : ''}</option>`).join('')}</select></label>
         <fieldset class="rc-age"><legend>Age</legend><label>Min<input id="rcAgeMin" type="number" min="16" max="40" value="${esc(rs.ageMin)}"></label><span>–</span><label>Max<input id="rcAgeMax" type="number" min="16" max="40" value="${esc(rs.ageMax)}"></label></fieldset>
         <label>Rating at least<input id="rcRating" type="number" step="0.1" min="5" max="10" value="${esc(rs.ratingMin)}"></label>
         <label>Potential at least<input id="rcPot" type="number" step="1" min="40" max="99" value="${esc(rs.potMin)}"></label>
@@ -96,12 +97,20 @@
 
     const shortlist = t.shortlist.map((id) => FM.findPlayer(league, id)).filter(Boolean).filter((p) => FM.clubOf(league, p) !== me);
     const openOffers = t.offers.filter((o) => FM.findPlayer(league, o.pid) && FM.clubOf(league, FM.findPlayer(league, o.pid)) === me);
-    const tabs = `<div class="rc-tabs">${[['players', 'Players'], ['shortlist', 'Shortlist (' + shortlist.length + ')'], ['offers', 'Offers and deals' + (openOffers.length ? ' (' + openOffers.length + ')' : '')]].map(([k, n]) => `<button type="button" data-rctab="${k}" class="${rs.tab === k ? 'on' : ''}">${n}</button>`).join('')}</div>`;
+    const tabs = `<div class="rc-tabs">${[['players', 'Players'], ['shortlist', 'Shortlist (' + shortlist.length + ')'], ['contracts', 'Contracts' + (FM.expiringContracts(league).length ? ' (' + FM.expiringContracts(league).length + ' expiring)' : '')], ['offers', 'Offers and deals' + (openOffers.length ? ' (' + openOffers.length + ')' : '')]].map(([k, n]) => `<button type="button" data-rctab="${k}" class="${rs.tab === k ? 'on' : ''}">${n}</button>`).join('')}</div>`;
 
     let body = '';
     if (rs.tab === 'players') {
       body = `${filters}<section class="rc-player-results"><p class="rc-count">${rows.length} player${rows.length === 1 ? '' : 's'}</p>
         <div class="tablewrap rc-table"><table class="data">${head}<tbody>${rows.slice(0, rs.shown || 25).map(rowHtml).join('') || '<tr><td colspan="18" class="l">No players match those filters.</td></tr>'}</tbody></table></div>${rows.length > (rs.shown || 25) ? `<div class="rc-showmore"><button type="button" id="rcShowMore">Show 25 more (${rows.length - (rs.shown || 25)} not shown)</button></div>` : ''}</section></div>`;
+    } else if (rs.tab === 'contracts') {
+      const mine = me.squad.slice().sort((a, b) => FM.contractLeft(a) - FM.contractLeft(b) || FM.playerRating(b) - FM.playerRating(a));
+      const note = rs.contractNote ? `<div class="rc-notice ${rs.contractNote.kind}" role="status">${esc(rs.contractNote.text)}</div>` : '';
+      const rowsC = mine.map((q) => { const left = FM.contractLeft(q), last = left <= 1, ask = FM.extensionTerms(league, q, 3);
+        return `<tr class="${last ? 'out' : ''}"><td class="l"><b>${esc(q.name)}</b></td><td class="l">${q.natural}</td><td>${FM.ageOf(q)}</td><td><b>${FM.abilityOf(q)}</b></td><td>${FM.wageOf(q)}k</td><td>${left} season${left === 1 ? '' : 's'}${last ? ' <span class="out">last season</span>' : ''}</td>
+          <td class="l"><select data-cyears="${esc(q.id)}">${[1, 2, 3, 4, 5].map((y) => `<option value="${y}"${y === 3 ? ' selected' : ''}>${y} yr</option>`).join('')}</select> <button type="button" data-extend="${esc(q.id)}">Extend (about ${ask}k)</button></td></tr>`; }).join('');
+      body = `${note}<p class="note">A contract is the number of seasons left. When the last one ends, a player who has not been extended leaves for nothing and joins the free agents. Younger players are signed for longer.</p>
+        <div class="tablewrap rc-table"><table class="data"><thead><tr><th class="l">Player</th><th class="l">Pos</th><th>Age</th><th>Ability</th><th>Wage</th><th>Contract left</th><th class="l">Extend</th></tr></thead><tbody>${rowsC}</tbody></table></div>`;
     } else if (rs.tab === 'shortlist') {
       body = shortlist.length ? `<div class="tablewrap rc-table"><table class="data">${head}<tbody>${shortlist.map((p) => rowHtml({ p, tm: FM.clubOf(league, p) })).join('')}</tbody></table></div>` : '<p class="note">Nobody on your shortlist yet. Declaring interest in a player, or approaching his club, adds him here.</p>';
     } else {
@@ -128,6 +137,10 @@
 
     // ----- events
     host.querySelectorAll('[data-rctab]').forEach((b) => b.addEventListener('click', () => { rs.tab = b.dataset.rctab; rs.offerNote = null; draw(); }));
+    host.querySelectorAll('[data-extend]').forEach((b) => b.addEventListener('click', () => {
+      const id = b.dataset.extend, yrs = host.querySelector('[data-cyears="' + id + '"]').value, out = FM.extendContract(league, id, yrs);
+      rs.contractNote = { kind: out.ok ? 'ok' : 'no', text: out.text }; save(); draw();
+    }));
     const bind = (id, key, num) => { const e = host.querySelector(id); if (e) e.addEventListener('change', () => { rs[key] = e.type === 'checkbox' ? e.checked : e.value; rs.shown = 25; draw(); }); void num; };
     const sm = host.querySelector('#rcShowMore'); if (sm) sm.addEventListener('click', () => { rs.shown = (rs.shown || 25) + 25; draw(); });
     const mf = host.querySelector('.rc-more'); if (mf) mf.addEventListener('toggle', () => { rs.moreOpen = mf.open; });
@@ -137,7 +150,7 @@
       if (rs.refocus) { rs.refocus = false; se.focus(); try { se.setSelectionRange(se.value.length, se.value.length); } catch (e) { /* a search box that cannot place a caret */ } }
     }
     bind('#rcClub', 'club'); bind('#rcPos', 'pos'); bind('#rcNation', 'nation'); bind('#rcAgeMin', 'ageMin'); bind('#rcAgeMax', 'ageMax'); bind('#rcRating', 'ratingMin'); bind('#rcPot', 'potMin'); bind('#rcPrice', 'priceMax'); bind('#rcFit', 'fit'); bind('#rcSort', 'sort');
-    const step = (d) => { const ids = ['all'].concat(others.map((x) => x.id)); rs.club = ids[(ids.indexOf(rs.club) + d + ids.length) % ids.length]; rs.shown = 25; draw(); };
+    const step = (d) => { const ids = ['all'].concat(universe.map((x) => x.id)); rs.club = ids[(ids.indexOf(rs.club) + d + ids.length) % ids.length]; rs.shown = 25; draw(); };
     const pv = host.querySelector('#rcPrev'), nx = host.querySelector('#rcNext'); if (pv) pv.addEventListener('click', () => step(-1)); if (nx) nx.addEventListener('click', () => step(1));
     const cl = host.querySelector('#rcClear'); if (cl) cl.addEventListener('click', () => { Object.assign(rs, { q: '', club: 'all', pos: 'all', nation: 'all', ageMin: '', ageMax: '', ratingMin: '', potMin: '', priceMax: '', fit: false, sort: 'rating' }); draw(); });
     host.querySelectorAll('[data-open]').forEach((r) => r.addEventListener('click', () => { rs.open = r.dataset.open; rs.bid = null; draw(); const side = host.querySelector('#rcSide'); if (side && side.scrollIntoView) side.scrollIntoView({ block: 'nearest' }); }));
@@ -178,7 +191,20 @@
     let action = '';
     if (stage === 'signed' && mine) action = `<div class="rc-done"><div class="rc-scene" id="rcScene"></div><p><b>${esc(p.name)} has signed for ${esc(me.name)}.</b> He is in your squad and can be picked from the bench or swapped into the team.</p><button type="button" id="rcToSquad" class="primary">Go to the squad</button></div>`;
     else if (mine) action = '<p class="note">He plays for you.</p>';
-    else {
+    else if (club && club.isPool) {
+      const talks = stage === 'wage_talks';
+      action = `<div class="rc-actions"><button type="button" id="rcFree" class="primary"${talks ? ' disabled' : ''}>${talks ? 'In talks' : 'Talk to his agent: no fee to pay'}</button>${t.shortlist.indexOf(p.id) >= 0 ? '<button type="button" id="rcUnlist">Remove from shortlist</button>' : '<button type="button" id="rcShort">Add to shortlist</button>'}</div>${msg ? `<p class="rc-msg">${esc(msg)}</p>` : ''}`;
+      if (talks) {
+        const hist = (deal.history || []).filter((x) => x.who !== 'club').slice(-6).map((x) => `<div class="rc-bubble ${x.who}"><small>${x.who === 'you' ? 'You' : 'Agent'}</small>${esc(x.text)}</div>`).join('');
+        action += `<div class="rc-form rc-neg"><b>Contract talks with ${esc(p.name.split(' ')[0])} and his agent</b>
+          <p class="note">His last wage was about ${FM.wageOf(p)}k a week. Your wage room is ${FM.wageRoom(league, me.id)}k. The agent has ${deal.patience} round${deal.patience === 1 ? '' : 's'} of patience left.</p>
+          <div class="rc-chat">${hist}</div>
+          <label>Weekly wage (£k)<input id="rcWage" type="number" step="0.5" min="0" value="${r1(deal.wageCur)}"></label>
+          <label>Contract<select id="rcYears">${[1, 2, 3, 4, 5].map((y) => `<option value="${y}"${y === (deal.years || 3) ? ' selected' : ''}>${y} year${y === 1 ? '' : 's'}</option>`).join('')}</select></label>
+          <div><button type="button" id="rcWageAccept" class="primary">Accept ${r1(deal.wageCur)}k a week</button> <button type="button" id="rcWageGo">Offer the figure above</button> <button type="button" id="rcWalk">Walk away</button></div></div>`;
+      }
+      if (stage === 'collapsed') action += '<p class="note">That deal has fallen through. You can open talks again.</p>';
+    } else {
       const declared = deal && deal.declared;
       const approached = stage === 'fee_agreed' || stage === 'wage_talks';
       action = `<div class="rc-actions">
@@ -208,7 +234,7 @@
     side.innerHTML = `<div class="card rc-player"><div class="rc-head"><div class="rc-portrait" id="rcPortrait"><span class="fallback">${initials(p)}</span></div>
         <div><span class="eyebrow">${esc(club ? club.name : '')}</span><h3>${esc(p.name)}</h3><p class="note">${FM.POS_NAME[p.natural]} · ${FM.ageOf(p)} · ${esc(p.nation)} · ${p.height || '-'} cm · ${({ right: 'Right', left: 'Left', both: 'Two' }[p.foot] || '')}-footed</p>
         <p><b>${FM.abilityOf(p)}</b> ability · <b>${FM.potentialOf(p)}</b> potential (${esc(FM.potentialWord ? FM.potentialWord(p) : '')}) · condition ${cond}% · ${FM.isInjured(p) ? 'injured' : 'fit'}</p></div></div>
-      <div class="rc-price"><span>Asking price <b>${FM.money(ask)}</b></span><span>Wage now <b>${FM.wageOf(p)}k</b>/wk</span><span>Contract <b>${p.contract || (1 + (FM.hashString(p.id + ':c') % 4))} yr</b></span></div>
+      <div class="rc-price"><span>${club && club.isPool ? 'Fee <b>Free</b>' : 'Asking price <b>' + FM.money(ask) + '</b>'}</span><span>Wage ${club && club.isPool ? 'before' : 'now'} <b>${FM.wageOf(p)}k</b>/wk</span><span>Contract <b>${club && club.isPool ? 'none' : FM.contractLeft(p) + ' yr'}</b></span></div>
       ${reasons.length ? `<ul class="rc-reasons">${reasons.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}
       <table class="data rc-ratings"><tbody>${ratingRows}</tbody></table>${action}
       ${deal && deal.history && deal.history.length ? `<details class="rc-log"><summary>Everything said so far</summary>${deal.history.map((x) => `<p><b>${x.who === 'you' ? 'You' : x.who === 'agent' ? 'Agent' : 'Club'}:</b> ${esc(x.text)}</p>`).join('')}</details>` : ''}</div>`;
@@ -231,6 +257,8 @@
       say(out.hiked ? 'Interest declared. Word got out: the price is now ' + FM.money(out.ask) + ', up from ' + FM.money(out.before) + '.' : 'Interest declared. He is on your shortlist, and the story is in the news.');
     });
     on('#rcApproach', () => { rs.bid = p.id; draw(); });
+    on('#rcFree', () => { const out = FM.signFreeAgent(league, p.id); say(out.ok ? 'His agent is ready to talk.' : out.text); });
+    on('#rcShort', () => { const tt = FM.transfer(league); if (tt.shortlist.indexOf(p.id) < 0) tt.shortlist.push(p.id); save(); draw(); });
     on('#rcBidCancel', () => { rs.bid = null; draw(); });
     on('#rcBidOther', () => { rs.bid = p.id; draw(); });
     on('#rcBidGo', () => {

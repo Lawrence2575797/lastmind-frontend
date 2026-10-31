@@ -1312,7 +1312,7 @@
     const leagueSelect = host.querySelector('#homeLeagueSelect'); if (leagueSelect) leagueSelect.addEventListener('change', () => { world.homeTableLevel = +leagueSelect.value; renderHome(); });
     const hp = host.querySelector('#homePreview'); if (hp) hp.addEventListener('click', () => setView('preview'));
     const nb = host.querySelector('[data-nav-news]'); if (nb) nb.addEventListener('click', () => setView('news'));
-    const ns = host.querySelector('#newSeasonBtn'); if (ns) ns.addEventListener('click', () => { ns.disabled = true; ns.textContent = 'Preparing the new season...'; if (FM.startNextSeason(lg)) { world.homeTableLevel = lg.divisionLevel; FM.saveLeague(lg); renderTop(); renderHome(); } });
+    const ns = host.querySelector('#newSeasonBtn'); if (ns) ns.addEventListener('click', () => { { const ex = FM.expiringContracts ? FM.expiringContracts(lg) : []; if (ex.length && !window.confirm('These players are in the last season of their contracts and will leave on free transfers if you carry on:' + String.fromCharCode(10, 10) + ex.map((q) => q.name + ' (' + FM.ageOf(q) + ')').join(', ') + String.fromCharCode(10, 10) + 'You can extend them in Recruitment, under Contracts. Carry on to the new season anyway?')) return; } ns.disabled = true; ns.textContent = 'Preparing the new season...'; if (FM.startNextSeason(lg)) { world.homeTableLevel = lg.divisionLevel; FM.saveLeague(lg); renderTop(); renderHome(); } });
   }
 
   // How many matches an injured player will still miss, counting from the next Saturday.
