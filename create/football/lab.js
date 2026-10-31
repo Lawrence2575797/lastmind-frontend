@@ -188,7 +188,8 @@
     if (oppTactics) o.tactics = Object.assign({}, o.tactics, oppTactics);
     Object.keys((plan && plan.tactics) || {}).forEach((k) => { if (o.tactics[k] != null) o.tactics[k] = clamp(o.tactics[k] + plan.tactics[k], 0, 1); });
     const match = FM.createMatch(u, o, 4242); match.userId = u.id; FM.startBuildUpTrial(match, u, start);
-    const out = {}; match.teams.find((t) => t.id === o.id).players.forEach((p) => { if (p.slotKey) out[p.slotKey] = { x: p.x, y: p.y }; });
+    const out = {}, mo = match.teams.find((t) => t.id === o.id); mo.players.forEach((p) => { if (p.slotKey) out[p.slotKey] = { x: p.x, y: p.y }; });
+    out.__dir = mo.attackDir;   // the way they attack in this match, which is the way the metres are to be read
     return out;
   };
 
