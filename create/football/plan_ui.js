@@ -131,7 +131,7 @@
     const od = UI.showOpp && hooks.opp ? hooks.opp(eng) : null;
     // Nobody is drawn offside. Where they have the ball (we are defending), their attackers stand no nearer our goal than our second-last defender (on the line, never beyond it);
     // where we have it, our attackers stand no nearer their goal than their second-last defender. Positions placed by hand are left as they were put.
-    const theyAttack = ['without', 'withoutEnd', 'press', 'transDef', 'transDefEnd'].indexOf(eng) >= 0, weAttack = ['build', 'buildEnd', 'midfield', 'final', 'transAtt', 'transAttEnd'].indexOf(eng) >= 0;
+    const theyAttack = ['without', 'withoutEnd', 'transDef', 'transDefEnd'].indexOf(eng) >= 0, weAttack = ['build', 'buildEnd', 'midfield', 'final', 'transAtt', 'transAttEnd'].indexOf(eng) >= 0;
     let ourLine = null, theirLine = null;
     if (od) {
       const ours = team.players.map((p) => FM.phasePos(team, p, eng).d).sort((a, b) => a - b); ourLine = ours.length > 1 ? ours[1] : null;           // second-last of ours (our goalkeeper is the last)

@@ -2283,6 +2283,14 @@
         if (n >= 10) return out;
       } catch (e) { /* fall through to the drawn blocks */ }
     }
+    // For our press they are building from their own goal kick, set up as the press test starts them.
+    if (base === 'press' && !FM.NO_SIMOPP && FM.lab && FM.lab.oppBuilding) {
+      try {
+        const lg = world.league, user = userTeam(), opp = sc.opp, at = FM.lab.oppBuilding(lg, user, opp), out = {}; let n = 0;
+        Object.keys(cells).forEach((k) => { const w = at[k]; if (!w) { out[k] = cells[k]; return; } const q = FM.toTeamSpace(at.__dir != null ? at.__dir : opp.attackDir, w.x, w.y); out[k] = Object.assign({}, cells[k], { d: Math.max(0.02, Math.min(0.97, q.d)), w: Math.max(0.03, Math.min(0.97, q.w)) }); n++; });
+        if (n >= 10) return out;
+      } catch (e) { /* fall through to the scouted shape */ }
+    }
     if (cond === 'opp_press') cond = 'opp_high'; else if (cond === 'opp_sit') cond = 'opp_low';
     // with no condition chosen on the page, they stand as their own tactics put them (a side that presses high is drawn pressing high up the pitch)
     if (cond === 'always') { const tc = oppTacticCond(sc.opp, base); if (tc) cond = tc; else if (kick) cond = 'opp_mid'; }

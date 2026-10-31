@@ -192,6 +192,18 @@
     return out;
   };
 
+  // Where the opposition stand when it is they who build from a goal kick and we press them: the start of a press test. Slot key -> metres on the pitch.
+  LAB.oppBuilding = function (league, userTeam, oppTeam) {
+    let oppTactics = null; try { if (oppTeam.id !== league.userId) oppTactics = FM.aiTacticsFor(league, oppTeam, userTeam); } catch (e) { oppTactics = null; }
+    const u = clone(userTeam), o = clone(oppTeam);
+    if (!(league && oppTeam.id === league.userId)) o.phasePos = null;
+    if (oppTactics) o.tactics = Object.assign({}, o.tactics, oppTactics);
+    const match = FM.createMatch(u, o, 4242); match.userId = u.id; FM.startBuildUpTrial(match, o, 'goalkick');
+    const out = {}, mo = match.teams.find((t) => t.id === o.id); mo.players.forEach((p) => { if (p.slotKey) out[p.slotKey] = { x: p.x, y: p.y }; });
+    out.__dir = mo.attackDir;   // the way they attack in this match, which is the way the metres are to be read
+    return out;
+  };
+
   // Many trials. onProgress(done, n) lets the page show how far it has got; the work is done in small batches so the page stays alive.
   LAB.run = function (league, opts, onProgress) {
     const n = opts.n || 100, userTeam = opts.user, oppTeam = opts.opp, base = opts.seed || (Date.now() & 0xffffff);
