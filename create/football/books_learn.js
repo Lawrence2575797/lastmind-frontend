@@ -127,8 +127,8 @@
     isTab(k) { return typeof k === 'string' && k.indexOf('bk:') === 0; },
     html(lg, key) { return key === 'bk:shares' ? sharesPage(lg) : (FM.booksCases ? FM.booksCases.html(lg, lvl(lg)) : ''); },
     bind(host, lg, redo, save, go) {
-      if (FM.booksLive) FM.booksLive.bind(host, lg, redo, save, go);
-      if (FM.booksCases) FM.booksCases.bind(host, lg, redo, save);
+      if (FM.booksCases) { try { FM.booksCases.bind(host, lg, redo, save); } catch (e) { console.error('Board papers:', e); } }
+      if (FM.booksLive) { try { FM.booksLive.bind(host, lg, redo, save, go); } catch (e) { console.error('The Books:', e); } }
       host.querySelectorAll('.bk-org').forEach((o) => { o.scrollLeft = Math.max(0, (o.scrollWidth - o.clientWidth) / 2); });
       host.querySelectorAll('.bk-term').forEach((b) => b.addEventListener('click', () => { if (FM.rafaelOpen) FM.rafaelOpen(null, { prefill: b.dataset.q }); }));
       host.querySelectorAll('[data-bktopic]').forEach((b) => b.addEventListener('click', () => { const th = (FM.BOOKS[lvl(lg)] || []).find((x) => x.topics.some((tp) => tp.id === b.dataset.bktopic) && S.topic.hasOwnProperty(x.key) || x.topics.some((tp) => tp.id === b.dataset.bktopic)); const cur = host.querySelector('.bk-article .eyebrow'); const key = ((FM.BOOKS[lvl(lg)] || []).find((x) => cur && cur.textContent.indexOf(x.title) >= 0) || th).key; S.topic[key] = b.dataset.bktopic; redo(); }));

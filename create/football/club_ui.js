@@ -452,7 +452,7 @@
     host.innerHTML = `<div class="board-page">${strip}<div class="board-nav"><div class="row board-tabs" role="tablist">${tabs.map(([k, l]) => `<button type="button" role="tab" data-tab="${k}" class="${st.tab === k ? 'on' : ''}">${l}</button>`).join('')}</div></div>${st.ok ? `<p class="banner ok" role="status"><b>${esc(st.ok.title)}</b> ${esc(st.ok.text)}</p>` : ''}${body}</div>`;
     const redo = () => FM.renderBoard(host, lg, hooks);
     if (st.anchor) { const target = host.querySelector('#sec-' + st.anchor); st.anchor = null; if (target && target.scrollIntoView) target.scrollIntoView(); }
-    host.querySelectorAll('[data-tab]').forEach((b) => b.addEventListener('click', () => { st.tab = BL && BL.isTab(b.dataset.tab) ? b.dataset.tab : (TAB_OF[b.dataset.tab] || 'home'); st.trail = []; st.msg = ''; st.ok = null; redo(); }));
+    host.querySelectorAll('[data-tab]').forEach((b) => b.addEventListener('click', () => { if (FM.booksCases && b.dataset.tab === 'bk:papers') FM.booksCases.reset(); st.tab = BL && BL.isTab(b.dataset.tab) ? b.dataset.tab : (TAB_OF[b.dataset.tab] || 'home'); st.trail = []; st.msg = ''; st.ok = null; redo(); }));
     host.querySelectorAll('[data-btab]').forEach((b) => b.addEventListener('click', () => { st.tab = TAB_OF[b.dataset.btab] || 'home'; st.trail = []; st.msg = ''; st.ok = null; redo(); }));
     // shortcuts from the money report: they remember where they came from, so there is always a way back
     host.querySelectorAll('[data-short]').forEach((b) => b.addEventListener('click', () => {
@@ -460,13 +460,13 @@
       if (t === 'recruit') { go('recruit'); return; }
       st.trail.push({ tab: st.tab, books: st.books }); st.tab = TAB_OF[t] || 'home'; st.anchor = ANCHORS[t] ? t : null; if (sub) st.books = sub; st.msg = ''; st.ok = null; redo(); if (!st.anchor) window.scrollTo(0, 0);
     }));
+    if (BL) { try { BL.bind(host, lg, redo, save, go); } catch (e) { console.error('The Books:', e); } }
     const bk = host.querySelector('#bzBack');
     if (bk) bk.addEventListener('click', () => { const prev = st.trail.pop(); if (prev) { st.tab = prev.tab; st.books = prev.books; } redo(); window.scrollTo(0, 0); });
     if (FM.bizBindOffers) FM.bizBindOffers(host, lg, () => { save(); redo(); });
     FM.bizBindControls(host, lg, () => { save(); redo(); });
     host.querySelectorAll('[data-books]').forEach((b) => b.addEventListener('click', () => { st.books = b.dataset.books; redo(); }));
     host.querySelectorAll('[data-goto]').forEach((b) => b.addEventListener('click', () => go(b.dataset.goto)));
-    if (BL) BL.bind(host, lg, redo, save, go);
     if (FM.mountRafael && !document.getElementById('lmRafael')) FM.mountRafael(() => (FM.agentContext ? FM.agentContext(lg, 'the books') : ''));
     if (FM.rafaelHide) FM.rafaelHide(false);
     if (!b0.rafaelSeen && !document.getElementById('rafaelWelcome')) {

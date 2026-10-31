@@ -354,9 +354,14 @@
 
   FM.booksCases = {
     CASES, M, stateOf,
-    html(lg, level) { LEVEL = level; return UI.open ? caseHtml(lg, CASES.find((x) => x.id === UI.open)) : listHtml(lg); },
+    html(lg, level) {
+      LEVEL = level;
+      try { return UI.open ? caseHtml(lg, CASES.find((x) => x.id === UI.open)) : listHtml(lg); }
+      catch (e) { console.error('Board papers:', e); const was = UI.open; UI.open = null; return `<div class="card bk-card"><h3>This paper could not be opened</h3><p class="bk-lead">${esc((e && e.message) || 'Unknown error')}${was ? ' (paper: ' + esc(was) + ')' : ''}</p><div class="bk-ctl"><button type="button" data-case-list>Back to the list</button></div></div>`; }
+    },
+    reset() { UI.open = null; UI.msg = null; },
     bind(host, lg, redo, save) {
-      host.querySelectorAll('[data-case]').forEach((b) => b.addEventListener('click', () => { UI.open = b.dataset.case; UI.msg = null; redo(); }));
+      host.querySelectorAll('[data-case]').forEach((b) => b.addEventListener('click', () => { UI.open = b.dataset.case; UI.msg = null; redo(); try { window.scrollTo(0, 0); } catch (e) { /* fine */ } }));
       host.querySelectorAll('[data-case-list]').forEach((b) => b.addEventListener('click', () => { UI.open = null; UI.msg = null; redo(); }));
       const c = UI.open && CASES.find((x) => x.id === UI.open); if (!c) return;
       const st = stateOf(lg, c.id), sg = c.stages[Math.min(st.s, c.stages.length - 1)];
