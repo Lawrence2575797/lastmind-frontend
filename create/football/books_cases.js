@@ -15,6 +15,7 @@
 
   // ---------- the club's numbers ----------
   function M(lg) {
+    if (!BL() || !BL().facts) throw new Error('part of The Books has not loaded: refresh the page (Ctrl+Shift+R)');
     const f = BL().facts(lg), b = f.b, K = f.K, seed = Math.abs((lg.seed || 1) + (lg.runSeed || 0) * 0), home = K.ROUNDS / 2;
     const g0 = 0.055 + (Math.floor(seed / 8) % 5) * 0.004, last = Math.round((36 + (seed % 7) * 0.4) * 10) * 1e5, now = Math.round(last * (1 + g0) / 1e5) * 1e5;
     let turned = f.turned;
