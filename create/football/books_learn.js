@@ -14,7 +14,7 @@
     return Array.from(names).sort((a, b) => b.length - a.length);
   }
   const question = (name, level) => `Can you explain "${name}" for ${LEVEL_NAME[level]} Business, using Ashford Rovers plc as the example? Please send me a question to try afterwards.`;
-  const termBtn = (name, level, label) => `<button type="button" class="bk-term" data-q="${esc(question(name, level))}">${esc(label || name)}</button>`;
+  const termBtn = (name, level, label) => esc(label || name);   // keywords are plain words now: Rafael is there to ask
   function linkify(text, own, level, terms) {
     let out = esc(text); const used = new Set([String(own).toLowerCase()]), stash = [];
     terms.forEach((t) => {

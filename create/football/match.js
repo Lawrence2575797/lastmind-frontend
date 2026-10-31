@@ -1429,7 +1429,7 @@
     match.lastClearance[team.id] = match.clock;
     // Under pressure a defender often just gets it away: kicked up the line into touch rather than to a team-mate (this is where most throw-ins come from).
     if (match.rng() < (FM.CLEAR_TOUCH == null ? 0.85 : FM.CLEAR_TOUCH)) { const ty = carrier.y < W / 2 ? 1.2 : W - 1.2, tx = clamp(carrier.x + team.attackDir * 20, 3, L - 3); pass.tx = tx; pass.ty = ty; pass.d = Math.hypot(tx - carrier.x, ty - carrier.y); pass.p = 0.7; }
-    if (Math.abs(carrier.x - (team.attackDir === 1 ? 0 : L)) < 14 && match.rng() < (FM.CLEAR_CORNER == null ? 0.35 : FM.CLEAR_CORNER)) { pass.tx = team.attackDir === 1 ? -2 : L + 2; pass.ty = clamp(carrier.y + (carrier.y < W / 2 ? -6 : 6), 2, W - 2); pass.d = Math.hypot(pass.tx - carrier.x, pass.ty - carrier.y); pass.target = { x: pass.tx, y: pass.ty, vx: 0, vy: 0, number: 0, group: 'CB', id: 'out' }; }   // scrambled behind for a corner
+    if (Math.abs(carrier.x - (team.attackDir === 1 ? 0 : L)) < 14 && match.rng() < (FM.CLEAR_CORNER == null ? 0.2 : FM.CLEAR_CORNER)) { pass.tx = team.attackDir === 1 ? -2 : L + 2; pass.ty = clamp(carrier.y + (carrier.y < W / 2 ? -6 : 6), 2, W - 2); pass.d = Math.hypot(pass.tx - carrier.x, pass.ty - carrier.y); pass.target = { x: pass.tx, y: pass.ty, vx: 0, vy: 0, number: 0, group: 'CB', id: 'out' }; }   // scrambled behind for a corner
     doPass(match, team, carrier, pass);
   }
 
@@ -2684,11 +2684,11 @@
       else beginCelebration(match, team, f.shooter, opp, goalSpec);
     } else if (f.outcome === 'saved') {
       after(() => {
-        if (match.rng() < (FM.SHOT_CORNER == null ? 0.62 : FM.SHOT_CORNER)) startRestart(match, 'corner', team, team.attackDir === 1 ? L - 0.5 : 0.5, f.ey < W / 2 ? 0.5 : W - 0.5);
+        if (match.rng() < (FM.SHOT_CORNER == null ? 0.34 : FM.SHOT_CORNER)) startRestart(match, 'corner', team, team.attackDir === 1 ? L - 0.5 : 0.5, f.ey < W / 2 ? 0.5 : W - 0.5);
         else giveBall(match, opp, f.gk, 1.6);
       });
     } else if (f.outcome === 'blocked') {
-      if (match.rng() < (FM.SHOT_CORNER == null ? 0.62 : FM.SHOT_CORNER)) startRestart(match, 'corner', team, team.attackDir === 1 ? L - 0.5 : 0.5, f.ey < W / 2 ? 0.5 : W - 0.5);
+      if (match.rng() < (FM.SHOT_CORNER == null ? 0.34 : FM.SHOT_CORNER)) startRestart(match, 'corner', team, team.attackDir === 1 ? L - 0.5 : 0.5, f.ey < W / 2 ? 0.5 : W - 0.5);
       else { match.ball.state = 'loose'; match.lastTeam = opp; }
     } else {
       // Off target: goal kick.
