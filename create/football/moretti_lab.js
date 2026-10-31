@@ -70,6 +70,21 @@
       const S = { ours, theirs, passer: ours.indexOf(best.c), target: ours.indexOf(best.o), draggable: true, pickTarget: true, view: [0, 62], zone: 'build' };
       return S;
     },
+    relevant(S) {
+      const A = S.ours[S.passer], B = S.ours[S.target], near = S.theirs.filter((t) => t.p.group !== 'GK').sort((a, b) => segInfo(A, B, a).d - segInfo(A, B, b).d).slice(0, 4);
+      return [{ label: 'Passer', o: A }, { label: 'Receiver', o: B }].concat(near.map((o) => ({ label: 'Defender', o })));
+    },
+    explain(S, level) {
+      const A = S.ours[S.passer], B = S.ours[S.target], D = dist(A, B), w = this.nearest(S);
+      return [
+        'Playing out from the back comes down to choosing a pass that is really on.',
+        'A pass is a straight line between two players. The ball takes about ' + f2(D / V_BALL) + ' seconds to travel it, at roughly ' + V_BALL + ' m/s.',
+        'A defender cannot be everywhere. He needs about ' + REACT + ' of a second to react, and then he runs at about ' + V_RUN + ' m/s. If he can get onto the line before the ball passes him, the pass is cut out.',
+        'In the moment shown, ' + nm(A) + ' has the ball and the tempting pass is to ' + nm(B) + ', ' + f1(D) + ' m away. The defender closest to that line is ' + nm(w.c) + ', ' + f1(w.d) + ' m from it.',
+        'A good ball-player checks the lines before he plays. If the forward pass is not on, he plays the one that is, and the team moves the ball up in stages.',
+        level === 'gcse' ? 'To test a pass you need its length, how long the ball takes, how far the nearest defender is from the line, and how far he can run in that time.' : 'To test a pass, write it as a vector from A to B, find the point on the line closest to the defender, and compare his reach with that distance. Differentiating the squared distance finds the closest point.',
+      ];
+    },
     nearest(S) { const A = S.ours[S.passer], B = S.ours[S.target]; let w = null; S.theirs.forEach((c) => { if (c.p.group === 'GK') return; const s = segInfo(A, B, c); if (!w || s.d < w.d) w = { c, d: s.d, t: s.t, p: s.p }; }); return w; },
     steps(S, level) {
       const me = this, A = () => S.ours[S.passer], B = () => S.ours[S.target], Dd = () => dist(A(), B()), w = () => me.nearest(S);
@@ -188,6 +203,17 @@
       const sup = ours.filter((o) => o !== st && o.p.group !== 'GK' && o.p.group !== 'CB').sort((a, b) => dist(a, st) - dist(b, st))[0];
       return { ours, theirs, striker: ours.indexOf(st), def: theirs.indexOf(def), sup: ours.indexOf(sup), draggable: true, view: [38, 105], zone: 'final' };
     },
+    relevant(S) { return [{ label: 'Striker', o: S.ours[S.striker] }, { label: 'Nearest support', o: S.ours[S.sup] }, { label: 'Defender', o: S.theirs[S.def] }]; },
+    explain(S, level) {
+      const st = S.ours[S.striker], df = S.theirs[S.def], sp = S.ours[S.sup], dS = dist(st, sp), dD = dist(st, df);
+      return [
+        'A striker who receives the ball with his back to goal can only hold it until the defender arrives. After that he loses it, or he has to lay it off.',
+        'So hold-up play is a race. The defender needs about ' + REACT + ' of a second to react and then runs at about ' + V_RUN + ' m/s. Our nearest team-mate, already moving, runs at the same speed.',
+        'In the moment shown, ' + nm(st) + ' is the target. ' + nm(df) + ' is ' + f1(dD) + ' m behind him, and the nearest help is ' + nm(sp) + ', ' + f1(dS) + ' m away.',
+        'If our help arrives before the defender does, the striker can lay it off and the move keeps going. If not, we lose the ball high up the pitch.',
+        level === 'gcse' ? 'You will use distance and speed to find both times, then look at the angle of the lay-off with a right-angled triangle.' : 'You will find both times, then use the scalar product to find the angle between the lay-off and the defender: a lay-off that goes away from the defender is safer.',
+      ];
+    },
     steps(S, level) {
       const st = () => S.ours[S.striker], df = () => S.theirs[S.def], sp = () => S.ours[S.sup];
       const dS = () => dist(st(), sp()), dD = () => dist(st(), df()), tS = () => dS() / V_RUN, tD = () => REACT + dD() / V_RUN;
@@ -223,6 +249,17 @@
       const rec = back[1] || back[0];
       return { ours, theirs, runner: theirs.indexOf(runner), rec: ours.indexOf(rec), draggable: true, view: [0, 105], zone: 'rest' };
     },
+    relevant(S) { const back = S.ours.filter((o) => o.p.group !== 'GK').sort((a, b) => a.x - b.x).slice(0, 3); return [{ label: 'First to break', o: S.theirs[S.runner] }, { label: 'Recovering', o: S.ours[S.rec] }].concat(back.filter((o) => o !== S.ours[S.rec]).map((o) => ({ label: 'Back player', o }))).concat([{ label: 'Edge of our box', o: { p: { number: '', name: '' }, x: BOX, y: W / 2 } }]); },
+    explain(S, level) {
+      const R = S.theirs[S.runner], D = S.ours[S.rec], E = { x: BOX, y: W / 2 }, behind = S.ours.filter((o) => o.p.group !== 'GK' && o.x < R.x).length;
+      return [
+        'Rest defence is the group of players we keep back, behind the ball, while the rest of the team attacks, so that losing it does not turn into a goal against us.',
+        'It is a race. When we lose the ball, the first of their players to break runs towards our goal with it at about ' + V_COUNTER + ' m/s. Our nearest recovering player runs at about ' + V_RUN + ' m/s. Whoever reaches the edge of our box first decides whether it is a chance or a tackle.',
+        'In the moment shown, ' + nm(R) + ' is the first to break, ' + f1(dist(R, E)) + ' m from the edge of our box. ' + nm(D) + ' is our deepest player to recover, ' + f1(dist(D, E)) + ' m from the same spot, and ' + behind + ' of our outfield players are between ' + nm(R) + ' and our goal.',
+        'So what matters is how many of us are back, how far each is from the danger, and who gets there first.',
+        level === 'gcse' ? 'You will turn each distance into a time, compare them, and use the fact that two players running at each other close the gap at their combined speed.' : 'You will turn each distance into a time, compare them, and write the meeting of the two runners as a pair of linear equations.',
+      ];
+    },
     steps(S, level) {
       const R = () => S.theirs[S.runner], D = () => S.ours[S.rec], E = () => ({ x: BOX, y: W / 2 });
       const tR = () => dist(R(), E()) / V_COUNTER, tD = () => dist(D(), E()) / V_RUN, gap = () => dist(R(), D()), meet = () => gap() / (V_COUNTER + V_RUN);
@@ -256,6 +293,17 @@
       const pressers = ours.filter((o) => o.p.group !== 'GK' && o.p.group !== 'CB').sort((a, b) => dist(a, carrier) - dist(b, carrier)).slice(0, 3);
       const delays = [0, 0.5, 1.0];
       return { ours, theirs, carrier: theirs.indexOf(carrier), pressers: pressers.map((p) => ours.indexOf(p)), delays, draggable: true, view: [38, 105], zone: 'press' };
+    },
+    relevant(S) { return [{ label: 'Ball carrier', o: S.theirs[S.carrier] }].concat(S.pressers.map((i, k) => ({ label: 'Presser ' + (k + 1) + ' (sets off ' + S.delays[k] + ' s late)', o: S.ours[i] }))); },
+    explain(S, level) {
+      const C = S.theirs[S.carrier], P = S.pressers.map((i) => S.ours[i]);
+      return [
+        'A press only works if the players arrive together. If the first presser arrives alone, the carrier simply passes round him, and the others are left chasing.',
+        'Each presser takes ' + REACT + ' of a second less than you think to start and then runs at about ' + V_RUN + ' m/s. But they do not all set off at the same moment: each reads the trigger a little differently.',
+        'In the moment shown, ' + nm(C) + ' has the ball. ' + P.map((o, k) => nm(o) + ' is ' + f1(dist(o, C)) + ' m away and sets off ' + S.delays[k] + ' s after the first').join('; ') + '.',
+        'The question is how long there is between the first presser arriving and the last. If it is more than about 0.7 of a second, he has time to play out of it.',
+        level === 'gcse' ? 'You will work out each arrival time from distance, speed and the delay, then compare them.' : 'You will write each presser\'s path as a parametric equation, r(t) = P + 7(t − τ)û, and find the time each reaches the carrier.',
+      ];
     },
     steps(S, level) {
       const C = () => S.theirs[S.carrier], P = (i) => S.ours[S.pressers[i]], arr = (i) => S.delays[i] + dist(P(i), C()) / V_RUN, all = () => [0, 1, 2].map(arr), spread = () => Math.max.apply(null, all()) - Math.min.apply(null, all());
@@ -332,7 +380,7 @@
 
   // ---------- one drill on the page ----------
   function mountDrill(host, lg, S, lesson, level, onDone) {
-    const tag = 'd' + Math.floor(Math.random() * 1e6), steps = lesson.steps(S, level), state = { i: 0, tries: 0, ran: false, ok: false };
+    const tag = 'd' + Math.floor(Math.random() * 1e6), steps = lesson.steps(S, level).filter((s) => s.drag), state = { i: 0, tries: 0, ran: false, ok: false };
     const mkStep = (st, i) => `<div class="al-step" data-step="${i}" ${i > state.i ? 'hidden' : ''}><div class="al-q">${lines(st.ask())}</div>${st.drag ? `<div class="al-row"><button type="button" class="primary" data-try>Try the pass</button><button type="button" data-reset>Put them back</button></div>` : st.choice ? `<div class="al-row">${st.choice.map((c) => `<button type="button" data-choice="${esc(c)}">${esc(c)}</button>`).join('')}</div>` : `<div class="al-row"><input type="number" step="any" inputmode="decimal" data-val aria-label="Your answer"><span class="al-unit">${esc(st.unit || '')}</span><button type="button" class="primary" data-check>Check</button></div>`}<div class="al-fb" aria-live="polite"></div></div>`;
     host.innerHTML = S.chart ? `<div class="al-board">${S.chart(tag)}</div><div class="al-steps">${steps.map(mkStep).join('')}</div>` : `<div class="al-board">${boardSvg(S, tag)}<div class="al-read" id="${tag}-read">Click or drag a player to see where he stands.</div><div class="al-play"><span id="${tag}-out" class="al-out"></span><input type="range" min="0" max="100" value="0" id="${tag}-scrub" aria-label="Scrub the simulation" hidden></div></div><div class="al-steps">${steps.map(mkStep).join('')}</div>`;
     const svg = host.querySelector('svg'), q = (id) => host.querySelector('#' + tag + '-' + id), original = JSON.parse(JSON.stringify((S.ours || []).map((o) => ({ x: o.x, y: o.y }))));
@@ -379,15 +427,54 @@
 
   // the picture of the last match, worked through by Francesco
   function worked(host, S, lesson, level) {
-    const tag = 'w' + Math.floor(Math.random() * 1e6), steps = lesson.steps(S, level).filter((s) => s.worked);
-    const SS = Object.assign({}, S, { draggable: false });
-    host.innerHTML = `<div class="al-board">${S.chart ? S.chart(tag) : boardSvg(SS, tag)}</div><div class="al-story">${steps.map((s) => `<div class="al-line">${s.worked()}</div>`).join('')}</div>`;
+    const tag = 'w' + Math.floor(Math.random() * 1e6), SS = Object.assign({}, S, { draggable: false });
+    host.innerHTML = `<div class="al-board">${S.chart ? S.chart(tag) : boardSvg(SS, tag)}</div>`;
     if (S.chart) return;
     const svg = host.querySelector('svg'), g = svg.querySelector('.al-lines'), A = S.ours[S.passer], B = S.ours[S.target];
     if (S.pickTarget && B) { g.innerHTML = `<line x1="${A.x}" y1="${A.y}" x2="${B.x}" y2="${B.y}" stroke="#ff8a7a" stroke-width="0.35"/>`; const ball = svg.querySelector('#' + tag + '-ball'); ball.setAttribute('cx', A.x); ball.setAttribute('cy', A.y); }
   }
-  FM.anLab.mountDrill = mountDrill; FM.anLab.worked = worked;
+  // ---------- the example, what to work out, and the Workbook page ----------
+  const row = (a, b) => `<tr><td>${a}</td><td>${b}</td></tr>`;
+  const pos = (o) => '(' + f1(o.x) + ', ' + f1(o.y) + ')';
+  function givenRows(lesson, S) {
+    const rows = [];
+    if (lesson.given) return lesson.given(S);
+    if (!S.ours) return rows;
+    const list = lesson.relevant ? lesson.relevant(S) : [];
+    list.forEach((it) => rows.push([it.label + ' ' + nm(it.o), pos(it.o)]));
+    rows.push(['Ball speed', V_BALL + ' m/s'], ['Running speed', V_RUN + ' m/s'], ['Reaction time', REACT + ' s']);
+    return rows;
+  }
+  function tasksOf(lesson, S, level) {
+    return lesson.steps(S, level).filter((st) => !st.drag).map((st) => st.ask().join(' '));
+  }
+  function exampleHtml(lesson, S, level) {
+    const rows = givenRows(lesson, S), tasks = tasksOf(lesson, S, level);
+    return `<div class="al-given"><h4>The example</h4><div class="tablewrap"><table class="data"><tbody>${rows.map((r) => row(esc(r[0]), esc(r[1]))).join('')}</tbody></table></div></div>${tasks.length ? `<div class="al-tasks"><h4>What to work out</h4><ol>${tasks.map((t) => `<li>${esc(t)}</li>`).join('')}</ol></div>` : ''}`;
+  }
+  // a page for the manager's Workbook with the example on it, ready to work through
+  function workbookPage(lg, lesson, S, level, title, about) {
+    const uid = () => 'c' + Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36);
+    const rows = givenRows(lesson, S), tasks = tasksOf(lesson, S, level);
+    const head = `<p><b>${esc(title)}</b></p><p>${esc(about)}</p>`;
+    const given = `<p><b>The example</b></p><table><tbody>${rows.map((r) => `<tr><td>${esc(r[0])}</td><td>${esc(r[1])}</td></tr>`).join('')}</tbody></table>`;
+    const todo = tasks.length ? `<p><b>What to work out</b></p><ol>${tasks.map((t) => `<li>${esc(t)}</li>`).join('')}</ol>` : '';
+    lg.workbench = lg.workbench || { v: 2, pages: [], cur: 0, chat: [], settings: { detail: 'standard' }, ui: { data: true, agent: true, kb: true, kbTab: 'Maths' }, extra: [], vars: {} };
+    const wb = lg.workbench; wb.pages = Array.isArray(wb.pages) ? wb.pages : [];
+    wb.pages.push({ id: uid(), title: title.slice(0, 80), at: Date.now(), cells: [{ id: uid(), type: 'rich', html: head + given + todo }, { id: uid(), type: 'rich', html: '<p><b>Your working</b></p><p></p>' }] });
+    wb.cur = wb.pages.length - 1;
+    wb.ui = wb.ui || {}; wb.ui.kb = true;
+    return wb.pages.length - 1;
+  }
+  // The same example as plain text, for the Notes in the Workbook: the title, the given figures and what to work out, ready for the student's own working.
+  function exampleText(lesson, S, level, title, about) {
+    const NL = String.fromCharCode(10), rows = givenRows(lesson, S), tasks = tasksOf(lesson, S, level);
+    return [title, about, '', 'The example'].concat(rows.map((r) => r[0] + ': ' + r[1])).concat(tasks.length ? ['', 'What to work out'].concat(tasks.map((t, i) => (i + 1) + '. ' + t)) : []).concat(['', 'My working', '']).join(NL);
+  }
+  FM.anLab.mountDrill = mountDrill; FM.anLab.worked = worked; FM.anLab.exampleHtml = exampleHtml; FM.anLab.workbookPage = workbookPage; FM.anLab.exampleText = exampleText;
   FM.anLab.css = `
+    .al-given h4, .al-tasks h4 { margin: 14px 0 6px; font: 700 .82rem var(--sans); letter-spacing: .04em; } .al-tasks ol { margin: 0; padding-left: 1.2rem; display: grid; gap: 6px; line-height: 1.55; font-size: .92rem; }
+    .al-explain p { margin: 0 0 8px; line-height: 1.65; }
     .al-board { display: grid; gap: 6px; } .al-pitch { width: 100%; height: auto; display: block; touch-action: none; user-select: none; }
     .al-read { font-size: .8rem; opacity: .8; min-height: 1.2em; } .al-play { display: grid; gap: 6px; } .al-play input[type=range] { width: 100%; }
     .al-out { font-weight: 700; line-height: 1.5; } .al-out.good { color: #7fd49a; } .al-out.bad { color: #ff8a7a; }

@@ -153,7 +153,7 @@
     .an2-pre-demo { border-bottom: 1px dashed var(--gold); color: var(--gold); font-weight: 700; } .an2-ask { font-size: .82rem; opacity: .8; }
     .an2-apply { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; } .an2-wb { position: fixed; left: 0; top: 0; bottom: 0; width: min(1000px, 96vw); z-index: 80; background: #1f2322; border-right: 1px solid var(--line); display: grid; grid-template-rows: auto 1fr; box-shadow: 20px 0 60px rgba(0,0,0,.4); }
     .an2-wb-head { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; border-bottom: 1px solid var(--line); } .an2-wb-host { overflow: auto; }
-    .an2-good { color: #7fd49a; font-weight: 700; } .an2-bar-r { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; } #anPick { background: #2f3533; color: var(--cream); border: 1px solid var(--line); padding: 8px 10px; font: inherit; max-width: 340px; }
+    .al-hint { font-size: .8rem; opacity: .75; margin: 6px 0 0; line-height: 1.5; } .an2-good { color: #7fd49a; font-weight: 700; } .an2-bar-r { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; } #anPick { background: #2f3533; color: var(--cream); border: 1px solid var(--line); padding: 8px 10px; font: inherit; max-width: 340px; }
   `;
   let PICK = null;
   FM.renderAnalysis = function (host, league) {
@@ -173,18 +173,40 @@
     const nxNote = nx ? para(esc(nextNote(league, nx, prev))) : para('There is no match to prepare for at the moment.');
     const X = (AL && AL.SKILLS_EXTRA) || { gcse: [], alevel: [] }, skills = AL ? (AL.SKILLS.gcse.concat(X.gcse).map((k) => ['GCSE', k]).concat(level === 'alevel' ? AL.SKILLS.alevel.concat(X.alevel).map((k) => ['A-level', k]) : [])) : [];
     const done = league.anaMaths || {};
+    const explainHtml = (S) => (lesson && lesson.explain ? `<div class="al-explain">${lesson.explain(S, level).map((t) => `<p>${esc(t)}</p>`).join('')}</div>` : '');
+    let Sp = null, Sn = null;
+    try { if (prev && lesson && prevOpp) Sp = lesson.scenario(me, prevOpp, league, prev); if (nx && lesson && nxOpp) Sn = lesson.scenario(me, nxOpp, league, null); } catch (e) { Sp = null; Sn = null; }
+    const wbBtn = (which) => `<div class="al-row"><button type="button" class="primary" data-wb="${which}">Work it out in the Workbook</button></div><p class="al-hint">It opens a page with this example on it, and the maths keyboard, ready for you to work through. Francesco is in there too if you want to ask him something.</p>`;
     host.innerHTML = `<div class="an2">
       <div class="an2-bar"><h2>${lesson ? esc(lesson.title) : 'Analysis'}</h2><span class="an2-bar-r">${AL && prev ? `<select id="anPick" aria-label="Choose a lesson"><option value="">Francesco's pick${picked ? ': ' + esc(AL.LESSONS[picked.id].title) : ''}</option>${Object.keys(AL.LESSONS).map((k) => `<option value="${k}"${PICK === k ? ' selected' : ''}>${esc(AL.LESSONS[k].title)}</option>`).join('')}</select>` : ''}<button type="button" id="anWbOpen">Workbook</button></span></div>
       <div class="an2-cols">
-        <section class="an2-col" id="anPrev"><h3>${prevHead}</h3>${note(prevNote)}<div class="card" id="anWorked" style="padding:14px">${prev ? '' : '<p>Once we have played, the picture of that match will be here.</p>'}</div></section>
-        <section class="an2-col" id="anNext"><h3>${nxHead}</h3>${note(nxNote)}<div class="card" id="anDrill" style="padding:14px">${nx && lesson ? '' : '<p>Play a match first, and I will set you a drill on what went wrong.</p>'}</div></section>
+        <section class="an2-col" id="anPrev"><h3>${prevHead}</h3>${note(prevNote)}${Sp ? `<div class="card" style="padding:14px"><div id="anWorked"></div>${explainHtml(Sp)}${AL.exampleHtml(lesson, Sp, level)}${wbBtn('prev')}</div>` : '<div class="card" style="padding:14px"><p>Once we have played, the moment from that match will be here.</p></div>'}</section>
+        <section class="an2-col" id="anNext"><h3>${nxHead}</h3>${note(nxNote)}${Sn ? `<div class="card" style="padding:14px"><p>${esc(lesson.drill ? lesson.drill : 'Here is the same kind of moment against ' + nxOpp.name + '. Try it on the pitch: drag your players, or click another team-mate to pass to, then press the button to see what happens.')}</p><div id="anDrill"></div>${Sn.chart ? AL.exampleHtml(lesson, Sn, level) : ''}${wbBtn('next')}</div>` : '<div class="card" style="padding:14px"><p>Play a match first, and I will set you something on what went wrong.</p></div>'}</section>
       </div>
       ${skills.length ? `<div class="an2-col" style="border:1px solid var(--line)"><h3>Maths you have used so far</h3><div class="al-skills">${skills.map(([lv, k]) => `<span class="${done[k[0]] ? 'on' : ''}" title="${lv}">${esc(k[1])}${done[k[0]] ? ' ✓' : ''}</span>`).join('')}</div></div>` : ''}
-      <aside class="an2-wb" id="anWb" hidden><div class="an2-wb-head"><b>Workbook</b><button type="button" id="anWbClose">Close</button></div><div class="an2-wb-host" id="anWbHost"></div></aside></div>`;
+      <aside class="an2-wb" id="anWb" hidden><div class="an2-wb-head"><b>Workbook</b><span class="al-hint">The example is added to your Notes, and copied so you can paste it.</span><button type="button" id="anWbClose">Close</button></div><div class="an2-wb-host" id="anWbHost"></div></aside></div>`;
     try {
-      if (prev && lesson && prevOpp) { const Sp = lesson.scenario(me, prevOpp, league, prev); AL.worked(host.querySelector('#anWorked'), Sp, lesson, level); }
-      if (nx && lesson && nxOpp) { const Sn = lesson.scenario(me, nxOpp, league, null); AL.mountDrill(host.querySelector('#anDrill'), league, Sn, lesson, level); }
-    } catch (e) { host.querySelector('#anDrill').innerHTML = '<p>I could not set the drill up from the current shape. Check the tactics page and come back.</p>'; }
+      if (Sp) AL.worked(host.querySelector('#anWorked'), Sp, lesson, level);
+      if (Sn && !Sn.chart) AL.mountDrill(host.querySelector('#anDrill'), league, Sn, lesson, level);
+      else if (Sn && Sn.chart) host.querySelector('#anDrill').innerHTML = `<div class="al-board">${Sn.chart('n')}</div>`;
+    } catch (e) { const d = host.querySelector('#anDrill'); if (d) d.innerHTML = '<p>I could not set the drill up from the current shape. Check the tactics page and come back.</p>'; }
+    // The Workbook opens on a new page with the example already on it
+    host.querySelectorAll('[data-wb]').forEach((b) => b.addEventListener('click', () => {
+      const S = b.dataset.wb === 'prev' ? Sp : Sn, opp = b.dataset.wb === 'prev' ? prevOpp : nxOpp; if (!S || !lesson) return;
+      const title = lesson.title + ': ' + (b.dataset.wb === 'prev' ? 'the match against ' : 'before ') + opp.name;
+      const text = AL.exampleText(lesson, S, level, title, b.dataset.wb === 'prev' ? 'The example below is from the last match. Work through it in your own words, using the maths keyboard.' : 'The same kind of moment before the next match. Work through it, then try it on the pitch.');
+      const wbEl = host.querySelector('#anWb'), wbH = host.querySelector('#anWbHost'); wbEl.hidden = false;
+      // a copy for the clipboard too, so it can be pasted into the Notes if the notebook is slow to open
+      try { if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text); } catch (e) { /* the notes get it anyway */ }
+      // the example goes into the Workbook's Notes: straight away if the Workbook is already open, otherwise as soon as the notebook says it is ready
+      const send = () => { const f = wbH.querySelector('#wbNotes'); if (f && f.contentWindow) f.contentWindow.postMessage({ lm: 'wb-notes', op: 'append', text }, location.origin); };
+      if (wbH.dataset.ready && wbH.querySelector('#wbNotes')) { send(); return; }
+      let sent = false; const once = () => { if (sent) return; sent = true; window.removeEventListener('message', onMsg); send(); };
+      const onMsg = (e) => { if (e.origin === location.origin && e.data && e.data.lm === 'wb-notes' && e.data.op === 'ready') once(); };
+      window.addEventListener('message', onMsg); setTimeout(once, 60000);
+      wbH.dataset.ready = '1';
+      if (FM.renderWorkbench) { try { FM.renderWorkbench(wbH, league, { save: () => FM.saveLeague(league) }); } catch (e3) { wbH.textContent = 'The Workbook could not open.'; } }
+    }));
     const pk = host.querySelector('#anPick'); if (pk) pk.addEventListener('change', () => { PICK = pk.value || null; FM.renderAnalysis(host, league); });
     host.querySelectorAll('.an2-pre').forEach((b) => b.addEventListener('click', () => { if (FM.agentOpen) FM.agentOpen(null, { prefill: b.dataset.q }); }));
     const wb = host.querySelector('#anWb'), wbHost = host.querySelector('#anWbHost');
