@@ -292,6 +292,20 @@
     });
   }
   FM.clearBoxOfOpponents = clearBoxOfOpponents;
+  // Where each player of the manager's team (and of the other side) has stood on average in each phase of play so far this match, in the manager's team space: this is what the live
+  // positions board shows. The phase is read from where the ball is, and who has it; the short spells after winning or losing it are left out.
+  FM.trackPhasePositions = function (match, poss, dt) {
+    const team = match.teams.find((t) => t.id === match.userId); if (!team || match.restart) return;
+    const opp = other(match, team), ctx = team.phaseCtx || {}, b = FM.toTeamSpace(team.attackDir, match.ball.x, match.ball.y);
+    let key = null;
+    if (poss === team) { if (!(ctx.transAtt > 0.05)) key = b.d < 0.33 ? 'build' : b.d < 0.67 ? 'midfield' : 'final'; }
+    else if (!(ctx.transDef > 0.05)) key = b.d > 0.67 ? 'press' : 'without';
+    if (!key) return;
+    const av = match.avgPos = match.avgPos || {}, k = av[key] = av[key] || { ours: {}, theirs: {}, t: 0 };
+    k.t += dt;
+    team.players.forEach((p) => { const q = FM.toTeamSpace(team.attackDir, p.x, p.y), r = k.ours[p.index] = k.ours[p.index] || { d: 0, w: 0 }; r.d += q.d * dt; r.w += q.w * dt; });
+    opp.players.forEach((p) => { const q = FM.toTeamSpace(team.attackDir, p.x, p.y), r = k.theirs[p.number] = k.theirs[p.number] || { d: 0, w: 0 }; r.d += q.d * dt; r.w += q.w * dt; });
+  };
   FM.startBuildUpTrial = function (match, team, kind) {
     const opp = other(match, team), dir = team.attackDir;
     match.phase = 'play'; match.kickoffTimer = 0; match.clock = 0; match.restart = null; match.flight = null; match.carry = null; match.events = [];
@@ -2364,6 +2378,7 @@
     }
     if (match.extraOv) match.extraOv.forEach((v, p) => { if (!ov.has(p)) ov.set(p, v); });   // the lab: opponents following a player who has moved
     match.teams.forEach((t) => FM.stepTeam(t, match.ball, t === poss, dt, ov));
+    if (match.interactive && FM.trackPhasePositions) FM.trackPhasePositions(match, poss, dt);
     // a goal kick that has not been played yet: the other side stay out of the box
     if (match.boxLock) {
       const bl = match.boxLock;

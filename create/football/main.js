@@ -2525,9 +2525,12 @@
     const toXY = (d, w) => ({ x: w * W, y: (1 - d) * L });
     const lines = `<rect x="0" y="0" width="${W}" height="${L}" fill="none" stroke="#fff" stroke-width=".35"/><line x1="0" y1="${L / 2}" x2="${W}" y2="${L / 2}" stroke="#fff" stroke-width=".35"/><circle cx="${W / 2}" cy="${L / 2}" r="9.15" fill="none" stroke="#fff" stroke-width=".35"/>`
       + [0, 1].map((top) => { const y0 = top ? 0 : L; const dir = top ? 1 : -1; return `<rect x="${(W - 40.3) / 2}" y="${top ? 0 : L - 16.5}" width="40.3" height="16.5" fill="none" stroke="#fff" stroke-width=".35"/><rect x="${(W - 18.3) / 2}" y="${top ? 0 : L - 5.5}" width="18.3" height="5.5" fill="none" stroke="#fff" stroke-width=".35"/><rect x="${(W - 7.3) / 2}" y="${y0 + (top ? -1.6 : 0)}" width="7.3" height="1.6" fill="none" stroke="#fff" stroke-width=".3"/>`; }).join('');
-    const theirs = opp ? opp.players.map((q) => { const t = FM.toTeamSpace(team.attackDir, q.x, q.y), c = toXY(t.d, t.w); return `<g pointer-events="none"><circle cx="${c.x.toFixed(2)}" cy="${c.y.toFixed(2)}" r="2.1" fill="#7fb3e0" stroke="#0e2a44" stroke-width=".35"/><text x="${c.x.toFixed(2)}" y="${(c.y + .85).toFixed(2)}" text-anchor="middle" font-size="2.4" font-weight="700" fill="#06182a">${q.number}</text></g>`; }).join('') : '';
+    // average positions in this phase so far this match (not where they stand this second); the plan's own place until the phase has been played for a while
+    const AV = world.match && world.match.avgPos && world.match.avgPos[key], haveAvg = !!(AV && AV.t >= 4);
+    const avgOf = (side, id) => { const r = AV && AV[side][id]; return r && AV.t > 0 ? { d: r.d / AV.t, w: r.w / AV.t } : null; };
+    const theirs = opp ? opp.players.map((q) => { const t = (haveAvg && avgOf('theirs', q.number)) || FM.toTeamSpace(team.attackDir, q.x, q.y), c = toXY(t.d, t.w); return `<g pointer-events="none"><circle cx="${c.x.toFixed(2)}" cy="${c.y.toFixed(2)}" r="2.1" fill="#7fb3e0" stroke="#0e2a44" stroke-width=".35"/><text x="${c.x.toFixed(2)}" y="${(c.y + .85).toFixed(2)}" text-anchor="middle" font-size="2.4" font-weight="700" fill="#06182a">${q.number}</text></g>`; }).join('') : '';
     const ours = team.players.map((p) => {
-      const pos = moved[p.index] ? FM.phasePos(team, p, key) : FM.toTeamSpace(team.attackDir, p.x, p.y), c = toXY(clamp01(pos.d, 0, 1), clamp01(pos.w, 0, 1));
+      const pos = moved[p.index] ? FM.phasePos(team, p, key) : ((haveAvg && avgOf('ours', p.index)) || FM.phasePos(team, p, key)), c = toXY(clamp01(pos.d, 0, 1), clamp01(pos.w, 0, 1));
       const nm = esc((p.name || '').split(' ').slice(-1)[0]);
       return `<g data-live="${p.index}" style="cursor:grab"><circle cx="${c.x.toFixed(2)}" cy="${c.y.toFixed(2)}" r="3.6" fill="transparent"/><circle cx="${c.x.toFixed(2)}" cy="${c.y.toFixed(2)}" r="2.3" fill="${moved[p.index] ? '#f4edda' : '#fff'}" stroke="${moved[p.index] ? '#e0a82e' : '#1f8a4c'}" stroke-width=".5"/><text x="${c.x.toFixed(2)}" y="${(c.y + .9).toFixed(2)}" text-anchor="middle" font-size="2.5" font-weight="700" fill="#14653a" pointer-events="none">${p.number}</text><text x="${c.x.toFixed(2)}" y="${(c.y + 5).toFixed(2)}" text-anchor="middle" font-size="2.2" fill="#fff" stroke="#000" stroke-width=".5" style="paint-order:stroke" pointer-events="none">${nm}</text></g>`;
     }).join('');
@@ -2543,9 +2546,9 @@
         <div class="row"><button type="button" id="liveReset">Let them move as they were</button></div>
       </aside><div class="tb-left">
         ${def ? '<div class="def-sub" role="tablist"><button data-msub="press" class="' + (key === 'press' ? 'on' : '') + '">Pressing their build-up</button><button data-msub="organised" class="' + (key === 'without' ? 'on' : '') + '">Defending your third</button></div>' : ''}
-        <h2>${title}</h2><div id="liveHost"></div></div></div>`;
+        <h2>${title}</h2><p class="note" id="liveNote"></p><div id="liveHost"></div></div></div>`;
     const lh = host.querySelector('#liveHost'); let drag = null;
-    const draw = () => { lh.innerHTML = liveBoardSvg(team, opp, key); };
+    const draw = () => { lh.innerHTML = liveBoardSvg(team, opp, key); const av = m && m.avgPos && m.avgPos[key], ln = host.querySelector('#liveNote'); if (ln) ln.textContent = av && av.t >= 4 ? 'Where each player has stood on average in this phase so far this match (' + Math.round(av.t / 60 * 10) / 10 + ' minutes of it). Drag a player to change where he stands in it for the rest of the match.' : 'This phase has not been played for long yet, so these are the places in your plan. Drag a player to change where he stands in it for the rest of the match.'; };
     draw();
     const toPos = (svg, ev) => { const r = svg.getBoundingClientRect(), W = 68, L = 105, vx = -2 + (ev.clientX - r.left) / r.width * (W + 4), vy = -2 + (ev.clientY - r.top) / r.height * (L + 4); return { d: clamp01(1 - vy / L, 0.02, 0.98), w: clamp01(vx / W, 0.03, 0.97) }; };
     lh.addEventListener('touchstart', (ev) => { if (ev.target.closest && ev.target.closest('[data-live]')) ev.preventDefault(); }, { passive: false });
