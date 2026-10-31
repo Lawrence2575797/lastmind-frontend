@@ -311,6 +311,7 @@
   // A panel that sits at the top of the page, above its other controls, and closes. His role is chosen from large buttons (rest the mouse on one to read what it is),
   // his general instructions are the ones that hold whenever they make sense (the ones about playing on the ball only count with the ball, the ones about winning it
   // only without it), and below them are his choices for each phase of play.
+  // The per-player movement choices by phase of play are switched off (FM.SHOW_PLAYER_PHASE = true brings them back).
   FM.planPlayerPanel = function (host, team, p, hooks) {
     if (!host) return;
     if (!p) { host.innerHTML = ''; return; }
@@ -334,7 +335,7 @@
       ${FM.SHOW_INSTRUCTIONS ? `<h5>Role</h5><div class="pl-roles">${roleBtns}</div>
       <p class="pl-roledesc" id="plRoleDesc"><b>${esc(role.name || '')}.</b> ${esc(role.desc || '')}</p>
       <h5>General instructions</h5>${general}` : ''}
-      <h5>By phase of play</h5>${phases || '<p class="pl-empty">Nothing to choose by phase for this player.</p>'}</div>`;
+      ${FM.SHOW_PLAYER_PHASE ? `<h5>By phase of play</h5>${phases || '<p class="pl-empty">Nothing to choose by phase for this player.</p>'}` : '<p class="pl-empty">Where this player stands on the pitch is his instruction: drag him on the board.</p>'}</div>`;
     // Choosing something rebuilds the panel (and the page behind it): where it and the page were scrolled to is kept, so a click never throws you back to the top.
     const redraw = () => {
       const kept = []; for (let n = host; n; n = n.parentElement) if (n.scrollTop) kept.push([n, n.scrollTop]);

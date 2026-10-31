@@ -267,7 +267,7 @@
       });
     });
     // player toggles
-    Object.keys(pl.player).forEach((slot) => {
+    Object.keys(FM.SHOW_PLAYER_PHASE ? pl.player : {}).forEach((slot) => {
       const p = team.players.find((q) => q.slotKey === slot); if (!p) return;
       Object.keys(pl.player[slot]).forEach((ph) => {
         if (!PHASE[ph]) return;
