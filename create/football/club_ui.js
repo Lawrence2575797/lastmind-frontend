@@ -119,10 +119,10 @@
     const b = FM.biz(lg), rows = b.ledger.filter((e) => e.season === lg.season);
     const t = {}; rows.forEach((e) => { Object.keys(e.pl).forEach((k) => { t[k] = (t[k] || 0) + e.pl[k]; }); });
     const sumIn = (k) => rows.reduce((a, e) => a + (e.inflow[k] || 0), 0), sumOut = (k) => rows.reduce((a, e) => a + (e.outflow[k] || 0), 0);
-    return { rows, t, sumIn, sumOut, dep: rows.reduce((a, e) => a + (e.dep || 0), 0) };
+    return { rows, t, sumIn, sumOut, dep: rows.reduce((a, e) => a + (e.dep || 0), 0), depSign: rows.reduce((a, e) => a + (e.depSign || 0), 0) };
   }
   FM.bizProfitHtml = function (lg) {
-    const { rows, t, sumIn, sumOut, dep } = seasonTotals(lg), last = rows[rows.length - 1];
+    const { rows, t, sumIn, sumOut, dep, depSign } = seasonTotals(lg), last = rows[rows.length - 1];
     if (!rows.length) return '<p class="note">The accounts start with the first matchday.</p>';
     const L = last.pl;
     const line = (label, season, lastv, cls) => `<tr class="${cls || ''}"><td class="l">${label}</td>${cell(season)}${cell(lastv == null ? 0 : lastv)}</tr>`;
@@ -132,7 +132,7 @@
       <tr class="sec"><td class="l" colspan="3">Revenue</td></tr>${rev.map((r) => line(r[0], r[1], r[2])).join('')}${line(T('revenue', 'Total revenue'), t.revenue, L.revenue, 'tot')}
       <tr class="sec"><td class="l" colspan="3">Cost of sales</td></tr>${line('Matchday running costs', sumOut('matchday'), last.outflow.matchday)}${line('Cost of merchandise', sumOut('merchCost'), last.outflow.merchCost)}${line('Total cost of sales', t.cos, L.cos, 'tot')}
       ${line(T('profit', 'Gross profit'), t.gross, L.gross, 'tot key')}
-      <tr class="sec"><td class="l" colspan="3">Expenses</td></tr>${line('Wages', sumOut('wages'), last.outflow.wages)}${line('Marketing', sumOut('marketing'), last.outflow.marketing)}${line('Stadium and administration', sumOut('admin'), last.outflow.admin)}${line('Depreciation', dep, last.dep)}${line('Total expenses', t.expenses, L.expenses, 'tot')}
+      <tr class="sec"><td class="l" colspan="3">Expenses</td></tr>${line('Wages', sumOut('wages'), last.outflow.wages)}${line('Marketing', sumOut('marketing'), last.outflow.marketing)}${line('Stadium and administration', sumOut('admin'), last.outflow.admin)}${line(T('depreciation', 'Depreciation of the stadium'), dep - depSign, last.dep - (last.depSign || 0))}${line('Signing fees written off (player amortisation)', depSign, last.depSign || 0)}${line('Total expenses', t.expenses, L.expenses, 'tot')}
       ${t.saleProfit ? line('Profit on sale of players', t.saleProfit, L.saleProfit) : ''}
       ${line(T('profit', 'Operating profit'), t.op, L.op, 'tot key')}
       ${line(T('loans', 'Interest paid'), -t.interest, -L.interest)}
@@ -141,6 +141,7 @@
       ${line(T('profit', 'Profit for the year'), t.net, L.net, 'tot key')}
       </tbody></table></div>
       <div class="books-wrap"><table class="books-table calc"><thead><tr><th class="l">The calculations</th><th class="l">Working</th><th>Result</th></tr></thead><tbody>
+      <tr><td class="l">Signing fees written off</td><td class="l">fee ÷ contract years, charged every matchday: the cash goes out on the day of the signing, the cost reaches profit in equal parts over the contract</td>${cell(depSign)}</tr>
       <tr><td class="l">Gross profit</td><td class="l">revenue − cost of sales = ${gbp(t.revenue)} − ${gbp(t.cos)}</td>${cell(t.gross)}</tr>
       <tr><td class="l">Operating profit</td><td class="l">gross profit − expenses${t.saleProfit ? ' + profit on sale of players' : ''} = ${gbp(t.gross)} − ${gbp(t.expenses)}${t.saleProfit ? ' + ' + gbp(t.saleProfit) : ''}</td>${cell(t.op)}</tr>
       <tr><td class="l">Profit before tax</td><td class="l">operating profit − interest = ${gbp(t.op)} − ${gbp(t.interest)}</td>${cell(t.pbt)}</tr>
@@ -465,7 +466,7 @@
     FM.bizBindControls(host, lg, () => { save(); redo(); });
     host.querySelectorAll('[data-books]').forEach((b) => b.addEventListener('click', () => { st.books = b.dataset.books; redo(); }));
     host.querySelectorAll('[data-goto]').forEach((b) => b.addEventListener('click', () => go(b.dataset.goto)));
-    if (BL) BL.bind(host, lg, redo);
+    if (BL) BL.bind(host, lg, redo, save, go);
     if (FM.mountRafael && !document.getElementById('lmRafael')) FM.mountRafael(() => (FM.agentContext ? FM.agentContext(lg, 'the books') : ''));
     if (FM.rafaelHide) FM.rafaelHide(false);
     if (!b0.rafaelSeen && !document.getElementById('rafaelWelcome')) {

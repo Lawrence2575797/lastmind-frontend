@@ -242,7 +242,7 @@
     const entry = {
       season: lg.season, round: fx.round + 1, home, opp: opp ? opp.name : '', attTotal: l.att, att: l.d ? Object.keys(l.d.rows).reduce((o, k) => { o[k] = l.d.rows[k].sold; return o; }, {}) : null, away: l.d ? l.d.turnedAway : 0,
       prices: l.d ? Object.keys(l.d.rows).reduce((o, k) => { o[k] = l.d.rows[k].price; return o; }, {}) : null, capacity: l.d ? l.d.capacity : 0,
-      inflow, outflow, opening, closing: b.cash, dep,
+      inflow, outflow, opening, closing: b.cash, dep, depSign: signingDep(b),
       pl: { revenue, cos, gross, expenses, saleProfit: p.saleProfit, op, interest: l.outflow.interest, pbt, tax, net },
     };
     b.ledger.push(entry);
