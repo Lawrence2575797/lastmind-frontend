@@ -149,7 +149,7 @@
       FM.stepMatch(m, SUBSTEP);
     }
   }
-  // Highlights are goals and missed penalties, and nothing else. Between them the match is simulated at speed behind a loading screen that
+  // Highlights are goals, missed penalties and a few clear chances that were missed or saved, and nothing else. Between them the match is simulated at speed behind a loading screen that
   // shows the clock running; each highlight then plays from a few seconds before it (from the match's own recording of where everyone was).
   function isImportantMoment() { return world.vt < world.highlightUntil; }   // the seconds after a highlight, played live
   const HL_CLOCK = (m) => { const t = Math.max(0, Math.floor(m.clock)); return String(Math.floor(t / 60)).padStart(2, '0') + ':' + String(t % 60).padStart(2, '0'); };
@@ -213,6 +213,11 @@
         const e = m.events[scanned];
         if (e.type === 'goal') return hlStartReplay(m, e, scanned, 1.0);
         if (e.type === 'shot' && e.setPiece === 'penalty' && e.outcome !== 'goal') world.hlWait = { until: m.clock + 2.2, ev: e, index: scanned };
+        // a close chance that was missed or saved is a highlight too, but not many of them: a clear chance, at least four minutes after the last one, and a few a match
+        else if (e.type === 'shot' && e.outcome !== 'goal' && e.outcome !== 'blocked' && e.setPiece !== 'penalty' && e.setPiece !== 'freekick' && (e.xg || 0) >= 0.26) {
+          const hc = m.hlChance = m.hlChance || { n: 0, last: -999 };
+          if (hc.n < 4 && e.t - hc.last >= 240 && !world.hlWait) { hc.n++; hc.last = e.t; world.hlWait = { until: m.clock + 2.2, ev: e, index: scanned }; }
+        }
       }
       if (world.hlWait && m.clock >= world.hlWait.until) { const w = world.hlWait; return hlStartReplay(m, w.ev, w.index, 2.2); }
     }
@@ -542,7 +547,7 @@
     hlCancel();
     world.highlightUntil = world.vt; world.highlightSearching = false; world.highlightRevealFrom = m.events.length;
     world.running = true;
-    say(world.highlightsOnly ? 'Highlights on: goals and missed penalties only.' : 'Full match view restored.', '', 2.2);
+    say(world.highlightsOnly ? 'Highlights on: goals, missed penalties and the clearest chances.' : 'Full match view restored.', '', 2.2);
   });
   el('skipBtn').addEventListener('click', () => {
     const m = world.match;

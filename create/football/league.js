@@ -600,7 +600,7 @@
     if (FM.setupDrama) FM.setupDrama(match, FM.derbyForFixture ? FM.derbyForFixture(league, fx) : null, fx.seed);
     if (FM.scout) FM.scout.startMatch(league, match);   // computer-run clubs read your recent matches and set their rules
     // Clips are cut from your own matches (not friendlies, and not matches between other clubs).
-    if (!friendly && (FM.isWatched(league, home.id) || FM.isWatched(league, away.id))) { match.clips = []; match.rec = { buf: [], next: 0, pending: [], cands: [], chain: null }; }
+    if ((!friendly || fx.preseason) && (FM.isWatched(league, home.id) || FM.isWatched(league, away.id))) { match.clips = []; match.rec = { buf: [], next: 0, pending: [], cands: [], chain: null }; }
     match.starters = { [home.id]: home.players.map((p) => p.id), [away.id]: away.players.map((p) => p.id) };
     return match;
   };
