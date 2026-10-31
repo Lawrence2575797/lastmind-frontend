@@ -136,7 +136,7 @@
   function beSeed(lg) { const f = facts(lg); return { price: Math.round(f.revHead * 100) / 100, vc: f.varHead, fc: Math.round(f.netFixed / 1000) * 1000, att: Math.round(f.att / 100) * 100 }; }
 
   FM.booksLive = {
-    beSeed,
+    beSeed, facts, card, ctl, inp, table, optsOf, wPrice, wMarketing, wScale, wFinance, wSigning, wWages, wDividend, wInvest,
     has(level, id) { return !!(MAP[level] && MAP[level][id]); },
     html(lg, level, id) {
       LEVEL = level;
