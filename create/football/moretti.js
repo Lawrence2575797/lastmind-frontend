@@ -160,6 +160,7 @@
     if (!document.getElementById('an2css')) { const st = document.createElement('style'); st.id = 'an2css'; st.textContent = css + (FM.anLab ? FM.anLab.css : ''); document.head.appendChild(st); }
     if (FM.mountAgent && !document.getElementById('lmAgent')) FM.mountAgent(() => (FM.agentContext ? FM.agentContext(league, 'analysis') : ''));
     if (FM.agentHide) FM.agentHide(false);
+    FM.curLeague = league;
     const played = userFixtures(league), prev = played[played.length - 1] || null, nx = FM.nextUserFixture(league), AL = FM.anLab;
     const me = FM.teamById(league, league.userId), level = league.tier === 'gcse' ? 'gcse' : 'alevel';
     const oppOf = (fx) => (fx ? FM.teamById(league, fx.homeId === league.userId ? fx.awayId : fx.homeId) : null);

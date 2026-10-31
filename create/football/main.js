@@ -2202,7 +2202,7 @@
   }
 
   // When you are in one phase, the opposition are in the one that answers it.
-  const OPP_PHASE = { build: 'press', buildEnd: 'press', midfield: 'without', final: 'without', press: 'build', without: 'final', withoutEnd: 'final' };
+  const OPP_PHASE = { build: 'press', buildEnd: 'press', midfield: 'without', final: 'without', press: 'build', without: 'final', withoutEnd: 'final', transDef: 'transAtt', transDefEnd: 'transAtt', transAtt: 'transDef', transAttEnd: 'transDef' };
   // The opposition shirts as placed on a page's diagram are kept on that page, as a two-number description of how they stand, so the match can
   // tell which page the opposition's real shape is closest to (see the condition 'The opposition line up like the shirts I place').
   function saveOppShape(team, key) {
@@ -2296,6 +2296,15 @@
         if (n >= 10) return out;
       } catch (e) { /* fall through to the scouted shape */ }
     }
+    // Every other phase: they stand as the engine sets that moment up (midfield, our settled attack, their settled attack on us).
+    { const KIND = { midfield: 'midfield', final: 'final', transDef: 'final', transDefEnd: 'final', without: 'defend', withoutEnd: 'defend', transAtt: 'defend', transAttEnd: 'defend' }[base];
+      if (KIND && !FM.NO_SIMOPP && FM.lab && FM.lab.oppAt) {
+        try {
+          const lg = world.league, user = userTeam(), opp = sc.opp, at = FM.lab.oppAt(lg, user, opp, KIND), out = {}; let n = 0;
+          Object.keys(cells).forEach((k) => { const w = at[k]; if (!w) { out[k] = cells[k]; return; } const q = FM.toTeamSpace(at.__dir != null ? at.__dir : opp.attackDir, w.x, w.y); out[k] = Object.assign({}, cells[k], { d: Math.max(0.02, Math.min(0.97, q.d)), w: Math.max(0.03, Math.min(0.97, q.w)) }); n++; });
+          if (n >= 10) return out;
+        } catch (e) { /* fall through to the scouted shape */ }
+      } }
     if (cond === 'opp_press') cond = 'opp_high'; else if (cond === 'opp_sit') cond = 'opp_low';
     // with no condition chosen on the page, they stand as their own tactics put them (a side that presses high is drawn pressing high up the pitch)
     if (cond === 'always') { const tc = oppTacticCond(sc.opp, base); if (tc) cond = tc; else if (kick) cond = 'opp_mid'; }

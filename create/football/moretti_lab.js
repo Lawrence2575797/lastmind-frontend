@@ -32,6 +32,23 @@
     return team.players.map((p, i) => { const q = FM.phasePos(team, p, phase); return theirs ? { p, id: 't' + i, x: (1 - q.d) * L, y: (1 - q.w) * W } : { p, id: 'o' + i, x: q.d * L, y: q.w * W }; });
   }
 
+  // Where everyone stands at the start of the same moment in the match engine itself, so the opposition are where a real match puts them (set up for our goal kick,
+  // for their goal kick when we press, or for a settled attack of ours), and our own side as our plan and tactics have them. Falls back to the plain phase positions.
+  const TRANSIENT = new Set(['oppRef', 'ruleCtx', 'phaseCtx', 'extraOv']);
+  const cl = (t) => JSON.parse(JSON.stringify(t, (k, v) => (TRANSIENT.has(k) ? undefined : v)));
+  function engineSquads(me, opp, kind, fb) {
+    try {
+      const lg = FM.curLeague, u = cl(me), o = cl(opp);
+      if (lg && opp.id !== lg.userId) { o.phasePos = null; try { Object.assign(o.tactics, FM.aiTacticsFor(lg, opp, me)); } catch (e) { /* their usual tactics stay */ } }
+      const m = FM.createMatch(u, o, 4242); m.userId = u.id;
+      if (kind === 'build') FM.startBuildUpTrial(m, u, 'goalkick'); else if (kind === 'press') FM.startBuildUpTrial(m, o, 'goalkick'); else FM.startFinalThirdTrial(m, u);
+      const map = (team, orig, theirs) => team.players.map((p, i) => { const q = FM.toTeamSpace(team.attackDir, p.x, p.y); return { p: orig.players[i], id: (theirs ? 't' : 'o') + i, x: theirs ? (1 - q.d) * L : q.d * L, y: theirs ? (1 - q.w) * W : q.w * W }; });
+      const r = { ours: map(u, me, false), theirs: map(o, opp, true) };
+      if (r.ours.some((x) => !Number.isFinite(x.x)) || r.theirs.some((x) => !Number.isFinite(x.x))) throw new Error('bad positions');
+      return r;
+    } catch (e) { return fb(); }
+  }
+
   // ---------- the lessons ----------
   // Each has: title, scenario(me, opp, tier) -> S, steps(S, level) -> [..], run(S) -> {dur, at(t), ok, text}, apply(S, lg) and a worked-example voice.
   const LESSONS = {};
@@ -40,7 +57,7 @@
     title: 'Playing out from the back',
     view: [0, 62],
     scenario(me, opp) {
-      const ours = squad(me, 'build', false), theirs = squad(opp, 'press', true);
+      const sq = engineSquads(me, opp, 'build', () => ({ ours: squad(me, 'build', false), theirs: squad(opp, 'press', true) })), ours = sq.ours, theirs = sq.theirs;
       const cands = ours.filter((o) => ['CB', 'FB', 'DM'].indexOf(o.p.group) >= 0);
       let best = null;
       (cands.length ? cands : ours).forEach((c, ci) => ours.forEach((o, oi) => {
@@ -165,7 +182,7 @@
   LESSONS.holdup = {
     title: 'Holding the ball up front',
     scenario(me, opp) {
-      const ours = squad(me, 'final', false), theirs = squad(opp, 'without', true);
+      const sq = engineSquads(me, opp, 'final', () => ({ ours: squad(me, 'final', false), theirs: squad(opp, 'without', true) })), ours = sq.ours, theirs = sq.theirs;
       const st = ours.filter((o) => o.p.group === 'ST').sort((a, b) => b.x - a.x)[0] || ours.slice().sort((a, b) => b.x - a.x)[0];
       const def = theirs.filter((t) => t.p.group !== 'GK').sort((a, b) => dist(a, st) - dist(b, st))[0];
       const sup = ours.filter((o) => o !== st && o.p.group !== 'GK' && o.p.group !== 'CB').sort((a, b) => dist(a, st) - dist(b, st))[0];
@@ -200,7 +217,7 @@
   LESSONS.restdef = {
     title: 'Staying safe when we lose the ball',
     scenario(me, opp) {
-      const ours = squad(me, 'final', false), theirs = squad(opp, 'transAtt', true);
+      const sq = engineSquads(me, opp, 'rest', () => ({ ours: squad(me, 'final', false), theirs: squad(opp, 'transAtt', true) })), ours = sq.ours, theirs = sq.theirs;
       const fw = theirs.filter((t) => ['ST', 'WF', 'AM'].indexOf(t.p.group) >= 0 && t.x >= 28).sort((a, b) => a.x - b.x), runner = fw[0] || theirs.filter((t) => t.p.group !== 'GK').sort((a, b) => b.x - a.x)[0];
       const back = ours.filter((o) => o.p.group !== 'GK').sort((a, b) => a.x - b.x);
       const rec = back[1] || back[0];
@@ -234,7 +251,7 @@
   LESSONS.press = {
     title: 'Pressing together',
     scenario(me, opp) {
-      const ours = squad(me, 'press', false), theirs = squad(opp, 'build', true);
+      const sq = engineSquads(me, opp, 'press', () => ({ ours: squad(me, 'press', false), theirs: squad(opp, 'build', true) })), ours = sq.ours, theirs = sq.theirs;
       const carrier = theirs.filter((t) => t.p.group === 'CB').sort((a, b) => a.x - b.x)[0] || theirs.filter((t) => t.p.group !== 'GK')[0];
       const pressers = ours.filter((o) => o.p.group !== 'GK' && o.p.group !== 'CB').sort((a, b) => dist(a, carrier) - dist(b, carrier)).slice(0, 3);
       const delays = [0, 0.5, 1.0];

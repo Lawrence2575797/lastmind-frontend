@@ -194,6 +194,19 @@
     return out;
   };
 
+  // Where the opposition stand at the start of any phase page, as the match engine itself sets the moment up: kind is 'midfield' (our move through midfield), 'final' (our settled
+  // attack, so they defend), or 'defend' (their settled attack on us). Slot key -> metres, with the direction they attack.
+  LAB.oppAt = function (league, userTeam, oppTeam, kind) {
+    let oppTactics = null; try { if (oppTeam.id !== league.userId) oppTactics = FM.aiTacticsFor(league, oppTeam, userTeam); } catch (e) { oppTactics = null; }
+    const u = clone(userTeam), o = clone(oppTeam);
+    if (!(league && oppTeam.id === league.userId)) o.phasePos = null;
+    if (oppTactics) o.tactics = Object.assign({}, o.tactics, oppTactics);
+    const match = FM.createMatch(u, o, 4242); match.userId = u.id;
+    if (kind === 'midfield') FM.startMidfieldTrial(match, u); else if (kind === 'defend') FM.startFinalThirdTrial(match, o); else FM.startFinalThirdTrial(match, u);
+    const out = {}, mo = match.teams.find((t) => t.id === o.id); mo.players.forEach((p) => { if (p.slotKey) out[p.slotKey] = { x: p.x, y: p.y }; });
+    out.__dir = mo.attackDir; return out;
+  };
+
   // Where the opposition stand when it is they who build from a goal kick and we press them: the start of a press test. Slot key -> metres on the pitch.
   LAB.oppBuilding = function (league, userTeam, oppTeam) {
     let oppTactics = null; try { if (oppTeam.id !== league.userId) oppTactics = FM.aiTacticsFor(league, oppTeam, userTeam); } catch (e) { oppTactics = null; }
