@@ -12051,6 +12051,33 @@ SQIDAQAB
             list.querySelectorAll('[data-duel-open]').forEach((b) => b.addEventListener('click', () => createJoinDuel(b.dataset.duelOpen)));
         } catch (err) { /* the list is optional */ }
     }
+    // A saved football season lives in more places than its row on the account: the browser's database holds this device's copy (and archived copies of earlier
+    // seasons), and the game writes any copy it finds back to the account when it next opens. Deleting only the row brought the project back, so every local copy
+    // that belongs to the row (its id is inside the save) is removed too.
+    async function createPurgeFootballLocal(id) {
+        const mine = (text) => { try { const d = typeof text === 'string' ? JSON.parse(text) : text; return !!(d && d.cid === id); } catch (err) { return false; } };
+        try {
+            Object.keys(localStorage).forEach((k) => {
+                if (k.indexOf('lm_football_save_v1') !== 0 && k.indexOf('lm_football_demo_save_v1') !== 0) return;
+                if (/_(owner|at|cloud_id|prefer)(:|$)/.test(k)) { if (/_cloud_id(:|$)/.test(k) && localStorage.getItem(k) === id) { localStorage.removeItem(k); localStorage.removeItem(k.replace('_cloud_id', '_at')); localStorage.removeItem(k.replace('_cloud_id', '_prefer')); } return; }
+                if (mine(localStorage.getItem(k))) localStorage.removeItem(k);
+            });
+        } catch (err) { /* nothing to remove */ }
+        await new Promise((resolve) => {
+            try {
+                const open = indexedDB.open('lastmind-football', 1);
+                open.onerror = () => resolve(); open.onblocked = () => resolve();
+                open.onsuccess = () => {
+                    try {
+                        const d = open.result; if (!d.objectStoreNames.contains('saves')) { resolve(); return; }
+                        const tx = d.transaction('saves', 'readwrite'), st = tx.objectStore('saves');
+                        st.openCursor().onsuccess = (e) => { const c = e.target.result; if (!c) return; const k = String(c.key); if ((k.indexOf('lm_football_save_v1') === 0 || k.indexOf('lm_football_demo_save_v1') === 0) && !/_(owner|at|cloud_id|prefer)(:|$)/.test(k) && mine(c.value)) c.delete(); c.continue(); };
+                        tx.oncomplete = () => resolve(); tx.onerror = () => resolve(); tx.onabort = () => resolve();
+                    } catch (err) { resolve(); }
+                };
+            } catch (err) { resolve(); }
+        });
+    }
     async function createDeleteProject(id) {
         if (id === 'local-football-mp' || createMpCloudIds.has(id)) {
             // the multiplayer game has its own saves: the single-player season is left alone
@@ -12082,7 +12109,9 @@ SQIDAQAB
                 createSetLocalProjects(createLocalProjects().filter((p) => p.id !== 'local-football-manager'));
             }
         } catch (err) { /* nothing to remove */ }
-        await createAuthedFetch(`/create/projects/${encodeURIComponent(id)}`, { method: 'DELETE' });
+        await createPurgeFootballLocal(id);
+        const del = await createAuthedFetch(`/create/projects/${encodeURIComponent(id)}`, { method: 'DELETE' });
+        if (del && del.resp && !del.resp.ok && del.resp.status !== 404) throw new Error('The project could not be deleted from your account. Check your connection and try again.');
     }
     // ─── Simulate home: the LastMind mark, greeting and quote from the old chat page, and your projects as a wallet ───
     // The projects sit in a stack. Scrolling (wheel, swipe or arrow keys) moves down it: the front card is flicked up and away and the
@@ -12198,7 +12227,7 @@ SQIDAQAB
             if (!cards.length) { renderCreatePage('gallery'); return; }   // nothing started yet (a guest, or a new account): show every simulation straight away
             simWalletMount(host, cards, async (c) => {
                 if (!confirm('Delete this project?')) return;
-                await createDeleteProject(c.id);
+                try { await createDeleteProject(c.id); } catch (err) { alert(err && err.message ? err.message : 'The project could not be deleted.'); }
                 load();
             });
         };
@@ -12243,7 +12272,7 @@ SQIDAQAB
         createBindDuelBox(host);
         host.querySelectorAll('[data-del]').forEach((b) => b.addEventListener('click', async () => {
             if (!confirm('Delete this project?')) return;
-            await createDeleteProject(b.dataset.del);
+            try { await createDeleteProject(b.dataset.del); } catch (err) { alert(err && err.message ? err.message : 'The project could not be deleted.'); }
             renderCreateProjects(host);
         }));
     }
