@@ -68,13 +68,20 @@
     const dx = B.x - A.x, dy = B.y - A.y, t = Math.max(0, Math.min(1, ((C.x - A.x) * dx + (C.y - A.y) * dy) / (dx * dx + dy * dy || 1)));
     return { d: Math.hypot(A.x + t * dx - C.x, A.y + t * dy - C.y), t };
   }
-  function findCase(g) {
-    const cbs = g.ours.filter((o) => o.p.group === 'CB').sort((a, b) => a.y - b.y), carrier = cbs[0] || g.ours.slice().sort((a, b) => a.x - b.x)[0];
-    if (!carrier) return null;
-    const lines = g.ours.filter((o) => o !== carrier && Math.hypot(o.x - carrier.x, o.y - carrier.y) > 8 && Math.hypot(o.x - carrier.x, o.y - carrier.y) < 45).map((o) => {
+  // The picture is of a moment where the ball-player has a real problem: a defender with an easy pass to a team-mate in the clear would simply play it,
+  // so the carrier shown is the one with the fewest easy outlets, and the pass looked at is the most forward one that is cut out.
+  function linesFrom(g, carrier) {
+    return g.ours.filter((o) => o !== carrier && Math.hypot(o.x - carrier.x, o.y - carrier.y) > 8 && Math.hypot(o.x - carrier.x, o.y - carrier.y) < 45).map((o) => {
       let worst = null; g.theirs.forEach((c) => { const s = segDist(carrier, o, c); if (!worst || s.d < worst.d) worst = { c, d: s.d, t: s.t }; });
       return { to: o, worst, blocked: !!worst && worst.d < R, prog: o.x - carrier.x };
     });
+  }
+  function findCase(g) {
+    const cands = g.ours.filter((o) => ['CB', 'FB', 'DM'].indexOf(o.p.group) >= 0);
+    if (!cands.length) { const c0 = g.ours.slice().sort((a, b) => a.x - b.x)[0]; if (!c0) return null; cands.push(c0); }
+    const rated = cands.map((carrier) => { const lines = linesFrom(g, carrier), open = lines.filter((l) => !l.blocked && l.prog > -12).length, blocked = lines.filter((l) => l.blocked && l.prog > 0).length; return { carrier, lines, open, blocked }; });
+    rated.sort((a, b) => (a.open - b.open) || (b.blocked - a.blocked) || (a.carrier.x - b.carrier.x));
+    const { carrier, lines } = rated[0];
     const blocked = lines.filter((l) => l.blocked).sort((a, b) => b.prog - a.prog);
     const chosen = blocked[0] || lines.filter((l) => l.worst).sort((a, b) => a.worst.d - b.worst.d)[0] || null;
     return { carrier, lines, chosen, nBlocked: blocked.length };

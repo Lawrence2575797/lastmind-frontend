@@ -976,7 +976,9 @@
       const boxBonus = Math.hypot(tx - goal.x, ty - goal.y) < 19 && Math.abs(ty - W / 2) < 18 ? 0.45 * (0.5 + risk) : 0;
       // Outside the final third a team is patient: going forward is worth less than keeping the ball, so play is circulated and the ball is moved up in stages.
       const progK = zone === 'final' ? 1 : (FM.PROG_K == null ? .38 : FM.PROG_K);
-      const score = p * (0.35 + directness * 0.9 * prog * progK + 0.5 * prog * risk * progK + boxBonus) - (1 - p) * 0.6 * (1 - risk) * lossFactor;
+      let score = p * (0.35 + directness * 0.9 * prog * progK + 0.5 * prog * risk * progK + boxBonus) - (1 - p) * 0.6 * (1 - risk) * lossFactor;
+      // Playing out from the back is patient: a pass through a crowd, with an easy one on, is not tried in your own third.
+      if (zone === 'build' && ownDepth0 < 0.45 && p < 0.65 && !(FM.NO_PATIENT)) score -= (0.65 - p) * (FM.PATIENT_K == null ? 1.6 : FM.PATIENT_K) * (1 - 0.5 * risk);
       // The chance it creates. A pass that puts a team-mate somewhere he is clearly likelier to score from than the man on the ball is the
       // pass a player looks for: it counts for what the receiver could do with it, whoever he is.
       let chance = 0;
