@@ -883,6 +883,7 @@
       });
     }
     team.players.forEach((p, i) => {
+      if (p.sliding) return;   // a man in a slide tackle follows the slide's own script (stepSlides), not the running model
       // the target he is heading for is eased towards the one asked for (a new instruction turns him over a fraction of a second, it does not snap his course)
       let t = targets[i], sm = TGT.get(p);
       const ks = 1 - Math.exp(-(FM.TGT_SMOOTH == null ? 10 : FM.TGT_SMOOTH) * dt);
@@ -921,6 +922,7 @@
     for (let i = 0; i < team.players.length; i++) {
       for (let j = i + 1; j < team.players.length; j++) {
         const a = team.players[i], c = team.players[j];
+        if (a.sliding || c.sliding) continue;
         const dx = c.x - a.x, dy = c.y - a.y;
         const d = Math.hypot(dx, dy);
         if (d > 0 && d < 3.5) {
@@ -931,6 +933,7 @@
       }
     }
     team.players.forEach((p) => {
+      if (p.sliding) return;
       p.x = clamp(p.x + p.vx * dt, 0.5, L - 0.5);
       p.y = clamp(p.y + p.vy * dt, 0.5, W - 0.5);
     });
