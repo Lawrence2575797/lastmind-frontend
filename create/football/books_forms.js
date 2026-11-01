@@ -110,16 +110,65 @@
     apply: (lg, v, m) => [run(lg, 'setMarketing', { perRound: Number(v.budget) || 0 })].concat(Number(v.prices) ? FM.SEGMENTS.map((s) => run(lg, 'setTicketPrice', { stand: s.id, price: Math.max(3, Math.round(m.b.prices[s.id].price * pctOf(v.prices))) })) : []),
   };
 
-  // ---- 7 pay and motivation ----
+  // ---- 7 pay and motivation: one group of choices for each theory ----
+  // The facts about the squad that the theories are read against.
+  const people = (m) => {
+    const lg = m.lg, me = FM.teamById(lg, lg.userId), sq = me.squad.slice();
+    const wk = sq.map((p) => FM.wageOf(p) * 1000), total = wk.reduce((a, c) => a + c, 0), sorted = wk.slice().sort((a, c) => a - c), median = sorted[Math.floor(sorted.length / 2)] || 0;
+    const top3 = wk.slice().sort((a, c) => c - a).slice(0, 3).reduce((a, c) => a + c, 0);
+    const short = sq.filter((p) => FM.contractLeft(p) <= 1).sort((a, c) => FM.abilityOf(c) - FM.abilityOf(a)), key = short.slice(0, 4);
+    const rise = (ps) => ps.reduce((a, p) => a + Math.max(0, FM.extensionTerms(lg, p, 3) - FM.wageOf(p)) * 1000, 0);
+    const left = Math.max(4, Math.min(28, m.K.ROUNDS - m.b.ledger.length));
+    const young = sq.filter((p) => FM.ageOf(p) <= 21);
+    return { me, n: sq.length, total, median, top3share: total ? 100 * top3 / total : 0, short, key, rise, left, young, captain: FM.captainOf ? FM.captainOf(lg, me) : null, avgAge: sq.reduce((a, p) => a + FM.ageOf(p), 0) / Math.max(1, sq.length) };
+  };
+  FM.booksPeople = people;
+  // A lever (money a matchday for an effect) as the controls would accept it: the effect it would really buy, and what it costs.
+  const lever = (name, perRound, rounds, target) => { const r = FM.controls.checkLever({ name, perRound, rounds, effects: [{ target }] }); return r.ok ? { ok: true, l: r.lever, pts: r.lever.effects[0].pct, cost: r.lever.perRound * r.lever.rounds } : { ok: false, cost: 0, pts: 0 }; };
+  const BONUS_LEVEL = (v) => (Number(v.bonus) || 0) * (v.who === 'squad' ? 16 : 11) * 0.5;
+  const CULTURE = { none: [0, 'Nothing new'], day: [3000, 'A squad away day and a recognition scheme (about £3,000 a matchday)'], full: [7000, 'The full programme: away days, a council of the captain and senior players, and a say in tactics (about £7,000 a matchday)'] };
+  const GROWTH = { none: [0, 'No change'], plans: [8000, 'An individual development plan and a coach for each young player (about £8,000 a matchday)'], ground: [0, 'Build the new training ground'] };
   F.people = {
-    fields: () => [
-      { id: 'bonus', label: 'Win bonus for each player in the matchday squad', type: 'range', min: 0, max: 5000, step: 500, def: 0, prefix: '£' },
-      { id: 'who', label: 'Who gets it', type: 'select', options: [['xi', 'The eleven who start'], ['squad', 'Everyone in the matchday squad']], def: 'xi' },
-      { id: 'training', label: 'Build the new training ground', type: 'select', options: [['no', 'No'], ['yes', 'Yes: ' + gbp((FM.FACILITIES.find((f) => f.id === 'training') || { cost: 900000 }).cost)]], def: 'no' },
-      { id: 'away', label: 'A squad away day and a recognition scheme', type: 'select', options: [['no', 'No'], ['yes', 'Yes']], def: 'no' },
-    ],
-    preview: (v, m, lg) => { const n = v.who === 'squad' ? 16 : 11, cost = (Number(v.bonus) || 0) * n * 7, fac = FM.FACILITIES.find((f) => f.id === 'training'); return [['Win bonus over a season, if we win half our matches', gbp(cost)], ['As a share of the wage bill', pc(100 * cost / Math.max(1, m.wages * m.K.ROUNDS))], ['Training ground', v.training === 'yes' ? gbp(fac.cost) + ' now and ' + gbp(fac.upkeep) + ' a matchday upkeep' : 'not built'], ['The wage bill a season now', gbp(m.wages * m.K.ROUNDS)]]; },
-    apply: (lg, v) => { const out = []; if (Number(v.bonus)) { approval(lg, -Math.min(2, (Number(v.bonus) / 2500))); out.push('A win bonus of ' + gbp(Number(v.bonus)) + ' is agreed for ' + (v.who === 'squad' ? 'the whole matchday squad' : 'the starting eleven') + '. Rafael will count its cost.'); } if (v.training === 'yes') out.push(run(lg, 'buyFacility', { id: 'training' })); if (v.away === 'yes') { approval(lg, 1); out.push('The squad has an away day and a recognition scheme is set up.'); } return out.length ? out : ['Pay and conditions are left as they are.']; },
+    fields: (m) => {
+      const q = people(m), fac = FM.FACILITIES.find((f) => f.id === 'training') || { cost: 900000, upkeep: 0 }, keyNames = q.key.map((p) => p.name).join(', ');
+      return [
+        { id: 'bonus', group: { title: 'Taylor: pay for output', text: ['Taylor says people work for money, so tie the money to what you want. In football that is a win bonus, paid to each player for each win.', 'It is easy to explain and easy to measure. But a win is not something one player controls, and Herzberg warns that a bonus stops motivating once it is expected.'], suggest: m.wagePct > 40 ? 'The wage bill is already ' + pc(m.wagePct) + ' of revenue, so I would not add a bonus this season.' : 'A bonus of £1,500 to the eleven who start would cost about ' + gbp(1500 * 11 * 0.5 * q.left) + ' over the rest of the season (if we win half). I would not go beyond that.' }, label: 'Win bonus for each player paid', type: 'range', min: 0, max: 5000, step: 500, def: 0, prefix: '£' },
+        { id: 'who', label: 'Who is paid it', type: 'select', options: [['xi', 'The eleven who start'], ['squad', 'Everyone in the matchday squad of sixteen']], def: 'xi', help: 'Paying only the eleven rewards the starters. Paying the squad costs more, but the players on the bench feel part of it.' },
+        { id: 'culture', group: { title: 'Mayo: attention and teamwork', text: ['Mayo found that people work harder when they are listened to and belong to a team that matters to them, whatever they are paid.', q.captain ? 'Our captain is ' + q.captain.name + '. A council of the captain and the senior players, who are asked before big decisions, is the kind of attention Mayo meant.' : 'A council of the senior players, who are asked before big decisions, is the kind of attention Mayo meant.'], suggest: 'The away day costs little and suits a squad that has just come together. The full programme is worth it when the squad is young: ours has ' + q.young.length + ' players aged 21 or under.' }, label: 'Team and recognition', type: 'select', options: [['none', CULTURE.none[1]], ['day', CULTURE.day[1]], ['full', CULTURE.full[1]]], def: q.young.length >= 6 ? 'full' : 'day' },
+        { id: 'security', group: { title: 'Maslow: security first', text: ['Maslow says a person is motivated by the lowest need that is not yet met: pay, then safety, then belonging, then esteem, then reaching their potential.', q.short.length ? q.short.length + ' of our ' + q.n + ' players have a year or less left on their contract' + (keyNames ? ' (the best of them: ' + keyNames + ')' : '') + '. For them safety is not met, and no bonus replaces it.' : 'Nobody has a year or less left on their contract, so the safety need is met.'], suggest: q.key.length ? 'Extending ' + (q.key.length === 1 ? 'the one key player' : 'the ' + q.key.length + ' key players') + ' for three years adds about ' + gbp(q.rise(q.key)) + ' a week to the wage bill. Letting them run down loses them for nothing.' : 'Nothing to do here this season.' }, label: 'Contracts', type: 'select', options: [['none', 'Leave the contracts as they are'], ['key', 'Extend the key players (' + q.key.length + ') for three years'], ['all', 'Extend everyone with a year or less left (' + q.short.length + ') for three years']], def: q.key.length ? 'key' : 'none' },
+        { id: 'growth', group: { title: 'Herzberg: the work itself', text: ['Herzberg split the things at work in two. Pay, conditions and security are hygiene factors: if they are poor people are unhappy, but when they are good people only stop complaining.', 'Achievement, recognition, responsibility and the chance to grow are the motivators, and they are what make people try harder. For a footballer these are playing time, a clear role and getting better.'], suggest: 'The wage bill is ' + gbp(q.total) + ' a week and the top three earn ' + pc(q.top3share) + ' of it, so pay is not what separates our players. A development plan is the cheapest motivator; the training ground is the lasting one.' }, label: 'Growth and development', type: 'select', options: [['none', GROWTH.none[1]], ['plans', GROWTH.plans[1]], ['ground', GROWTH.ground[1] + ': ' + gbp(fac.cost) + ' now and ' + gbp(fac.upkeep || 0) + ' a matchday upkeep']], def: 'plans' },
+      ];
+    },
+    preview: (v, m) => {
+      const q = people(m), rows = [], fac = FM.FACILITIES.find((f) => f.id === 'training') || { cost: 900000, upkeep: 0 };
+      const bn = Number(v.bonus) || 0, bonusPer = BONUS_LEVEL(v), bl = bn ? lever('Win bonus', Math.max(500, bonusPer), q.left, 'performance') : null;
+      rows.push(['Taylor: win bonus, rest of the season (if we win half)', bn ? gbp(bonusPer * q.left) : 'none']);
+      if (bl) rows.push(['What the bonus buys', 'about ' + f1(bl.pts) + ' rating points of effort on match days, while it is paid']);
+      const cu = CULTURE[v.culture] || CULTURE.none, cl = cu[0] ? lever('Team programme', cu[0], q.left, 'performance') : null;
+      rows.push(['Mayo: team and recognition, rest of the season', cu[0] ? gbp(cu[0] * q.left) : 'none']);
+      if (cl) rows.push(['What the programme buys', 'about ' + f1(cl.pts) + ' rating points, and players who feel listened to']);
+      const set = v.security === 'all' ? q.short : v.security === 'key' ? q.key : [];
+      rows.push(['Maslow: contracts extended', set.length ? set.length + ' players, ' + gbp(q.rise(set)) + ' a week more (' + pc(100 * q.rise(set) / Math.max(1, q.total)) + ' of the wage bill)' : 'none']);
+      const gr = GROWTH[v.growth] || GROWTH.none, gl = v.growth === 'plans' ? lever('Development plans', gr[0], q.left, 'development') : null;
+      rows.push(['Herzberg: growth', v.growth === 'ground' ? gbp(fac.cost) + ' once, and ' + gbp(fac.upkeep || 0) + ' a matchday' : gl ? gbp(gr[0] * q.left) + ' for the rest of the season' : 'none']);
+      if (gl) rows.push(['What the plans buy', 'young players improve about ' + f1(gl.pts) + '% faster']);
+      const weekly = bonusPer + cu[0] + (v.growth === 'plans' ? gr[0] : 0), perSeason = weekly * q.left + q.rise(set) * q.left + (v.growth === 'ground' ? fac.cost : 0);
+      rows.push(['Everything together, rest of the season', gbp(perSeason)]);
+      rows.push(['Against the wage bill for the same matchdays', gbp(q.total * q.left) + ' (+' + pc(100 * perSeason / Math.max(1, q.total * q.left)) + ')']);
+      return rows;
+    },
+    apply: (lg, v, m) => {
+      const q = people(m), out = [], bn = Number(v.bonus) || 0;
+      const start = (name, perRound, target, text) => { const r = FM.controls.run(lg, 'addLever', { name, perRound: Math.round(perRound), rounds: q.left, effects: [{ target }] }, 'manual'); out.push(r.ok ? text : r.text); };
+      if (bn) start('Win bonus', Math.max(500, BONUS_LEVEL(v)), 'performance', 'A win bonus of ' + gbp(bn) + ' is agreed for ' + (v.who === 'squad' ? 'the matchday squad' : 'the eleven who start') + ', paid for each win, so it costs most when we win.');
+      const cu = CULTURE[v.culture] || CULTURE.none;
+      if (cu[0]) { start('Team programme', cu[0], 'performance', cu[1] + ' starts now.'); approval(lg, v.culture === 'full' ? 2 : 1); }
+      const set = v.security === 'all' ? q.short : v.security === 'key' ? q.key : [];
+      set.forEach((p) => { const r = FM.extendContract(lg, p.id, 3); out.push(r.text); });
+      if (v.growth === 'plans') start('Development plans', GROWTH.plans[0], 'development', 'Individual development plans start for the young players.');
+      if (v.growth === 'ground') out.push(run(lg, 'buyFacility', { id: 'training' }));
+      return out.length ? out : ['Pay and conditions are left as they are.'];
+    },
   };
 
   // ---- 8 organising the club ----

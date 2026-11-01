@@ -29,6 +29,7 @@
     development: { label: 'how fast young players improve', cap: 25, scale: 15000, sign: 1, note: 'faster development at the club' },
     injuryRecovery: { label: 'how long injuries last', cap: 35, scale: 10000, sign: -1, note: 'shorter lay-offs for new injuries' },
     injuryRisk: { label: 'how often players get injured', cap: 25, scale: 12000, sign: -1, note: 'fewer injuries in matches' },
+    performance: { label: 'how hard the players play for the club on match days', cap: 4, scale: 10000, sign: 1, note: 'a few rating points more for every player in a match' },
     recovery: { label: 'how fast tired players recover between matches', cap: 30, scale: 8000, sign: 1, note: 'players start the next match fresher' },
   };
   C.TARGETS = TARGETS;

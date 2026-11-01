@@ -78,7 +78,8 @@
     return clamp(E.base + E.gapK * Math.max(0, gap), 0, E.cap);
   };
   FM.applyUserEdge = function (league, team, opp) {
-    const e = FM.userEdgeFor(league, team, opp); if (!e) return 0;
+    const lm = FM.userMod && league && team.id === league.userId && !league.mp ? FM.userMod('performance') : 1;   // spending on the players' motivation (bonuses, team programmes) shows in match-day effort
+    const e = FM.userEdgeFor(league, team, opp) + (lm - 1) * 100; if (!e) return 0;
     team.squad.forEach((p) => { p.mbonus = (p.mbonus || 0) + e; });
     return e;
   };
