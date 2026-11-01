@@ -66,6 +66,22 @@
   FM.setMomentumBonus = function (team) {
     team.squad.forEach((p) => { p.mbonus = FM.MOM.player * clamp(p.form || 0, -1, 1) + FM.MOM.club * clamp(team.momentum || 0, -1, 1); });
   };
+  // The game leans a little towards the manager, as a career game does: a club with a good manager can climb the divisions over a few seasons, and a smaller club can
+  // beat a better one more often than the ratings alone say. A steady lift (base) for the managed club's players, and a further lift when the other side is the
+  // better one (a share of the gap, up to the cap). It is a few rating points, which the softening in FM.sk shrinks again: a nudge, not a different sport.
+  FM.USER_EDGE = { base: 2, gapK: 0.35, cap: 6 };
+  const XI_KEYS = ['pace', 'dribbling', 'passing', 'finishing', 'tackling', 'heading', 'composure', 'stamina'];
+  const xiLevel = (t) => { const ps = (t.players && t.players.length ? t.players : t.squad.slice(0, 11)).filter((p) => p.group !== 'GK'); return ps.length ? mean(ps.map((p) => mean(XI_KEYS.map((k) => ((p.baseRatings || p.ratings || {})[k]) || 55)))) : 55; };
+  FM.userEdgeFor = function (league, team, opp) {
+    if (!league || league.mp || !team || team.id !== league.userId || FM.NO_USER_EDGE) return 0;
+    const gap = opp ? xiLevel(opp) - xiLevel(team) : 0, E = FM.USER_EDGE;
+    return clamp(E.base + E.gapK * Math.max(0, gap), 0, E.cap);
+  };
+  FM.applyUserEdge = function (league, team, opp) {
+    const e = FM.userEdgeFor(league, team, opp); if (!e) return 0;
+    team.squad.forEach((p) => { p.mbonus = (p.mbonus || 0) + e; });
+    return e;
+  };
   FM.clearMomentumBonus = function (team) { team.squad.forEach((p) => { delete p.mbonus; }); };
   // After a league match: every club's momentum follows its result; every player's form follows how he played against what was expected of him (passes,
   // tackles, dribbles and shots against their odds, goals) and the result. Each moves a fraction of the way to what the match says, so one match

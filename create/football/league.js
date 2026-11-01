@@ -163,6 +163,7 @@
     if (league.friendlies && FM.namesFromSquads) FM.namesFromSquads(league, league.friendlies);
     league.runSeed = runSeed;
     FM.ensureTwoDivisions(league);
+    if (opts.userClub) FM.chooseClub(league, opts.userClub);
     // Intentionally created here, rather than repaired into deserializeLeague: the League Cup is for new careers only.
     // Existing saves keep their original season structure exactly as the manager left it.
     league.cup = FM.newCup(league);
@@ -171,6 +172,30 @@
     // replacement (and leave the new game to be refused as 'further back' than the old one)
     if (FM.markReplaceNext) FM.markReplaceNext(league);
     return league;
+  };
+
+  // The manager can take charge of any of the thirty-two clubs, in any of the four divisions. The division the club is in becomes the one the game is played in (as when
+  // a club is promoted or relegated), the clubs of the one that was there go to the other leagues, and three pre-season friendlies are set up among its clubs.
+  FM.chooseClub = function (league, name) {
+    const all = FM.allDivisions(league), div = all.find((d) => d.teams.some((t) => t.name === name));
+    if (!div) return false;
+    const club = div.teams.find((t) => t.name === name);
+    if (div.level !== league.divisionLevel) {
+      const was = { level: league.divisionLevel, name: league.divisionName, teams: league.teams, fixtures: league.fixtures };
+      league.otherLeagues = league.otherLeagues.filter((d) => d.level !== div.level).concat([was]).sort((x, y) => x.level - y.level);
+      league.teams = div.teams; league.fixtures = div.fixtures; league.divisionLevel = div.level; league.divisionName = div.name;
+      league.otherLeague = league.otherLeagues.find((d) => d.level === (div.level === 1 ? 2 : div.level - 1)) || league.otherLeagues[0];
+      const seed = league.seed;
+      league.friendlies = makeFixtures(league.teams.map((t) => t.id), FM.mulberry32(seed + 555), seed + 555).filter((f) => f.round < 3).map((f, i) => Object.assign(f, { id: 'p' + i, round: f.round - 3, friendly: true }));
+    }
+    league.userId = club.id;
+    league.userClubName = club.name;
+    return true;
+  };
+  // Every club that can be chosen, with its division and what it is known for.
+  FM.clubChoices = function () {
+    const groups = [[1, 'Premier Division', FM.TEAM_DEFS], [2, 'Championship', FM.LOWER_TEAM_DEFS], [3, 'League One', FM.THIRD_TEAM_DEFS], [4, 'League Two', FM.FOURTH_TEAM_DEFS]];
+    return groups.map(([level, name, defs]) => ({ level, name, clubs: defs.map((d) => ({ name: d.name, tag: d.tag, strength: d.strength, home: d.home })) }));
   };
 
   // Circle method: seven rounds where everyone plays once, then the same seven with home and away reversed.
@@ -592,6 +617,7 @@
       else t.tacticalFactor = 0.88 + 0.12 * ((t.tacticalFamiliarity && t.tacticalFamiliarity.score) || 100) / 100;
     });
     [home, away].forEach((t) => { t.snap = FM.snapshotLineup(t); t.subsUsed = 0; t.sentOff = []; t.retired = []; delete t.liveBase; delete t.liveLean; FM.fitnessBegin(t); });
+    FM.applyUserEdge(league, home, away); FM.applyUserEdge(league, away, home);
     const match = FM.createMatch(home, away, fx.seed);
     match.day = league.day; match.userId = league.userId; match.interactive = !!(opts && opts.interactive); match.friendly = friendly;
     match.aiTeams = [home, away].filter((t) => !FM.isHuman(league, t.id));

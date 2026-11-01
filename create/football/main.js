@@ -946,7 +946,7 @@
     shade.className = 'verdict'; shade.setAttribute('role', 'dialog'); shade.setAttribute('aria-modal', 'true');
     const sup = v ? v.support : 0, against = v ? v.against : 100;
     shade.innerHTML = `<div class="card"><div class="eyebrow">The shareholders' meeting</div><h2>${gone ? 'You have been dismissed' : 'You survive the vote'}</h2>
-      <p class="desc">${v ? `The shareholders voted on a motion of no confidence in the manager: <b>${sup}% in support</b>, <b>${against}% against</b>. ` : ''}${gone ? 'The board has dismissed you as manager of Ashford Rovers. The accounts and the results were not good enough.' : 'The manager stays, but on notice: the board has been told things have to improve.'}</p>
+      <p class="desc">${v ? `The shareholders voted on a motion of no confidence in the manager: <b>${sup}% in support</b>, <b>${against}% against</b>. ` : ''}${gone ? 'The board has dismissed you as manager of ' + userTeam().name + '. The accounts and the results were not good enough.' : 'The manager stays, but on notice: the board has been told things have to improve.'}</p>
       <div class="row"><button class="primary" id="vdGo">${gone ? 'Start a new game' : 'Carry on'}</button></div></div>`;
     document.body.appendChild(shade);
     shade.querySelector('#vdGo').addEventListener('click', () => {
@@ -2830,6 +2830,16 @@
   el('ngLeague').addEventListener('click', mpGuard('league'));
   el('ngMatch').addEventListener('click', mpGuard('match'));
   el('ngJoin').addEventListener('click', mpGuard('join'));
+  // The club to manage: any of the thirty-two, from the Premier Division to League Two. The small clubs are the harder start, and the longer story.
+  (function () {
+    const sel = el('ngClub'), note = el('ngClubNote'); if (!sel || !FM.clubChoices) return;
+    const groups = FM.clubChoices();
+    const LEVEL_NOTE = { 1: 'The top flight: the best squads and the biggest budgets.', 2: 'One promotion from the top flight.', 3: 'A long climb: two promotions to the top flight, and a squad to rebuild on the way.', 4: 'The bottom of the pyramid: the hardest start, and the best story.' };
+    sel.innerHTML = groups.map((g) => '<optgroup label="' + g.name + '">' + g.clubs.map((c) => '<option value="' + escapeHtmlNg(c.name) + '"' + (c.name === 'Ashford Rovers' ? ' selected' : '') + '>' + escapeHtmlNg(c.name) + '</option>').join('') + '</optgroup>').join('');
+    const show = () => { const g = groups.find((x) => x.clubs.some((c) => c.name === sel.value)), c = g && g.clubs.find((x) => x.name === sel.value); if (note && c) note.textContent = g.name + ': ' + c.tag + '. ' + LEVEL_NOTE[g.level]; };
+    sel.addEventListener('change', show); show();
+    if (DEMO_MODE && el('ngClubBox')) el('ngClubBox').hidden = true;
+  })();
   let ngSkin = null;
   ngSkin = null;   // the league is always the Westhaven Counties; no other setting is offered
   if (DEMO_MODE && el('ngSkinBox')) el('ngSkinBox').hidden = true;
@@ -2845,7 +2855,7 @@
     btn.disabled = true; btn.textContent = 'Setting up the clubs...';
     await new Promise((r) => setTimeout(r, 30));
     // The league is the same each time (clubs, squads, fixtures, last season), but each new game rolls its own dice: injuries and results differ.
-    world.league = FM.createLeague({ userIndex: 0, tier, runSeed: Math.floor(Math.random() * 1e9) });   // Ashford Rovers is the only club to take charge of
+    world.league = FM.createLeague({ userIndex: 0, userClub: DEMO_MODE ? null : ((el('ngClub') && el('ngClub').value) || null), tier, runSeed: Math.floor(Math.random() * 1e9) });   // any club can be chosen; the demo is Ashford Rovers
     if (FM.ensurePreseasonNews) FM.ensurePreseasonNews(world.league);
     if (!DEMO_MODE && FM.ensurePreseason) FM.ensurePreseason(world.league);
     { const sk = ngSkin && ngSkin.value(); if (sk) FM.applySkin(world.league, sk); }   // a league setting from a period of history, if one was chosen (the stories already written are renamed)

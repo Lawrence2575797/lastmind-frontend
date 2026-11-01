@@ -213,7 +213,7 @@
         const focus = plan && plan.active ? FM.LESSONS[plan.lesson].attrs : [];
         const pot = FM.potentialOf(p), room = Math.max(0, pot - FM.abilityOf(p));
         const played = Math.max(0, Math.min(1, (p.lastMins == null ? 45 : p.lastMins) / 90));
-        const rate = BASE_RATE * af * ls * (0.12 + 0.88 * played) * (0.7 + rng() * 0.6) * (team === me && FM.bizDevBoost ? FM.bizDevBoost(league) : 1);
+        const rate = BASE_RATE * af * ls * (0.12 + 0.88 * played) * (0.7 + rng() * 0.6) * (team === me && FM.bizDevBoost ? FM.bizDevBoost(league) : 1) * (team === me && !league.mp ? (FM.USER_DEV == null ? 1.3 : FM.USER_DEV) : 1);   // the managed club's players grow a little faster than the rest
         const exactRoom = Math.max(0, pot - FM.playerRating(p, p.natural) * 10);
         const after = growBy(p, Math.min(exactRoom, rate * exactRoom));
         if (team === me) {
