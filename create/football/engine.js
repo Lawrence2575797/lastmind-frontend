@@ -715,7 +715,7 @@
       const prsLow = 0.6 * pbuT + 0.4 * (team.tactics.pressing == null ? 0.5 : team.tactics.pressing);
       const lowBlock = clamp((0.4 - prsLow) / 0.1, 0, 1) * clamp((b.d - 0.35) / 0.3, 0, 1) * (1 - drawn);
       lowK = lowBlock;
-      if (lowBlock > 0) pos = { d: pos.d * (1 - (FM.LOWBLOCK_K == null ? 0.35 : FM.LOWBLOCK_K) * lowBlock), w: pos.w };
+      if (lowBlock > 0) pos = { d: pos.d * (1 - (FM.LOWBLOCK_K == null ? 0.08 : FM.LOWBLOCK_K) * lowBlock), w: pos.w };
       if (ctx.transDef > 0) {
         const zone = b.d < 0.33 ? 'defensive' : b.d < 0.67 ? 'middle' : 'attacking';
         const choice = (team.tactics.transDefChoices || {})[zone] || 'contain';
