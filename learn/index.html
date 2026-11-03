@@ -1848,15 +1848,13 @@
     .km-keypoints-widget { position: fixed; top: 70px; right: 20px; z-index: 140; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; max-width: calc(100vw - 24px); }
     .km-keypoints-toggle { flex-shrink: 0; font-family: 'Arial', sans-serif; font-size: 0.78rem; font-weight: 700; background: var(--accent); color: var(--bg); border: none; padding: 9px 16px; border-radius: 20px; cursor: pointer; white-space: nowrap; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35); }
     .km-keypoints-toggle:hover { opacity: 0.85; }
-    .km-keypoints-panel { display: none; flex-direction: column; width: min(1000px, calc(100vw - 40px)); height: calc(100vh - 150px); min-height: 320px; background: #F1EAD6; border: 1px solid rgba(31, 38, 35, 0.35); border-radius: 10px; box-shadow: 0 14px 40px rgba(0, 0, 0, 0.5); overflow: hidden; }
+    .km-keypoints-panel { display: none; flex-direction: column; width: min(1000px, calc(100vw - 40px)); height: calc(100vh - 150px); min-height: 320px; background: #292e2c; border: 1px solid rgba(230, 215, 176, 0.3); border-radius: 10px; box-shadow: 0 14px 40px rgba(0, 0, 0, 0.5); overflow: hidden; }
     .km-keypoints-panel.open { display: flex; }
-    .km-kp-head { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-bottom: 1px solid rgba(31, 38, 35, 0.2); color: #1F2623; font: 700 0.8rem Arial, sans-serif; letter-spacing: 0.14em; text-transform: uppercase; }
+    .km-kp-head { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-bottom: 1px solid rgba(230, 215, 176, 0.22); color: #E6D7B0; font: 700 0.8rem Arial, sans-serif; letter-spacing: 0.14em; text-transform: uppercase; }
     .km-kp-head .km-kp-state { flex: 1; font-weight: 500; letter-spacing: 0.04em; text-transform: none; opacity: 0.6; }
-    .km-kp-close { background: transparent; border: 1px solid rgba(31, 38, 35, 0.4); color: #1F2623; border-radius: 6px; width: 30px; height: 28px; cursor: pointer; }
+    .km-kp-close { background: transparent; border: 1px solid rgba(230, 215, 176, 0.35); color: #E6D7B0; border-radius: 6px; width: 30px; height: 28px; cursor: pointer; }
     .km-keypoints-panel .kp-canvas { flex: 1; min-height: 0; overflow-y: auto; border-radius: 0; box-shadow: none; cursor: text; background: transparent; }
-    /* the panel is solid and the colours are the page's turned round: dark writing on cream, where the page is cream on charcoal */
-    .km-keypoints-panel .kp-canvas .nb-body, .km-keypoints-panel .kp-canvas .nb-text .math-shortcut-editor { color: #1F2623; caret-color: #1F2623; }
-    .km-keypoints-panel .kp-canvas .nb-text .math-shortcut-editor * { color: inherit; }
+    /* the panel is solid grey and its writing looks exactly like the page's: no colour overrides */
     .km-keypoints-panel .kp-canvas .kp-block { position: relative; left: auto; top: auto; margin: 22px 28px 80px calc(var(--nb-margin) + 22px); width: auto; max-width: 860px; }
     .km-keypoints-panel .kp-canvas .nb-grip, .km-keypoints-panel .kp-canvas .nb-del, .km-keypoints-panel .kp-canvas .nb-resize, .km-keypoints-panel .kp-canvas .nb-align-left { display: none; }
     @media (max-width: 720px) { .km-keypoints-widget { top: 64px; right: 10px; } .km-keypoints-panel { width: calc(100vw - 20px); height: calc(100vh - 130px); } .km-keypoints-panel .kp-canvas .kp-block { margin-left: calc(var(--nb-margin) + 8px); margin-right: 12px; } }
