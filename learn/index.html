@@ -1848,15 +1848,16 @@
     .km-keypoints-widget { position: fixed; top: 70px; right: 20px; z-index: 140; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; max-width: calc(100vw - 24px); }
     .km-keypoints-toggle { flex-shrink: 0; font-family: 'Arial', sans-serif; font-size: 0.78rem; font-weight: 700; background: var(--accent); color: var(--bg); border: none; padding: 9px 16px; border-radius: 20px; cursor: pointer; white-space: nowrap; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35); }
     .km-keypoints-toggle:hover { opacity: 0.85; }
-    .km-keypoints-panel { --kp-a: 0.9; display: none; flex-direction: column; width: min(1000px, calc(100vw - 40px)); height: calc(100vh - 150px); min-height: 320px; background: rgba(41, 46, 44, var(--kp-a)); border: 1px solid rgba(230, 215, 176, 0.3); border-radius: 10px; box-shadow: 0 14px 40px rgba(0, 0, 0, 0.5); overflow: hidden; }
+    .km-keypoints-panel { --kp-a: 0.9; display: none; flex-direction: column; width: min(1000px, calc(100vw - 40px)); height: calc(100vh - 150px); min-height: 320px; background: rgba(41, 46, 44, var(--kp-a)); -webkit-backdrop-filter: blur(1.4px); backdrop-filter: blur(1.4px); border: 1px solid rgba(230, 215, 176, 0.3); border-radius: 10px; box-shadow: 0 14px 40px rgba(0, 0, 0, 0.5); overflow: hidden; }
     .km-keypoints-panel.open { display: flex; }
     .km-kp-head { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-bottom: 1px solid rgba(230, 215, 176, 0.22); color: #E6D7B0; font: 700 0.8rem Arial, sans-serif; letter-spacing: 0.14em; text-transform: uppercase; }
     .km-kp-head .km-kp-state { flex: 1; font-weight: 500; letter-spacing: 0.04em; text-transform: none; opacity: 0.6; }
     .km-kp-close { background: transparent; border: 1px solid rgba(230, 215, 176, 0.35); color: #E6D7B0; border-radius: 6px; width: 30px; height: 28px; cursor: pointer; }
     .km-keypoints-panel .kp-canvas { flex: 1; min-height: 0; overflow-y: auto; border-radius: 0; box-shadow: none; cursor: text; background: transparent; }
     /* the panel is see-through (the slider in its header sets how much) so the notes behind it stay in view while the key points are typed */
-    /* the writing is see-through as well, more so as the slider goes down, with only a hairline shadow so it can still be read over the notes behind it */
-    .km-keypoints-panel .kp-canvas .nb-body, .km-keypoints-panel .kp-canvas .nb-text .math-shortcut-editor { color: rgba(230, 215, 176, calc(0.4 + 0.55 * var(--kp-a))); caret-color: #E6D7B0; text-shadow: 0 1px 1px rgba(0, 0, 0, 0.55); }
+    /* the writing is solid and bright, and the notes behind the panel are dimmed and slightly blurred, so the two layers of text never fight: the notes stay
+       visible as a soft backdrop and the key points stay sharp. The slider sets how dark the backdrop is. */
+    .km-keypoints-panel .kp-canvas .nb-body, .km-keypoints-panel .kp-canvas .nb-text .math-shortcut-editor { color: #FFF6D8; caret-color: #FFF6D8; text-shadow: 0 0 2px rgba(0, 0, 0, 0.85), 0 1px 3px rgba(0, 0, 0, 0.6); }
     .km-kp-alpha { width: 90px; accent-color: #E6D7B0; cursor: pointer; }
     .km-kp-alpha-lab { font: 500 0.68rem Arial, sans-serif; letter-spacing: 0.04em; text-transform: none; opacity: 0.7; }
     .km-keypoints-panel .kp-canvas .kp-block { position: relative; left: auto; top: auto; margin: 22px 28px 80px calc(var(--nb-margin) + 22px); width: auto; max-width: 860px; }
@@ -31228,7 +31229,7 @@ SQIDAQAB
         widget.className = 'km-keypoints-widget'; widget.id = 'kmKeyPointsWidget';
         widget.innerHTML = `<button type="button" class="km-keypoints-toggle" aria-expanded="${kpOpen}">Key points${(page.doc.keyPoints || '').replace(/<[^>]*>/g, '').trim() ? ' •' : ''} ${kpOpen ? '▴' : '▾'}</button>
             <div class="km-keypoints-panel${kpOpen ? ' open' : ''}" role="dialog" aria-label="Key points">
-                <div class="km-kp-head"><span>Key points</span><span class="km-kp-state"></span><span class="km-kp-alpha-lab">See-through</span><input type="range" class="km-kp-alpha" min="0.1" max="1" step="0.05" value="0.9" aria-label="How solid the key points panel is"><button type="button" class="km-kp-close" aria-label="Close key points">✕</button></div>
+                <div class="km-kp-head"><span>Key points</span><span class="km-kp-state"></span><span class="km-kp-alpha-lab">Notes behind</span><input type="range" class="km-kp-alpha" min="0.1" max="1" step="0.05" value="0.9" aria-label="How solid the key points panel is"><button type="button" class="km-kp-close" aria-label="Close key points">✕</button></div>
                 <div class="nb-canvas kp-canvas" style="--nb-margin:56px"><div class="nb-block nb-text kp-block"><div class="nb-body"></div></div></div>
             </div>`;
         document.body.appendChild(widget);
@@ -31253,7 +31254,7 @@ SQIDAQAB
         const set = (open) => { kpOpen = open; kpOpenPage = open ? page.id : null; panel.classList.toggle('open', open); toggle.setAttribute('aria-expanded', String(open)); toggle.textContent = 'Key points' + ((page.doc.keyPoints || '').replace(/<[^>]*>/g, '').trim() ? ' •' : '') + ' ' + (open ? '▴' : '▾'); if (open) setTimeout(() => editable.focus(), 30); };
         toggle.addEventListener('click', () => set(!kpOpen));
         widget.querySelector('.km-kp-close').addEventListener('click', () => set(false));
-        { const al = widget.querySelector('.km-kp-alpha'); let v = 0.45; try { const q = parseFloat(localStorage.getItem('lm_kp_alpha')); if (q >= 0.1 && q <= 1) v = q; } catch (e) { /* the default stands */ } al.value = String(v); panel.style.setProperty('--kp-a', String(v)); al.addEventListener('input', () => { panel.style.setProperty('--kp-a', al.value); try { localStorage.setItem('lm_kp_alpha', al.value); } catch (e) { /* fine */ } }); }
+        { const al = widget.querySelector('.km-kp-alpha'); let v = 0.5; try { const q = parseFloat(localStorage.getItem('lm_kp_alpha2')); if (q >= 0.1 && q <= 1) v = q; } catch (e) { /* the default stands */ } al.value = String(v); panel.style.setProperty('--kp-a', String(v)); al.addEventListener('input', () => { panel.style.setProperty('--kp-a', al.value); try { localStorage.setItem('lm_kp_alpha2', al.value); } catch (e) { /* fine */ } }); }
         widget.addEventListener('keydown', (e) => { if (e.key === 'Escape' && kpOpen) { e.stopPropagation(); set(false); toggle.focus(); } });
     }
 
