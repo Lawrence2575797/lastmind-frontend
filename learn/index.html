@@ -1848,12 +1848,16 @@
     .km-keypoints-widget { position: fixed; top: 70px; right: 20px; z-index: 140; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; max-width: calc(100vw - 24px); }
     .km-keypoints-toggle { flex-shrink: 0; font-family: 'Arial', sans-serif; font-size: 0.78rem; font-weight: 700; background: var(--accent); color: var(--bg); border: none; padding: 9px 16px; border-radius: 20px; cursor: pointer; white-space: nowrap; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35); }
     .km-keypoints-toggle:hover { opacity: 0.85; }
-    .km-keypoints-panel { display: none; flex-direction: column; width: min(1000px, calc(100vw - 40px)); height: calc(100vh - 150px); min-height: 320px; background: #292e2c; border: 1px solid rgba(230, 215, 176, 0.3); border-radius: 10px; box-shadow: 0 14px 40px rgba(0, 0, 0, 0.5); overflow: hidden; }
+    .km-keypoints-panel { --kp-a: 0.9; display: none; flex-direction: column; width: min(1000px, calc(100vw - 40px)); height: calc(100vh - 150px); min-height: 320px; background: rgba(41, 46, 44, var(--kp-a)); border: 1px solid rgba(230, 215, 176, 0.3); border-radius: 10px; box-shadow: 0 14px 40px rgba(0, 0, 0, 0.5); overflow: hidden; }
     .km-keypoints-panel.open { display: flex; }
     .km-kp-head { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-bottom: 1px solid rgba(230, 215, 176, 0.22); color: #E6D7B0; font: 700 0.8rem Arial, sans-serif; letter-spacing: 0.14em; text-transform: uppercase; }
     .km-kp-head .km-kp-state { flex: 1; font-weight: 500; letter-spacing: 0.04em; text-transform: none; opacity: 0.6; }
     .km-kp-close { background: transparent; border: 1px solid rgba(230, 215, 176, 0.35); color: #E6D7B0; border-radius: 6px; width: 30px; height: 28px; cursor: pointer; }
-    .km-keypoints-panel .kp-canvas { flex: 1; min-height: 0; overflow-y: auto; border-radius: 0; box-shadow: none; cursor: text; }
+    .km-keypoints-panel .kp-canvas { flex: 1; min-height: 0; overflow-y: auto; border-radius: 0; box-shadow: none; cursor: text; background: transparent; }
+    /* the panel is see-through (the slider in its header sets how much) so the notes behind it stay in view while the key points are typed */
+    .km-keypoints-panel .kp-canvas .nb-body { text-shadow: 0 0 3px rgba(0, 0, 0, 0.9), 0 0 8px rgba(0, 0, 0, 0.6); }
+    .km-kp-alpha { width: 90px; accent-color: #E6D7B0; cursor: pointer; }
+    .km-kp-alpha-lab { font: 500 0.68rem Arial, sans-serif; letter-spacing: 0.04em; text-transform: none; opacity: 0.7; }
     .km-keypoints-panel .kp-canvas .kp-block { position: relative; left: auto; top: auto; margin: 22px 28px 80px calc(var(--nb-margin) + 22px); width: auto; max-width: 860px; }
     .km-keypoints-panel .kp-canvas .nb-grip, .km-keypoints-panel .kp-canvas .nb-del, .km-keypoints-panel .kp-canvas .nb-resize, .km-keypoints-panel .kp-canvas .nb-align-left { display: none; }
     @media (max-width: 720px) { .km-keypoints-widget { top: 64px; right: 10px; } .km-keypoints-panel { width: calc(100vw - 20px); height: calc(100vh - 130px); } .km-keypoints-panel .kp-canvas .kp-block { margin-left: calc(var(--nb-margin) + 8px); margin-right: 12px; } }
@@ -22198,6 +22202,13 @@ SQIDAQAB
         if (e) e.setAttribute('aria-pressed', String(notesWriting));
     }
 
+    // How much the page's layout has to be squeezed to fit the width it has now: 1 when everything fits, less when the furthest edge of what was placed would run off.
+    function nbSqueeze(canvas, lo, cw) {
+        const pg = canvas._nbPage, blocks = pg && pg.doc && Array.isArray(pg.doc.blocks) ? pg.doc.blocks : null; if (!blocks) return 1;
+        let right = 0; blocks.forEach((b) => { if (b.type === 'text' || b.type === 'table' || b.type === 'diagram' || b.type === 'graph' || b.type === 'image') right = Math.max(right, Math.max(lo, b.x || 0) + (b.w || 460)); });
+        const need = right + 16; if (need <= cw || need <= lo + 40) return 1;
+        return Math.max(0.3, (cw - lo - 16) / (need - lo - 16));
+    }
     // Where a block sits and how wide it is, kept inside the page on a narrow screen without changing what is saved.
     function nbPlace(el, block, canvas) {
         const minW = block.type === 'table' ? 220 : (block.type === 'diagram' || block.type === 'graph') ? NB_MIN_FIGURE : 140, cw = canvas.clientWidth || 600;
@@ -22205,16 +22216,19 @@ SQIDAQAB
         const lo = (parseFloat(canvas.style.getPropertyValue('--nb-margin')) || 56) + 8;
         const isFigure = block.type === 'diagram' || block.type === 'graph' || block.type === 'image';
         let w, x;
+        // On a page that is narrower than the one it was laid out on (half a screen, a panel open beside it) everything is scaled across together, positions and widths,
+        // so a diagram that sat beside its text still sits beside it, smaller, instead of being squeezed or pushed over the notes. The saved numbers are untouched.
+        const f = nbSqueeze(canvas, lo, cw), bx = f < 1 ? lo + (Math.max(lo, block.x || lo) - lo) * f : block.x, bw = f < 1 ? (block.w || 460) * f : block.w;
         if (isFigure) {
             // Keep a figure where the student placed it and scale it into the space remaining
             // on its right. Moving it left when a sidebar opens makes it cover the notes.
             // The saved width and position are untouched, so both return when the page widens.
             const displayMin = Math.min(minW, Math.max(96, cw - lo - 12));
-            x = nbClamp(block.x || lo, lo, Math.max(lo, cw - displayMin - 12));
-            w = nbClamp(block.w || 460, displayMin, Math.max(displayMin, cw - x - 12));
+            x = nbClamp(bx || lo, lo, Math.max(lo, cw - displayMin - 12));
+            w = nbClamp(bw || 460, displayMin, Math.max(displayMin, cw - x - 12));
         } else {
-            w = nbClamp(block.w || 460, minW, Math.max(minW, cw - lo));
-            x = nbClamp(block.x || 0, lo, Math.max(lo, cw - w));
+            w = nbClamp(bw || 460, minW, Math.max(minW, cw - lo));
+            x = nbClamp(bx || 0, lo, Math.max(lo, cw - w));
         }
         el.style.left = x + 'px'; el.style.top = (Math.max(0, block.y || 0) + (el._nbShift || 0)) + 'px'; el.style.width = w + 'px';
         nbSyncCompact(el);
@@ -24520,6 +24534,7 @@ SQIDAQAB
         { const slot = document.getElementById('nbTopBtns');   // fresh buttons for this page, so nothing from the page before is still attached to them
           if (slot) slot.innerHTML = '<button type="button" class="cortex-btn-topbar" id="nbToolsToggle" aria-expanded="true" aria-controls="nbToolbar" title="Show or hide the tools bar">Tools ▴</button><button type="button" class="cortex-btn-topbar" id="nbHistBtn" title="Earlier versions of this page, and a way to get lost writing back">History</button><button type="button" class="cortex-btn-topbar" id="nbSrBtn" title="Quiz yourself on this page the day after you write it">Revision</button><button type="button" class="cortex-btn-topbar" id="nbZoomOut" title="Zoom out" aria-label="Zoom out">−</button><button type="button" class="cortex-btn-topbar" id="nbZoomFit" title="Zoom out to see the whole page, for a screenshot. Click again to go back to normal size.">Fit page</button><button type="button" class="cortex-btn-topbar" id="nbZoomIn" title="Zoom in" aria-label="Zoom in">+</button>'; }
         const canvas = document.getElementById('nbCanvas');
+        canvas._nbPage = page;
         if (page.kind === 'problemset') { const t = document.getElementById('nbTitle'); if (t) t.placeholder = 'Untitled problem set'; psMountIntake(page, canvas); if (page.ps && page.ps.done) requestAnimationFrame(() => requestAnimationFrame(() => psRelayout(page, canvas))); }
         // When the sheet gets narrower or wider (the LastMind panel opening beside it, a smaller window), everything is moved so that all of it can
         // still be read: a problem set is laid out again for the new width, and other boxes are pulled in from the edge.
@@ -31212,7 +31227,7 @@ SQIDAQAB
         widget.className = 'km-keypoints-widget'; widget.id = 'kmKeyPointsWidget';
         widget.innerHTML = `<button type="button" class="km-keypoints-toggle" aria-expanded="${kpOpen}">Key points${(page.doc.keyPoints || '').replace(/<[^>]*>/g, '').trim() ? ' •' : ''} ${kpOpen ? '▴' : '▾'}</button>
             <div class="km-keypoints-panel${kpOpen ? ' open' : ''}" role="dialog" aria-label="Key points">
-                <div class="km-kp-head"><span>Key points</span><span class="km-kp-state"></span><button type="button" class="km-kp-close" aria-label="Close key points">✕</button></div>
+                <div class="km-kp-head"><span>Key points</span><span class="km-kp-state"></span><span class="km-kp-alpha-lab">See-through</span><input type="range" class="km-kp-alpha" min="0.1" max="1" step="0.05" value="0.9" aria-label="How solid the key points panel is"><button type="button" class="km-kp-close" aria-label="Close key points">✕</button></div>
                 <div class="nb-canvas kp-canvas" style="--nb-margin:56px"><div class="nb-block nb-text kp-block"><div class="nb-body"></div></div></div>
             </div>`;
         document.body.appendChild(widget);
@@ -31237,6 +31252,7 @@ SQIDAQAB
         const set = (open) => { kpOpen = open; kpOpenPage = open ? page.id : null; panel.classList.toggle('open', open); toggle.setAttribute('aria-expanded', String(open)); toggle.textContent = 'Key points' + ((page.doc.keyPoints || '').replace(/<[^>]*>/g, '').trim() ? ' •' : '') + ' ' + (open ? '▴' : '▾'); if (open) setTimeout(() => editable.focus(), 30); };
         toggle.addEventListener('click', () => set(!kpOpen));
         widget.querySelector('.km-kp-close').addEventListener('click', () => set(false));
+        { const al = widget.querySelector('.km-kp-alpha'); let v = 0.45; try { const q = parseFloat(localStorage.getItem('lm_kp_alpha')); if (q >= 0.1 && q <= 1) v = q; } catch (e) { /* the default stands */ } al.value = String(v); panel.style.setProperty('--kp-a', String(v)); al.addEventListener('input', () => { panel.style.setProperty('--kp-a', al.value); try { localStorage.setItem('lm_kp_alpha', al.value); } catch (e) { /* fine */ } }); }
         widget.addEventListener('keydown', (e) => { if (e.key === 'Escape' && kpOpen) { e.stopPropagation(); set(false); toggle.focus(); } });
     }
 
