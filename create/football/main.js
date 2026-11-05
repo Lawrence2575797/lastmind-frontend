@@ -2060,7 +2060,8 @@
     if (st.busy) return '';
     const idx = TEST_TABS.findIndex(([k]) => k === phase), last = idx === TEST_TABS.length - 1;
     if (testsDoneCount() > 0 && last) return '<button id="labToEvidence">Go to the match preview</button>';
-    return last ? '<button id="labSkip" disabled title="Do at least one test before moving on">Skip</button>' : '<button id="labSkip">' + (testsDoneCount() > 0 ? 'Next test' : 'Skip this test') + '</button>';
+    if (testsDoneCount() === 0 || last) return '';   // no skip button: run a test, then move on
+    return '<button id="labSkip">Next test</button>';
   }
   function skipNote(phase) {
     const n = testsDoneCount();
