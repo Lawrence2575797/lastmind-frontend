@@ -1252,7 +1252,7 @@
     flight.offside = os === 'off' || (os === 'marginal' && rng() < 0.1 + 0.3 * other(match, team).tactics.offsideTrap);
     // for the manager's analysis: where the pass was going, and how many team-mates were in the box when it left
     let boxMates = 0; { const gxA = team.attackDir === 1 ? L : 0; team.players.forEach((q) => { if (q !== carrier && Math.abs(q.x - gxA) <= 16.5 && Math.abs(q.y - W / 2) <= 20.2) boxMates++; }); }
-    record(match, { type: 'pass', air: air ? 1 : 0, first: first ? 1 : 0, kd: dist(match.ball, carrier), team: team.id, from: carrier.number, to: opt.target.number, tx: opt.tx, ty: opt.ty, box: boxMates, p: opt.p, ok: false, outcome: 'pending', dist: opt.d, lane: opt.lane, press: opt.press, forced: !!match.forcePass, carrierPressure: nearestOpponent(match, team, carrier).d });
+    record(match, { type: 'pass', air: air ? 1 : 0, first: first ? 1 : 0, kd: dist(match.ball, carrier), x: carrier.x, y: carrier.y, team: team.id, from: carrier.number, to: opt.target.number, tx: opt.tx, ty: opt.ty, box: boxMates, p: opt.p, ok: false, outcome: 'pending', dist: opt.d, lane: opt.lane, press: opt.press, forced: !!match.forcePass, carrierPressure: nearestOpponent(match, team, carrier).d });
     flight.ev = match.events[match.events.length - 1];
     flight.ev.hold = match.clock - (match.possessionReceivedAt == null ? match.clock : match.possessionReceivedAt); flight.ev.zone = FM.toTeamSpace(team.attackDir, carrier.x, carrier.y).d; flight.ev.grp = carrier.group;
     match.carrier = null; match.carry = null;

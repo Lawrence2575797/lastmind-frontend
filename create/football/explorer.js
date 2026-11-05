@@ -23,7 +23,7 @@
     const shots = log.other.filter((e) => e.type === 'shot').map((e) => ({ mine: e.team === teamId, x: fx_(e.x), y: fy_(e.y), xg: e.xg, outcome: e.outcome, player: e.player, t: e.t, setPiece: e.setPiece, defDist: e.defDist, raw: e }));
     // a side's own shots are drawn attacking right; the other side's shots are drawn attacking the same way when that side is looked at
     const myShots = shots.filter((s) => s.mine), theirShots = log.other.filter((e) => e.type === 'shot' && e.team !== teamId).map((e) => ({ raw: e, x: (ti === 0 ? L - e.x : e.x), y: (ti === 0 ? W - e.y : e.y), xg: e.xg, outcome: e.outcome, player: e.player, t: e.t, setPiece: e.setPiece }));
-    const passes = log.passes.filter((p) => p[1] === ti).map((p) => ({ t: p[0], from: p[2], to: p[3], res: p[4], x: fx_(p[5]), y: fy_(p[6]), dist: p[7], lane: p[8], press: p[9], p: p[10], tx: p[11] < 0 ? null : fx_(p[11]), ty: p[12] < 0 ? null : fy_(p[12]), box: p[13] }));
+    const passes = log.passes.filter((p) => p[1] === ti).map((p) => ({ t: p[0], from: p[2], to: p[3], res: p[4], x: p[5] == null ? NaN : fx_(p[5]), y: p[6] == null ? NaN : fy_(p[6]), dist: p[7], lane: p[8], press: p[9], p: p[10], tx: p[11] < 0 ? null : fx_(p[11]), ty: p[12] < 0 ? null : fy_(p[12]), box: p[13] }));
     const tackles = log.tackles.filter((p) => p[1] === ti).map((p) => ({ t: p[0], player: p[2], vs: p[3], ok: p[4], x: fx_(p[5]), y: fy_(p[6]), depth: p[7], cover: p[8] }));
     const dribbles = log.dribbles.filter((p) => p[1] === ti).map((p) => ({ t: p[0], player: p[2], ok: p[3], x: fx_(p[4]), y: fy_(p[5]), def: p[6], p: p[7] }));
     const others = log.other.filter((e) => e.team === teamId);
@@ -88,7 +88,7 @@
   add({ id: 'passmap', group: 'Passing', title: 'Pass map', tags: 'passes passing completion progressive final third long short direction forward', blurb: 'Every pass as an arrow, filtered by what you want to see.', needs: 'match', controls: [{ id: 'pf', label: 'Show', opts: [['all', 'All passes'], ['fail', 'Failed passes'], ['prog', 'Progressive (10 m or more forward)'], ['final', 'Into the final third'], ['box', 'Into the box'], ['long', 'Long (30 m or more)']] }],
     render(c, st) {
       const mode = st.pf || 'all', box = (x, y) => x >= 105 - 16.5 && y >= 34 - 20.16 && y <= 34 + 20.16;
-      const keep = (p) => p.tx != null && (mode === 'all' || (mode === 'fail' && p.res !== 1) || (mode === 'prog' && p.tx - p.x >= 10) || (mode === 'final' && p.tx >= 70 && p.x < 70) || (mode === 'box' && box(p.tx, p.ty) && !box(p.x, p.y)) || (mode === 'long' && p.dist >= 30));
+      const keep = (p) => p.tx != null && Number.isFinite(p.x) && (mode === 'all' || (mode === 'fail' && p.res !== 1) || (mode === 'prog' && p.tx - p.x >= 10) || (mode === 'final' && p.tx >= 70 && p.x < 70) || (mode === 'box' && box(p.tx, p.ty) && !box(p.x, p.y)) || (mode === 'long' && p.dist >= 30));
       const list = c.passes.filter(keep); let g = '';
       list.forEach((p) => { g += arrow(+px(p.x), +py(p.y), +px(p.tx), +py(p.ty), p.res === 1 ? 'rgba(127,227,166,.9)' : p.res === 2 ? '#e8d27a' : RED, 1.3, list.length > 220 ? 0.35 : 0.75); });
       const all = c.passes, ok = all.filter((p) => p.res === 1), fwd = all.filter((p) => p.tx != null && p.tx - p.x >= 10), long = all.filter((p) => p.dist >= 30);
@@ -102,7 +102,7 @@
     render(c) {
       const cameOn = new Set(c.log.other.filter((e) => (e.type === 'sub' || e.type === 'keeperSwap') && e.team === c.teamId).map((e) => e.on));
       const ps = c.passes.filter((p) => !cameOn.has(p.from) && !cameOn.has(p.to)), pos = {}, edges = {}, made = {};
-      ps.forEach((p) => { const o = pos[p.from] || (pos[p.from] = { x: 0, y: 0, n: 0 }); o.x += p.x; o.y += p.y; o.n++; made[p.from] = (made[p.from] || 0) + 1; if (p.res === 1) { const k = p.from + '>' + p.to; edges[k] = (edges[k] || 0) + 1; } });
+      ps.forEach((p) => { if (!Number.isFinite(p.x)) return; const o = pos[p.from] || (pos[p.from] = { x: 0, y: 0, n: 0 }); o.x += p.x; o.y += p.y; o.n++; made[p.from] = (made[p.from] || 0) + 1; if (p.res === 1) { const k = p.from + '>' + p.to; edges[k] = (edges[k] || 0) + 1; } });
       const pair = {}; Object.keys(edges).forEach((k) => { const [a, b] = k.split('>').map(Number), key = Math.min(a, b) + '-' + Math.max(a, b); pair[key] = (pair[key] || 0) + edges[k]; });
       const max = Math.max.apply(null, Object.values(pair).concat([1])); let g = '';
       Object.keys(pair).filter((k) => pair[k] >= 3).forEach((k) => { const [a, b] = k.split('-').map(Number), A = pos[a], B = pos[b]; if (!A || !B) return; g += `<line x1="${px(A.x / A.n)}" y1="${py(A.y / A.n)}" x2="${px(B.x / B.n)}" y2="${py(B.y / B.n)}" stroke="#f2c14e" stroke-opacity="${(0.18 + 0.7 * pair[k] / max).toFixed(2)}" stroke-width="${(1 + 7 * pair[k] / max).toFixed(1)}"><title>${esc(c.short(a))} and ${esc(c.short(b))}: ${pair[k]} completed passes</title></line>`; });
@@ -118,7 +118,7 @@
       const prs = bucket(ps, (p) => p.press, [0, 2, 4, 7, 12, 99], ['Under 2 m', '2 to 4 m', '4 to 7 m', '7 to 12 m', '12 m or more']);
       const bar = (rows) => C().bars(rows.map((r) => ({ l: r.l + ' (' + r.n + ')', v: r.n ? 100 * r.ok / r.n : 0, s: r.n ? Math.round(100 * r.ok / r.n) + '%' : '–' })), { max: 100, w: 400, ml: 120 });
       const tbl = (rows) => table(['Band', 'Passes', 'Completed', 'Expected'], rows.map((r) => [r.l, r.n, pct(r.ok, r.n), r.n ? Math.round(100 * r.exp) + '%' : '–']));
-      let g = ''; ps.filter((p) => p.tx != null && p.lane < 2).forEach((p) => { g += arrow(+px(p.x), +py(p.y), +px(p.tx), +py(p.ty), p.res === 1 ? 'rgba(127,227,166,.9)' : RED, 1.4, 0.7); });
+      let g = ''; ps.filter((p) => p.tx != null && Number.isFinite(p.x) && p.lane < 2).forEach((p) => { g += arrow(+px(p.x), +py(p.y), +px(p.tx), +py(p.ty), p.res === 1 ? 'rgba(127,227,166,.9)' : RED, 1.4, 0.7); });
       const tight = ps.filter((p) => p.lane < 2);
       return kpis([['Passes measured', ps.length], ['Through a tight lane (under 2 m)', tight.length, pct(tight.filter((p) => p.res === 1).length, tight.length) + ' completed'], ['Receiver closed down (under 4 m)', ps.filter((p) => p.press < 4).length, pct(ps.filter((p) => p.press < 4 && p.res === 1).length, ps.filter((p) => p.press < 4).length) + ' completed']]) +
         `<div class="ex-cols"><div>${section('Completion by lane clearance', bar(lane) + tbl(lane), 'Lane clearance is the distance from the pass line to the nearest opponent.')}</div><div>${section('Completion by pressure on the receiver', bar(prs) + tbl(prs), 'Pressure is the distance from the receiver to the nearest opponent.')}</div></div>` +
