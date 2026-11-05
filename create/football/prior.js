@@ -51,8 +51,8 @@
     return start.concat(subs);
   }
 
-  function playMatch(league, home, away, rng, prior) {
-    const quality = (t) => { const r = (t.squad || []).map((p) => FM.playerRating(p, p.natural)).sort((a, b) => b - a).slice(0, 11); return r.length ? r.reduce((a, b) => a + b, 0) / r.length : 6; };
+  function playMatch(league, home, away, rng, prior, bias) {
+    const quality = (t) => { const r = (t.squad || []).map((p) => FM.playerRating(p, p.natural)).sort((a, b) => b - a).slice(0, 11); return (r.length ? r.reduce((a, b) => a + b, 0) / r.length : 6) + ((bias && bias[t.id]) || 0); };
     const qh = quality(home), qa = quality(away);
     const lh = clamp(1.4 * Math.exp(0.5 * (qh - qa)), 0.3, 3.8), la = clamp(1.1 * Math.exp(0.5 * (qa - qh)), 0.25, 3.4);
     const hg = poisson(rng, lh), ag = poisson(rng, la);
@@ -124,22 +124,53 @@
     }
     return out;
   }
+  // Who was in each division last season. The clubs in a division now are the ones that stayed, plus two promoted from the division below and two relegated from
+  // the division above, so last season's divisions are those same clubs the other way round: the stayers, plus the two now in the division above (they went up from
+  // here) and the two now in the division below (they went down from here). Promoted clubs are the weaker ones in their new division, relegated clubs the stronger ones
+  // in theirs, which is also what this season's expectations say.
+  function lastSeasonDivisions(league) {
+    const divs = FM.allDivisions(league).slice().sort((a, b) => a.level - b.level), n = divs.length;
+    const q = (t) => { const r = (t.squad || []).map((p) => FM.playerRating(p, p.natural)).sort((a, b) => b - a).slice(0, 11); return r.length ? r.reduce((a, b) => a + b, 0) / r.length : 6; };
+    const info = divs.map((d, i) => {
+      const by = d.teams.slice().sort((a, b) => q(a) - q(b) || a.id.localeCompare(b.id));
+      const promotedIn = i < n - 1 ? by.slice(0, 2) : [], relegatedIn = i > 0 ? by.slice(-2) : [];
+      return { d, promotedIn, relegatedIn, stayed: d.teams.filter((t) => promotedIn.indexOf(t) < 0 && relegatedIn.indexOf(t) < 0) };
+    });
+    return info.map((x, i) => {
+      const wentUp = i > 0 ? info[i - 1].promotedIn : [], wentDown = i < n - 1 ? info[i + 1].relegatedIn : [];
+      return { level: x.d.level, name: x.d.name, teams: x.stayed.concat(wentUp, wentDown), mustTop: wentUp.map((t) => t.id), mustBottom: wentDown.map((t) => t.id), now: {} };
+    });
+  }
   // The season, for every division.
   FM.simulatePriorSeason = function (league) {
-    const prior = { v: 1, divisions: [], players: {}, season: 0 };
+    const prior = { v: 2, divisions: [], players: {}, season: 0 };
     const rng = FM.mulberry32((league.seed || 1) + 20231);   // the same dice for every game: last season is one fixed history
-    FM.allDivisions(league).slice().sort((a, b) => a.level - b.level).forEach((d) => {
-      const rows = {}; d.teams.forEach((t) => { rows[t.id] = { id: t.id, name: t.name, P: 0, W: 0, D: 0, L: 0, GF: 0, GA: 0, Pts: 0, xg: 0, sh: 0, sot: 0, ps: 0, pok: 0, poss: 0 }; });
-      const results = [];
-      roundRobin(d.teams.map((t) => t.id).sort()).forEach((fx) => {
-        const h = d.teams.find((t) => t.id === fx.homeId), a = d.teams.find((t) => t.id === fx.awayId); if (!h || !a) return;
-        const m = playMatch(league, h, a, rng, prior);
-        [[fx.homeId, m.hg, m.ag], [fx.awayId, m.ag, m.hg]].forEach(([id, gf, ga]) => { const r = rows[id]; r.P++; r.GF += gf; r.GA += ga; if (gf > ga) { r.W++; r.Pts += 3; } else if (gf === ga) { r.D++; r.Pts++; } else r.L++; const s = m.st[id]; r.xg += s.xg; r.sh += s.shots; r.sot += s.sot; r.ps += s.passes; r.pok += s.passOk; r.poss += s.poss; });
-        results.push([fx.round, fx.homeId, fx.awayId, m.hg, m.ag]);
-      });
-      const table = Object.keys(rows).map((k) => rows[k]).sort((x, y) => y.Pts - x.Pts || (y.GF - y.GA) - (x.GF - x.GA) || y.GF - x.GF || x.name.localeCompare(y.name));
-      table.forEach((r, i) => { r.pos = i + 1; r.xg = r1(r.xg); r.poss = r.P ? Math.round(r.poss / r.P) : 50; });
-      prior.divisions.push({ level: d.level, name: d.name, table, results });
+    const nowLevel = {}; FM.allDivisions(league).forEach((d) => d.teams.forEach((t) => { nowLevel[t.id] = d.level; }));
+    lastSeasonDivisions(league).forEach((d) => {
+      const play = (bias) => {
+        const scratch = { players: {} }, rows = {}; d.teams.forEach((t) => { rows[t.id] = { id: t.id, name: t.name, P: 0, W: 0, D: 0, L: 0, GF: 0, GA: 0, Pts: 0, xg: 0, sh: 0, sot: 0, ps: 0, pok: 0, poss: 0 }; });
+        const results = [];
+        roundRobin(d.teams.map((t) => t.id).sort()).forEach((fx) => {
+          const h = d.teams.find((t) => t.id === fx.homeId), a = d.teams.find((t) => t.id === fx.awayId); if (!h || !a) return;
+          const m = playMatch(league, h, a, rng, scratch, bias);
+          [[fx.homeId, m.hg, m.ag], [fx.awayId, m.ag, m.hg]].forEach(([id, gf, ga]) => { const r = rows[id]; r.P++; r.GF += gf; r.GA += ga; if (gf > ga) { r.W++; r.Pts += 3; } else if (gf === ga) { r.D++; r.Pts++; } else r.L++; const s = m.st[id]; r.xg += s.xg; r.sh += s.shots; r.sot += s.sot; r.ps += s.passes; r.pok += s.passOk; r.poss += s.poss; });
+          results.push([fx.round, fx.homeId, fx.awayId, m.hg, m.ag]);
+        });
+        const table = Object.keys(rows).map((k) => rows[k]).sort((x, y) => y.Pts - x.Pts || (y.GF - y.GA) - (x.GF - x.GA) || y.GF - x.GF || x.name.localeCompare(y.name));
+        return { table, results, scratch };
+      };
+      // the clubs that went up must have finished in the top two and the ones that went down in the bottom two: the dice are rolled again, with the clubs' form
+      // nudged a little further each time, until the table says so
+      const same = (ids, rowsOf) => ids.length === rowsOf.length && ids.every((id) => rowsOf.some((r) => r.id === id));
+      let out = null;
+      for (let k = 0; k < 400; k++) {
+        const b = Math.min(1.4, 0.1 + k * 0.01), bias = {}; d.mustTop.forEach((id) => { bias[id] = b; }); d.mustBottom.forEach((id) => { bias[id] = -b; });
+        out = play(bias);
+        const t = out.table; if ((!d.mustTop.length || same(d.mustTop, t.slice(0, 2))) && (!d.mustBottom.length || same(d.mustBottom, t.slice(-2)))) break;
+      }
+      Object.keys(out.scratch.players).forEach((id) => { prior.players[id] = out.scratch.players[id]; });
+      out.table.forEach((r, i) => { r.pos = i + 1; r.xg = r1(r.xg); r.poss = r.P ? Math.round(r.poss / r.P) : 50; r.now = nowLevel[r.id]; });   // now: the division the club is in this season
+      prior.divisions.push({ level: d.level, name: d.name, table: out.table, results: out.results });
     });
     // tidy the player lines: round the figures that were added in fractions, and keep the rating as an average
     Object.keys(prior.players).forEach((id) => { const s = prior.players[id]; s.xg = r1(s.xg); s.xa = r1(s.xa); s.rs = s.mn ? r2(s.rs / (s.mn / 90)) : 0; });
@@ -154,7 +185,7 @@
     prior.divisions.forEach((d) => d.table.forEach((r) => { if (names[r.id]) r.name = names[r.id]; }));
     league.prior = prior; return true;
   };
-  FM.ensurePrior = function (league) { if (!league.prior || league.prior.v !== 1) { if (!FM.applyBakedPrior(league)) FM.simulatePriorSeason(league); } return league.prior; };
+  FM.ensurePrior = function (league) { if (!league.prior || league.prior.v !== 2) { if (!FM.applyBakedPrior(league)) FM.simulatePriorSeason(league); } return league.prior; };
 
   // ---------- reading it ----------
   FM.priorLine = function (league, p) { const pr = FM.ensurePrior(league); return pr.players[p.id] || null; };

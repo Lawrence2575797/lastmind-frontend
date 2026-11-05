@@ -1362,6 +1362,7 @@
   // The tables of every season there is: the current one, the ones played in this save, and the one simulated before the first (25/26 when the first is 26/27).
   const seasonName = (s) => (25 + s) + '/' + (26 + s);
   function seasonTables(lg, want) {
+    if (lg.prior && lg.prior.v !== 2 && FM.applyBakedPrior) FM.applyBakedPrior(lg);   // a save from before last season matched the promotions and relegations gets the new one
     const hist = lg.seasonHistory || [], pr = lg.prior && lg.prior.divisions ? lg.prior : null;
     const opts = [{ v: 'cur', t: seasonName(lg.season || 1) + ' (this season)' }].concat(hist.slice().reverse().map((h) => ({ v: 'h' + h.season, t: seasonName(h.season) }))).concat(pr ? [{ v: 'prior', t: seasonName(0) + ' (before you arrived)' }] : []);
     const sel = opts.some((o) => o.v === want) ? want : 'cur';
