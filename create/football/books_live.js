@@ -5,7 +5,7 @@
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const gbp2 = (n) => '£' + n.toFixed(2), gbp = (n) => FM.gbp(n), num = (n) => Math.round(n).toLocaleString('en-GB'), pc = (n, d) => (n >= 0 ? '' : '−') + Math.abs(n).toFixed(d == null ? 1 : d) + '%';
   const AX = 'stroke="rgba(244,237,218,.35)" stroke-width="1"', TXT = 'fill="rgba(244,237,218,.8)" font-family="Arial,sans-serif" font-size="11"';
-  let MSG = null, LEVEL = 'gcse';
+  let MSG = null, LEVEL = 'alevel';
   const t = (name) => (FM.booksLearn && FM.booksLearn.termBtn ? FM.booksLearn.termBtn(name, LEVEL) : esc(name));
 
   // ---------- the club's numbers, read once ----------

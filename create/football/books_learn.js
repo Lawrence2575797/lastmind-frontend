@@ -4,7 +4,7 @@
   const FM = (window.FM = window.FM || {});
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const gbp = (v) => '£' + Math.round(v).toLocaleString('en-GB');
-  const lvl = (lg) => (lg.tier === 'alevel' || lg.tier === 'above' ? 'alevel' : 'gcse');
+  const lvl = (lg) => 'alevel';   // the business teaching is A-level only
   const LEVEL_NAME = { gcse: 'GCSE', alevel: 'A-level' };
   const S = { theme: null, topic: {}, be: { price: 25, vc: 4, fc: 150000, att: 11000 }, sd: { d: 0, s: 0 } };
 

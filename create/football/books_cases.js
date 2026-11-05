@@ -6,7 +6,7 @@
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const gbp = (n) => FM.gbp(n), num = (n) => Math.round(n).toLocaleString('en-GB'), pc = (n, d) => (Math.round(n * Math.pow(10, d == null ? 1 : d)) / Math.pow(10, d == null ? 1 : d)).toFixed(d == null ? 1 : d) + '%';
   const BL = () => FM.booksLive;
-  let LEVEL = 'gcse', UI = { open: null, msg: null };
+  let LEVEL = 'alevel', UI = { open: null, msg: null };
   const term = (n) => (FM.booksLearn && FM.booksLearn.termBtn ? FM.booksLearn.termBtn(n, LEVEL) : esc(n));
   const P = (arr) => arr.map((t) => `<p>${esc(String(t).replace(/\{\{([^}]+)\}\}/g, '$1'))}</p>`).join('');
   const factsTable = (rows) => `<div class="tablewrap"><table class="data"><tbody>${rows.map((r) => `<tr><td class="l">${esc(r[0])}</td><td><b>${esc(r[1])}</b></td></tr>`).join('')}</tbody></table></div>`;

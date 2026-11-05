@@ -388,7 +388,7 @@
     const ins = last ? Object.keys(IN_NAMES).filter((k) => (last.inflow[k] || 0) > 0).sort((x, y) => last.inflow[y] - last.inflow[x]) : [], outs = last ? Object.keys(OUT_NAMES).filter((k) => (last.outflow[k] || 0) > 0).sort((x, y) => last.outflow[y] - last.outflow[x]) : [];
     const money = last ? `<div class="rep-two"><div class="books-wrap"><table class="books-table"><thead><tr><th class="l">Money in</th><th>£</th></tr></thead><tbody>${ins.map((k) => `<tr><td class="l">${IN_NAMES[k]}</td>${cell(last.inflow[k])}</tr>`).join('')}<tr class="tot"><td class="l">Total</td>${cell(sumv(last.inflow))}</tr></tbody></table></div>
         <div class="books-wrap"><table class="books-table"><thead><tr><th class="l">Money out</th><th>£</th></tr></thead><tbody>${outs.map((k) => `<tr><td class="l">${OUT_NAMES[k]}</td>${cell(-last.outflow[k])}</tr>`).join('')}<tr class="tot"><td class="l">Total</td>${cell(-sumv(last.outflow))}</tr></tbody></table></div></div>` : '';
-    return `<div class="board-grid"><div class="card"><div class="eyebrow">Shareholders</div><div class="home-approvals">${meter('Finances', ap.financial)}${meter('Football', ap.football)}</div>
+    return (FM.boardDash ? FM.boardDash(lg) : '') + `<div class="board-grid"><div class="card"><div class="eyebrow">Shareholders</div><div class="home-approvals">${meter('Finances', ap.financial)}${meter('Football', ap.football)}</div>
         <div class="books-wrap"><table class="books-table objectives"><thead><tr><th class="l">Objective</th><th>Now</th><th>Status</th></tr></thead><tbody>${objs.map((o) => `<tr><td class="l">${esc(o.title)}</td><td class="n">${esc(o.value)}</td><td class="n st-${o.state.replace(' ', '-')}">${STATE_WORD[o.state] || o.state}</td></tr>`).join('')}<tr><td class="l">Expected finish</td><td class="n" colspan="2">${board.expectedPosition ? ord(board.expectedPosition) : '–'}</td></tr></tbody></table></div></div>
       <div class="card"><div class="eyebrow">Bank balance</div>${cols.length ? spark(cols, limit) : ''}<div class="board-legend"><span class="a">Played</span><span class="f">Forecast</span><span class="r">Overdraft limit</span></div></div></div>
       ${last ? `<div class="card"><div class="eyebrow">Last matchday · round ${last.round} · ${last.home ? 'home' : 'away'} v ${esc(last.opp)}</div>${money}</div>` : ''}`;
@@ -440,6 +440,7 @@
     const BL = FM.booksLearn;
     st.tab = BL && BL.isTab(st.tab) ? st.tab : (TAB_OF[st.tab] || 'home');
     const tabs = [['home', 'Overview'], ['ground', 'Tickets'], ['funding', 'Finance'], ['books', 'Accounts'], ['controls', 'Controls']].concat(BL ? BL.tabs(lg) : []);
+    if (FM.boardDash && !document.getElementById('bdCss')) { const sd = document.createElement('style'); sd.id = 'bdCss'; sd.textContent = FM.boardDash.css; document.head.appendChild(sd); }
     if (BL && !document.getElementById('bkCss')) { const sty = document.createElement('style'); sty.id = 'bkCss'; sty.textContent = FM.booksLearnCss; document.head.appendChild(sty); }
     const NAMES = Object.assign({}, ...tabs.map(([k, l]) => ({ [k]: l })));
     const ap0 = FM.bizApprovals(lg), yr0 = FM.bizSeasonSum(lg, 'net');
@@ -449,7 +450,7 @@
     const sec = (id, html) => `<div id="sec-${id}" class="board-sec">${html}</div>`;
     const body = BL && BL.isTab(st.tab) ? BL.html(lg, st.tab) : st.tab === 'home' ? overviewMin(lg) : st.tab === 'ground' ? `<div style="display:grid;gap:22px">${sec('matchday', matchday(lg))}${sec('stadium', stadium(lg))}</div>` : st.tab === 'books' ? books(lg) : st.tab === 'controls' ? controlsTab(lg) : `<div style="display:grid;gap:22px">${sec('finance', finance(lg))}${sec('commercial', commercial(lg))}</div>`;
     const ro = '';
-    host.innerHTML = `<div class="board-page">${strip}<div class="board-nav"><div class="row board-tabs" role="tablist">${tabs.map(([k, l]) => `<button type="button" role="tab" data-tab="${k}" class="${st.tab === k ? 'on' : ''}">${l}</button>`).join('')}</div></div>${st.ok ? `<p class="banner ok" role="status"><b>${esc(st.ok.title)}</b> ${esc(st.ok.text)}</p>` : ''}${body}</div>`;
+    host.innerHTML = `<div class="board-page">${st.tab === 'home' && FM.boardDash ? '' : strip}<div class="board-nav"><div class="row board-tabs" role="tablist">${tabs.map(([k, l]) => `<button type="button" role="tab" data-tab="${k}" class="${st.tab === k ? 'on' : ''}">${l}</button>`).join('')}</div></div>${st.ok ? `<p class="banner ok" role="status"><b>${esc(st.ok.title)}</b> ${esc(st.ok.text)}</p>` : ''}${body}</div>`;
     const redo = () => FM.renderBoard(host, lg, hooks);
     if (st.anchor) { const target = host.querySelector('#sec-' + st.anchor); st.anchor = null; if (target && target.scrollIntoView) target.scrollIntoView(); }
     host.querySelectorAll('[data-tab]').forEach((b) => b.addEventListener('click', () => { if (FM.booksCases && b.dataset.tab === 'bk:papers') FM.booksCases.reset(); st.tab = BL && BL.isTab(b.dataset.tab) ? b.dataset.tab : (TAB_OF[b.dataset.tab] || 'home'); st.trail = []; st.msg = ''; st.ok = null; redo(); }));
