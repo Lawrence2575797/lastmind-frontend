@@ -5,7 +5,7 @@
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const POSITIONS = [['GK', 'Goalkeepers'], ['CB', 'Centre-backs'], ['FB', 'Full-backs'], ['FBL', 'Left-backs'], ['FBR', 'Right-backs'], ['DM', 'Defensive midfielders'], ['CM', 'Central midfielders'], ['AM', 'Attacking midfielders'], ['WF', 'Wingers'], ['ST', 'Strikers']];
   const STAGE_TEXT = { interest: 'Interest declared', counter: 'Counter-offer', bid_rejected: 'Bid rejected', fee_agreed: 'Fee agreed', wage_talks: 'In wage talks', signed: 'Signed', collapsed: 'Collapsed' };
-  const rs = { tab: 'players', q: '', club: 'all', pos: 'all', nation: 'all', ageMin: '', ageMax: '', ratingMin: '', priceMax: '', fit: false, potMin: '', sort: 'rating', open: null, bid: null, msg: {} };
+  const rs = { tab: 'players', q: '', club: 'all', pos: 'all', nation: 'all', ageMin: '', ageMax: '', ratingMin: '', priceMax: '', wageMax: '', wageFit: false, fit: false, potMin: '', sort: 'rating', open: null, bid: null, msg: {} };
   let hooks = {};
 
   // Closest names first: a word that matches exactly or starts with what was typed beats one that merely contains it, which beats a near miss (a letter or two out).
@@ -62,6 +62,8 @@
       if (rs.ratingMin !== '' && FM.playerRating(p) < +rs.ratingMin) return false;
       if (rs.potMin !== '' && FM.potentialOf(p) < +rs.potMin) return false;
       if (rs.priceMax !== '' && FM.askingPrice(league, p) > +rs.priceMax) return false;
+      if (rs.wageMax !== '' && FM.wageOf(p) > +rs.wageMax) return false;
+      if (rs.wageFit && FM.wageOf(p) * 1.2 > room + 0.5) return false;   // he would want about a fifth more than he earns now: it has to fit in the wage room
       if (rs.fit && FM.isInjured(p)) return false;
       if (rs.q.trim() && nameScore(p.name, rs.q) === Infinity) return false;
       return true;
@@ -70,6 +72,8 @@
       rating: (a, b) => FM.playerRating(b.p) - FM.playerRating(a.p),
       price: (a, b) => FM.askingPrice(league, b.p) - FM.askingPrice(league, a.p),
       priceLow: (a, b) => FM.askingPrice(league, a.p) - FM.askingPrice(league, b.p),
+      wage: (a, b) => FM.wageOf(b.p) - FM.wageOf(a.p),
+      wageLow: (a, b) => FM.wageOf(a.p) - FM.wageOf(b.p),
       potential: (a, b) => FM.potentialOf(b.p) - FM.potentialOf(a.p) || FM.playerRating(b.p) - FM.playerRating(a.p),
       age: (a, b) => FM.ageOf(a.p) - FM.ageOf(b.p),
       name: (a, b) => a.p.name.localeCompare(b.p.name),
@@ -82,17 +86,19 @@
     const rowHtml = ({ p, tm }) => `<tr class="player-row${rs.open === p.id ? ' sel' : ''}" data-open="${esc(p.id)}" tabindex="0">
       <td class="l"><b>${esc(p.name)}</b> ${FM.isInjured(p) ? '<span class="out">injured</span>' : ''}</td><td class="l">${tm.isPool ? '<b>Free agent</b>' : esc(tm.name) + ' <small>' + FM.contractLeft(p) + ' yr</small>'}</td><td class="l">${p.natural === 'FB' ? (FM.sideOf(p) === 'L' ? 'LB' : 'RB') : p.natural}</td><td>${FM.ageOf(p)}</td><td class="l">${esc(p.nation)}</td>
       <td><b>${FM.abilityOf(p)}</b></td><td>${FM.potentialOf(p)}</td>${['pace', 'dribbling', 'passing', 'finishing', 'tackling', 'heading', 'composure', 'stamina', 'gk'].map((s) => cell(p, s)).join('')}
-      <td><b>${tm.isPool ? 'Free' : FM.money(FM.askingPrice(league, p))}</b></td><td class="l">${status(p)}</td></tr>`;
-    const head = `<thead><tr><th class="l">Player</th><th class="l">Club</th><th class="l">Pos</th><th>Age</th><th class="l">Nation</th><th title="What he is worth to a team now, out of 100">Ability</th><th title="The most he can reach, out of 100">Potential</th><th>Pace</th><th>Dri</th><th>Pas</th><th>Fin</th><th>Tac</th><th>Hea</th><th>Com</th><th>Sta</th><th>GK</th><th>Price</th><th class="l">Status</th></tr></thead>`;
+      <td><b>${tm.isPool ? 'Free' : FM.money(FM.askingPrice(league, p))}</b></td><td>${FM.wageOf(p)}k</td><td class="l">${status(p)}</td></tr>`;
+    const head = `<thead><tr><th class="l">Player</th><th class="l">Club</th><th class="l">Pos</th><th>Age</th><th class="l">Nation</th><th title="What he is worth to a team now, out of 100">Ability</th><th title="The most he can reach, out of 100">Potential</th><th>Pace</th><th>Dri</th><th>Pas</th><th>Fin</th><th>Tac</th><th>Hea</th><th>Com</th><th>Sta</th><th>GK</th><th>Price</th><th title="What he earns now, in thousands of pounds a week">Wage</th><th class="l">Status</th></tr></thead>`;
     const filters = `<div class="rc-search"><input id="rcSearch" type="search" value="${esc(rs.q)}" placeholder="Search by name" autocomplete="off" aria-label="Search players by name"></div>
       <div class="rc-player-browser"><aside class="rc-filter-rail" aria-label="Player filters">
         <label>Position<select id="rcPos"><option value="all">Any position</option>${POSITIONS.map(([k, n]) => `<option value="${k}"${rs.pos === k ? ' selected' : ''}>${n}</option>`).join('')}</select></label>
-        <label>Sort by<select id="rcSort">${[['rating', 'Rating'], ['price', 'Price, high to low'], ['priceLow', 'Price, low to high'], ['potential', 'Potential, high to low'], ['age', 'Youngest first'], ['name', 'Name']].map(([k, n]) => `<option value="${k}"${rs.sort === k ? ' selected' : ''}>${n}</option>`).join('')}</select></label>
+        <label>Sort by<select id="rcSort">${[['rating', 'Rating'], ['price', 'Price, high to low'], ['priceLow', 'Price, low to high'], ['wage', 'Wage, high to low'], ['wageLow', 'Wage, low to high'], ['potential', 'Potential, high to low'], ['age', 'Youngest first'], ['name', 'Name']].map(([k, n]) => `<option value="${k}"${rs.sort === k ? ' selected' : ''}>${n}</option>`).join('')}</select></label>
         <label>Club<select id="rcClub"><option value="all">All clubs</option>${universe.map((tm) => `<option value="${tm.id}"${rs.club === tm.id ? ' selected' : ''}>${esc(tm.name)}${tm.isPool ? ' (' + tm.squad.length + ')' : ''}</option>`).join('')}</select></label>
         <fieldset class="rc-age"><legend>Age</legend><label>Min<input id="rcAgeMin" type="number" min="16" max="40" value="${esc(rs.ageMin)}"></label><span>–</span><label>Max<input id="rcAgeMax" type="number" min="16" max="40" value="${esc(rs.ageMax)}"></label></fieldset>
         <label>Rating at least<input id="rcRating" type="number" step="0.1" min="5" max="10" value="${esc(rs.ratingMin)}"></label>
         <label>Potential at least<input id="rcPot" type="number" step="1" min="40" max="99" value="${esc(rs.potMin)}"></label>
         <label>Max price (£m)<input id="rcPrice" type="number" step="0.5" min="0" value="${esc(rs.priceMax)}"></label>
+        <label>Max wage (k a week)<input id="rcWage" type="number" step="1" min="0" value="${esc(rs.wageMax)}"></label>
+        <label class="rc-check"><input id="rcWageFit" type="checkbox"${rs.wageFit ? ' checked' : ''}> Fits my wage room (${room}k)</label>
         <button type="button" id="rcClear">Clear filters</button></aside>`;
 
     const shortlist = t.shortlist.map((id) => FM.findPlayer(league, id)).filter(Boolean).filter((p) => FM.clubOf(league, p) !== me);
@@ -102,7 +108,7 @@
     let body = '';
     if (rs.tab === 'players') {
       body = `${filters}<section class="rc-player-results"><p class="rc-count">${rows.length} player${rows.length === 1 ? '' : 's'}</p>
-        <div class="tablewrap rc-table"><table class="data">${head}<tbody>${rows.slice(0, rs.shown || 25).map(rowHtml).join('') || '<tr><td colspan="18" class="l">No players match those filters.</td></tr>'}</tbody></table></div>${rows.length > (rs.shown || 25) ? `<div class="rc-showmore"><button type="button" id="rcShowMore">Show 25 more (${rows.length - (rs.shown || 25)} not shown)</button></div>` : ''}</section></div>`;
+        <div class="tablewrap rc-table"><table class="data">${head}<tbody>${rows.slice(0, rs.shown || 25).map(rowHtml).join('') || '<tr><td colspan="19" class="l">No players match those filters.</td></tr>'}</tbody></table></div>${rows.length > (rs.shown || 25) ? `<div class="rc-showmore"><button type="button" id="rcShowMore">Show 25 more (${rows.length - (rs.shown || 25)} not shown)</button></div>` : ''}</section></div>`;
     } else if (rs.tab === 'contracts') {
       const mine = me.squad.slice().sort((a, b) => FM.contractLeft(a) - FM.contractLeft(b) || FM.playerRating(b) - FM.playerRating(a));
       const note = rs.contractNote ? `<div class="rc-notice ${rs.contractNote.kind}" role="status">${esc(rs.contractNote.text)}</div>` : '';
@@ -155,10 +161,10 @@
       se.addEventListener('input', () => { rs.q = se.value; rs.shown = 25; rs.refocus = true; clearTimeout(rs.qt); rs.qt = setTimeout(draw, 160); });
       if (rs.refocus) { rs.refocus = false; se.focus(); try { se.setSelectionRange(se.value.length, se.value.length); } catch (e) { /* a search box that cannot place a caret */ } }
     }
-    bind('#rcClub', 'club'); bind('#rcPos', 'pos'); bind('#rcNation', 'nation'); bind('#rcAgeMin', 'ageMin'); bind('#rcAgeMax', 'ageMax'); bind('#rcRating', 'ratingMin'); bind('#rcPot', 'potMin'); bind('#rcPrice', 'priceMax'); bind('#rcFit', 'fit'); bind('#rcSort', 'sort');
+    bind('#rcClub', 'club'); bind('#rcPos', 'pos'); bind('#rcNation', 'nation'); bind('#rcAgeMin', 'ageMin'); bind('#rcAgeMax', 'ageMax'); bind('#rcRating', 'ratingMin'); bind('#rcPot', 'potMin'); bind('#rcPrice', 'priceMax'); bind('#rcWage', 'wageMax'); bind('#rcWageFit', 'wageFit'); bind('#rcFit', 'fit'); bind('#rcSort', 'sort');
     const step = (d) => { const ids = ['all'].concat(universe.map((x) => x.id)); rs.club = ids[(ids.indexOf(rs.club) + d + ids.length) % ids.length]; rs.shown = 25; draw(); };
     const pv = host.querySelector('#rcPrev'), nx = host.querySelector('#rcNext'); if (pv) pv.addEventListener('click', () => step(-1)); if (nx) nx.addEventListener('click', () => step(1));
-    const cl = host.querySelector('#rcClear'); if (cl) cl.addEventListener('click', () => { Object.assign(rs, { q: '', club: 'all', pos: 'all', nation: 'all', ageMin: '', ageMax: '', ratingMin: '', potMin: '', priceMax: '', fit: false, sort: 'rating' }); draw(); });
+    const cl = host.querySelector('#rcClear'); if (cl) cl.addEventListener('click', () => { Object.assign(rs, { q: '', club: 'all', pos: 'all', nation: 'all', ageMin: '', ageMax: '', ratingMin: '', potMin: '', priceMax: '', wageMax: '', wageFit: false, fit: false, sort: 'rating' }); draw(); });
     host.querySelectorAll('[data-open]').forEach((r) => r.addEventListener('click', () => { rs.open = r.dataset.open; rs.bid = null; draw(); const side = host.querySelector('#rcSide'); if (side && side.scrollIntoView) side.scrollIntoView({ block: 'nearest' }); }));
     host.querySelectorAll('[data-offer]').forEach((b) => b.addEventListener('click', () => {
       const id = b.dataset.id, counter = host.querySelector('[data-counter="' + id + '"]');
