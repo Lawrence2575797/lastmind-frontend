@@ -184,7 +184,6 @@
     bind('#rcClub', 'club'); bind('#rcPos', 'pos'); bind('#rcNation', 'nation'); bind('#rcAgeMin', 'ageMin'); bind('#rcAgeMax', 'ageMax'); bind('#rcRating', 'ratingMin'); bind('#rcPot', 'potMin'); bind('#rcPrice', 'priceMax'); bind('#rcWage', 'wageMax'); bind('#rcWageFit', 'wageFit'); bind('#rcFit', 'fit'); bind('#rcSort', 'sort');
     const step = (d) => { const ids = ['all'].concat(universe.map((x) => x.id)); rs.club = ids[(ids.indexOf(rs.club) + d + ids.length) % ids.length]; rs.shown = 25; draw(); };
     const pv = host.querySelector('#rcPrev'), nx = host.querySelector('#rcNext'); if (pv) pv.addEventListener('click', () => step(-1)); if (nx) nx.addEventListener('click', () => step(1));
-    side.querySelectorAll('[data-plan]').forEach((r) => r.addEventListener('change', () => { const out = FM.setPaymentPlan(league, rs.open, r.dataset.plan); if (!out.ok) say(out.text); draw(); }));
     const cl = host.querySelector('#rcClear'); if (cl) cl.addEventListener('click', () => { Object.assign(rs, { q: '', club: 'all', pos: 'all', nation: 'all', ageMin: '', ageMax: '', ratingMin: '', potMin: '', priceMax: '', wageMax: '', wageFit: false, fit: false, sort: 'rating' }); draw(); });
     host.querySelectorAll('[data-open]').forEach((r) => r.addEventListener('click', () => { rs.open = r.dataset.open; rs.bid = null; draw(); const side = host.querySelector('#rcSide'); if (side && side.scrollIntoView) side.scrollIntoView({ block: 'nearest' }); }));
     host.querySelectorAll('[data-offer]').forEach((b) => b.addEventListener('click', () => {
@@ -285,6 +284,7 @@
 
     const on = (id, fn) => { const e = side.querySelector(id); if (e) e.addEventListener('click', fn); };
     const say = (text) => { rs.msg[p.id] = text; save(); draw(); };
+    side.querySelectorAll('[data-plan]').forEach((r) => r.addEventListener('change', () => { const out = FM.setPaymentPlan(league, rs.open, r.dataset.plan); if (!out.ok) say(out.text); draw(); }));
     on('#rcDeclare', () => {
       const out = FM.declareInterest(league, p.id);
       if (!out.ok) return say(out.text);
