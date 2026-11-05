@@ -200,6 +200,7 @@
     const ratingRows = [['pace', 'Pace'], ['dribbling', 'Dribbling'], ['passing', 'Passing'], ['finishing', 'Finishing'], ['tackling', 'Tackling'], ['heading', 'Heading'], ['composure', 'Composure'], ['stamina', 'Stamina']].map(([k, n]) => r(k, n)).join('') + (p.natural === 'GK' ? r('gk', 'Goalkeeping') : '');
     const fee = deal && deal.fee != null ? deal.fee : ask;
     const msg = rs.msg[p.id];
+    const profileBtn = '<div class="rc-actions"><button type="button" id="rcProfile" class="primary">Full profile and analysis</button></div>';
     let action = '';
     if (stage === 'signed' && mine) action = `<div class="rc-done"><div class="rc-scene" id="rcScene"></div><p><b>${esc(p.name)} has signed for ${esc(me.name)}.</b> He is in your squad and can be picked from the bench or swapped into the team.</p><button type="button" id="rcToSquad" class="primary">Go to the squad</button></div>`;
     else if (mine) action = '<p class="note">He plays for you.</p>';
@@ -248,6 +249,7 @@
         <p><b>${FM.abilityOf(p)}</b> ability · <b>${FM.potentialOf(p)}</b> potential (${esc(FM.potentialWord ? FM.potentialWord(p) : '')}) · condition ${cond}% · ${FM.isInjured(p) ? 'injured' : 'fit'}</p></div></div>
       <div class="rc-price"><span>${club && club.isPool ? 'Fee <b>Free</b>' : 'Asking price <b>' + FM.money(ask) + '</b>'}</span><span>Wage ${club && club.isPool ? 'before' : 'now'} <b>${FM.wageOf(p)}k</b>/wk</span><span>Contract <b>${club && club.isPool ? 'none' : FM.contractLeft(p) + ' yr'}</b></span></div>
       ${reasons.length ? `<ul class="rc-reasons">${reasons.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}
+      ${profileBtn}
       <table class="data rc-ratings"><tbody>${ratingRows}</tbody></table>${action}
       ${deal && deal.history && deal.history.length ? `<details class="rc-log"><summary>Everything said so far</summary>${deal.history.map((x) => `<p><b>${x.who === 'you' ? 'You' : x.who === 'agent' ? 'Agent' : 'Club'}:</b> ${esc(x.text)}</p>`).join('')}</details>` : ''}</div>`;
 
@@ -269,6 +271,7 @@
       say(out.hiked ? 'Interest declared. Word got out: the price is now ' + FM.money(out.ask) + ', up from ' + FM.money(out.before) + '.' : 'Interest declared. He is on your shortlist, and the story is in the news.');
     });
     on('#rcApproach', () => { rs.bid = p.id; draw(); });
+    on('#rcProfile', () => { if (FM.openPlayerProfile) FM.openPlayerProfile(league, p, { onClose: () => draw() }); });
     on('#rcFree', () => { const out = FM.signFreeAgent(league, p.id); say(out.ok ? 'His agent is ready to talk.' : out.text); });
     on('#rcShort', () => { const tt = FM.transfer(league); if (tt.shortlist.indexOf(p.id) < 0) tt.shortlist.push(p.id); save(); draw(); });
     on('#rcBidCancel', () => { rs.bid = null; draw(); });
