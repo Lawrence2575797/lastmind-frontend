@@ -850,6 +850,7 @@
     }
     // The keeper without the ball stands on the line from the ball to the middle of his goal, closer to the near post the nearer the ball is, and comes off his line as a sweeper when it is far away.
     if (player.group === 'GK' && !hasBall && !FM.NO_GKT) { const near = clamp((0.4 - b.d) / 0.4, 0, 1); w = 0.5 + (b.w - 0.5) * (0.18 + 0.5 * near); d = 0.02 + 0.11 * clamp((b.d - 0.3) / 0.35, 0, 1) * (1 - near); }
+    if (player.group === 'GK' && !hasBall && !FM.NO_GKT) w = clamp(w, 0.5 - 5.5 / W, 0.5 + 5.5 / W);   // a keeper shades toward the ball but stays between the posts and a few metres either side, whatever corner it is in
     if (player.group === 'GK') d = clamp(d, 0.02, 0.2);
     d = clamp(d, 0.02, 0.97);
     w = clamp(w, 0.04, 0.96);

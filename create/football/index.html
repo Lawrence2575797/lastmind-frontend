@@ -226,6 +226,8 @@
   .press-answers { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
   .press-answer { min-height:72px; padding:14px 16px; text-align:left; line-height:1.4; }
   .press-answer:last-child:nth-child(odd) { grid-column:1/-1; }
+  .press-tone { display:block; font:700 .62rem var(--sans); letter-spacing:.12em; text-transform:uppercase; color:var(--gold,#f1c04f); margin-bottom:4px; }
+  .press-free { display:grid; gap:8px; margin-top:14px; padding-top:14px; border-top:1px solid rgba(255,255,255,.14); } .press-free label { font:700 .78rem var(--sans); letter-spacing:.06em; text-transform:uppercase; opacity:.8; } .press-free textarea { width:100%; box-sizing:border-box; background:#2f3533; color:var(--cream,#f4edda); border:1px solid rgba(255,255,255,.2); padding:10px 12px; font:inherit; resize:vertical; } .press-free-row { display:flex; gap:12px; align-items:center; flex-wrap:wrap; } .press-free-note { font-size:.84rem; color:var(--gold,#f1c04f); } .press-free-small { margin:0; font-size:.78rem; opacity:.65; line-height:1.45; }
   .press-progress { display:flex; gap:7px; }
   .press-progress i { width:32px; height:4px; border-radius: 0; background:rgba(255,255,255,.14); }
   .press-progress i.on { background:var(--gold); }
@@ -1276,7 +1278,7 @@
 <script src="/create/football/ratings.js?v=20261105z-r2"></script>
 <script src="/create/football/names.js?v=20261201a-r2"></script>
 <script src="/create/football/name_fix.js?v=20261208a-r2"></script>
-<script src="/create/football/engine.js?v=20261110b"></script>
+<script src="/create/football/engine.js?v=20261110c"></script>
 <script src="/create/football/edge.js?v=20261101b"></script>
 <script src="/create/football/rules.js?v=20261216b-r2"></script>
 <script src="/create/football/instructions.js?v=20261219b-r2"></script>
@@ -1294,7 +1296,8 @@
 <script src="/create/football/stats_top.js?v=20261010c-r2"></script>
 <script src="/create/football/history.js?v=20261120e-r2"></script>
 <script src="/create/football/skins.js?v=20261130c-r2"></script>
-<script src="/create/football/news.js?v=20261101a"></script>
+<script src="/create/football/interview_free.js?v=20261110a"></script>
+<script src="/create/football/news.js?v=20261110a"></script>
 <script src="/create/football/insights.js?v=20261010c-r2"></script>
 <script src="/create/football/analysis.js?v=20261107h-r2"></script>
 <script src="/create/football/clips.js?v=20261215b-r2"></script>
@@ -1384,6 +1387,6 @@
 <script src="/create/football/stadium.js?v=20261028b-r2"></script>
 <script src="/create/football/playermodel.js?v=20261028c-r2"></script>
 <script src="/create/football/view3d.js?v=20261029pjkmnrstu-r2"></script>
-<script src="/create/football/main.js?v=20261110c"></script>
+<script src="/create/football/main.js?v=20261110d"></script>
 </body>
 </html>

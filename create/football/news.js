@@ -124,20 +124,25 @@
     if (!record.answers.length) return;
     const team = FM.teamById(league, league.userId), opp = FM.teamById(league, fx.homeId === team.id ? fx.awayId : fx.homeId);
     const pre = record.kind === 'pre';
-    const mood = record.answers.some((a) => a.mood === 'provocative') ? 'provocative' : record.answers.some((a) => a.mood === 'confident') ? 'confident' : 'measured';
+    const has = (m) => record.answers.some((a) => a.mood === m);
+    const mood = has('provocative') ? 'provocative' : has('confident') ? 'confident' : has('honest') ? 'honest' : has('humble') ? 'humble' : has('humorous') ? 'humorous' : 'measured';
     const lead = record.answers.find((a) => a.mood === mood) || record.answers[0];
-    const follow = record.answers.find((a) => a !== lead && a.answer);
+    const follow = record.answers.find((a) => a !== lead && a.answer && !a.free);
+    // what the manager typed is never printed: those answers are written up from preset phrases chosen by their tone and subject
+    const freeAns = record.answers.filter((a) => a.free && FM.freeStory);
     const before = Number.isFinite(Number(record.opinionBefore)) ? Number(record.opinionBefore) : 50;
     const after = Number.isFinite(Number(record.opinionAfter)) ? Number(record.opinionAfter) : 50;
     const delta = after - before;
     const reaction = delta >= 3 ? 'The comments landed well with supporters.' : delta > 0 ? 'Supporters broadly welcomed the tone.' : delta <= -3 ? 'The remarks drew a sharp response from supporters.' : delta < 0 ? 'The comments divided opinion among supporters.' : 'The reaction from supporters was mixed.';
-    const headline = mood === 'provocative'
+    const headline = FM.interviewHeadline && FM.interviewHeadline(mood, pre, team.name, opp.name, record.result) ? FM.interviewHeadline(mood, pre, team.name, opp.name, record.result) : mood === 'provocative'
       ? (pre ? `${team.name} manager fires warning at ${opp.name}` : `${team.name} manager sparks reaction after ${opp.name}`)
       : mood === 'confident'
         ? (pre ? `${team.name} manager backs his side to beat ${opp.name}` : `${team.name} manager strikes defiant note after ${opp.name}`)
         : (pre ? `${team.name} manager keeps calm before ${opp.name}` : `${team.name} manager gives measured verdict after ${opp.name}`);
     const secondQuote = follow ? ` The manager later added: “${follow.answer}”` : '';
-    FM.pushNews(league, { round: record.round, day: record.day, kind: 'Interview', headline, body: `“${lead.answer}”${secondQuote} ${reaction} Public opinion now stands at ${Math.round(after)}%.`, club: team.id, mine: true, reporter: 'Sofia Bennett', interviewMood: mood });
+    const written = freeAns.map((a, i) => FM.freeStory(a, { opp: opp.name, pre, key: (record.key || '') + i }));
+    const opening = lead && !lead.free ? `“${lead.answer}”${secondQuote}` : '';
+    FM.pushNews(league, { round: record.round, day: record.day, kind: 'Interview', headline, body: `${opening}${opening && written.length ? ' ' : ''}${written.join(' ')} ${reaction} Public opinion now stands at ${Math.round(after)}%.`.trim(), club: team.id, mine: true, reporter: 'Sofia Bennett', interviewMood: mood });
   };
 
   const tableBefore = (league, round) => {

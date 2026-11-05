@@ -770,11 +770,15 @@
       if (mood === 'confident') return result === 'W' ? 2 : result === 'D' ? 0 : -2;
       return result === 'W' ? 3 : result === 'D' ? -2 : -4;
     };
-    return [
-      { text: standard, mood: 'measured', reaction: reaction('measured') },
-      { text: confident, mood: 'confident', reaction: reaction('confident') },
-      { text: provocative, mood: 'provocative', reaction: reaction('provocative') }
-    ];
+    // six tones to answer in; four are offered (the measured one always is), and which other three changes from game to game
+    const all = { measured: { text: standard, mood: 'measured', reaction: reaction('measured') }, confident: { text: confident, mood: 'confident', reaction: reaction('confident') }, provocative: { text: provocative, mood: 'provocative', reaction: reaction('provocative') } };
+    const res = result === 'W' ? 'W' : result === 'L' ? 'L' : 'D', h0 = FM.hashString([lg.seed, lg.runSeed || 0, lg.season || 1, fx.round || 0, questionIndex, 'tones'].join(':'));
+    ['humble', 'honest', 'humorous'].forEach((m) => { const t = FM.extraAnswer ? FM.extraAnswer(kind, res, questionIndex, m, opp.name, (h0 >>> (m.length % 5)) % 3) : null; if (t) all[m] = { text: t, mood: m, reaction: FM.interviewReaction(kind, m, res) }; });
+    const others = Object.keys(all).filter((m) => m !== 'measured'), chosen = [];
+    let h = h0;
+    while (chosen.length < 3 && others.length) { const i = h % others.length; chosen.push(others.splice(i, 1)[0]); h = Math.floor(h / 7) + 13; }
+    const order = ['measured'].concat(chosen).sort((a, b) => FM.INTERVIEW_MOODS.indexOf(a) - FM.INTERVIEW_MOODS.indexOf(b));
+    return order.map((m) => all[m]);
   }
   function runInterview(kind, fx, result, done) {
     const room = el('interviewRoom'), body = el('pressRoomBody'), questions = interviewQuestions(kind, fx, result);
@@ -807,13 +811,32 @@
       el('pressRoomKicker').textContent = kind === 'pre' ? 'Before the match' : 'After the match';
       el('pressRoomTitle').textContent = kind === 'pre' ? 'Pre-match press conference' : 'Post-match press conference';
       const answers = answerSets[index] || [];
-      body.innerHTML = `<div class="press-progress">${questions.map((_, i) => `<i class="${i <= index ? 'on' : ''}"></i>`).join('')}</div><p class="press-question">${esc(questions[index])}</p><div class="press-answers">${answers.map((a, i) => `<button class="press-answer" data-answer="${i}">${esc(a.text)}</button>`).join('')}</div><button id="skipInterview">Skip interview</button>`;
+      body.innerHTML = `<div class="press-progress">${questions.map((_, i) => `<i class="${i <= index ? 'on' : ''}"></i>`).join('')}</div><p class="press-question">${esc(questions[index])}</p><div class="press-answers">${answers.map((a, i) => `<button class="press-answer" data-answer="${i}"><small class="press-tone">${esc((FM.INTERVIEW_MOOD_LABEL || {})[a.mood] || '')}</small>${esc(a.text)}</button>`).join('')}</div>
+        ${FM.piiFilter ? `<div class="press-free"><label for="pressFree">Or say it in your own words</label><textarea id="pressFree" maxlength="240" rows="2" placeholder="Type your answer"></textarea><div class="press-free-row"><button type="button" id="pressFreeGo" class="primary">Answer in my own words</button><span id="pressFreeNote" class="press-free-note" role="status"></span></div><p class="press-free-small">Your words stay private and are never printed. The paper writes its own report from the tone and the subjects you talk about. Emails, phone numbers, addresses and links are removed first.</p></div>` : ''}
+        <button id="skipInterview">Skip interview</button>`;
       body.querySelectorAll('[data-answer]').forEach((b) => b.addEventListener('click', () => {
         const picked = answers[+b.dataset.answer];
         record.answers.push({ question: questions[index], answer: picked.text, mood: picked.mood, reaction: picked.reaction });
         index++;
         if (index >= questions.length) close(true); else draw();
       }));
+      const fg = body.querySelector('#pressFreeGo');
+      if (fg) {
+        let pending = null;
+        const inp = body.querySelector('#pressFree'), note = body.querySelector('#pressFreeNote');
+        inp.addEventListener('input', () => { pending = null; note.textContent = ''; });
+        fg.addEventListener('click', () => {
+          const f = FM.piiFilter(inp.value);
+          if (f.empty) { note.textContent = f.removed.length ? 'That was only personal details, which are removed. Say it in other words.' : 'Type something first.'; return; }
+          if (f.removed.length && !pending) { pending = f.text; inp.value = f.text; note.textContent = 'Removed ' + f.removed.join(', ') + '. Press again to answer with what is left.'; return; }
+          const me2 = userTeam(), home2 = FM.teamById(lg, fx.homeId), away2 = FM.teamById(lg, fx.awayId), opp2 = home2.id === me2.id ? away2 : home2;
+          const cls = FM.classifyAnswer(f.text, { opp: opp2.name, squad: me2.squad.map((p) => p.name.split(' ').slice(-1)[0]).concat(me2.squad.map((p) => p.name)) });
+          const res = result === 'W' ? 'W' : result === 'L' ? 'L' : 'D', react = FM.interviewReaction(kind, cls.mood, res) + FM.freeAdjust(cls, kind, res);
+          record.answers.push({ question: questions[index], answer: f.text, mood: cls.mood, reaction: react, free: true, topics: cls.topics, players: cls.players, about: cls.about, tone: cls.tone, intensity: cls.intensity });
+          index++;
+          if (index >= questions.length) close(true); else draw();
+        });
+      }
       body.querySelector('#skipInterview').addEventListener('click', () => close(false));
     };
     room.hidden = false; draw();
