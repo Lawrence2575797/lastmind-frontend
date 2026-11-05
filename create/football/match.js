@@ -1942,12 +1942,13 @@
   }
 
   // ---------- the penalty shootout ----------
-  // It is played on the same pitch, in the same way as a penalty in the match: both sides shoot at the same goal, the kickers take turns, everyone else waits in the centre circle,
+  // It is played on the same pitch, in the same way as a penalty in the match: both sides shoot at the same goal, the kickers take turns, everyone else waits in a line along the halfway line,
   // and the man whose turn it is walks up briskly from the halfway line and takes the kick exactly as a penalty in play is taken (runPenalty / takePenalty). Nothing in it counts
   // in the match's figures (statsOf and record ignore it). The result is in match.shootout when it is finished.
   FM.penaltyAbility = (p) => { const r = (p && (p.baseRatings || p.ratings)) || {}; return Math.round((2 * (r.finishing || 50) + (r.composure || 50)) / 3); };
   FM.penaltyOrder = (team) => team.players.slice().sort((a, b) => (a.group === 'GK') - (b.group === 'GK') || FM.penaltyAbility(b) - FM.penaltyAbility(a));
-  const shootoutSlot = (i, n) => { const a = Math.PI * 2 * i / Math.max(1, n); return { x: L / 2 + Math.cos(a) * 7, y: W / 2 + Math.sin(a) * 7 }; };
+  // everyone not involved in the kick stands in a line along the halfway line, spread across the pitch (the kicker comes from the middle of it)
+  const shootoutSlot = (i, n) => ({ x: L / 2, y: n > 1 ? 4 + (W - 8) * i / (n - 1) : W / 2 });
   function shootoutOverrides(match, taker, ov) {
     const so = match.shootout, cur = so.cur, gk = cur && cur.gk;
     const waiting = [];
@@ -1960,7 +1961,7 @@
     match.phase = 'play'; match.hold = null; match.restart = null; match.flight = null; match.carrier = null; match.carry = null; match.pendingAct = null; match.celeb = null; match.kickCue = null; match.crossHold = null;
     match.teams.forEach((t) => { t.attackDir = 1; t.offsideLine = null; t.phaseCtx = {}; });
     match.shootout = { orders, seq: rng() < 0.5 ? [home, away] : [home, away].reverse(), turn: 0, taken: { [home.id]: 0, [away.id]: 0 }, score: { [home.id]: 0, [away.id]: 0 }, kicks: [], phase: 'start', cur: null, finished: false, winnerId: null };
-    // everyone to the centre circle to begin with
+    // everyone to the halfway line to begin with
     const all = []; match.teams.forEach((t) => t.players.forEach((p) => all.push(p)));
     all.forEach((p, i) => { const q = shootoutSlot(i, all.length); p.x = q.x; p.y = q.y; p.vx = 0; p.vy = 0; p.sliding = false; });
     match.ball.x = L / 2; match.ball.y = W / 2; match.ball.state = 'dead'; match.ball.z = 0;

@@ -1291,10 +1291,13 @@
     const played = lg.fixtures.filter((f) => f.played && (f.homeId === me || f.awayId === me)).sort((a, b) => b.round - a.round);
     const myFriendlies = (lg.friendlies || []).filter((f) => f.played && (f.homeId === me || f.awayId === me));
     let lastCard = '<h2>Last result</h2><p class="note">No league match played yet.</p>' + (myFriendlies.length ? '<p class="desc">Pre-season friendlies:</p>' + myFriendlies.filter((f) => FM.teamById(lg, f.homeId) && FM.teamById(lg, f.awayId)).map((f) => `<p class="note">${esc(FM.teamById(lg, f.homeId).name)} ${f.hg}-${f.ag} ${esc(FM.teamById(lg, f.awayId).name)}</p>`).join('') : '');
-    if (played.length) {
-      const f = played[0], home = FM.teamById(lg, f.homeId), away = FM.teamById(lg, f.awayId);
-      const hs = f.stats[home.id], as = f.stats[away.id], tot = hs.possession + as.possession;
-      lastCard = `<h2>Last result</h2><div class="fixture-big">${esc(home.name)} ${f.hg}-${f.ag} ${esc(away.name)}</div>
+    // the latest match of any kind: a cup tie is played after the league round it is drawn for, so it counts as half a round later
+    const cupPlayed = ((lg.cup && lg.cup.fixtures) || []).filter((f) => f.played && (f.homeId === me || f.awayId === me));
+    const latestAll = played.map((f) => ({ f, k: f.round })).concat(cupPlayed.map((f) => ({ f, k: f.round + 0.5 }))).sort((a, b) => b.k - a.k)[0];
+    if (latestAll) {
+      const f = latestAll.f, home = FM.teamById(lg, f.homeId), away = FM.teamById(lg, f.awayId);
+      const blank = { shots: 0, onTarget: 0, xg: 0, possession: 0 }, hs = (f.stats && f.stats[home.id]) || blank, as = (f.stats && f.stats[away.id]) || blank, tot = hs.possession + as.possession;
+      lastCard = `<h2>Last result</h2><p class="desc">${f.cup ? 'League Cup · ' + esc((lg.cup.stages.find((s) => s.key === f.stage) || {}).label || '') : 'League · round ' + (f.round + 1)}</p><div class="fixture-big">${esc(home.name)} ${f.hg}-${f.ag} ${esc(away.name)}</div>${f.shootout ? '<p class="desc">' + esc((FM.teamById(lg, f.shootout.winnerId) || {}).name || '') + ' won ' + Math.max(f.shootout.home, f.shootout.away) + '–' + Math.min(f.shootout.home, f.shootout.away) + ' on penalties.</p>' : ''}
         <p class="desc">Shots ${hs.shots}-${as.shots} · On target ${hs.onTarget}-${as.onTarget} · xG ${hs.xg.toFixed(2)}-${as.xg.toFixed(2)} · Possession ${pct(hs.possession, tot)}-${pct(as.possession, tot)}</p>`;
     }
     const team = userTeam();
@@ -1314,7 +1317,7 @@
     const approval = (kind, value) => `<div class="approval-line"><span><b>${kind}</b><small>${esc(FM.approvalBand(value))}</small></span><div class="approval-track"><i style="width:${Math.max(0, Math.min(100, value))}%"></i></div><strong>${Math.round(value)}%</strong></div>`;
     const tableCard = `<div class="card home-league"><div class="card-title-row"><h2>League table</h2><select id="homeLeagueSelect" aria-label="Choose division">${divisions.map((d) => `<option value="${d.level}"${selectedLevel === d.level ? ' selected' : ''}>${esc(d.name)}</option>`).join('')}</select></div>${tableHtml(shownRows, true, selectedLevel)}<div class="home-approvals">${approval('Public approval', Number.isFinite(lg.publicOpinion) ? lg.publicOpinion : 50)}</div></div>`;
     host.innerHTML = `<div class="two">
-      <div style="display:grid;gap:16px"><div class="card">${next}</div><div class="card">${lastCard}</div><div class="card">${newsCard}</div></div>
+      <div style="display:grid;gap:16px"><div class="card">${next}</div><div class="card">${lastCard}</div>${cupCardHtml(lg)}<div class="card">${newsCard}</div></div>
       <div style="display:grid;gap:16px">${tableCard}</div></div>`;
     const leagueSelect = host.querySelector('#homeLeagueSelect'); if (leagueSelect) leagueSelect.addEventListener('change', () => { world.homeTableLevel = +leagueSelect.value; renderHome(); });
     const hp = host.querySelector('#homePreview'); if (hp) hp.addEventListener('click', () => setView('preview'));
@@ -1333,6 +1336,24 @@
   const condClass = (p) => (FM.isInjured(p) ? 'out' : FM.conditionOf(p) < 0.6 ? 'low' : '');
 
   // ---------- league and squad ----------
+  // The League Cup as the manager sees it: every tie played so far with its score (and the shootout when there was one), the next tie or when the next draw is made, and the
+  // whole tree to open. Cup matches are not in the league's fixtures, so they have to be shown from here.
+  const cupWinnerId = (f) => (f.shootout ? f.shootout.winnerId : f.hg > f.ag ? f.homeId : f.awayId);
+  const cupScoreText = (f) => (f.played ? f.hg + ' - ' + f.ag + (f.shootout ? ' (' + f.shootout.home + '–' + f.shootout.away + ' on pens)' : '') : 'v');
+  function cupCardHtml(lg) {
+    const cup = lg.cup; if (!cup) return '';
+    const me = lg.userId, label = (key) => ((cup.stages.find((s) => s.key === key) || {}).label || key);
+    const mine = (cup.fixtures || []).filter((f) => f.homeId === me || f.awayId === me), out = mine.find((f) => f.played && cupWinnerId(f) !== me);
+    const line = (f) => { const h = FM.teamById(lg, f.homeId), a = FM.teamById(lg, f.awayId); return `<div class="res ${f.homeId === me || f.awayId === me ? 'me' : ''}"><span>${esc(h ? h.name : '')}</span><b>${cupScoreText(f)}</b><span>${esc(a ? a.name : '')}</span></div>`; };
+    const next = FM.cupUserFixture ? FM.cupUserFixture(lg) : null, pending = cup.drawPending && cup.stages.find((s) => s.key === cup.drawPending);
+    let status;
+    if (cup.completed) status = out ? 'The League Cup is over for this season. ' + esc(label(out.stage)) + ' was as far as you got.' : 'The League Cup is over: you won it.';
+    else if (out) status = 'Knocked out in the ' + esc(label(out.stage)) + '.';
+    else if (next) status = 'Next: ' + esc(label(next.stage)) + ', ' + esc(FM.teamById(lg, next.homeId).name) + ' v ' + esc(FM.teamById(lg, next.awayId).name) + '. It is played after league round ' + (next.round + 1) + '.';
+    else if (pending) status = 'The draw for the ' + esc(pending.label) + ' is made after league round ' + (pending.afterLeagueRound + 1) + ', and your tie is played straight after it.';
+    else status = '';
+    return `<div class="card"><h2>League Cup</h2><p class="desc">${status}</p>${mine.length ? '<div class="rounds">' + mine.map((f) => `<div><h3>${esc(label(f.stage))}</h3>${line(f)}</div>`).join('') + '</div>' : '<p class="note">No tie has been played yet.</p>'}<details style="margin-top:10px"><summary>The whole cup</summary>${FM.cupTreeHtml ? FM.cupTreeHtml(lg) : ''}</details></div>`;
+  }
   function renderLeague() {
     const lg = world.league, host = el('view-league'), me = lg.userId;
     const rows = FM.tableRows(lg);
@@ -1346,7 +1367,7 @@
     }).join('') + '</div>').join('');
     const fr = (lg.friendlies || []).filter((f) => f.played);
     const friendlyCard = fr.length ? `<div class="card"><h2>Pre-season friendlies</h2><p class="note">These did not count toward the table.</p><div class="rounds">${fr.map((f) => `<div class="res ${f.homeId === me || f.awayId === me ? 'me' : ''}"><span>${esc(FM.teamById(lg, f.homeId).name)}</span><b>${f.hg} - ${f.ag}</b><span>${esc(FM.teamById(lg, f.awayId).name)}</span></div>`).join('')}</div></div>` : '';
-    host.innerHTML = `<div class="two"><div class="card"><h2>League table</h2>${tableHtml(rows, false, lg.divisionLevel)}</div><div style="display:grid;gap:16px"><div class="card"><h2>Results and fixtures</h2><div class="rounds">${roundHtml}</div></div>${friendlyCard}</div></div>`;
+    host.innerHTML = `<div class="two"><div class="card"><h2>League table</h2>${tableHtml(rows, false, lg.divisionLevel)}</div><div style="display:grid;gap:16px"><div class="card"><h2>Results and fixtures</h2><div class="rounds">${roundHtml}</div></div>${cupCardHtml(lg)}${friendlyCard}</div></div>`;
   }
   // The ratings that matter for each kind of player, and how each of them compares with the whole league's players in that position.
   const SQ_STATS = { GK: ['gk'], CB: ['pace', 'tackling', 'heading', 'composure'], FB: ['pace', 'tackling', 'passing', 'stamina', 'dribbling'], DM: ['tackling', 'passing', 'stamina', 'composure'], CM: ['passing', 'dribbling', 'stamina', 'tackling'], AM: ['passing', 'dribbling', 'finishing', 'composure'], WF: ['pace', 'dribbling', 'finishing', 'passing'], ST: ['finishing', 'pace', 'heading', 'composure'] };
