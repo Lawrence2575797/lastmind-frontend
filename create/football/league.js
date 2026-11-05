@@ -60,7 +60,7 @@
     balanced: {},
     possession: { buildDirect: 0.2, directness: 0.35, tempo: 0.4, risk: 0.4, pressing: 0.45, counterPress: 0.6, attackWidth: 1.1, pressBuildUp: 0.5, beatPress: 0.3 },
     counter: { lineHeight: 0.4, pressing: 0.4, counterAttack: 0.8, directness: 0.62, buildDirect: 0.4, tempo: 0.58, defWidth: 0.95, pressBuildUp: 0.2 },
-    press: { lineHeight: 0.57, pressing: 0.7, counterPress: 0.75, tackleAggression: 0.55, pressBuildUp: 0.8 },
+    press: { lineHeight: 0.53, pressing: 0.6, counterPress: 0.62, tackleAggression: 0.52, pressBuildUp: 0.6 },
     direct: { buildDirect: 0.7, directness: 0.7, tempo: 0.56, shootFreedom: 0.6, risk: 0.56, pressing: 0.45, pressBuildUp: 0.3, beatPress: 0.7 },
   };
   FM.STYLE_NAMES = { balanced: 'Balanced', possession: 'Possession football', counter: 'Counter-attacking', press: 'High press', direct: 'Direct play' };
@@ -588,7 +588,7 @@
     const change = FM.tacticalPlanChange(state.baseline, current), previous = Number.isFinite(state.score) ? state.score : 100;
     const score = !state.baseline ? previous : change <= 0.035 ? Math.min(100, previous + 7) : Math.max(45, previous - Math.max(2, Math.ceil((change - 0.035) * 45)));
     team.tacticalFamiliarity = { score, baseline: current, change, delta: score - previous };
-    team.tacticalFactor = 0.88 + 0.12 * score / 100;
+    team.tacticalFactor = 1;   // changing tactics carries no penalty
     return team.tacticalFamiliarity;
   };
 
@@ -609,7 +609,7 @@
     });
     [home, away].forEach((t) => {
       if (!friendly) FM.updateTacticalFamiliarity(t);
-      else t.tacticalFactor = 0.88 + 0.12 * ((t.tacticalFamiliarity && t.tacticalFamiliarity.score) || 100) / 100;
+      else t.tacticalFactor = 1;
     });
     [home, away].forEach((t) => { t.snap = FM.snapshotLineup(t); t.subsUsed = 0; t.sentOff = []; t.retired = []; delete t.liveBase; delete t.liveLean; FM.fitnessBegin(t); });
     FM.applyUserEdge(league, home, away); FM.applyUserEdge(league, away, home);

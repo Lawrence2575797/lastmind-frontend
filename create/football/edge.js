@@ -49,7 +49,7 @@
     const gap = Math.abs(tv(t, 'pressing', 0.5) - tv(t, 'lineHeight', 0.5)), disc = gap > 0.3 ? -(gap - 0.3) * 1.6 : 0, burn = Math.max(0, tv(t, 'risk', 0.5) + tv(t, 'tempo', 0.5) - 1.45) * 1.2;
     return clamp(press + line + style + disc - burn, -1, 1);
   }
-  const execution = (t) => 0.5 + 0.5 * ((t.tacticalFamiliarity && Number.isFinite(t.tacticalFamiliarity.score) ? t.tacticalFamiliarity.score : 100) / 100);
+  const execution = () => 1;   // no penalty for changing tactics
   FM.tactEdge = function (a, d) {
     const xa = execution(a) * exploit(a, d) + 0.8 * coherence(a), xd = execution(d) * exploit(d, a) + 0.8 * coherence(d);
     return clamp(xa - xd, -2.5, 2.5);

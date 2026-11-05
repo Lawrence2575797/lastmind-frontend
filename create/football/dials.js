@@ -17,7 +17,7 @@
     { id: 'risk', label: 'Risk in build-up', unit: '', lo: 0, hi: 1, def: .5, step: .05, tac: 'risk', phases: ['build', 'midfield', 'transAtt'], words: 'how often a pass that might be lost is tried' },
     { id: 'finalRisk', label: 'Risk in the final third', unit: '', lo: 0, hi: 1, def: .5, step: .05, tac: 'finalRisk', phases: ['final'], words: 'how adventurous the last pass or dribble is near goal' },
     { id: 'dribble', label: 'Dribbling freedom', unit: '', lo: 0, hi: 1, def: .5, step: .05, tac: 'dribbleFreedom', phases: ['midfield', 'final'], words: 'how readily a player takes his man on' },
-    { id: 'shootRange', label: 'Shooting range', unit: 'm', lo: 18, hi: 42, def: 32, step: 1, phases: ['final'], words: 'the furthest distance from goal at which a shot is even considered' },
+    { id: 'shootRange', label: 'Shooting range', unit: 'm', lo: 18, hi: 42, def: 26, step: 1, phases: ['final'], words: 'the furthest distance from goal at which a shot is even considered' },
     { id: 'shootFreedom', label: 'Shot selection', unit: '', lo: 0, hi: 1, def: .5, step: .05, tac: 'shootFreedom', phases: ['final'], words: '0 waits for a clear chance, 1 shoots at the first sight of goal' },
   ];
   FM.DIAL_BY = {}; FM.DIALS.forEach((d) => { FM.DIAL_BY[d.id] = d; });

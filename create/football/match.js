@@ -439,7 +439,7 @@
       const press = clamp(Math.max(deep ? 0.6 * pbu + 0.4 * now : now, nearGoal ? (FM.DEF_BOX_PRESS || 0.8) : 0), 0, 1);
       const lostIt = match.lastChange && match.lastChange.team === c.team && match.clock - match.lastChange.t < PRESS_WINDOW;
       const cpx = lostIt ? (opp.tactics.counterPress > 0.6 ? 1 : 0) + (opp.tactics.counterPress > 0.85 ? 1 : 0) : 0, cpl = lostIt ? (opp.tactics.counterPress < 0.3 ? -1 : 0) : 0;   // the counter-press setting: how many close the ball down just after it is lost
-      const n = Math.max(1, 1 + (press > 0.65 && (lostIt || nearGoal || (deep && pbu > 0.6)) ? 1 : 0) + cpx + cpl);
+      const n = Math.min(FM.PRESS_NMAX == null ? 1 : FM.PRESS_NMAX, Math.max(1, 1 + (press > 0.65 && (lostIt || nearGoal || (deep && pbu > 0.6)) ? 1 : 0) + Math.round(cpx * (FM.CPX_ON == null ? 1 : FM.CPX_ON)) + cpl));
       let ranked = opp.players.filter((p) => p.group !== 'GK').map((p) => ({ p, d: dist(p, c.player) })).sort((a, b) => a.d - b.d);
       // The manager's press: when the ball goes to a named man (their goalkeeper, centre-backs, or a full-back on one side), a named player closes him down, and he does it from the
       // side that shows the man which way to go (out wide to the full-back, or inside). 'Both sides' makes it the same on the left and the right.
@@ -1151,7 +1151,7 @@
     if (nearNow > 4 && !through && !drive) options.push({ kind: 'hold', score: .48 + .55 * live.patience - .4 * live.urgency - .2 * directness });
 
     if (coast > 0) options.forEach((o) => { if (o.kind === 'shoot' && o.score > 0) o.score *= 1 - 0.45 * coast; });
-    options.forEach((o) => { if (o.kind === 'shoot' && o.score > 0) o.score *= (FM.SHOT_K == null ? 1.45 : FM.SHOT_K); });
+    options.forEach((o) => { if (o.kind === 'shoot' && o.score > 0) o.score *= (FM.SHOT_K == null ? 0.7 : FM.SHOT_K); });
     if (RE && RE.shoot) options.forEach((o) => { if (o.kind === 'shoot' && o.score > 0) o.score *= clamp(1 + 0.9 * RE.shoot, 0.1, 2); });
 
     if (!options.length) options.push({ kind: 'carry', nearD: 3, drive: false, score: 0 });   // never nothing to do: he keeps the ball and moves on
