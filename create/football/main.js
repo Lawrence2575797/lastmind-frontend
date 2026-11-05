@@ -1311,17 +1311,19 @@
       (tired.length ? `<p class="desc">Tired starters: ${tired.map((p) => esc(shortName(p)) + ' ' + Math.round(100 * FM.conditionOf(p)) + '%').join(', ')}.</p><p class="note">Tired players slow down, make more mistakes and risk injury. Rest helps.</p>` : '<p class="note">The starting eleven is fresh.</p>');
     const latest = (world.league.news || []).slice(-3).reverse();
     const newsCard = '<h2>Latest news</h2>' + (latest.length ? latest.map((n) => `<div class="hyp"><div class="hyp-head"><span class="lvl ${n.mine ? 'alevel' : 'gcse'}">${esc(n.kind)}</span> <b>${esc(n.headline)}</b></div></div>`).join('') + '<div class="row"><button data-nav-news>All the news</button></div>' : '<p class="note">News appears after the first round of matches.</p>');
-    const selectedLevel = divisions.some((d) => d.level === world.homeTableLevel) ? world.homeTableLevel : lg.divisionLevel;
-    const shownRows = divisionRows[selectedLevel];
+    const stH = seasonTables(lg, world.homeSeason), pastDivs = stH.sel === 'cur' ? null : stH.divs, tableDivs = pastDivs || divisions;
+    const selectedLevel = tableDivs.some((d) => d.level === world.homeTableLevel) ? world.homeTableLevel : (tableDivs.some((d) => d.level === lg.divisionLevel) ? lg.divisionLevel : (tableDivs[0] && tableDivs[0].level));
+    const shownRows = pastDivs ? ((pastDivs.find((d) => d.level === selectedLevel) || { rows: [] }).rows) : divisionRows[selectedLevel];
     const transfer = FM.transfer ? FM.transfer(lg) : lg.transfer, transferBudget = transfer && transfer.budget ? transfer.budget[me] || 0 : 0;
     const wageRoom = FM.wageRoom ? FM.wageRoom(lg, me) : 0;
     const board = lg.board || {}, currentPos = rows.findIndex((r) => r.id === me) + 1, leaguePlayed = rows.find((r) => r.id === me).p;
     const performance = !leaguePlayed ? 'The season has not started' : currentPos < (board.expectedPosition || currentPos) ? 'Ahead of expectations' : currentPos > (board.expectedPosition || currentPos) ? 'Below expectations' : 'Meeting expectations';
     const approval = (kind, value) => `<div class="approval-line"><span><b>${kind}</b><small>${esc(FM.approvalBand(value))}</small></span><div class="approval-track"><i style="width:${Math.max(0, Math.min(100, value))}%"></i></div><strong>${Math.round(value)}%</strong></div>`;
-    const tableCard = `<div class="card home-league"><div class="card-title-row"><h2>League table</h2><select id="homeLeagueSelect" aria-label="Choose division">${divisions.map((d) => `<option value="${d.level}"${selectedLevel === d.level ? ' selected' : ''}>${esc(d.name)}</option>`).join('')}</select></div>${tableHtml(shownRows, true, selectedLevel)}<div class="home-approvals">${approval('Public approval', Number.isFinite(lg.publicOpinion) ? lg.publicOpinion : 50)}</div></div>`;
+    const tableCard = `<div class="card home-league"><div class="card-title-row"><h2>League table</h2><span class="row" style="gap:8px">${seasonSelectHtml('homeSeasonSelect', stH)}<select id="homeLeagueSelect" aria-label="Choose division">${tableDivs.map((d) => `<option value="${d.level}"${selectedLevel === d.level ? ' selected' : ''}>${esc(d.name)}</option>`).join('')}</select></span></div>${tableHtml(shownRows, true, selectedLevel)}<div class="home-approvals">${approval('Public approval', Number.isFinite(lg.publicOpinion) ? lg.publicOpinion : 50)}</div></div>`;
     host.innerHTML = `<div class="two">
       <div style="display:grid;gap:16px"><div class="card">${next}</div><div class="card">${lastCard}</div>${cupCardHtml(lg)}<div class="card">${newsCard}</div></div>
       <div style="display:grid;gap:16px">${tableCard}</div></div>`;
+    const seasonSel = host.querySelector('#homeSeasonSelect'); if (seasonSel) seasonSel.addEventListener('change', () => { world.homeSeason = seasonSel.value; renderHome(); });
     const leagueSelect = host.querySelector('#homeLeagueSelect'); if (leagueSelect) leagueSelect.addEventListener('change', () => { world.homeTableLevel = +leagueSelect.value; renderHome(); });
     const hp = host.querySelector('#homePreview'); if (hp) hp.addEventListener('click', () => setView('preview'));
     const nb = host.querySelector('[data-nav-news]'); if (nb) nb.addEventListener('click', () => setView('news'));
@@ -1357,6 +1359,18 @@
     else status = '';
     return `<div class="card"><h2>League Cup</h2><p class="desc">${status}</p>${mine.length ? '<div class="rounds">' + mine.map((f) => `<div><h3>${esc(label(f.stage))}</h3>${line(f)}</div>`).join('') + '</div>' : '<p class="note">No tie has been played yet.</p>'}<details style="margin-top:10px"><summary>The whole cup</summary>${FM.cupTreeHtml ? FM.cupTreeHtml(lg) : ''}</details></div>`;
   }
+  // The tables of every season there is: the current one, the ones played in this save, and the one simulated before the first (25/26 when the first is 26/27).
+  const seasonName = (s) => (25 + s) + '/' + (26 + s);
+  function seasonTables(lg, want) {
+    const hist = lg.seasonHistory || [], pr = lg.prior && lg.prior.divisions ? lg.prior : null;
+    const opts = [{ v: 'cur', t: seasonName(lg.season || 1) + ' (this season)' }].concat(hist.slice().reverse().map((h) => ({ v: 'h' + h.season, t: seasonName(h.season) }))).concat(pr ? [{ v: 'prior', t: seasonName(0) + ' (before you arrived)' }] : []);
+    const sel = opts.some((o) => o.v === want) ? want : 'cur';
+    let divs = null;
+    if (sel === 'prior') divs = pr.divisions.map((d) => ({ level: d.level, name: d.name, rows: d.table.map((r) => ({ id: r.id, name: r.name, p: r.P, w: r.W, d: r.D, l: r.L, gf: r.GF, ga: r.GA, pts: r.Pts, form: [] })) }));
+    else if (sel !== 'cur') divs = ((hist.find((h) => 'h' + h.season === sel) || {}).divisions || []).map((d) => ({ level: d.level, name: d.name, rows: d.rows.map((r) => Object.assign({ form: [] }, r)) }));
+    return { opts, sel, divs };
+  }
+  const seasonSelectHtml = (id, st) => `<select id="${id}" aria-label="Season">${st.opts.map((o) => `<option value="${o.v}"${o.v === st.sel ? ' selected' : ''}>${esc(o.t)}</option>`).join('')}</select>`;
   function renderLeague() {
     const lg = world.league, host = el('view-league'), me = lg.userId;
     const rows = FM.tableRows(lg);
@@ -1370,7 +1384,17 @@
     }).join('') + '</div>').join('');
     const fr = (lg.friendlies || []).filter((f) => f.played);
     const friendlyCard = fr.length ? `<div class="card"><h2>Pre-season friendlies</h2><p class="note">These did not count toward the table.</p><div class="rounds">${fr.map((f) => `<div class="res ${f.homeId === me || f.awayId === me ? 'me' : ''}"><span>${esc(FM.teamById(lg, f.homeId).name)}</span><b>${f.hg} - ${f.ag}</b><span>${esc(FM.teamById(lg, f.awayId).name)}</span></div>`).join('')}</div></div>` : '';
-    host.innerHTML = `<div class="two"><div class="card"><h2>League table</h2>${tableHtml(rows, false, lg.divisionLevel)}</div><div style="display:grid;gap:16px"><div class="card"><h2>Results and fixtures</h2><div class="rounds">${roundHtml}</div></div>${cupCardHtml(lg)}${friendlyCard}</div></div>`;
+    const stt = seasonTables(lg, world.tableSeason), sel = stt.sel;
+    let tableBody = tableHtml(rows, false, lg.divisionLevel), divPick = '';
+    if (sel !== 'cur') {
+      const divs = stt.divs, dl = divs.some((d) => d.level === world.tableLevel) ? world.tableLevel : (divs.some((d) => d.level === lg.divisionLevel) ? lg.divisionLevel : (divs[0] && divs[0].level)), dv = divs.find((d) => d.level === dl);
+      divPick = `<select id="lgDiv" aria-label="Division">${divs.map((d) => `<option value="${d.level}"${d.level === dl ? ' selected' : ''}>${esc(d.name)}</option>`).join('')}</select>`;
+      tableBody = dv ? tableHtml(dv.rows, false, dv.level) : '<p class="note">No table was kept for that season.</p>';
+    }
+    const picker = `<div class="row" style="gap:8px;flex-wrap:wrap;align-items:center">${seasonSelectHtml('lgSeason', stt)}${divPick}</div>`;
+    host.innerHTML = `<div class="two"><div class="card"><div class="row" style="justify-content:space-between;gap:10px;flex-wrap:wrap"><h2>League table</h2>${picker}</div>${tableBody}</div><div style="display:grid;gap:16px"><div class="card"><h2>Results and fixtures</h2><div class="rounds">${roundHtml}</div></div>${cupCardHtml(lg)}${friendlyCard}</div></div>`;
+    const ss = host.querySelector('#lgSeason'); if (ss) ss.addEventListener('change', () => { world.tableSeason = ss.value; renderLeague(); });
+    const dd = host.querySelector('#lgDiv'); if (dd) dd.addEventListener('change', () => { world.tableLevel = +dd.value; renderLeague(); });
   }
   // The ratings that matter for each kind of player, and how each of them compares with the whole league's players in that position.
   const SQ_STATS = { GK: ['gk'], CB: ['pace', 'tackling', 'heading', 'composure'], FB: ['pace', 'tackling', 'passing', 'stamina', 'dribbling'], DM: ['tackling', 'passing', 'stamina', 'composure'], CM: ['passing', 'dribbling', 'stamina', 'tackling'], AM: ['passing', 'dribbling', 'finishing', 'composure'], WF: ['pace', 'dribbling', 'finishing', 'passing'], ST: ['finishing', 'pace', 'heading', 'composure'] };
@@ -2856,7 +2880,6 @@
     }
   }
   const openMp = (first) => FM.mpMenu({ start: (league) => { world.league = league; world.match = null; FM.saveLeague(league); if (FM.ensurePreseasonNews) FM.ensurePreseasonNews(league); try { history.replaceState(null, '', cleanUrl()); } catch (e) { /* fine */ } setView('mp'); } }, first);
-  try { const lv = localStorage.getItem('lm_football_level'), sb = el('ngSubject'); if (sb && lv && [...sb.options].some((o) => o.value === lv)) sb.value = lv; } catch (e) { /* the default stands */ }
   const mpGuard = (first) => () => { if (world.hadMp && !window.confirm('You already have a multiplayer game saved. Starting another replaces it (your single-player season is not affected). Continue?')) return; openMp(first); };
   el('ngLeague').addEventListener('click', mpGuard('league'));
   el('ngMatch').addEventListener('click', mpGuard('match'));
@@ -2876,7 +2899,7 @@
   if (DEMO_MODE && el('ngSkinBox')) el('ngSkinBox').hidden = true;
   if (el('ngRecover')) { if (DEMO_MODE) el('ngRecoverBox').hidden = true; else if (FM.recoveryPanel) FM.recoveryPanel(el('ngRecover')); }
   el('ngStart').addEventListener('click', async () => {
-    const btn = el('ngStart'), tier = (el('ngSubject') && el('ngSubject').value) || 'gcse';
+    const btn = el('ngStart'), tier = 'alevel';   // there is one level now
     // a season in progress is never replaced without asking; it is kept as a backup either way, and can be brought back with "Recover an earlier season"
     if (!DEMO_MODE && world.hadSave && (world.hadSave.season * 1000 + world.hadSave.played) >= 1001) {
       if (!window.confirm('You have a single-player season in progress: ' + world.hadSave.club + ', season ' + world.hadSave.season + ', ' + world.hadSave.played + ' of 14 played. A new game is a separate save: that season stays in Your projects and can be resumed or deleted there. Start the new game?')) return;

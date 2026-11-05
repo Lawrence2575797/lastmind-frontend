@@ -311,5 +311,5 @@
     host.querySelector('#exWbOpen').addEventListener('click', () => { wb.hidden = false; if (!wbHost.dataset.ready && FM.renderWorkbench) { wbHost.dataset.ready = '1'; try { FM.renderWorkbench(wbHost, lg, { save: () => FM.saveLeague(lg) }); } catch (e) { wbHost.textContent = 'The Workbook could not open.'; } } });
     host.querySelector('#exWbClose').addEventListener('click', () => { wb.hidden = true; });
   };
-  FM.explorer = { INV };
+  FM.explorer = { INV, makeCtx, playedWithLogs, add, kpis, table, section, legend, ensureCss: () => { if (!document.getElementById('exCss')) { const st = document.createElement('style'); st.id = 'exCss'; st.textContent = css + (FM.anLab ? FM.anLab.css : ''); document.head.appendChild(st); } } };
 })();

@@ -135,7 +135,7 @@
       });
       return team;
     });
-    const league = { seed, tier: opts.tier || 'gcse', userId: teams[opts.userIndex || 0].id, season: 1, day: 0, nameFix: 2, teams, fixtures: [], testLog: [], hypotheses: [], news: [], tacticalPlans: [], publicOpinion: 50, boardApproval: 50, divisionLevel: 1, divisionName: 'Premier Division', seasonHistory: [] };
+    const league = { seed, tier: opts.tier || 'alevel', userId: teams[opts.userIndex || 0].id, season: 1, day: 0, nameFix: 2, teams, fixtures: [], testLog: [], hypotheses: [], news: [], tacticalPlans: [], publicOpinion: 50, boardApproval: 50, divisionLevel: 1, divisionName: 'Premier Division', seasonHistory: [] };
     { const ash0 = teams.find((t) => t.name === 'Ashford Rovers'), nor0 = teams.find((t) => t.name === 'Northfield United'); league.fixtures = makeFixtures(teams.map((t) => t.id), rng, seed + runSeed, ash0 && nor0 ? [ash0.id, nor0.id] : null); }
     // The first game of every season is the Iron Derby: Ashford Rovers at home to Northfield United. The rounds are re-ordered so the pairing falls
     // in round one, and the return game is the mirror of it.

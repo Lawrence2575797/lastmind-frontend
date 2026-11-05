@@ -693,6 +693,7 @@
     host.innerHTML = `<div class="card rv-intro"><div class="eyebrow">The last match: round ${c.fx.round + 1}</div><h2>${esc(c.team.name)} ${c.gf}-${c.ga} ${esc(c.opp.name)}</h2><div id="rvIntroLines">${lines(narr ? narr.intro : FM.reviewIntroLines(c, facts, greet))}</div></div>
       <div id="rvTac">${FM.reviewTacticsHtml ? FM.reviewTacticsHtml(c, real, facts, narr && narr.notes) : ''}</div>
       ${main ? `<article class="card rv-box"><h3>What the numbers say: ${esc(main.title)}</h3>${briefTest(main)}${main.html}</article>` : ''}
+      ${FM.seasonAnalysis ? (() => { try { return FM.seasonAnalysis(c.league, { compact: true }); } catch (e) { return ''; } })() : ''}
       <div class="card rv-outro"><p class="desc">If you want to go further on anything from the last game, just ask the agent in the Workbook, and I can provide the data and take you through it. I looked at ${r.all.length} different areas of the game${main ? ' to choose what to show you' : ''}.</p><div class="row"><button class="primary" id="rvAsk">Ask the agent about this match</button></div></div>`;
     if (FM.reviewMount) FM.reviewMount(host, c.league, real, facts);
     const b = host.querySelector('#rvAsk'); if (b) b.addEventListener('click', () => { if (FM.goWorkbench) FM.goWorkbench(); else if (FM.agentOpen) FM.agentOpen(); });

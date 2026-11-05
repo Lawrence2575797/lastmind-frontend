@@ -1,7 +1,7 @@
 // The tactical side of the review of the last match. Everything here is worked out in code from what was recorded in the match:
 //   where the team was exposed (the area their chances came through), where giving the ball away led to chances, and where our own attacks kept stalling.
 // Each finding gets a small pitch with the area marked and, where the match has a replay of the moment, that replay with the area and the shot drawn on it.
-// The only thing a model is asked for is the wording around it (see /football/review-write): the facts are given to it, and it may not add any.
+// The wording is written by code from the facts; no model is asked for anything.
 (function () {
   const FM = (window.FM = window.FM || {});
   const L = 105, W = 68;
@@ -109,15 +109,6 @@
     lines.push('The pitch and the replay below show you where.');
     return lines;
   };
-  // Asks for the wording once per match (a few Locks, Haiku), keeps it with the match, and hands it to done. Any failure is silent: the code's lines stay.
-  FM.reviewWrite = async function (c, real, facts, greet, done) {
-    return;   // the match review is written in code: wording from LastMind AI spent Locks, and only the agent chats use them
-    if (!real || !FM.api) return;
-    if (real.reviewNarr) { done(real.reviewNarr); return; }
-    if (!facts.length || (FM.locksOut && FM.locksOut())) return;
-    try {
-      const out = await FM.api('/football/review-write', { greeting: greet, team: c.team.name, opp: c.opp.name, gf: c.gf, ga: c.ga, facts: facts.map((f) => ({ id: f.id, text: f.text })) });
-      if (out && Array.isArray(out.intro) && out.intro.length) { real.reviewNarr = { intro: out.intro.slice(0, 6), notes: out.notes || {} }; if (FM.requestSave) FM.requestSave(); done(real.reviewNarr); }
-    } catch (e) { /* the code's own lines are already on the page */ }
-  };
+  // The wording of the match review is written by code only, from the facts above. Nothing is sent to the API: this stays a no-op so older callers keep working.
+  FM.reviewWrite = function () { return; };
 })();
