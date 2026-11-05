@@ -343,6 +343,10 @@
     return { d: clamp(d, 0.02, 0.97), w: clamp(w, 0.04, 0.96) };
   };
   FM.phasePos = function (team, p, phase) {
+    // The moments after winning or losing the ball have no places of their own: players are where they were. Winning it, the team starts in the shape it was
+    // defending in and moves to the shape the attack needs; losing it, it starts in the attacking shape and drops into the defensive one. How quickly is the
+    // instructions' business (the counter-attack and counter-press settings), not the manager's drawing.
+    { const bk = FM.baseKey(phase); if (bk === 'transAtt') return FM.phasePos(team, p, 'without'); if (bk === 'transAttEnd') return FM.phasePos(team, p, 'midfield'); if (bk === 'transDef') return FM.phasePos(team, p, 'midfield'); if (bk === 'transDefEnd') return FM.phasePos(team, p, 'without'); }
     // what the manager showed in a scenario (see scenario.js) is where that phase ended, and so where the next one starts
     const sc = team.scenarioEnd && team.scenarioEnd[FM.baseKey(phase)];
     if (sc && sc[p.index] && !(team.phasePos && team.phasePos[phase] && team.phasePos[phase][p.index])) return { d: sc[p.index].d, w: sc[p.index].w };
@@ -361,7 +365,7 @@
   };
   // Every key positions are kept under: the phases, and the pages the manager has added.
   FM.allPhaseKeys = (team) => FM.PHASES.concat(Object.keys(team.phasePos || {}).filter((k) => k.indexOf('#') > 0));
-  FM.isManual = (team, p, phase) => !!(team.phasePos && team.phasePos[phase] && team.phasePos[phase][p.index]);
+  FM.isManual = (team, p, phase) => ['transAtt', 'transAttEnd', 'transDef', 'transDefEnd'].indexOf(FM.baseKey(phase)) < 0 && !!(team.phasePos && team.phasePos[phase] && team.phasePos[phase][p.index]);
 
   // ---------- how far can he get between phases? ----------
   // About six seconds at top speed: a full-back can come inside, a winger cannot be on the left in build-up and the
@@ -692,7 +696,7 @@
       if (ctx.transAtt > 0) {
         const zone = b.d < 0.33 ? 'defensive' : b.d < 0.67 ? 'middle' : 'attacking';
         const choice = (team.tactics.transAttChoices || {})[zone] || 'counter';
-        const target = choice === 'reset' ? chain[0].pos : choice === 'secure' ? chain[1].pos : mix(FM.phasePos(team, player, 'transAtt'), FM.phasePos(team, player, pn('transAttEnd')), clamp(ctx.taProg || 0, 0, 1));
+        const target = choice === 'reset' ? chain[0].pos : choice === 'secure' ? chain[1].pos : mix(FM.phasePos(team, player, 'without'), pos, clamp(ctx.taProg || 0, 0, 1));
         pos = mix(pos, target, ctx.transAtt);
       }
       // the width dial (1 = as drawn): the side stretches or squeezes across the pitch round its centre line
@@ -719,7 +723,7 @@
       if (ctx.transDef > 0) {
         const zone = b.d < 0.33 ? 'defensive' : b.d < 0.67 ? 'middle' : 'attacking';
         const choice = (team.tactics.transDefChoices || {})[zone] || 'contain';
-        const target = choice === 'regroup' ? FM.phasePos(team, player, 'without') : choice === 'counterpress' ? mix(FM.phasePos(team, player, 'transDef'), FM.phasePos(team, player, pn('transDefEnd')), clamp(ctx.tdProg || 0, 0, 1)) : mix(pos, FM.phasePos(team, player, 'without'), 0.5);
+        const target = choice === 'regroup' ? FM.phasePos(team, player, 'without') : choice === 'counterpress' ? mix(FM.phasePos(team, player, b.d < 0.4 ? 'build' : b.d < 0.7 ? 'midfield' : 'final'), pos, clamp(ctx.tdProg || 0, 0, 1)) : mix(pos, FM.phasePos(team, player, 'without'), 0.5);
         pos = mix(pos, target, ctx.transDef);
       }
     }

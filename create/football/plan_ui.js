@@ -241,7 +241,7 @@
       const legacy = (team.rules || []).filter((r) => r.source !== 'plan');
       host.innerHTML = `<div class="pl">
         ${phases.length > 1 ? `<div class="pl-sub">${phases.map((k) => `<button type="button" class="${k === ph ? 'on' : ''}" data-sub="${k}">${esc(FM.planPhase(k).name)}</button>`).join('')}</div>` : ''}
-        <div class="pl-head"><h3>${esc(info.name)}</h3></div>
+        <div class="pl-head"><h3>${esc(info.name)}</h3>${ph === 'transAtt' || ph === 'transDef' ? `<p class="pl-empty">${ph === 'transDef' ? 'Players start in the shape they attacked in and drop into the one set on the organised defending page.' : 'Players start in the shape they were defending in and move into the shape the attack needs.'} Nothing to drag here: choose how quickly and how aggressively they do it below.</p>` : ''}</div>
         <div class="pl-grid">
           <section class="card pl-left"><div class="pl-ovl" role="group" aria-label="Pitch overlays"><span>Overlays</span>${OVL.map(([k, n]) => `<button type="button" class="${UI.ovl[k] ? 'on' : ''}" data-ovl="${k}" aria-pressed="${UI.ovl[k]}">${n}</button>`).join('')}</div><div class="pl-pitchbar">${manualCount(team, ph) ? '<button type="button" data-resetpos="1">Put this phase\'s players back where their roles put them</button>' : ''}<button type="button" class="${UI.showOpp ? 'on' : ''}" data-opp="1"${hooks.opp ? '' : ' disabled'}>${UI.showOpp ? 'Hide' : 'Show'} the opposition</button></div><div class="pl-pitchwrap${UI.mode !== 'view' ? ' picking' : ''}">${pitchSvg(team, ph, hooks, A)}</div>${(() => { const rp = hooks.report ? hooks.report(FM.planPhase(ph).eng[0]) : ''; return rp ? `<div class="pl-oppreport">${UI.showOpp ? '' : '<p class="pl-help">Show the opposition to see how they stand in this phase.</p>'}${rp}</div>` : ''; })()}
             ${selP ? `<div class="pl-selbar"><b>${esc(selP.name)}</b> <span>${esc((FM.ROLES[selP.roleId] || {}).name || '')}</span><button type="button" data-openp="1">Open role and instructions</button><button type="button" data-unsel="1">Clear</button></div>` : ''}</section>
@@ -268,6 +268,7 @@
       const toPos = (e) => { const pt = svg.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY; const q = pt.matrixTransform(svg.getScreenCTM().inverse()); return { w: Math.max(0.03, Math.min(0.97, q.x / PW)), d: Math.max(0.02, Math.min(0.98, 1 - q.y / PH)) }; };
       host.querySelectorAll('.pl-card').forEach((g) => g.addEventListener('pointerdown', (e) => {
         if (UI.mode !== 'view' || (e.pointerType === 'mouse' && e.button !== 0)) return;
+        if (ph === 'transAtt' || ph === 'transDef') { e.preventDefault(); UI.sel = UI.sel === g.dataset.slot ? null : g.dataset.slot; draw(); return; }   // no places to drag: where players stand follows from the phase they were in
         e.preventDefault();
         const p = team.players.find((q) => q.slotKey === g.dataset.slot), start = { x: e.clientX, y: e.clientY }; let moved = false, at = null;
         try { g.setPointerCapture(e.pointerId); } catch (_) { /* a plain drag still works */ }
