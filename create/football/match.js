@@ -248,7 +248,7 @@
   function giveBall(match, team, player, delay, keep) {
     xrPossession(match, team, player);
     if (match.rec) chainOnBall(match, team, player, match.lastTeam !== team);
-    if (match.lastTeam !== team || !match.lastChange) match.lastChange = { team, t: match.clock };
+    if (match.lastTeam !== team || !match.lastChange) match.lastChange = { team, t: match.clock, x: match.ball.x, y: match.ball.y };
     match.carrier = { team, player };
     // A ball that comes to a man at speed is not stopped dead: his foot meets it and takes the pace off it over a moment (longer for a harder ball, shorter for a composed
     // player), the ball still travelling as it slows and drawn in toward his feet, so it ends under his control (see carryBall).
@@ -798,7 +798,7 @@
       }
       let taProg = 0, tdProg = 0;
       if (ch) { const since = match.clock - ch.t; if (ch.team === team) taProg = since / COUNTER_WINDOW; else tdProg = since / PRESS_WINDOW; }
-      team.phaseCtx = { transAtt: ta, transDef: td, taProg, tdProg };
+      team.phaseCtx = { transAtt: ta, transDef: td, taProg, tdProg, dFrom: ch && ch.x != null ? FM.toTeamSpace(team.attackDir, ch.x, ch.y).d : null };   // dFrom: how far up the pitch the ball was when it changed hands, in this team's space
       // The version of each stage's end diagram in use: the first added page whose condition holds (the default one otherwise).
       FM.ensurePages(team);
       team.pageNow = {};

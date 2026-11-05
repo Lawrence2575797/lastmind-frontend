@@ -683,6 +683,21 @@
     // depth caps, marking) is weakened by it.
     const drawnOn = (ph) => !!(team.phasePos && team.phasePos[ph] && team.phasePos[ph][player.index]);
     let drawn = 0;
+    // The shape the team had, or would have, with the ball at this depth: the attacking boards read off as the ball goes forward, and the defending boards likewise.
+    // The moments after the ball changes hands run from one to the other, starting from where the ball was when it changed hands.
+    const attShapeAt = (d) => {
+      const ch = ['build', 'buildEnd', 'midfield', 'final'].map((k) => ({ d: FM.phaseBall(team, pn(k)).d, pos: FM.phasePos(team, player, pn(k)) }));
+      if (d <= ch[0].d) return ch[0].pos;
+      for (let i = 0; i < ch.length - 1; i++) if (d <= ch[i + 1].d) return mix(ch[i].pos, ch[i + 1].pos, clamp((d - ch[i].d) / Math.max(0.05, ch[i + 1].d - ch[i].d), 0, 1));
+      return ch[ch.length - 1].pos;
+    };
+    const defShapeAt = (d) => {
+      const far = FM.phaseBall(team, 'without').d, near = FM.phaseBall(team, pn('withoutEnd')).d;
+      let q = mix(FM.phasePos(team, player, 'without'), FM.phasePos(team, player, pn('withoutEnd')), clamp((far - d) / Math.max(0.05, far - near), 0, 1));
+      const pw = clamp((d - 0.5) / 0.25, 0, 1) * 0.5; if (pw > 0) q = mix(q, FM.phasePos(team, player, 'press'), pw);
+      return q;
+    };
+    const ease = (x) => x * x * (3 - 2 * x), TA_SECS = 8, TD_SECS = 6;   // the lengths of the two windows in match.js
     let pos, lowK = 0;   // lowK: how far this side is sitting in a low block (0 to 1), set below when it is without the ball
     if (hasBall) {
       // The possession diagrams in order, each with the ball where it is drawn: the team is read off them as the ball goes forward.
@@ -694,10 +709,8 @@
       }
       drawn = ['build', 'buildEnd', 'midfield', 'final'].some((k) => drawnOn(pn(k))) ? 0.5 : 0;
       if (ctx.transAtt > 0) {
-        const zone = b.d < 0.33 ? 'defensive' : b.d < 0.67 ? 'middle' : 'attacking';
-        const choice = (team.tactics.transAttChoices || {})[zone] || 'counter';
-        const target = choice === 'reset' ? chain[0].pos : choice === 'secure' ? chain[1].pos : mix(FM.phasePos(team, player, 'without'), pos, clamp(ctx.taProg || 0, 0, 1));
-        pos = mix(pos, target, ctx.transAtt);
+        const react = FM.planTeamChoice ? FM.planTeamChoice(team, 'transAtt', 'react') : null, secs = react === 'counter' ? 2.5 : react === 'secure' ? 6.5 : 4;   // how long the team takes to reach its attacking shape
+        pos = mix(defShapeAt(ctx.dFrom != null ? ctx.dFrom : b.d), pos, ease(clamp((ctx.taProg || 0) * TA_SECS / secs, 0, 1)));
       }
       // the width dial (1 = as drawn): the side stretches or squeezes across the pitch round its centre line
       if (team.dials && team.dials.width && player.group !== 'GK') pos = { d: pos.d, w: clamp(0.5 + (pos.w - 0.5) * team.dials.width, 0.03, 0.97) };
@@ -721,10 +734,8 @@
       lowK = lowBlock;
       if (lowBlock > 0) pos = { d: pos.d * (1 - (FM.LOWBLOCK_K == null ? 0.08 : FM.LOWBLOCK_K) * lowBlock), w: pos.w };
       if (ctx.transDef > 0) {
-        const zone = b.d < 0.33 ? 'defensive' : b.d < 0.67 ? 'middle' : 'attacking';
-        const choice = (team.tactics.transDefChoices || {})[zone] || 'contain';
-        const target = choice === 'regroup' ? FM.phasePos(team, player, 'without') : choice === 'counterpress' ? mix(FM.phasePos(team, player, b.d < 0.4 ? 'build' : b.d < 0.7 ? 'midfield' : 'final'), pos, clamp(ctx.tdProg || 0, 0, 1)) : mix(pos, FM.phasePos(team, player, 'without'), 0.5);
-        pos = mix(pos, target, ctx.transDef);
+        const react = FM.planTeamChoice ? FM.planTeamChoice(team, 'transDef', 'react') : null, secs = react === 'counterpress' ? 5.5 : react === 'regroup' ? 1.8 : 3.5;   // how long the team takes to drop into its defensive shape
+        pos = mix(attShapeAt(ctx.dFrom != null ? ctx.dFrom : b.d), pos, ease(clamp((ctx.tdProg || 0) * TD_SECS / secs, 0, 1)));
       }
     }
     // Where the manager's boards put him for this ball: everything below (following the ball, marking, runs) only moves him a short way from here.
