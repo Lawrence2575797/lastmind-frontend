@@ -46,6 +46,13 @@
     if (r < 6) return { open: false, label: 'Window closed', left: 0, text: 'The window is closed. The winter window opens after ' + plural(6 - r) + '.' };
     return { open: false, label: 'Window closed', left: 0, text: 'The window is closed until next summer.' };
   };
+  // A transfer ban (one of the situations the board can be in at the start of a game): the club cannot buy or sign anyone until it is over, but it can still sell.
+  FM.transferBan = function (league) {
+    if (league.mp || !league.biz || !league.biz.board) return null;
+    const ban = league.biz.board.ban;
+    return ban && !ban.lifted && userRounds(league) < ban.untilRound ? ban : null;
+  };
+  const banned = (league) => { const ban = FM.transferBan(league); return ban ? { ok: false, text: 'The club is under a transfer ban for ' + ban.reason + ', so it cannot buy or sign anyone until it is over. It can still sell.' } : null; };
   const shut = (league) => { const w = FM.transferWindow(league); return w.open ? null : { ok: false, text: 'The transfer window is shut, so no deal can be done now. ' + w.text.replace(/^The window is closed\. /, '') }; };
   const avgRating = (team) => { const ps = team.players && team.players.length ? team.players : team.squad; return ps.length ? ps.reduce((a, q) => a + FM.playerRating(q), 0) / ps.length : 0; };
 
@@ -308,7 +315,7 @@
   FM.signFreeAgent = function (league, pid) {
     const p = FM.findPlayer(league, pid), club = p && FM.clubOf(league, p);
     if (!club || !club.isPool) return { ok: false, text: 'He is not a free agent.' };
-    { const w = shut(league); if (w) return w; }
+    { const w = shut(league) || banned(league); if (w) return w; }
     const deal = ensureDeal(league, p);
     deal.declared = true; deal.fee = 0; deal.stage = 'fee_agreed'; deal.agreedRound = userRounds(league);
     deal.history.push({ who: 'agent', text: 'His contract has ended, so there is no fee to pay: only his terms to agree.' });
@@ -454,7 +461,7 @@
     if (!p) return { ok: false, text: 'That player is no longer there.' };
     const club = FM.clubOf(league, p);
     if (club === me) return { ok: false, text: 'He already plays for you.' };
-    { const w = shut(league); if (w && !((t.deals[pid] || {}).stage === 'fee_agreed')) return w; }
+    { const w = shut(league) || banned(league); if (w && !((t.deals[pid] || {}).stage === 'fee_agreed')) return w; }
     const deal = ensureDeal(league, p);
     if (deal.stage === 'fee_agreed') return { ok: true, status: 'agreed', deal };
     if (deal.coolRound != null && userRounds(league) <= deal.coolRound) return { ok: false, text: club.name + ' will not talk again until after your next match.' };
@@ -515,7 +522,7 @@
   FM.acceptCounter = function (league, pid) {
     const t = FM.transfer(league), p = FM.findPlayer(league, pid), deal = t.deals[pid], me = FM.teamById(league, league.userId);
     if (!deal || deal.stage !== 'counter' || !p) return { ok: false, text: 'There is no counter-offer to accept.' };
-    { const w = shut(league); if (w) return w; }
+    { const w = shut(league) || banned(league); if (w) return w; }
     if (deal.counter > (t.budget[me.id] || 0)) return { ok: false, text: 'You only have ' + money(t.budget[me.id] || 0) + ' to spend.' };
     const club = FM.clubOf(league, p);
     deal.stage = 'fee_agreed'; deal.fee = deal.counter; deal.agreedRound = userRounds(league);
@@ -537,7 +544,7 @@
   FM.startWageTalks = function (league, pid) {
     const t = FM.transfer(league), p = FM.findPlayer(league, pid), deal = t.deals[pid];
     if (!deal || (deal.stage !== 'fee_agreed' && deal.stage !== 'wage_talks') || !p) return { ok: false, text: 'Approach the club and agree a fee first.' };
-    { const w = shut(league); if (w) return w; }
+    { const w = shut(league) || banned(league); if (w) return w; }
     // Will he come? A player does not always want the move: a better club or a better side makes him think twice, and some simply decline.
     if (deal.stage === 'fee_agreed' && !deal.willChecked) {
       deal.willChecked = true;
@@ -557,7 +564,7 @@
   FM.offerWage = function (league, pid, wage, years) {
     const t = FM.transfer(league), p = FM.findPlayer(league, pid), deal = t.deals[pid], me = FM.teamById(league, league.userId);
     if (!deal || deal.stage !== 'wage_talks' || !p) return { ok: false, text: 'There are no wage talks open with this player.' };
-    { const w = shut(league); if (w) return w; }
+    { const w = shut(league) || banned(league); if (w) return w; }
     wage = r1(Number(wage)); years = Math.max(1, Math.min(5, Math.round(Number(years)) || 3));
     if (!(wage > 0)) return { ok: false, text: 'Enter a weekly wage first.' };
     const adj = years >= 4 ? 0.97 : years <= 1 ? 1.05 : 1;           // security is worth a little to him; a one-year deal costs more

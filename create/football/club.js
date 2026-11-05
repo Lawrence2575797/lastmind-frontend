@@ -60,16 +60,28 @@
   const LVL_BASE = { 1: 8000000, 2: 5000000, 3: 3000000, 4: 1800000 };
   const OWNERS = ['Meridian Sports Group', 'Northgate Capital Partners', 'the Aurelian Consortium', 'Calder Bay Holdings'];
   FM.BOARD_KINDS = {
+    mega: { label: 'A huge takeover: a bottomless pocket', pct: 100, reserve: 2000000 },
     takeover: { label: 'A takeover and new money', pct: 90, reserve: 1500000 },
     steady: { label: 'Steady backing', pct: 70, reserve: 1500000 },
     tight: { label: 'A club short of money', pct: 40, reserve: 1000000 },
+    debt: { label: 'A club in deep debt', pct: 25, reserve: 500000 },
+    loans: { label: 'The bank balance is frozen: only new money can be spent', pct: 100, reserve: 0 },
+    ban: { label: 'A transfer ban', pct: 70, reserve: 1500000 },
   };
+  const MEGA_OWNERS = ['the Zenith Sovereign Investment Authority', 'Halvorsen Global Holdings', 'the Kestrel Gulf Consortium'];
   FM.boardPlan = function (lg) {
     const rng = FM.mulberry32((lg.seed || 1) + (lg.runSeed || 0) * 911 + 31), r = rng(), owner = OWNERS[Math.floor(rng() * OWNERS.length)];
-    const kind = r < 0.27 ? 'takeover' : r < 0.75 ? 'steady' : 'tight', base = LVL_BASE[lg.divisionLevel || 1] || LVL_BASE[1], K = FM.BOARD_KINDS[kind];
+    // the extremes are rare: a huge takeover 4%, an ordinary one 14%, steady 34%, short of money 18%, deep in debt 10%, bank balance frozen 8%, a transfer ban 12%
+    const kind = r < 0.04 ? 'mega' : r < 0.18 ? 'takeover' : r < 0.52 ? 'steady' : r < 0.70 ? 'tight' : r < 0.80 ? 'debt' : r < 0.88 ? 'loans' : 'ban', base = LVL_BASE[lg.divisionLevel || 1] || LVL_BASE[1], K = FM.BOARD_KINDS[kind];
     const round = (v) => Math.round(v / 1e5) * 1e5;
-    const injection = kind === 'takeover' ? round(base * 0.9) : 0, debt = kind === 'tight' ? round(base * 0.2) : 0, cash = kind === 'tight' ? round(base * 0.4) : base + injection;
-    return { kind, owner, base, injection, debt, cash, pct: K.pct, reserve: Math.round(K.reserve * base / LVL_BASE[1] / 1e5) * 1e5, briefSeen: false, history: [] };
+    const injection = kind === 'mega' ? round(base * 5) : kind === 'takeover' ? round(base * 0.9) : 0;
+    const debt = kind === 'tight' ? round(base * 0.2) : kind === 'debt' ? round(base * 1.8) : kind === 'loans' ? round(base * 0.5) : 0;
+    const cash = kind === 'tight' ? round(base * 0.4) : kind === 'debt' ? round(base * 0.25) : kind === 'loans' ? round(base * 0.6) : base + injection;
+    const ownerName = kind === 'mega' ? MEGA_OWNERS[Math.floor(rng() * MEGA_OWNERS.length)] : owner;
+    const reserve = kind === 'loans' ? cash : Math.round(K.reserve * base / LVL_BASE[1] / 1e5) * 1e5;
+    const plan = { kind, owner: ownerName, base, injection, debt, debtTerm: kind === 'debt' ? 42 : 28, debtRate: kind === 'debt' ? 0.09 : 0.075, cash, pct: K.pct, reserve, briefSeen: false, history: [] };
+    if (kind === 'ban') plan.ban = { untilRound: 9, reason: 'breaches of the league\'s financial rules in the past two seasons', lifted: false };
+    return plan;
   };
 
   // ---------- the company's state ----------
@@ -84,7 +96,7 @@
       v: 1, cash: opening, lastClose: opening, season: lg.season, prices: segs, seats, marketing: 0,
       sponsors: [{ id: 'sp1', kind: 'Shirt sponsor', company: 'Halden Mutual', perRound: 34000, left: 28 }],
       boards: [{ id: 'ad1', company: 'Fernhill Dairy', perRound: 3200, left: 14 }, { id: 'ad2', company: 'Northgate Tyres', perRound: 2800, left: 14 }, { id: 'ad3', company: 'Quill Print & Design', perRound: 2400, left: 14 }],
-      offers: [], loans: plan && plan.debt ? [{ id: 'L0', principal: plan.debt, balance: plan.debt, term: 28, rate: 0.075, perRound: Math.round(plan.debt / 28), season: lg.season }] : [], shares: { issued: 1000000, price: 10 }, ledger: [], signings: [], seasons: [], pending: { fees: 0, sales: 0, loans: 0, shares: 0, saleProfit: 0, capex: 0 },
+      offers: [], loans: plan && plan.debt ? [{ id: 'L0', principal: plan.debt, balance: plan.debt, term: plan.debtTerm || 28, rate: plan.debtRate || 0.075, perRound: Math.round(plan.debt / (plan.debtTerm || 28)), season: lg.season }] : [], shares: { issued: 1000000, price: 10 }, ledger: [], signings: [], seasons: [], pending: { fees: 0, sales: 0, loans: 0, shares: 0, saleProfit: 0, capex: 0 },
       approvalFin: 55, lastShare: 10, seq: 1,
       facilities: [], projects: [], assets: { cost: OPENING_STADIUM, dep: 0 },
       equity: { capital: 1000000, premium: 0, reserves: OPENING_STADIUM + opening - (plan ? plan.debt : 0) - 1000000 }, dividendsPaid: 0, dividend: { policy: 0.25 },
@@ -627,14 +639,28 @@
   FM.bizBoardInfo = function (lg) {
     const b = FM.biz(lg), bd = b.board, loans = b.loans.reduce((a, l) => a + l.balance, 0), pool = Math.max(0, b.cash - (bd.reserve || 0));
     const t = FM.transfer ? FM.transfer(lg) : null;
-    return { b, bd, kind: bd.kind, label: (FM.BOARD_KINDS[bd.kind] || {}).label || 'Steady backing', owner: bd.owner, cash: b.cash, loans, reserve: bd.reserve || 0, pct: bd.pct, pool, released: t ? (t.budget[lg.userId] || 0) * 1e6 : pool * bd.pct / 100, legacy: !!bd.legacy, approval: b.approvalFin };
+    return { b, bd, ban: bd.ban && !bd.ban.lifted ? bd.ban : null, kind: bd.kind, label: (FM.BOARD_KINDS[bd.kind] || {}).label || 'Steady backing', owner: bd.owner, cash: b.cash, loans, reserve: bd.reserve || 0, pct: bd.pct, pool, released: t ? (t.budget[lg.userId] || 0) * 1e6 : pool * bd.pct / 100, legacy: !!bd.legacy, approval: b.approvalFin };
   };
   // Asking the board for more money for transfers. What it gives depends on who is behind the club and on how much the shareholders trust the manager with money
   // (the financial approval); a refusal costs a little of that trust. Money from the owners goes into the books as new equity.
+  FM.bizBoardRate = function (lg) {
+    const b = FM.biz(lg), bd = b.board, a = b.approvalFin;
+    return bd.kind === 'mega' ? (a >= 40 ? 0.9 : 0.6) : bd.kind === 'takeover' ? (a >= 50 ? 0.7 : 0.4) : bd.kind === 'steady' ? (a >= 55 ? 0.35 : 0.1) : bd.kind === 'ban' ? (a >= 60 ? 0.2 : 0) : bd.kind === 'tight' ? (a >= 70 ? 0.15 : 0) : bd.kind === 'loans' ? (a >= 75 ? 0.1 : 0) : 0;
+  };
+  // Appealing a transfer ban: it can be lifted for the winter window if the league is persuaded, which depends on the shareholders' trust; a failed appeal costs some of it.
+  FM.bizBoardAppeal = function (lg) {
+    const b = FM.biz(lg), bd = b.board; if (!bd.ban || bd.ban.lifted) return { ok: false, text: 'There is no transfer ban to appeal.' };
+    if (bd.ban.appealed) return { ok: false, text: 'The ban has already been appealed once this season.' };
+    bd.ban.appealed = true;
+    const rng = FM.mulberry32((lg.seed || 1) + (lg.runSeed || 0) * 911 + 977), chance = b.approvalFin >= 60 ? 0.5 : b.approvalFin >= 45 ? 0.3 : 0.15;
+    if (rng() < chance) { bd.ban.untilRound = Math.min(bd.ban.untilRound, 6); return { ok: true, won: true, text: 'The appeal succeeds in part: the ban now ends with the summer window, so you can buy in the winter window.' }; }
+    b.approvalFin = Math.max(0, b.approvalFin - 3);
+    return { ok: true, won: false, text: 'The appeal is turned down and the shareholders are unhappy about the legal bill. The ban stands.' };
+  };
   FM.bizBoardRequest = function (lg, amount) {
     const b = FM.biz(lg), bd = b.board; amount = Math.max(0, Math.round(Number(amount) / 1e5) * 1e5);
     if (!amount) return { ok: true, granted: 0, text: 'You ask for nothing, and the board is glad of it.' };
-    const rate = bd.kind === 'takeover' ? (b.approvalFin >= 50 ? 0.7 : 0.4) : bd.kind === 'steady' ? (b.approvalFin >= 55 ? 0.35 : 0.1) : (b.approvalFin >= 70 ? 0.15 : 0);
+    const rate = FM.bizBoardRate(lg);
     const granted = Math.round(amount * rate / 1e5) * 1e5;
     if (granted <= 0) { b.approvalFin = Math.max(0, b.approvalFin - 2); return { ok: true, granted: 0, text: 'The board refuses: the money is not there, or it does not yet trust the club with more. Your standing with the shareholders drops a little.' }; }
     b.cash += granted; b.equity.premium += granted; b.pending.shares += granted; bd.history.push({ season: lg.season, kind: 'grant', amount: granted });
@@ -657,7 +683,11 @@
     const rng = FM.mulberry32((lg.seed || 1) + (lg.runSeed || 0) * 911 + lg.season * 7727 + 5), base = LVL_BASE[lg.divisionLevel || 1] || LVL_BASE[1], round = (v) => Math.round(v / 1e5) * 1e5;
     const put = (amount) => { b.cash += amount; b.equity.premium += amount; b.pending.shares += amount; };
     let notice = null;
-    if (bd.kind !== 'takeover' && lg.season > 1 && rng() < (b.approvalFin >= 60 ? 0.14 : 0.08)) {
+    if (bd.kind === 'loans' && lg.season > 1) { bd.kind = 'steady'; bd.pct = 60; bd.reserve = Math.round(1500000 * base / LVL_BASE[1] / 1e5) * 1e5; notice = { title: 'The freeze on the bank balance is lifted', lines: ['The owners are satisfied that the club has stayed within its means. The bank balance is no longer frozen: the board now keeps ' + gbp(bd.reserve) + ' back and releases ' + bd.pct + '% of the rest for transfers.'] }; }
+    else if (bd.ban && lg.season > 1) { delete bd.ban; notice = { title: 'The transfer ban is over', lines: ['The league has lifted the transfer ban: the club can buy players again in both windows.'] }; }
+    else if (bd.kind === 'debt' && lg.season > 1 && b.approvalFin >= 60 && b.loans.reduce((a, l) => a + l.balance, 0) < base) { bd.kind = 'tight'; bd.pct = 40; bd.reserve = Math.round(1000000 * base / LVL_BASE[1] / 1e5) * 1e5; notice = { title: 'The worst of the debt is behind us', lines: ['The loans are down to a level the bank is comfortable with. The club is still short of money, but no longer in danger: the board now releases ' + bd.pct + '% of the cash above its reserve for transfers.'] }; }
+    else if (bd.kind === 'mega' && lg.season > 1 && b.approvalFin >= 40) { const g = Math.round(base * 1.5 / 1e5) * 1e5; put(g); bd.history.push({ season: lg.season, kind: 'grant', amount: g }); notice = { title: 'The owners top up the club', lines: [bd.owner.charAt(0).toUpperCase() + bd.owner.slice(1) + ' have paid a further ' + gbp(g) + ' into the club for the new season. They expect a title challenge.'] }; }
+    else if (bd.kind !== 'takeover' && bd.kind !== 'mega' && bd.kind !== 'debt' && lg.season > 1 && rng() < (b.approvalFin >= 60 ? 0.14 : 0.08)) {
       const owner = OWNERS[Math.floor(rng() * OWNERS.length)], amount = round(base * 0.8);
       bd.kind = 'takeover'; bd.owner = owner; bd.pct = FM.BOARD_POLICIES[bd.policy] ? Math.max(15, Math.min(95, 90 + FM.BOARD_POLICIES[bd.policy].dpct)) : 90; bd.reserve = Math.round(1500000 * base / LVL_BASE[1] / 1e5) * 1e5;
       put(amount); bd.history.push({ season: lg.season, kind: 'takeover', amount, owner });
@@ -666,7 +696,7 @@
     } else {
       const grant = bd.kind === 'takeover' ? (b.approvalFin >= 45 ? round(base * 0.3) : 0) : bd.kind === 'steady' ? (b.approvalFin >= 55 ? round(base * 0.1) : 0) : 0;
       if (grant) { put(grant); bd.history.push({ season: lg.season, kind: 'grant', amount: grant }); notice = { title: 'The owners\' funding for the season', lines: ['The owners have paid ' + gbp(grant) + ' into the club for the new season, because the finances have been looked after.'] }; }
-      else if (bd.kind === 'tight') notice = { title: 'Money is still tight', lines: ['The owners have put nothing new in. The transfer budget is only what the club has earned and kept, and the board still releases ' + bd.pct + '% of it.'] };
+      else if (bd.kind === 'tight' || bd.kind === 'debt') notice = { title: bd.kind === 'debt' ? 'The debt is still weighing on the club' : 'Money is still tight', lines: ['The owners have put nothing new in. The transfer budget is only what the club has earned and kept, and the board still releases ' + bd.pct + '% of it.'] };
     }
     if (notice) { bd.notice = notice; bd.briefSeen = false; }
     FM.bizSyncBudget(lg);
