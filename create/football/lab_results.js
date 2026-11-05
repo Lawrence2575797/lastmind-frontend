@@ -271,7 +271,8 @@
     h += rv('<div id="loBoard"></div>', 'lo-boardsec');
     // 3. the rest
     const lostK = n - succ.k, w = r.why, sw = r.shotsWhy;
-    if (lostK > 0) {
+    if (FM.labExplore) h += rv('<div id="loExplore"></div>');   // the detail is investigated in lab_explore.js
+    else if (lostK > 0) {
       let sec = '<h3>What about the other ' + Math.round((1 - rate) * 100) + '%?</h3>';
       const passLine = (wy) => {
         const md = Math.round(wy.distSum / wy.failedPasses), longN = wy.long, shortN = wy.failedPasses - wy.long;
@@ -326,6 +327,7 @@
       const rv2 = host.querySelector('[data-act="revert"]');
       if (rv2) rv2.addEventListener('click', () => { const ok = c.onRevert ? c.onRevert() : false; rv2.disabled = true; const note = host.querySelector('[data-reverted]'); if (note) { note.hidden = false; note.textContent = ok ? 'Your previous tactics are back. Test again to confirm.' : 'The previous tactics could not be restored.'; } });
       const r = c.runs[c.runs.length - 1].result;
+      if (FM.labExplore) { try { FM.labExplore.mount(host.querySelector('#loExplore'), { runs: c.runs, phase: c.phase, opp: c.opp, team: c.team }); } catch (e) { console.error('Test investigation:', e); } }
       if (FM.labBoard) FM.labBoard.mount(host.querySelector('#loBoard'), { result: r, phase: c.phase, team: c.team, opp: c.opp, onApply: (moves) => (c.onMoves ? c.onMoves(moves) : null) });
     },
     render(host, c) {
