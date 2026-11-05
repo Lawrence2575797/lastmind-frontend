@@ -1,0 +1,78 @@
+// The Board paper on the board, the owners and the transfer budget. It explains how the money behind this save was set (a takeover and new money, steady backing, or a club short of
+// money), why the board releases only part of the bank balance for transfers, and lets the manager ask the board for more and tell it the transfer policy. It is added to the other
+// papers here (books_cases.js, books_forms.js and books_theory.js are loaded before it).
+(function () {
+  const FM = (window.FM = window.FM || {});
+  const gbp = (n) => FM.gbp(n), num = (n) => Math.round(n).toLocaleString('en-GB'), f1 = (n) => (Math.round(n * 10) / 10).toFixed(1), pc = (n) => f1(n) + '%';
+  const money = (v) => (FM.money ? FM.money(v / 1e6) : gbp(v));
+  const info = (m) => FM.bizBoardInfo(m.lg);
+  const wageWeek = (m) => (FM.bizInternals ? FM.bizInternals.wageBill(m.lg) : 0);
+
+  const KIND_LINES = {
+    takeover: (bi) => [(bi.owner ? bi.owner.charAt(0).toUpperCase() + bi.owner.slice(1) : 'New owners') + ' have just taken over the club and put ' + gbp(bi.bd.injection || 0) + ' into the bank. That is a {{Takeover}}: one owner gaining control of the club, with a cash injection from the new {{Shareholders}}.', 'We hold ' + gbp(bi.cash) + ' in cash and owe ' + gbp(bi.loans) + '. The board does not hand all of it over: it keeps ' + gbp(bi.reserve) + ' back so that wages are always safe, and releases ' + bi.pct + '% of what is above that for transfers. Today that is ' + money(bi.released) + '.', 'New owners want results for their money, so the board expects you to use it well.'],
+    steady: (bi) => ['The owners back the club steadily: there is no new money coming in, and no debt problem either. The club pays its way from the matchdays, the sponsors and the prize money, which is {{Retained profit}} building up in the bank.', 'We hold ' + gbp(bi.cash) + ' in cash and owe ' + gbp(bi.loans) + '. The board keeps ' + gbp(bi.reserve) + ' back and releases ' + bi.pct + '% of what is above that for transfers: ' + money(bi.released) + ' today.', 'If you want a bigger budget, the squad is an asset as well as a team: selling a player brings cash in.'],
+    tight: (bi) => ['I have to be frank with you. This club is short of money. We hold ' + gbp(bi.cash) + ' in cash and owe ' + gbp(bi.loans) + ' to the bank from before you arrived, and the owners are not putting new money in.', 'The board keeps ' + gbp(bi.reserve) + ' back and will release only ' + bi.pct + '% of what is above that for transfers: ' + money(bi.released) + ' today. That is not a lot to spend in a market where good players cost millions.', 'If you want to buy, you will have to sell first, and the board would rather the club did not borrow more. This is a situation that can be turned round, but slowly.'],
+    legacy: (bi) => ['This saved game began before the board set a transfer policy, so the whole of the bank balance is available for transfers, as it always was.', 'We hold ' + gbp(bi.cash) + ' in cash and owe ' + gbp(bi.loans) + '.'],
+  };
+
+  const add = (c) => { if (FM.booksCases && FM.booksCases.CASES && !FM.booksCases.CASES.some((x) => x.id === c.id)) FM.booksCases.CASES.unshift(c); };
+  const stage = (c, k) => c.stages.find((s) => s.k === k);
+
+  const paper = {
+    id: 'board', title: 'The board, the owners and the transfer budget', tag: 'Ownership and funding',
+    concepts: ['Shareholders', 'Stakeholders', 'Sources of finance', 'Share capital', 'Share issue', 'Loan', 'Gearing', 'Retained profit', 'Public limited company', 'Limited liability', 'Dividends', 'Mergers and takeovers', 'Takeover', 'Budgets', 'Variance', 'Cash-flow forecast', 'Liquidity', 'Business objectives', 'Short-termism'],
+    stages: [
+      { k: 'read', title: 'The situation', memo: (m) => { const bi = info(m); return (KIND_LINES[bi.legacy ? 'legacy' : bi.kind] || KIND_LINES.steady)(bi); },
+        facts: (m) => { const bi = info(m), t = FM.transfer(m.lg), me = FM.teamById(m.lg, m.lg.userId); return [['Backing', bi.legacy ? 'No board policy in this save' : bi.label], ['Owners', bi.owner ? bi.owner : 'The existing shareholders'], ['Cash in the bank', gbp(bi.cash)], ['Loans owed', gbp(bi.loans)], ['Reserve the board keeps back', bi.legacy ? 'none' : gbp(bi.reserve)], ['Share of the rest released', bi.legacy ? 'all of it' : bi.pct + '%'], ['Transfer budget today', money(bi.released)], ['Wage room', FM.wageRoom ? FM.wageRoom(m.lg, m.lg.userId) + 'k a week' : 'n/a'], ['Financial approval of the shareholders', Math.round(bi.approval) + '%'], ['Squad', String(me.squad.length) + ' players']].concat(t ? [] : []); },
+        sections: (m) => {
+          const bi = info(m), wk = wageWeek(m), cover = wk ? bi.reserve / wk : 0, win = FM.transferWindow ? FM.transferWindow(m.lg) : { text: '' };
+          const kindText = bi.kind === 'takeover' ? 'A takeover is the purchase of control of a business. Here the new owners have put money into the club as new equity: it does not have to be repaid and it carries no interest, which is why it is such a different thing from a loan. In return they have a right to the profits and a say in what the club does.' : bi.kind === 'tight' ? 'A club short of money relies on what it earns and what it can borrow. Our loan of ' + gbp(bi.loans) + ' costs interest every matchday, and the more the club borrows, the higher its gearing: loans as a share of capital employed. A highly geared business is a risk to lenders and shareholders alike.' : 'Steady backing means the owners have put in what the club needs and expect it to run on its own revenue. The club grows its bank balance from the matchday and prize income left after costs: retained profit.';
+          return [
+            { title: 'Who is behind the club', lines: [
+              'The club is a public limited company. Its owners are the shareholders, who put in share capital, share in the profit as dividends and have limited liability: they can lose what they paid in, but no more. The board is appointed to look after their interests, and it employs the manager. It is one of several stakeholders (the supporters, the players, the town and the bank are others), and it is the one that holds the purse.',
+              'Money comes into a club from a few places: owners putting in more share capital, banks lending, and the club\'s own profits kept back. They differ in cost, risk and who ends up in control. ' + kindText,
+              bi.legacy ? 'This saved game has no policy of that kind, so the manager can spend the whole of the bank balance.' : 'The owners have a business objective for the club as well as a football one: they want it financially sound and in the top half of the table. A manager who spends carelessly risks losing the shareholders\' confidence, which is measured here as financial approval (' + Math.round(bi.approval) + '% now).'] },
+            { title: 'Budgets: why the board does not release it all', lines: [
+              'A budget is a plan that sets how much money each part of a business may spend. It is a control: it stops one department using money that others, or the business, need. The board\'s transfer budget is not the bank balance. It is a share of the cash above a reserve, which is what a careful finance director does to protect {{Liquidity}}, the ability to pay bills when they fall due.',
+              bi.legacy ? 'In this save no reserve is kept.' : 'The reserve is ' + gbp(bi.reserve) + ', which covers about ' + f1(cover) + ' matchdays of wages (the wage bill is ' + gbp(wk) + ' a matchday). Of the ' + gbp(Math.max(0, bi.cash - bi.reserve)) + ' above it the board releases ' + bi.pct + '%, so ' + money(bi.released) + ' can be spent on players. When money is spent the cash falls, and the next budget is smaller; when a player is sold the cash rises, and so does the budget.',
+              'A budget is compared with what actually happens, and the difference is the variance. If the club spends less than it was allowed, the variance is favourable; if it spends more it is adverse, and the board will ask why. Wages are the other limit: signing a player adds to the wage bill every week, and the wage room (' + (FM.wageRoom ? FM.wageRoom(m.lg, m.lg.userId) : 0) + 'k a week) is what is left of the wage budget.'] },
+            { title: 'Selling to buy, and the market you work in', lines: [
+              'A squad is an asset: its players have a value, and selling one turns that value into cash. For a club short of money the sums are simple: a player sold for ' + money(6e6) + ' raises the transfer budget by about ' + money(6e6 * (bi.legacy ? 1 : bi.pct / 100)) + ', because the board releases its share of the extra cash. Net spend is what is bought less what is sold.',
+              'The market is not free. Players can only be bought and sold in the transfer windows, and not every approach or offer succeeds: a club may say a player is not for sale, a player may refuse to join, and clubs do not queue up to bid for your players. ' + (win.text || ''),
+              'The sensible plan for any club, rich or poor, is to decide what the squad needs before the window opens, to know the budget and the reserve, and to sell as carefully as it buys: loss of a player in the wrong position is as costly as the price paid for another.'] },
+          ];
+        } },
+      { k: 'calc', title: 'Your analysis', qs: [
+        { label: 'What the board releases for transfers', how: '(cash − reserve) × share released', ask: (m) => { const bi = info(m); return ['We hold ' + gbp(bi.cash) + ' in cash. The board keeps ' + gbp(bi.reserve) + ' back and releases ' + bi.pct + '% of the rest.', 'How much is the transfer budget?']; }, ans: (m) => info(m).released, unit: '£', tol: 150000, hint: () => ['Take the reserve off the cash, then take the share released.'], why: (m) => ['That is ' + money(info(m).released) + '. It is a budget: a limit set by the board, not the money in the bank.'] },
+        { label: 'Matchdays of wages the reserve would pay', how: 'reserve ÷ wage bill a matchday', ask: (m) => ['The wage bill is ' + gbp(wageWeek(m)) + ' a matchday.', 'How many matchdays of wages does the board\'s reserve cover?'], ans: (m) => { const w = wageWeek(m); return w ? info(m).reserve / w : 0; }, unit: 'matchdays', tol: 0.3, hint: () => ['Reserve ÷ wages a matchday.'], why: () => ['That is how long the club could pay its players if no money came in: its liquidity cushion.'] },
+      ] },
+      { k: 'decide', title: 'The decision', ask: (m) => { const bi = info(m); return bi.legacy ? ['The board has no policy in this save, so there is nothing to ask for.', 'You can still read the paper.'] : ['What do you want of the board?', 'You can ask the owners for more money, and tell the board the policy you will follow in the market.']; }, options: [], snap: (lg, m) => ({ budget: info(m).released, cash: info(m).cash }) },
+      { k: 'review', title: 'The review', after: 4, body: (lg, m, st) => { const bi = info(m), s = st.snap || {}, win = FM.transferWindow ? FM.transferWindow(lg) : { text: '' }; return { lines: ['Four matchdays on, the transfer budget is ' + money(bi.released) + ' (it was ' + money(s.budget || 0) + ' when you decided), and the club holds ' + gbp(bi.cash) + '.', bi.cash < (s.cash || 0) ? 'The cash has gone down: money has been spent, on players or on running the club, and the budget has gone down with it.' : 'The cash has gone up, so the budget has too.', win.text || '', 'Financial approval is ' + Math.round(bi.approval) + '%. If it is falling, the shareholders are not happy with how the money is being used.'].filter(Boolean) }; } },
+    ],
+  };
+
+  // the decision: ask the owners for money, and the policy told to the board
+  const RATE = (m) => { const bi = info(m), a = bi.approval; return bi.kind === 'takeover' ? (a >= 50 ? 0.7 : 0.4) : bi.kind === 'steady' ? (a >= 55 ? 0.35 : 0.1) : (a >= 70 ? 0.15 : 0); };
+  const form = {
+    fields: (m) => {
+      const bi = info(m), rate = RATE(m);
+      return [
+        { id: 'request', group: { title: 'Asking the owners for money', text: ['The owners can put more money into the club as new equity. It does not have to be repaid, but they will only do it if they think the club will use it well, and a refusal costs the manager a little of the shareholders\' trust.', bi.kind === 'takeover' ? 'The new owners are keen to see the club do well, so they are the most willing: about ' + Math.round(rate * 100) + '% of what you ask is likely to be given.' : bi.kind === 'steady' ? 'Steady owners give little unless they trust the finances: about ' + Math.round(rate * 100) + '% of what you ask is likely to be given.' : 'Owners of a club short of money have little to give: about ' + Math.round(rate * 100) + '% of what you ask is likely to be given.'], suggest: bi.kind === 'takeover' ? 'Ask for about £2,000,000: it is likely to be granted in large part, and it will not cost you much trust.' : bi.kind === 'steady' ? 'Ask for no more than £1,000,000, and only if you have a specific signing in mind.' : 'Do not ask yet. Sell a player first: each refusal costs trust, and the owners will give more once the books look better.' }, label: 'Extra money to ask the board for', type: 'range', min: 0, max: 3000000, step: 250000, def: 0, prefix: '£' },
+        { id: 'policy', group: { title: 'The policy you tell the board', text: ['The board releases a share of the cash above its reserve. An ambitious policy asks it to release more, and it will, but the shareholders do not like seeing money spent fast. A prudent policy releases less now and builds up cash, which they like.'], suggest: bi.kind === 'tight' ? 'Prudent: the club cannot afford to be careless, and the shareholders will trust you for it.' : bi.kind === 'takeover' ? 'Ambitious: the owners have just put the money in to be spent, as long as it is spent well.' : 'Balanced: spend what you sell and a little more.' }, label: 'Your transfer policy', type: 'select', options: Object.keys(FM.BOARD_POLICIES).map((k) => [k, FM.BOARD_POLICIES[k].label]), def: bi.kind === 'tight' ? 'prudent' : bi.kind === 'takeover' ? 'ambitious' : 'balanced' },
+      ];
+    },
+    preview: (v, m) => {
+      const bi = info(m), req = Number(v.request) || 0, rate = RATE(m), granted = Math.round(req * rate / 1e5) * 1e5, P = FM.BOARD_POLICIES[v.policy] || FM.BOARD_POLICIES.balanced, K = FM.BOARD_KINDS[bi.kind] || FM.BOARD_KINDS.steady;
+      const pct = Math.max(15, Math.min(95, K.pct + P.dpct)), cash = bi.cash + granted, budget = Math.max(0, cash - bi.reserve) * pct / 100, dapp = P.dapp - (req && granted === 0 ? 2 : req && granted < req ? 1 : 0);
+      return [['Cash today', gbp(bi.cash)], ['You ask the owners for', req ? gbp(req) : 'nothing'], ['The board is likely to give', req ? gbp(granted) + (granted === 0 ? ' (a refusal)' : granted < req ? ' (part of it)' : '') : '£0'], ['Share of the cash above the reserve released', pct + '% (now ' + bi.pct + '%)'], ['Transfer budget after this', money(budget) + ' (now ' + money(bi.released) + ')'], ['Shareholders\' trust', (dapp > 0 ? '+' : '') + dapp + ' points']];
+    },
+    apply: (lg, v) => { const out = []; const pol = FM.bizBoardPolicy(lg, v.policy); out.push(pol.text); const rq = FM.bizBoardRequest(lg, Number(v.request) || 0); if (Number(v.request)) out.push(rq.text); return out; },
+  };
+
+  function install() {
+    if (!FM.booksCases || !FM.booksForms || !FM.bizBoardInfo) return;
+    FM.booksForms.board = form; add(paper);
+    const c = FM.booksCases.CASES.find((x) => x.id === 'board'); if (c) { const dec = stage(c, 'decide'); void dec; }
+  }
+  install();
+})();

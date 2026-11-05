@@ -1081,6 +1081,7 @@
     el('tactics').hidden = !(v === 'tactics' || v === 'match');
     el('nav').hidden = v === 'match';
     VIEWS.forEach((k) => { const section = el('view-' + k); if (section) { if (SCREEN_TITLES[k]) section.dataset.screenTitle = SCREEN_TITLES[k]; else delete section.dataset.screenTitle; } });
+    if (FM.showBoardBrief && world.league && v !== 'match' && !DEMO_MODE) setTimeout(() => { try { FM.showBoardBrief(world.league, { save: saveSoon, goto: setView }); } catch (e) { /* the brief comes with the next page */ } }, 80);
     document.querySelectorAll('body > .cap-modal').forEach((n) => n.remove());
     renderTop();
     renderNav();

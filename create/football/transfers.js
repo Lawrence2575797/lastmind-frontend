@@ -35,6 +35,20 @@
   FM.money = money;
   const userRounds = (league) => league.fixtures.filter((f) => f.played && (f.homeId === league.userId || f.awayId === league.userId)).length;
 
+  // ---------- the transfer windows ----------
+  // Players can only be bought and sold in two windows: the summer one (before the season and for the first three league matches) and a winter one (after the sixth league
+  // match until the ninth). Shortlisting, scouting and declaring interest go on all year; the approach, the wage talks and the signing, and the answers to offers, wait for a window.
+  FM.transferWindow = function (league) {
+    if (league.mp) return { open: true, label: 'Open', left: 99, text: '' };
+    const r = userRounds(league), plural = (n) => n + ' league match' + (n === 1 ? '' : 'es'), more = (n) => n + ' more league match' + (n === 1 ? '' : 'es');
+    if (r <= 2) return { open: true, label: 'Summer window', left: 3 - r, text: 'The summer window is open and closes after ' + more(3 - r) + '.' };
+    if (r >= 6 && r <= 8) return { open: true, label: 'Winter window', left: 9 - r, text: 'The winter window is open and closes after ' + more(9 - r) + '.' };
+    if (r < 6) return { open: false, label: 'Window closed', left: 0, text: 'The window is closed. The winter window opens after ' + plural(6 - r) + '.' };
+    return { open: false, label: 'Window closed', left: 0, text: 'The window is closed until next summer.' };
+  };
+  const shut = (league) => { const w = FM.transferWindow(league); return w.open ? null : { ok: false, text: 'The transfer window is shut, so no deal can be done now. ' + w.text.replace(/^The window is closed\. /, '') }; };
+  const avgRating = (team) => { const ps = team.players && team.players.length ? team.players : team.squad; return ps.length ? ps.reduce((a, q) => a + FM.playerRating(q), 0) / ps.length : 0; };
+
   // ---------- state ----------
   FM.transfer = function (league) {
     if (!league.transfer) {
@@ -86,7 +100,7 @@
     const t = league.transfer, me = FM.teamById(league, league.userId);
     const rng = FM.mulberry32(league.seed + (league.runSeed || 0) * 977 + 4242);
     const clubs = league.teams.filter((x) => x.id !== league.userId).sort(() => rng() - 0.5);
-    const count = 2 + Math.floor(rng() * 3);   // two to four
+    const count = 1 + Math.floor(rng() * 3);   // one to three: some, not a certain number
     const taken = new Set();
     for (const team of clubs) {
       if (t.offers.length >= count) break;
@@ -160,7 +174,11 @@
       // the offers come in straight away: at least one, and possibly two or three
       const open = t.offers.filter((o) => o.pid === p.id).length;
       let made = [];
-      if (first || !open) { const rr = FM.mulberry32(league.seed + (league.runSeed || 0) + t.seq * 31 + 5)(); made = listedOffers(league, p, rr < 0.2 ? 3 : rr < 0.55 ? 2 : 1); }
+      // Putting a player on the list does not bring an offer by itself: it depends on whether the window is open, on how good he is and on who has the money. Some come at once, some later, some never.
+      if ((first || !open) && FM.transferWindow(league).open) {
+        const rr = FM.mulberry32(league.seed + (league.runSeed || 0) + t.seq * 31 + 5)(), chance = Math.max(0.2, Math.min(0.8, 0.42 + (FM.playerRating(p) - 8) * 0.3 - (FM.ageOf(p) >= 31 ? 0.15 : 0)));
+        if (rr < chance) made = listedOffers(league, p, rr < chance * 0.2 ? 2 : 1);
+      }
       t.listed[p.id].offered = true;
       return { ok: true, made };
     }
@@ -290,6 +308,7 @@
   FM.signFreeAgent = function (league, pid) {
     const p = FM.findPlayer(league, pid), club = p && FM.clubOf(league, p);
     if (!club || !club.isPool) return { ok: false, text: 'He is not a free agent.' };
+    { const w = shut(league); if (w) return w; }
     const deal = ensureDeal(league, p);
     deal.declared = true; deal.fee = 0; deal.stage = 'fee_agreed'; deal.agreedRound = userRounds(league);
     deal.history.push({ who: 'agent', text: 'His contract has ended, so there is no fee to pay: only his terms to agree.' });
@@ -435,12 +454,13 @@
     if (!p) return { ok: false, text: 'That player is no longer there.' };
     const club = FM.clubOf(league, p);
     if (club === me) return { ok: false, text: 'He already plays for you.' };
+    { const w = shut(league); if (w && !((t.deals[pid] || {}).stage === 'fee_agreed')) return w; }
     const deal = ensureDeal(league, p);
     if (deal.stage === 'fee_agreed') return { ok: true, status: 'agreed', deal };
     if (deal.coolRound != null && userRounds(league) <= deal.coolRound) return { ok: false, text: club.name + ' will not talk again until after your next match.' };
     bid = r1(Number(bid));
     if (!(bid > 0)) return { ok: false, text: 'Enter a fee first.' };
-    if (bid > (t.budget[me.id] || 0) + 1e-9) return { ok: false, text: 'You only have ' + money(t.budget[me.id] || 0) + ' to spend.' };
+    if (bid > (t.budget[me.id] || 0) + 1e-9) return { ok: false, text: 'The board has released ' + money(t.budget[me.id] || 0) + ' for transfers, and you cannot offer more than that. Sell a player, or ask the board for more in the Books.' };
     const rng = rngFor(league, 'approach' + pid + bid);
     const ask = FM.askingPrice(league, p);
     const keyMan = isKeyPlayer(club, p), thr = keyMan ? 1 : 0.93, ratio = bid / ask;
@@ -451,6 +471,14 @@
       news(league, 'Transfer approach', p, `${club.name} turn down ${me.name}'s approach for ${p.name}`, `The answer was a flat no.`, `${club.name} have rejected a formal approach from ${me.name} for ${p.name}, saying they cannot afford to lose players in his position at this stage of the season.`, { mine: true, scene: 'rejected', teams: [me.id, club.id] });
       return { ok: true, status: 'rejected', text: club.name + ' will not sell: they cannot afford to be short of players.', deal };
     }
+    // A club does not always sell: a key player at a club that is doing well is often simply not for sale, whatever is offered (a very big bid can still turn a head).
+    { const nfs = (keyMan ? 0.34 : 0.1) + (avgRating(club) > avgRating(me) ? 0.12 : 0) + (club.squad.length <= MIN_SQUAD + 2 ? 0.1 : 0);
+      if (rngFor(league, 'nfs' + pid + userRounds(league))() < nfs && ratio < 1.35) {
+        deal.stage = 'bid_rejected'; deal.coolRound = userRounds(league);
+        deal.history.push({ who: 'club', text: club.name + ' say he is not for sale.' });
+        news(league, 'Transfer approach', p, `${club.name} say ${p.name} is not for sale`, `${me.name}'s approach was turned away.`, `${club.name} have told ${me.name} that ${p.name} is not for sale at any sensible price. They want to keep him this season. A much bigger offer, or a different moment, might change that.`, { mine: true, scene: 'rejected', teams: [me.id, club.id] });
+        return { ok: true, status: 'rejected', text: club.name + ' say he is not for sale. Try again after your next match with a bigger offer, or look elsewhere.', deal };
+      } }
     let status;
     if (ratio >= thr) {
       deal.stage = 'fee_agreed'; deal.fee = Math.min(bid, ask); deal.agreedRound = userRounds(league); status = 'agreed';
@@ -487,6 +515,7 @@
   FM.acceptCounter = function (league, pid) {
     const t = FM.transfer(league), p = FM.findPlayer(league, pid), deal = t.deals[pid], me = FM.teamById(league, league.userId);
     if (!deal || deal.stage !== 'counter' || !p) return { ok: false, text: 'There is no counter-offer to accept.' };
+    { const w = shut(league); if (w) return w; }
     if (deal.counter > (t.budget[me.id] || 0)) return { ok: false, text: 'You only have ' + money(t.budget[me.id] || 0) + ' to spend.' };
     const club = FM.clubOf(league, p);
     deal.stage = 'fee_agreed'; deal.fee = deal.counter; deal.agreedRound = userRounds(league);
@@ -508,6 +537,19 @@
   FM.startWageTalks = function (league, pid) {
     const t = FM.transfer(league), p = FM.findPlayer(league, pid), deal = t.deals[pid];
     if (!deal || (deal.stage !== 'fee_agreed' && deal.stage !== 'wage_talks') || !p) return { ok: false, text: 'Approach the club and agree a fee first.' };
+    { const w = shut(league); if (w) return w; }
+    // Will he come? A player does not always want the move: a better club or a better side makes him think twice, and some simply decline.
+    if (deal.stage === 'fee_agreed' && !deal.willChecked) {
+      deal.willChecked = true;
+      const from = FM.clubOf(league, p), me = FM.teamById(league, league.userId), free = !from || from.isPool;
+      const better = free ? -0.2 : avgRating(from) - avgRating(me), age = FM.ageOf(p);
+      const refuse = (free ? 0.05 : 0.07) + (better > 0.6 ? 0.35 : better > 0.2 ? 0.2 : better > 0 ? 0.1 : 0) + (age <= 22 && better > 0 ? 0.08 : 0) - (age >= 31 ? 0.04 : 0);
+      if (rngFor(league, 'will' + pid + userRounds(league))() < refuse) {
+        deal.stage = 'collapsed'; deal.history.push({ who: 'agent', text: p.name.split(' ')[0] + ' has decided he does not want to join.' });
+        news(league, 'Transfer collapse', p, `${p.name} turns down ${me.name}`, `The fee was not the problem.`, `${p.name} has told his representatives that he does not want to move to ${me.name}${from && !from.isPool ? ' and will stay at ' + from.name : ''}. The approach is over.`, { mine: true, scene: 'rejected', teams: [me.id] });
+        return { ok: false, text: p.name + ' has turned the move down: he does not want to join. The approach is over.', deal };
+      }
+    }
     wageTerms(league, p, deal);
     if (deal.stage !== 'wage_talks') { deal.stage = 'wage_talks'; deal.history.push({ who: 'agent', text: 'His agent opens: ' + r1(deal.wageAsk) + 'k a week.' }); }
     return { ok: true, deal };
@@ -515,6 +557,7 @@
   FM.offerWage = function (league, pid, wage, years) {
     const t = FM.transfer(league), p = FM.findPlayer(league, pid), deal = t.deals[pid], me = FM.teamById(league, league.userId);
     if (!deal || deal.stage !== 'wage_talks' || !p) return { ok: false, text: 'There are no wage talks open with this player.' };
+    { const w = shut(league); if (w) return w; }
     wage = r1(Number(wage)); years = Math.max(1, Math.min(5, Math.round(Number(years)) || 3));
     if (!(wage > 0)) return { ok: false, text: 'Enter a weekly wage first.' };
     const adj = years >= 4 ? 0.97 : years <= 1 ? 1.05 : 1;           // security is worth a little to him; a one-year deal costs more
@@ -587,6 +630,7 @@
       news(league, 'Departure', p, `${p.name} leaves ${me.name} for ${buyer.name}`, `${money(fee)}: the deal is done.`, `${buyer.name} have signed ${p.name} from ${me.name} for ${money(fee)}. The ${FM.ageOf(p)}-year-old ${POS_NAME[p.natural]} has left the club.`, { mine: true, scene: 'departure', teams: [me.id, buyer.id] });
       return { ok: true, status: 'sold', fee };
     };
+    { const w = shut(league); if (w) return w; }
     if (action === 'accept') return complete(o.fee);
     // counter
     const asked = r1(Number(counterFee));
@@ -603,7 +647,7 @@
 
   // ---------- the other clubs ----------
   FM.transfersAfterRound = function (league, round) {
-    const t = FM.transfer(league), me = FM.teamById(league, league.userId);
+    const t = FM.transfer(league), me = FM.teamById(league, league.userId), winOpen = FM.transferWindow(league).open;
     const rng = FM.mulberry32(league.seed + (league.runSeed || 0) + round * 7919 + 13);
     // 1. talks that were open between other clubs end, one way or the other
     Object.keys(t.ai).forEach((pid) => {
@@ -637,14 +681,16 @@
     // 3. offers for the manager's players only stay open for a couple of rounds
     t.offers.forEach((o) => { o.age = (o.age || 0) + 1; });
     t.offers = t.offers.filter((o) => (o.age || 0) <= 2);
+    if (!winOpen && t.offers.length) { t.offers = []; story(league, { kind: 'Transfer', headline: 'The window closes: the bids for your players are withdrawn', dek: 'No deal can be done until it reopens.', body: 'With the transfer window shut, every offer that was waiting for an answer has been withdrawn.', mine: true, teams: [me.id] }); }
     // 3a. players on the transfer list: a club makes an offer for each after the next game
     t.listed = t.listed || {};
     Object.keys(t.listed).forEach((pid) => {
       const p = FM.findPlayer(league, pid);
       if (!p || FM.clubOf(league, p) !== me) { delete t.listed[pid]; return; }
       if (t.offers.some((o) => o.pid === pid)) return;
+      if (!winOpen) return;
       const L = t.listed[pid];
-      if (L.offered && rng() > 0.5) return;
+      if (rng() > (L.offered ? 0.28 : 0.45)) return;   // not every round brings a bid, even for a player who is on the list
       if (!FM.canSell(me, p)) return;
       const price = FM.askingPrice(league, p);
       const clubs = league.teams.filter((x) => x.id !== me.id).map((team) => ({ team, budget: t.budget[team.id] || 0, need: FM.clubNeeds(team).indexOf(p.natural) >= 0 })).filter((o) => o.budget >= price * 0.75);
@@ -659,7 +705,7 @@
     });
     // 3b. clubs keep coming for the manager's players all season, not only before the first game: most rounds bring a chance of a bid, from a
     // club and for a player drawn afresh each time
-    if (round >= 1 && t.offers.length < 3 && rng() < (t.offers.length ? 0.4 : 0.65)) {
+    if (winOpen && round >= 1 && t.offers.length < 2 && rng() < (t.offers.length ? 0.12 : 0.3)) {
       const clubs = league.teams.filter((x) => x.id !== league.userId).sort(() => rng() - 0.5), taken = new Set(t.offers.map((o) => o.pid));
       for (const team of clubs) {
         const budget = t.budget[team.id] || 0; if (budget < 1) continue;
@@ -672,7 +718,7 @@
     }
     // 4. new moves
     league.teams.forEach((team) => {
-      if (team.id === league.userId) return;
+      if (team.id === league.userId || !winOpen) return;
       if (rng() > (round <= 1 ? 0.9 : 0.5)) return;
       const needs = FM.clubNeeds(team);
       const budget = t.budget[team.id] || 0;

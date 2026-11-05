@@ -479,4 +479,25 @@
       });
     }
   };
+
+  // The Director of Finance explains the money behind the club when a save begins (and again when something changes it: a takeover, or a season's funding). It is shown once.
+  FM.showBoardBrief = function (lg, hooks) {
+    if (lg.mp || document.getElementById('boardBrief')) return;
+    const b = FM.biz(lg), bd = b.board; if (!bd || bd.briefSeen) return;
+    const bi = FM.bizBoardInfo(lg), esc2 = (t) => String(t).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])), strip = (t) => t.replace(/\{\{([^}]+)\}\}/g, '$1');
+    const gb = FM.gbp, mon = (v) => (FM.money ? FM.money(v / 1e6) : gb(v));
+    let title, lines;
+    if (bd.notice) { title = bd.notice.title; lines = bd.notice.lines.slice(); }
+    else if (bd.kind === 'takeover') { title = 'The club has just been taken over'; lines = ['Manager, before you pick a team you should know where the club stands with its money.', (bd.owner ? bd.owner.charAt(0).toUpperCase() + bd.owner.slice(1) : 'New owners') + ' have taken over the club and put ' + gb(bd.injection || 0) + ' into the bank. We hold ' + gb(bi.cash) + ' and owe ' + gb(bi.loans) + '.', 'The board keeps ' + gb(bi.reserve) + ' back so that wages are always safe, and releases ' + bi.pct + '% of the rest for transfers: ' + mon(bi.released) + ' today. The new owners want results for their money.']; }
+    else if (bd.kind === 'tight') { title = 'The club is short of money'; lines = ['Manager, I have to be frank before you pick a team. This club is short of money: ' + gb(bi.cash) + ' in the bank and ' + gb(bi.loans) + ' owed to the bank from before you arrived. The owners are not putting new money in.', 'The board keeps ' + gb(bi.reserve) + ' back and will release only ' + bi.pct + '% of the rest for transfers: ' + mon(bi.released) + ' today. If you want to buy, you will have to sell first.']; }
+    else { title = 'How the club is funded'; lines = ['Manager, before you pick a team, a word on the money. The owners back the club steadily: no new money coming in, and no debt problem.', 'We hold ' + gb(bi.cash) + ' in the bank. The board keeps ' + gb(bi.reserve) + ' back and releases ' + bi.pct + '% of the rest for transfers: ' + mon(bi.released) + ' today.']; }
+    if (!bd.notice) lines.push('Players can only be bought and sold in the transfer windows, and not every bid or offer will succeed. There is a Board paper in The Books that explains how all of this works, and lets you ask the owners for more.');
+    const m = document.createElement('div'); m.id = 'boardBrief'; m.className = 'cap-modal';
+    m.innerHTML = '<div class="card" style="max-width:560px;margin:10vh auto 0;position:relative;padding:24px;display:grid;gap:10px"><div class="eyebrow">Director of Finance</div><h2 style="margin:0">' + esc2(title) + '</h2>' + lines.map((t) => '<p style="margin:0;line-height:1.6">' + esc2(strip(t)) + '</p>').join('') + '<div class="row" style="gap:10px;margin-top:6px"><button class="primary" id="bbRead">Read the board paper</button><button id="bbLater">Later</button></div><p class="note" style="margin:0">Rafael Morales</p></div>';
+    document.body.appendChild(m);
+    const done = () => { m.remove(); bd.briefSeen = true; delete bd.notice; if (hooks && hooks.save) hooks.save(); };
+    m.querySelector('#bbLater').addEventListener('click', done);
+    m.querySelector('#bbRead').addEventListener('click', () => { done(); if (FM.booksCases) { FM.booksCases.reset(); FM.booksCases.open('board'); } st.tab = 'bk:papers'; if (hooks && hooks.goto) hooks.goto('board'); });
+  };
+
 })();

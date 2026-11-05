@@ -427,6 +427,7 @@
       catch (e) { console.error('Board papers:', e); const was = UI.open; UI.open = null; return `<div class="card bk-card"><h3>This paper could not be opened</h3><p class="bk-lead">${esc((e && e.message) || 'Unknown error')}${was ? ' (paper: ' + esc(was) + ')' : ''}</p><div class="bk-ctl"><button type="button" data-case-list>Back to the list</button></div></div>`; }
     },
     reset() { UI.open = null; UI.msg = null; },
+    open(id) { UI.open = id; UI.msg = null; },
     bind(host, lg, redo, save) {
       host.querySelectorAll('[data-case]').forEach((b) => b.addEventListener('click', () => { UI.open = b.dataset.case; UI.msg = null; { const stx = stateOf(lg, b.dataset.case); if (!stx.opened) { stx.opened = true; save && save(); } } redo(); try { window.scrollTo(0, 0); } catch (e) { /* fine */ } }));
       host.querySelectorAll('[data-case-list]').forEach((b) => b.addEventListener('click', () => { UI.open = null; UI.msg = null; redo(); }));

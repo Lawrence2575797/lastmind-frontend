@@ -130,8 +130,14 @@
         <h3>Recent moves in the league</h3>${moves.length ? `<ul class="rc-moves">${moves.map((m) => `<li><b>${esc(m.name)}</b>: ${esc(tname(m.from))} to ${esc(tname(m.to))}, ${FM.money(m.fee)}</li>`).join('')}</ul>` : '<p class="note">No transfers yet.</p>'}`;
     }
 
+    const windowBanner = () => {
+      const win = FM.transferWindow ? FM.transferWindow(league) : { open: true, label: '', text: '' }, bi = FM.bizBoardInfo && !league.mp ? FM.bizBoardInfo(league) : null;
+      if (!win.text && !(bi && !bi.legacy)) return '';
+      return `<div class="rc-window ${win.open ? 'open' : 'shut'}" role="status"><b>${esc(win.label)}.</b> ${esc(win.text)}${bi && !bi.legacy ? ` The board (${esc(bi.label.toLowerCase())}) keeps ${FM.gbp(bi.reserve)} back and releases ${bi.pct}% of the cash above that for transfers, which is ${FM.money(bi.released / 1e6)} now. The Books has a paper on it.` : ''}</div>`;
+    };
     host.innerHTML = `<div class="rc-wrap"><div class="card rc-main"><div class="row" style="justify-content:space-between;align-items:baseline"><h2>Recruitment</h2>
         <div class="rc-money"><span>Transfer budget <b>${FM.money(t.budget[me.id] || 0)}</b></span><span>Wage room <b>${room}k</b> a week</span><span>Squad <b>${me.squad.length}</b></span></div></div>
+        ${windowBanner()}
         ${tabs}${body}</div>
       <div class="rc-side" id="rcSide"></div></div>`;
 

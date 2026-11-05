@@ -979,6 +979,7 @@
       tr.budget[me.id] = Math.round((status + performance + Math.max(0, (tr.budget[me.id] || 0) * 0.2)) * 10) / 10;
       tr.wageBudget[me.id] = Math.round((bill + (userLevel === 1 ? 30 : userLevel === 2 ? 14 : userLevel === 3 ? 8 : 5) + performance * 1.5) * 10) / 10;
     }
+    if (FM.bizNewSeason) { try { FM.bizNewSeason(league); } catch (e) { /* the board's funding follows next season instead */ } }
     league.news = league.news || [];
     league.news.push({ round: -1, day: 0, kind: 'League', headline: 'Season ' + league.season + ' begins in the ' + league.divisionName, body: promoted.indexOf(league.userId) >= 0 ? 'Promotion brings a new division, a larger budget and a tougher board target.' : relegated.indexOf(league.userId) >= 0 ? 'Relegation resets the target, budget and recruitment challenge for the season ahead.' : 'The board has set its target and confirmed the new season budgets.', club: league.userId, mine: true });
     return true;
