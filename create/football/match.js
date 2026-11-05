@@ -146,9 +146,12 @@
     return { passes: 0, passesOk: 0, shots: 0, onTarget: 0, goals: 0, tackles: 0, tacklesWon: 0, dribbles: 0, dribblesWon: 0, possession: 0, xg: 0, fouls: 0, yellows: 0, reds: 0, offsides: 0, corners: 0, freeKicks: 0, throwIns: 0, penalties: 0 };
   }
   const other = (match, team) => (team === match.home ? match.away : match.home);
-  const statsOf = (match, team) => match.stats[team.id];
+  // (a penalty shootout is not part of the match's figures: its kicks write to a sink that keeps nothing)
+  const NO_STATS = new Proxy({}, { get: () => 0, set: () => true });
+  const statsOf = (match, team) => (match.shootout ? NO_STATS : match.stats[team.id]);
 
   function record(match, ev) {
+    if (match.shootout) return;
     ev.t = match.clock;
     match.events.push(ev);
     if (match.events.length > 8000) match.events.shift();
@@ -1475,7 +1478,7 @@
       }
     }
     let ex = goalX, ey = aimY;
-    if (outcome === 'off') { ex = goalX; ey = W / 2 + (rng() < 0.5 ? -1 : 1) * (4.5 + rng() * 4); }
+    if (outcome === 'off') { ex = goalX + team.attackDir * 2.2; ey = W / 2 + (rng() < 0.5 ? -1 : 1) * (4.5 + rng() * 4); }   // it goes on past the line, wide of the post
     if (outcome === 'blocked') { const s = segInfo(blocker.x, blocker.y, carrier.x, carrier.y, goalX, aimY); ex = s.cx; ey = s.cy; }
     if (outcome === 'saved') { ex = goalX + (team.attackDir === 1 ? -0.5 : 0.5); ey = gk.y; }
     if (match.rec) noteShotForClips(match, team, carrier, shotXg);
@@ -1781,6 +1784,7 @@
         else ov.set(p, t);
       });
     }
+    if (r.kind === 'penalty' && match.shootout) { shootoutOverrides(match, r.taker, ov); return ov; }
     if (r.kind === 'penalty') {
       const inward = team.attackDir === 1 ? -1 : 1;
       let k = 0;
@@ -1892,7 +1896,7 @@
     if (outcome === 'off') ey = W / 2 + (rng() < 0.5 ? -1 : 1) * (4.5 + rng() * 5);
     if (match.rec) noteShotForClips(match, team, taker, p);
     record(match, { type: 'shot', team: team.id, player: taker.number, xg: p, outcome, defDist: 9.15, x: taker.x, y: taker.y, setPiece: 'freekick' });
-    match.flight = { kind: 'shot', team, shooter: taker, speed: 26, target: null, ex: outcome === 'blocked' ? taker.x + (goalX - taker.x) * 0.5 : goalX, ey: clamp(ey, 0.5, W - 0.5), outcome, gk, blocker: null };
+    match.flight = { kind: 'shot', team, shooter: taker, speed: 26, target: null, ex: outcome === 'blocked' ? taker.x + (goalX - taker.x) * 0.5 : outcome === 'off' ? goalX + team.attackDir * 2.2 : goalX, ey: clamp(ey, 0.5, W - 0.5), outcome, gk, blocker: null };
     match.ball.state = 'flight';
   }
 
@@ -1918,8 +1922,10 @@
     const r = match.restart, team = r.team, taker = r.taker, inward = team.attackDir === 1 ? -1 : 1;
     match.teams.forEach((t) => { t.offsideLine = null; t.phaseCtx = {}; });
     const ov = restartOverrides(match), start = { x: r.x + inward * 5.5, y: r.y + 1.4 };
-    if (!r.run) ov.set(taker, start);
+    if (!r.run) ov.set(taker, match.shootout ? { x: taker.x, y: taker.y } : start);
     match.teams.forEach((t) => FM.stepTeam(t, match.ball, t === r.team, dt, ov));
+    // in a shootout the kicker comes up from the halfway line at a brisk, steady pace and stops where the run-up begins
+    if (match.shootout && !r.run) moveTo(taker, start.x, start.y, 8.5, dt);
     fitnessTick(match, dt);
     r.timer -= dt;
     if (!r.run && r.timer <= PEN_RUN && Math.hypot(taker.x - start.x, taker.y - start.y) < 1.2) {
@@ -1933,6 +1939,79 @@
       taker.vx = (taker.x - px) / Math.max(dt, 1e-3); taker.vy = (taker.y - py) / Math.max(dt, 1e-3); taker.facing = Math.atan2(W / 2 - taker.y, (team.attackDir === 1 ? L : 0) - taker.x);
       if (u >= 1) { match.kickCue = null; execRestart(match); }
     } else if (r.timer < -6) { match.kickCue = null; execRestart(match); }
+  }
+
+  // ---------- the penalty shootout ----------
+  // It is played on the same pitch, in the same way as a penalty in the match: both sides shoot at the same goal, the kickers take turns, everyone else waits in the centre circle,
+  // and the man whose turn it is walks up briskly from the halfway line and takes the kick exactly as a penalty in play is taken (runPenalty / takePenalty). Nothing in it counts
+  // in the match's figures (statsOf and record ignore it). The result is in match.shootout when it is finished.
+  FM.penaltyAbility = (p) => { const r = (p && (p.baseRatings || p.ratings)) || {}; return Math.round((2 * (r.finishing || 50) + (r.composure || 50)) / 3); };
+  FM.penaltyOrder = (team) => team.players.slice().sort((a, b) => (a.group === 'GK') - (b.group === 'GK') || FM.penaltyAbility(b) - FM.penaltyAbility(a));
+  const shootoutSlot = (i, n) => { const a = Math.PI * 2 * i / Math.max(1, n); return { x: L / 2 + Math.cos(a) * 7, y: W / 2 + Math.sin(a) * 7 }; };
+  function shootoutOverrides(match, taker, ov) {
+    const so = match.shootout, cur = so.cur, gk = cur && cur.gk;
+    const waiting = [];
+    match.teams.forEach((t) => t.players.forEach((p) => { if (p !== taker && p !== gk) waiting.push(p); }));
+    waiting.forEach((p, i) => ov.set(p, shootoutSlot(i, waiting.length)));
+    if (gk) ov.set(gk, { x: L - 0.4, y: W / 2 });
+  }
+  FM.startShootout = function (match, orders) {
+    const home = match.home, away = match.away, rng = match.rng;
+    match.phase = 'play'; match.hold = null; match.restart = null; match.flight = null; match.carrier = null; match.carry = null; match.pendingAct = null; match.celeb = null; match.kickCue = null; match.crossHold = null;
+    match.teams.forEach((t) => { t.attackDir = 1; t.offsideLine = null; t.phaseCtx = {}; });
+    match.shootout = { orders, seq: rng() < 0.5 ? [home, away] : [home, away].reverse(), turn: 0, taken: { [home.id]: 0, [away.id]: 0 }, score: { [home.id]: 0, [away.id]: 0 }, kicks: [], phase: 'start', cur: null, finished: false, winnerId: null };
+    // everyone to the centre circle to begin with
+    const all = []; match.teams.forEach((t) => t.players.forEach((p) => all.push(p)));
+    all.forEach((p, i) => { const q = shootoutSlot(i, all.length); p.x = q.x; p.y = q.y; p.vx = 0; p.vy = 0; p.sliding = false; });
+    match.ball.x = L / 2; match.ball.y = W / 2; match.ball.state = 'dead'; match.ball.z = 0;
+    return match.shootout;
+  };
+  function startShootoutKick(match) {
+    const so = match.shootout, team = so.seq[so.turn % 2], opp = other(match, team), list = so.orders[team.id] && so.orders[team.id].length ? so.orders[team.id] : FM.penaltyOrder(team);
+    const taker = list[so.taken[team.id] % list.length], gk = opp.players.find((p) => p.group === 'GK') || opp.players[0];
+    so.cur = { team, taker, gk };
+    // the goalkeeper of the side that is about to defend is already on his line; the kicker starts on the halfway line
+    taker.x = L / 2 - 2; taker.y = W / 2; taker.vx = 0; taker.vy = 0; taker.facing = 0;
+    startRestart(match, 'penalty', team, L - 11, W / 2);
+    match.restart.taker = taker; match.restart.timer = 5.2;
+  }
+  function endShootoutKick(match, f) {
+    const so = match.shootout, team = f.team, res = f.outcome === 'goal' ? 'goal' : f.outcome === 'saved' ? 'saved' : 'missed';
+    if (res === 'goal') so.score[team.id]++;
+    so.taken[team.id]++; so.kicks.push({ teamId: team.id, taker: f.shooter.name, number: f.shooter.number, result: res });
+    so.last = { teamId: team.id, taker: f.shooter, result: res };
+    match.ball.state = 'dead';
+    match.hold = { t: res === 'goal' ? 1.8 : 2, fn: () => { so.phase = 'after'; } };
+  }
+  function shootoutDecided(match) {
+    const so = match.shootout, h = match.home, a = match.away, sh = so.score[h.id], sa = so.score[a.id], kh = so.taken[h.id], ka = so.taken[a.id];
+    const rh = Math.max(0, 5 - kh), ra = Math.max(0, 5 - ka);
+    if (kh < 5 || ka < 5) { if (sh > sa + ra) return h; if (sa > sh + rh) return a; return null; }
+    if (kh === ka && sh !== sa) return sh > sa ? h : a;
+    if (kh + ka > 60) return match.rng() < 0.5 ? h : a;   // never goes on for ever
+    return null;
+  }
+  function stepShootoutFixed(match, dt) {
+    const so = match.shootout; if (so.finished) return;
+    match.clock += dt;
+    const ov = new Map(); shootoutOverrides(match, so.cur ? so.cur.taker : null, ov);
+    if (match.hold) {
+      match.hold.t -= dt; match.teams.forEach((t) => FM.stepTeam(t, match.ball, false, dt, ov));
+      if (match.hold.t <= 0) { const fn = match.hold.fn; match.hold = null; fn(); }
+      return;
+    }
+    if (match.restart) { runRestart(match, dt); return; }
+    if (match.flight) { match.teams.forEach((t) => FM.stepTeam(t, match.ball, false, dt, ov)); updateBall(match, dt); return; }
+    if (so.phase === 'after') {
+      const w = shootoutDecided(match);
+      if (w) {
+        so.finished = true; so.winnerId = w.id; match.phase = 'fulltime'; match.hold = null; match.ball.state = 'dead';
+        match.home.attackDir = 1; match.away.attackDir = -1;
+        return;
+      }
+      so.turn++; so.phase = 'start';
+    }
+    if (so.phase === 'start') { so.phase = 'kick'; startShootoutKick(match); }
   }
 
   // After a goal: the scorer sprints to the corner flag and slides on his knees, the rest of his side run to join him and the other side walk back; only then the
@@ -2338,6 +2417,7 @@
   function stepMatchFixed(match, dt) {
     if (match.phase === 'halftime' || match.phase === 'fulltime') return;
     if (match.injuryPause) return;
+    if (match.shootout) { stepShootoutFixed(match, dt); return; }
 
     if (match.phase === 'celebration') { stepCelebration(match, dt); return; }
     if (match.phase === 'replay') { match.replayWait += dt; if (match.replayDone || !match.wantReplay || match.replayWait > 40) endCelebration(match); return; }
@@ -2533,6 +2613,7 @@
     if (match.fixedStepRemainder < 1e-9) match.fixedStepRemainder = 0;
   };
   function checkEnd(match) {
+    if (match.shootout) return;
     if (match.clock >= HALF_SECONDS && match.phase === 'play' && !match.firstHalfDone) { match.firstHalfDone = true; match.phase = 'halftime'; }
     if (match.clock >= FULL_SECONDS) { match.phase = 'fulltime'; }
   }
@@ -2668,7 +2749,8 @@
     // Shot
     match.flight = null;
     const team = f.team, opp = other(match, team);
-    const after = (fn) => { if (f.penalty) { match.hold = { t: 2, fn }; match.ball.state = 'dead'; } else fn(); };   // a penalty miss or save stays on screen for a moment
+    if (match.shootout) { endShootoutKick(match, f); return; }
+    const after = (fn) => { if (f.penalty || f.outcome === 'off') { match.hold = { t: f.penalty ? 2 : 1.5, fn }; match.ball.state = 'dead'; } else fn(); };   // a penalty miss or save, or a shot that goes wide, stays on screen for a moment
     if (f.outcome === 'goal') {
       const st = statsOf(match, team); st.goals++;
       match.score[team.id]++;

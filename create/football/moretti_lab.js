@@ -240,10 +240,25 @@
   };
 
   // the ball is lost: who is back in time?
+  // The moment we lose the ball, set out as a real one would be: nobody of theirs stands in an offside position (in our half, beyond our deepest outfield player, the keeper
+  // being the last man), and the attackers who have stayed up are picked up by our nearest defenders, who stand goal-side of them as the match engine's marking does.
+  function settleRest(ours, theirs) {
+    const out = ours.filter((o) => o.p.group !== 'GK').sort((a, b) => a.x - b.x); if (!out.length) return;
+    const half = L / 2, line = out[0].x, bound = Math.min(line + 0.6, half + 0.3);
+    theirs.forEach((t) => { if (t.p.group !== 'GK' && t.x < bound) t.x = bound; });
+    const threats = theirs.filter((t) => ['ST', 'WF', 'AM'].indexOf(t.p.group) >= 0 && t.x < half + 6).sort((a, b) => a.x - b.x).slice(0, 3), pool = out.slice(0, 4), used = new Set();
+    threats.forEach((t) => {
+      let best = null; pool.forEach((o) => { if (used.has(o)) return; const d = dist(o, t); if (d < 30 && (!best || d < best.d)) best = { o, d }; });
+      if (!best) return; used.add(best.o);
+      best.o.x = Math.max(3, t.x - 1.8); best.o.y = t.y + (W / 2 - t.y) * 0.12;
+    });
+  }
+
   LESSONS.restdef = {
     title: 'Staying safe when we lose the ball',
     scenario(me, opp) {
       const sq = engineSquads(me, opp, 'rest', () => ({ ours: squad(me, 'final', false), theirs: squad(opp, 'transAtt', true) })), ours = sq.ours, theirs = sq.theirs;
+      settleRest(ours, theirs);
       const fw = theirs.filter((t) => ['ST', 'WF', 'AM'].indexOf(t.p.group) >= 0 && t.x >= 28).sort((a, b) => a.x - b.x), runner = fw[0] || theirs.filter((t) => t.p.group !== 'GK').sort((a, b) => b.x - a.x)[0];
       const back = ours.filter((o) => o.p.group !== 'GK').sort((a, b) => a.x - b.x);
       const rec = back[1] || back[0];

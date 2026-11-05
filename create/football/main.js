@@ -407,7 +407,7 @@
   function updateHud() {
     const m = world.match, home = m.home, away = m.away;
     { const hold = world.hl && world.hl.phase === 'replay' ? world.hlHold : null; el('scHome').textContent = hold ? hold.home : m.score[home.id]; el('scAway').textContent = hold ? hold.away : m.score[away.id]; }
-    el('clock').textContent = m.phase === 'halftime' ? 'Half time' : m.phase === 'fulltime' ? 'Full time' : FM.formatClock(m.clock) + (m.restart ? ' · ' + RESTART_NAMES[m.restart.kind] : '');
+    el('clock').textContent = m.shootout && !m.shootout.finished ? 'Penalty shootout: ' + m.shootout.score[m.home.id] + '–' + m.shootout.score[m.away.id] : m.phase === 'halftime' ? 'Half time' : m.phase === 'fulltime' ? (m.shootout ? 'Penalties ' + m.shootout.score[m.home.id] + '–' + m.shootout.score[m.away.id] : 'Full time') : FM.formatClock(m.clock) + (m.restart ? ' · ' + RESTART_NAMES[m.restart.kind] : '');
     renderIncidents(m);
     const h = m.stats[home.id], a = m.stats[away.id], tot = h.possession + a.possession;
     const rows = [
@@ -493,8 +493,13 @@
     el('injuryBox').hidden = !ip;
     if (ip) { world.running = false; el('injuryText').textContent = ip.player.name + ' (number ' + ip.player.number + ') is injured and cannot continue, so play is stopped. Substitute him on the tactics board below (click a bench player, then his shirt), or play on with ten men.'; }
     const done = m.phase === 'fulltime';
-    el('finishBox').hidden = !done;
-    if (done) el('finishText').textContent = 'Full time: ' + home.name + ' ' + m.score[home.id] + '-' + m.score[away.id] + ' ' + away.name + '.';
+    // a cup match that is level goes straight to the penalties: the shootout screen opens by itself, and the way on is shown only once it has been played
+    const fxC = world.fixture, level = !!(done && fxC && fxC.cup && m.score[home.id] === m.score[away.id]);
+    if (m.shootout && m.shootout.finished && fxC) noteShootout(fxC, m);
+    const needShootout = level && !(fxC.shootout);
+    if (needShootout && !m.shootout && !document.getElementById('cupShootoutOverlay')) { world.running = false; cupPenaltyShootout(fxC, m); }
+    el('finishBox').hidden = !done || needShootout;
+    if (done && !needShootout) el('finishText').textContent = 'Full time: ' + home.name + ' ' + m.score[home.id] + '-' + m.score[away.id] + ' ' + away.name + '.' + (fxC && fxC.shootout ? ' ' + (FM.teamById(world.league, fxC.shootout.winnerId) || {}).name + ' won ' + Math.max(fxC.shootout.home, fxC.shootout.away) + '–' + Math.min(fxC.shootout.home, fxC.shootout.away) + ' on penalties.' : '');
   }
 
   // the Save button: saves the game now (this device and the account) and says so
@@ -857,35 +862,37 @@
     timer = setTimeout(tick, 1200);
   }
   FM.showCupDraw = showCupDraw;
-  function cupPenaltyShootout(fx, match, done) {
-    const me = world.league.userId, myTeam = match.teams.find((t) => t.id === me), defaults = myTeam.players.slice(0, 5);
-    const shade = document.createElement('div'); shade.className = 'cup-overlay';
-    shade.innerHTML = `<div class="cup-shootout card"><div class="eyebrow">League Cup · penalties</div><h2>Choose your five takers</h2><p class="desc">The shootout is level after 90 minutes. Your order is used for the first five kicks; sudden death follows if needed.</p><div class="cup-takers">${[0,1,2,3,4].map((n) => `<label>${n + 1}<select data-taker="${n}">${myTeam.players.map((p) => `<option value="${p.id}"${p.id === defaults[n].id ? ' selected' : ''}>${esc(p.name)}</option>`).join('')}</select></label>`).join('')}</div><button class="primary" id="cupTake">Start shootout</button></div>`;
-    document.body.appendChild(shade);
-    shade.querySelector('#cupTake').addEventListener('click', () => {
-      const order = Array.from(shade.querySelectorAll('[data-taker]')).map((s) => myTeam.squad.find((p) => p.id === s.value)).filter(Boolean);
-      shade.querySelector('.cup-shootout').innerHTML = `<div class="eyebrow">League Cup · penalties</div><h2 id="cupPenaltyHead">Penalty shootout</h2><div class="penalty-stage"><i class="penalty-taker"></i><i class="penalty-ball"></i><i class="penalty-goal"></i></div><p id="cupPenaltyLog" class="cup-status"></p>`;
-      const teams = [match.home, match.away], takers = Object.fromEntries(teams.map((t) => [t.id, t.id === me ? order : t.players.slice(0, 5)])), score = { [teams[0].id]: 0, [teams[1].id]: 0 }, kicks = [], rng = FM.mulberry32((fx.seed || 1) + 7767);
-      let round = 0, side = 0, sudden = 0;
-      const kick = () => {
-        const team = teams[side], taker = takers[team.id][round % takers[team.id].length], goal = rng() < Math.min(.88, .57 + (FM.playerRating(taker) - 6.5) * .09); if (goal) score[team.id]++;
-        kicks.push({ teamId: team.id, taker: taker.name, goal });
-        shade.querySelector('#cupPenaltyHead').textContent = `${taker.name} · ${score[teams[0].id]}–${score[teams[1].id]}`;
-        shade.querySelector('#cupPenaltyLog').textContent = goal ? 'Goal.' : 'Saved or missed.';
-        const ball = shade.querySelector('.penalty-ball'); ball.classList.remove('kick'); void ball.offsetWidth; ball.classList.add('kick');
-        side = 1 - side;
-        if (side === 0) { round++; const left = Math.max(0, 5 - round); if (round >= 5 && score[teams[0].id] !== score[teams[1].id]) return finish(); if (round < 5 && Math.abs(score[teams[0].id] - score[teams[1].id]) > left) return finish(); if (round >= 5) sudden++; if (sudden > 8 && score[teams[0].id] === score[teams[1].id]) { score[teams[0].id]++; return finish(); } }
-        setTimeout(kick, 700);
-      };
-      const finish = () => { const winnerId = score[teams[0].id] > score[teams[1].id] ? teams[0].id : teams[1].id; fx.shootout = { home: score[teams[0].id], away: score[teams[1].id], winnerId, kicks }; setTimeout(() => { shade.remove(); done(); }, 900); };
-      kick();
-    });
+  // A League Cup match that is level at full time goes straight to the shootout: the takers are put in order of their penalty ability (the manager can move them), and then
+  // the shootout is played on the pitch, in the same way as a penalty in the match, with the sides taking turns.
+  function cupPenaltyShootout(fx, match) {
+    const me = world.league.userId, myTeam = match.teams.find((t) => t.id === me) || match.home, oppTeam = match.teams.find((t) => t !== myTeam);
+    let order = FM.penaltyOrder(myTeam);
+    const shade = document.createElement('div'); shade.className = 'cup-overlay'; shade.id = 'cupShootoutOverlay';
+    const render = () => {
+      shade.innerHTML = `<div class="cup-shootout card"><div class="eyebrow">League Cup · penalties</div><h2>Level after 90 minutes: ${esc(match.home.name)} ${match.score[match.home.id]}–${match.score[match.away.id]} ${esc(match.away.name)}</h2><p class="desc">Your takers are in order of their penalty ability, best first. The first five take the kicks in this order, then it goes on in the same order if it is still level. Move a player up or down to change it.</p>
+        <table class="cup-order"><thead><tr><th></th><th class="l">Taker</th><th>Position</th><th>Penalty ability</th><th></th></tr></thead><tbody>${order.map((p, k) => { const ab = FM.penaltyAbility(p); return `<tr class="${k < 5 ? 'first5' : ''}"><td>${k + 1}</td><td class="l">${esc(p.name)} <small>#${p.number}</small></td><td>${esc(p.natural || p.group)}</td><td><span class="ab"><i style="width:${Math.max(4, Math.min(100, ab))}%"></i></span> <b>${ab}</b></td><td class="mv"><button type="button" data-up="${k}" ${k === 0 ? 'disabled' : ''} aria-label="Move up">▲</button><button type="button" data-down="${k}" ${k === order.length - 1 ? 'disabled' : ''} aria-label="Move down">▼</button></td></tr>`; }).join('')}</tbody></table>
+        <div class="row"><button class="primary" id="cupTake">Start the shootout</button></div></div>`;
+      shade.querySelectorAll('[data-up]').forEach((b) => b.addEventListener('click', () => { const k = +b.dataset.up; [order[k - 1], order[k]] = [order[k], order[k - 1]]; render(); }));
+      shade.querySelectorAll('[data-down]').forEach((b) => b.addEventListener('click', () => { const k = +b.dataset.down; [order[k + 1], order[k]] = [order[k], order[k + 1]]; render(); }));
+      shade.querySelector('#cupTake').addEventListener('click', () => {
+        shade.remove();
+        FM.startShootout(match, { [myTeam.id]: order, [oppTeam.id]: FM.penaltyOrder(oppTeam) });
+        world.highlightsOnly = false; world.skipTo = null; world.hl = null; world.running = true;
+        say('Penalty shootout.', '', 2.2);
+      });
+    };
+    render(); document.body.appendChild(shade);
+  }
+  // when the shootout has been played, its result goes on the fixture for the cup draw and the table
+  function noteShootout(fx, m) {
+    const so = m.shootout; if (!so || !so.finished || fx.shootout) return;
+    fx.shootout = { home: so.score[m.home.id], away: so.score[m.away.id], winnerId: so.winnerId, kicks: so.kicks, summary: 'won on penalties' };
   }
 
   el('finishBtn').addEventListener('click', () => {
     const btn = el('finishBtn');
     const cupFx = world.fixture, cupMatch = world.match;
-    if (cupFx && cupFx.cup && cupMatch.score[cupMatch.home.id] === cupMatch.score[cupMatch.away.id] && !cupFx.shootout) { cupPenaltyShootout(cupFx, cupMatch, () => btn.click()); return; }
+    if (cupFx && cupFx.cup && cupMatch.score[cupMatch.home.id] === cupMatch.score[cupMatch.away.id] && !cupFx.shootout) { if (!document.getElementById('cupShootoutOverlay')) cupPenaltyShootout(cupFx, cupMatch); return; }
     btn.disabled = true; btn.textContent = 'Playing the other matches...';
     setTimeout(async () => {
       const fx = world.fixture, m = world.match, me = world.league.userId;
