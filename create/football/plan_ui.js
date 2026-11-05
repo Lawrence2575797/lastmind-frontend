@@ -330,6 +330,7 @@
         return `<div class="pl-tog"><div class="pl-tog-h"><b>${esc(t.label)}</b></div><div class="pl-seg" role="group">${t.opts.map((op) => `<button type="button" class="${(cur == null ? def : cur) === op.v ? 'on' : ''}" data-player-tog="${esc(t.key)}" data-phase="${ph.key}" data-v="${esc(op.v)}">${esc(op.label)}</button>`).join('')}</div></div>`;
       }).join('')}</details>`;
     }).join('');
+    if (!FM.SHOW_INSTRUCTIONS && !FM.SHOW_PLAYER_PHASE) { host.innerHTML = ''; return; }   // nothing to choose for a player: clicking one shows no panel
     host.innerHTML = `<div class="pl-pop pl-pop-top" role="dialog" aria-label="Role and instructions for ${esc(p.name)}"><button type="button" class="pl-pop-x" data-close="1" aria-label="Close">×</button>
       <div class="pl-who"><b>${esc(p.name)}</b><span>#${p.number} · ${esc(p.group)}${FM.playerRating ? ' · ' + FM.playerRating(p, p.group).toFixed(1) : ''}</span></div>
       ${FM.SHOW_INSTRUCTIONS ? `<h5>Role</h5><div class="pl-roles">${roleBtns}</div>
