@@ -298,7 +298,7 @@
       if (w.needs === 'carrier') preds.push({ is: 'group', of: { e: 'carrier' }, value: t.group || 'FB' });
       if (t.cells && t.cells.length) preds.push(cellExpr(t.cells));
       const who = t.who && FM.PLAN_WHO[t.who] ? t.who : 'nearest';
-      const phases = w.stage ? [w.stage === 'transAtt' ? 'transAtt' : 'transDef'] : (w.side === 'with' ? ['build', 'midfield', 'final'] : ['defence', 'press']);
+      const phases = w.stage ? [w.stage === 'transAtt' ? 'transAtt' : 'transDef'] : t.phase && PHASE[t.phase] ? [t.phase] : (w.side === 'with' ? ['build', 'midfield', 'final'] : ['defence', 'press']);   // a trigger made on one page acts in that phase only
       phases.forEach((ph) => FM.PLAN_WHO[who].forEach((sc, si) => {
         const ex = preds.slice(); if (who === 'nearest') ex.push(nearBall(20));
         const when = { possession: w.side, expr: ex.length === 1 ? ex[0] : { op: 'and', args: ex } };

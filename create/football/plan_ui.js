@@ -126,7 +126,7 @@
       (z.cells || []).forEach((c) => { const dp = FM.PLAN_DEPTHS[c[0]], ch = FM.PLAN_CHANNELS[c[1]], col = TAG_COL[z.tag] || '#fff'; s += `<rect x="${X(ch.lo)}" y="${Y(dp.hi)}" width="${(ch.hi - ch.lo) * PW}" height="${(dp.hi - dp.lo) * PH}" fill="${col}" fill-opacity=".22" stroke="${col}" stroke-width="1.4" stroke-dasharray="6 4"/>`; });
       const c0 = (z.cells || [])[0]; if (c0) { const dp = FM.PLAN_DEPTHS[c0[0]], ch = FM.PLAN_CHANNELS[c0[1]]; s += `<text x="${(+X(ch.lo) + 6).toFixed(0)}" y="${(+Y(dp.hi) + 14).toFixed(0)}" font-size="11" font-weight="800" fill="#fff" stroke="rgba(6,21,11,.6)" stroke-width="2.6" style="paint-order:stroke">${esc((FM.PLAN_ZONE_TAG[z.tag] || {}).name || '')}</text>`; }
     });
-    pl.triggers.filter((t) => t.on !== false && t.cells && t.cells.length && (FM.PLAN_WHEN_BY[t.when] || {}).side === SIDE_OF[ph]).forEach((t) => (t.cells || []).forEach((c) => { const dp = FM.PLAN_DEPTHS[c[0]], ch = FM.PLAN_CHANNELS[c[1]]; s += `<rect x="${X(ch.lo)}" y="${Y(dp.hi)}" width="${(ch.hi - ch.lo) * PW}" height="${(dp.hi - dp.lo) * PH}" fill="none" stroke="#fff" stroke-width="1.4" stroke-dasharray="2 5"/>`; }));
+    pl.triggers.filter((t) => t.on !== false && t.cells && t.cells.length && (FM.PLAN_WHEN_BY[t.when] || {}).side === SIDE_OF[ph] && (!t.phase || t.phase === ph) && ((FM.PLAN_WHEN_BY[t.when] || {}).stage ? (FM.PLAN_WHEN_BY[t.when].stage === ph) : ph !== 'transAtt' && ph !== 'transDef')).forEach((t) => (t.cells || []).forEach((c) => { const dp = FM.PLAN_DEPTHS[c[0]], ch = FM.PLAN_CHANNELS[c[1]]; s += `<rect x="${X(ch.lo)}" y="${Y(dp.hi)}" width="${(ch.hi - ch.lo) * PW}" height="${(dp.hi - dp.lo) * PH}" fill="none" stroke="#fff" stroke-width="1.4" stroke-dasharray="2 5"/>`; }));
     // the opposition as scouted for the next match: where they stand in the phase that answers this one
     const od = UI.showOpp && hooks.opp ? hooks.opp(eng) : null;
     // Nobody is drawn offside. Where they have the ball (we are defending), their attackers stand no nearer our goal than our second-last defender (on the line, never beyond it);
@@ -188,7 +188,7 @@
   function planItems(team, ph) {
     const pl = FM.planGet(team), side = SIDE_OF[ph];
     const zs = pl.zones.filter((z) => z.phase === ph || ((!z.phase || z.phase === 'any') && (FM.PLAN_ZONE_TAG[z.tag] || {}).side === side));
-    const ts = pl.triggers.filter((t) => (FM.PLAN_WHEN_BY[t.when] || {}).side === side && ((FM.PLAN_WHEN_BY[t.when] || {}).stage ? (FM.PLAN_WHEN_BY[t.when].stage === ph) : ph !== 'transAtt' && ph !== 'transDef'));
+    const ts = pl.triggers.filter((t) => (FM.PLAN_WHEN_BY[t.when] || {}).side === side && (!t.phase || t.phase === ph) && ((FM.PLAN_WHEN_BY[t.when] || {}).stage ? (FM.PLAN_WHEN_BY[t.when].stage === ph) : ph !== 'transAtt' && ph !== 'transDef'));
     const stat = (x) => { const st = pl.stats && pl.stats[x.id]; return st ? `<span class="pl-stat">${st.fires ? 'Came into play ' + st.fires + (st.fires === 1 ? ' time' : ' times') + ' in the last test (' + st.n + ' runs)' : 'Never came into play in the last test (' + st.n + ' runs)'}</span>` : ''; };
     const row = (kind, x, text) => `<li class="${x.on === false ? 'off' : ''}"><span class="pl-sent">${esc(text)}${stat(x)}</span><span class="pl-item-b"><button type="button" data-item-toggle="${kind}:${x.id}">${x.on === false ? 'Off' : 'On'}</button><button type="button" data-item-del="${kind}:${x.id}" aria-label="Remove">×</button></span></li>`;
     const list = zs.map((z) => row('zone', z, FM.planZoneText(z))).concat(ts.map((t) => row('trigger', t, FM.planTriggerText(t))));
@@ -234,6 +234,8 @@
     const phases = TAB_PHASES[tab]; if (!phases) return false;
     if (!UI.sub || phases.indexOf(UI.sub) < 0) UI.sub = phases[0];
     const ph = UI.sub, info = FM.planPhase(ph), pl = FM.planGet(team);
+    // an area being marked belongs to the page it was started on: opening another page (or another phase) leaves that behind
+    if (UI.modePh !== ph) { UI.mode = 'view'; UI.cells = []; UI.draft = {}; UI.modePh = ph; }
     if (!pl.migrated) { migrate(team); pl.migrated = true; hooks.save(); }
     if (!UI.sel || !team.players.some((p) => p.slotKey === UI.sel)) UI.sel = null;
     const draw = () => {
@@ -293,7 +295,7 @@
       host.querySelectorAll('[data-build]').forEach((b) => b.addEventListener('click', () => {
         const d = UI.draft;
         if (b.dataset.build === 'zone') FM.planAddZone(team, { tag: d.tag || FM.PLAN_ZONE_TAGS.find((t) => t.side === SIDE_OF[ph]).k, who: d.who || 'everyone', cells: UI.cells.slice(), phase: ph });
-        else FM.planAddTrigger(team, { when: d.when || 'carrier', group: d.group || 'FB', who: d.who || 'nearest', do: d.do, cells: UI.cells.slice() });
+        else FM.planAddTrigger(team, { when: d.when || 'carrier', group: d.group || 'FB', who: d.who || 'nearest', do: d.do, cells: UI.cells.slice(), phase: ph });
         UI.mode = 'view'; UI.cells = []; UI.draft = {}; again();
       }));
       host.querySelectorAll('[data-item-toggle]').forEach((b) => b.addEventListener('click', () => { const [k, id] = b.dataset.itemToggle.split(':'); FM.planToggleItem(team, k, id); again(); }));

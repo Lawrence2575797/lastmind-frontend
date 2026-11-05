@@ -22,7 +22,7 @@
     const short = (t, n) => { const p = t.players && t.players.find((q) => q.number === n); return p ? (p.name.split(' ').slice(-1)[0] || p.name) : '#' + n; };
     const shots = log.other.filter((e) => e.type === 'shot').map((e) => ({ mine: e.team === teamId, x: fx_(e.x), y: fy_(e.y), xg: e.xg, outcome: e.outcome, player: e.player, t: e.t, setPiece: e.setPiece, defDist: e.defDist, raw: e }));
     // a side's own shots are drawn attacking right; the other side's shots are drawn attacking the same way when that side is looked at
-    const myShots = shots.filter((s) => s.mine), theirShots = log.other.filter((e) => e.type === 'shot' && e.team !== teamId).map((e) => ({ x: (ti === 0 ? L - e.x : e.x), y: (ti === 0 ? W - e.y : e.y), xg: e.xg, outcome: e.outcome, player: e.player, t: e.t, setPiece: e.setPiece }));
+    const myShots = shots.filter((s) => s.mine), theirShots = log.other.filter((e) => e.type === 'shot' && e.team !== teamId).map((e) => ({ raw: e, x: (ti === 0 ? L - e.x : e.x), y: (ti === 0 ? W - e.y : e.y), xg: e.xg, outcome: e.outcome, player: e.player, t: e.t, setPiece: e.setPiece }));
     const passes = log.passes.filter((p) => p[1] === ti).map((p) => ({ t: p[0], from: p[2], to: p[3], res: p[4], x: fx_(p[5]), y: fy_(p[6]), dist: p[7], lane: p[8], press: p[9], p: p[10], tx: p[11] < 0 ? null : fx_(p[11]), ty: p[12] < 0 ? null : fy_(p[12]), box: p[13] }));
     const tackles = log.tackles.filter((p) => p[1] === ti).map((p) => ({ t: p[0], player: p[2], vs: p[3], ok: p[4], x: fx_(p[5]), y: fy_(p[6]), depth: p[7], cover: p[8] }));
     const dribbles = log.dribbles.filter((p) => p[1] === ti).map((p) => ({ t: p[0], player: p[2], ok: p[3], x: fx_(p[4]), y: fy_(p[5]), def: p[6], p: p[7] }));
@@ -183,13 +183,6 @@
       return rows.length ? table(['Minute', 'Event', 'Side', 'Player'], rows) : '<p class="note">Nothing of note was recorded.</p>';
     } });
 
-  // ---------- scenarios on the pitch ----------
-  const drill = (lessonId, blurb, tags) => ({ id: 'drill_' + lessonId, group: 'Scenarios', title: ({ build: 'Build-up lanes against the press', holdup: 'Hold-up play', restdef: 'Rest defence', press: 'Pressing triggers' })[lessonId], tags: 'scenario interactive drag players test pitch ' + tags, blurb, needs: 'scenario', scenario: lessonId });
-  add(drill('build', 'Move your players on the pitch and see whether the pass out from the back is open against the next opponent\'s press.', 'build up passing lanes press circle defender goalkeeper'));
-  add(drill('holdup', 'Set up the support around the striker and test whether a long ball can be held up against the next opponent.', 'hold up striker long ball second ball support'));
-  add(drill('restdef', 'Place your rest defenders and test how the next opponent\'s counter-attack runs at you.', 'rest defence counter attack transition cover'));
-  add(drill('press', 'Position the press and test where the next opponent can play out of it.', 'press pressing trigger compactness cover shadow'));
-
   // ---------- season and squad ----------
   add({ id: 'xgseason', group: 'Season', title: 'Expected goals, match by match', tags: 'season form xg for against trend results luck over performing underperforming', blurb: 'Chance quality created and conceded in every match with a record, against the goals scored.', needs: 'season',
     render(c) {
@@ -230,7 +223,7 @@
     } });
 
   // ---------- the page ----------
-  const GROUPS = ['All', 'Attack', 'Passing', 'Defence', 'Shape', 'Scenarios', 'Season', 'Squad', 'Opposition'];
+  const GROUPS = ['All', 'Report', 'Attack', 'Passing', 'Defence', 'Shape', 'Season', 'Squad', 'Opposition'];
   const css = `
     .ex { display: grid; gap: 14px; } .ex-top { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; justify-content: space-between; } .ex-top h2 { margin: 0; font-size: 1.05rem; }
     .ex-ctl { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; } .ex select, .ex input[type=search] { background: #2f3533; color: var(--cream); border: 1px solid var(--line); padding: 8px 10px; font: inherit; max-width: 100%; }
@@ -240,7 +233,7 @@
     .ex-list { display: grid; gap: 4px; max-height: 76vh; overflow: auto; } .ex-item { text-align: left; border: 1px solid var(--line); background: rgba(255,255,255,.025); color: var(--cream); padding: 10px 12px; cursor: pointer; display: grid; gap: 3px; font: inherit; } .ex-item:hover { background: rgba(255,255,255,.06); } .ex-item.on { border-color: var(--gold); background: rgba(242,193,78,.08); }
     .ex-item b { font: 700 .92rem var(--sans); } .ex-item small { opacity: .7; line-height: 1.4; } .ex-item i { font: normal 700 .62rem var(--sans); letter-spacing: .1em; text-transform: uppercase; color: var(--gold); }
     .ex-view { border: 1px solid var(--line); padding: 18px; display: grid; gap: 16px; min-width: 0; } .ex-view > h3 { margin: 0; font-size: 1.25rem; font-family: var(--serif); } .ex-view > .ex-sub { margin: -10px 0 0; opacity: .75; }
-    .ex-pitch { width: 100%; height: auto; display: block; } .ex-fig { display: grid; gap: 8px; } .ex-note { font-size: .8rem; opacity: .72; line-height: 1.5; margin: 0; }
+    .ex-pitch { width: 100%; max-width: 680px; height: auto; display: block; } .ex-fig { display: grid; gap: 8px; } .ex-note { font-size: .8rem; opacity: .72; line-height: 1.5; margin: 0; }
     .ex-legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: .78rem; } .ex-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; vertical-align: -1px; }
     .ex-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; } .ex-kpis div { border: 1px solid var(--line); background: rgba(255,255,255,.03); padding: 9px 12px; display: grid; gap: 1px; } .ex-kpis span { font-size: .66rem; letter-spacing: .08em; text-transform: uppercase; opacity: .65; } .ex-kpis b { font: 700 1.3rem var(--sans); } .ex-kpis small { opacity: .65; font-size: .74rem; }
     .ex-sec h4 { margin: 0 0 6px; font: 700 .82rem var(--sans); letter-spacing: .05em; text-transform: uppercase; color: var(--gold); } .ex-cols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; } @media (max-width: 900px) { .ex-cols { grid-template-columns: minmax(0, 1fr); } }
@@ -248,7 +241,7 @@
     .ex-drill { min-height: 200px; } .ex-empty { padding: 24px; opacity: .75; }
     .ex-wb { position: fixed; left: 0; top: 0; bottom: 0; width: min(1000px, 96vw); z-index: 80; background: #1f2322; border-right: 1px solid var(--line); display: grid; grid-template-rows: auto 1fr; box-shadow: 20px 0 60px rgba(0,0,0,.4); } .ex-wb-head { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; border-bottom: 1px solid var(--line); } .ex-wb-host { overflow: auto; }
   `;
-  let SEL = 'shotmap', QUERY = '', GROUP = 'All', MATCH = null, SIDE = 'us', STATE = {};
+  let SEL = 'report_match', QUERY = '', GROUP = 'All', MATCH = null, SIDE = 'us', STATE = {};
   const matchLabel = (lg, fx) => { const mine = fx.homeId === lg.userId, opp = FM.teamById(lg, mine ? fx.awayId : fx.homeId); return (fx.preseason ? 'Pre-season' : fx.cup ? 'Cup' : 'Round ' + fx.round) + ': ' + (mine ? 'vs ' : 'at ') + opp.name + ' ' + (mine ? fx.hg + '-' + fx.ag : fx.ag + '-' + fx.hg); };
 
   FM.renderAnalysis = function (host, lg) {
