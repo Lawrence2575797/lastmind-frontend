@@ -115,7 +115,7 @@
     // from one game to the next.
     if (!league.transfer.opening) {
       league.transfer.opening = true;
-      if (userRounds(league) === 0) openingOffers(league);
+      if (userRounds(league) === 0) { openingOffers(league); ensureOffer(league, FM.mulberry32(league.seed + (league.runSeed || 0) * 977 + 4243)); }
     }
     return league.transfer;
   };
@@ -160,6 +160,22 @@
       offerStory(league, team, o.p, fee, true);
     }
   }
+  // At least one bid for one of the manager's players is always on the table while the window is open: the clubs with the most money look first, for the player they
+  // want most, and if nobody can afford that the bid is simply lower.
+  function ensureOffer(league, rng) {
+    const t = league.transfer; if (!t || !FM.transferWindow || !FM.transferWindow(league).open) return;
+    const me = FM.teamById(league, league.userId); if (!me || t.offers.some((o) => { const q = FM.findPlayer(league, o.pid); return q && FM.clubOf(league, q) === me; })) return;
+    const clubs = league.teams.filter((x) => x.id !== me.id && !(t.backing && t.backing[x.id] && t.backing[x.id].kind === 'ban')).sort((a, b) => (t.budget[b.id] || 0) - (t.budget[a.id] || 0));
+    for (const mult of [1.05, 3, 100]) {
+      for (const team of clubs) {
+        const budget = t.budget[team.id] || 0, o = pickTarget(league, team, me, new Set(), rng, Math.max(0.5, budget) * mult); if (!o) continue;
+        const fee = r1(Math.max(0.2, Math.min(Math.max(budget, 0.2), o.price * (0.9 + rng() * 0.2))));
+        t.offers.push({ id: 'o' + (t.seq++), pid: o.p.id, from: team.id, fee, age: 0, status: 'open' });
+        offerStory(league, team, o.p, fee, false);
+        return;
+      }
+    }
+  }
   // Each computer-run club's squad is rounded out with reserves, so every club has real cover in every position (two on top of the players it
   // starts there, one in goal) and a market worth browsing. They are young and rate a little below the club's average.
   function addReserves(league) {
@@ -200,7 +216,7 @@
     const price = FM.askingPrice(league, p), made = [];
     let clubs = league.teams.filter((x) => x.id !== me.id && !t.offers.some((o) => o.pid === p.id && o.from === x.id)).map((team) => ({ team, budget: t.budget[team.id] || 0, need: FM.clubNeeds(team).indexOf(p.natural) >= 0 }));
     let able = clubs.filter((o) => o.budget >= price * 0.75);
-    if (!able.length) { able = clubs.sort((a, b) => b.budget - a.budget).slice(0, 1).filter((o) => o.budget >= 0.2); }   // nobody can pay the full price: the richest club bids what it can
+    if (!able.length) { able = clubs.sort((a, b) => b.budget - a.budget).slice(0, 1); }   // nobody can pay the full price: the richest club bids what it can, so a listed player always draws a bid
     for (let k = 0; k < count && able.length; k++) {
       const w = able.map((o) => (o.need ? 2 : 1) * (0.5 + rng()));
       let r = rng() * w.reduce((a, x) => a + x, 0), i = 0;
@@ -223,8 +239,8 @@
       let made = [];
       // Putting a player on the list does not bring an offer by itself: it depends on whether the window is open, on how good he is and on who has the money. Some come at once, some later, some never.
       if ((first || !open) && FM.transferWindow(league).open) {
-        const rr = FM.mulberry32(league.seed + (league.runSeed || 0) + t.seq * 31 + 5)(), chance = Math.max(0.2, Math.min(0.8, 0.42 + (FM.playerRating(p) - 8) * 0.3 - (FM.ageOf(p) >= 31 ? 0.15 : 0)));
-        if (rr < chance) made = listedOffers(league, p, rr < chance * 0.2 ? 2 : 1);
+        const rr = FM.mulberry32(league.seed + (league.runSeed || 0) + t.seq * 31 + 5)();
+        made = listedOffers(league, p, rr < 0.2 ? 2 : 1);   // always at least one, at once; sometimes two
       }
       t.listed[p.id].offered = true;
       return { ok: true, made };
@@ -761,10 +777,12 @@
       if (t.offers.some((o) => o.pid === pid)) return;
       if (!winOpen) return;
       const L = t.listed[pid];
-      if (rng() > (L.offered ? 0.28 : 0.45)) return;   // not every round brings a bid, even for a player who is on the list
+      if (L.offered && rng() > 0.75) return;   // the first bid always comes; after that most rounds bring another
       if (!FM.canSell(me, p)) return;
       const price = FM.askingPrice(league, p);
-      const clubs = league.teams.filter((x) => x.id !== me.id).map((team) => ({ team, budget: t.budget[team.id] || 0, need: FM.clubNeeds(team).indexOf(p.natural) >= 0 })).filter((o) => o.budget >= price * 0.75);
+      const all = league.teams.filter((x) => x.id !== me.id).map((team) => ({ team, budget: t.budget[team.id] || 0, need: FM.clubNeeds(team).indexOf(p.natural) >= 0 }));
+      let clubs = all.filter((o) => o.budget >= price * 0.75);
+      if (!clubs.length) clubs = all.sort((a, b) => b.budget - a.budget).slice(0, 1);
       if (!clubs.length) return;
       let r = rng() * clubs.reduce((a, o) => a + (o.need ? 2 : 1) * (0.5 + rng()), 0);
       let buyer = clubs[clubs.length - 1];
@@ -787,6 +805,7 @@
         break;
       }
     }
+    ensureOffer(league, rng);   // while the window is open there is always at least one bid for one of the manager's players
     // 4. new moves
     league.teams.forEach((team) => {
       if (team.id === league.userId || !winOpen) return;
