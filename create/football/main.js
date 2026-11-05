@@ -2933,10 +2933,9 @@
     if (!DEMO_MODE && FM.ensurePreseason) FM.ensurePreseason(world.league);
     { const sk = ngSkin && ngSkin.value(); if (sk) FM.applySkin(world.league, sk); }   // a league setting from a period of history, if one was chosen (the stories already written are renamed)
     if (FM.transfer) FM.transfer(world.league);   // the opening offers are made now and saved with the game, not when a screen first asks
-    if (FM.simulatePriorSeason && !world.league.mp) { btn.textContent = 'Playing last season in every division...'; await new Promise((r) => setTimeout(r, 30)); try { FM.simulatePriorSeason(world.league); } catch (e) { console.error('Last season could not be played:', e); } }   // the season before this one: the records recruitment is judged on
+    if (!world.league.mp) { try { FM.ensurePrior(world.league); } catch (e) { console.error('Last season could not be loaded:', e); } }   // last season is already there: it is handed over, not played   // the season before this one: the records recruitment is judged on
     if (FM.announceBacking) { try { FM.announceBacking(world.league); } catch (e) { /* no news this time */ } }   // the clubs with new owners, in debt or banned from signing players
     if (FM.biz) { FM.biz(world.league); FM.bizSyncBudget(world.league); }
-    await FM.playFriendlies(world.league, (i, n) => { btn.textContent = 'Playing pre-season friendlies (' + i + ' of ' + n + ')...'; });
     FM.saveLeague(world.league);
     btn.disabled = false; btn.textContent = DEMO_MODE ? 'Start the demo' : 'Start the season';
     try { history.replaceState(null, '', cleanUrl()); } catch (e) { /* fine */ }

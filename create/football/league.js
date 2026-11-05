@@ -154,13 +154,8 @@
       const pair = league.fixtures.filter((f) => (f.homeId === ash.id && f.awayId === nor.id) || (f.homeId === nor.id && f.awayId === ash.id));
       pair.forEach((f) => { if (f.round < half && f.homeId !== ash.id) { const h = f.homeId; f.homeId = f.awayId; f.awayId = h; } if (f.round >= half && f.homeId !== nor.id) { const h = f.homeId; f.homeId = f.awayId; f.awayId = h; } });
     })();
-    // Three pre-season friendlies each, played before the season starts. They give the opposition reports something to read, but
-    // they do not count: not in the table, not in player records, injuries or fatigue, and not in the statistics workshop.
-    league.friendlies = makeFixtures(teams.map((t) => t.id), FM.mulberry32(seed + 555), seed + 555)
-      .filter((f) => f.round < 3).map((f, i) => Object.assign(f, { id: 'p' + i, round: f.round - 3, friendly: true }));
-    // The friendlies for the shared league are played in advance (see tools/gen_preseason.js) and simply loaded here.
-    if (seed === FM.WORLD_SEED && FM.PRESEASON) league.friendlies = JSON.parse(JSON.stringify(FM.PRESEASON));
-    if (league.friendlies && FM.namesFromSquads) FM.namesFromSquads(league, league.friendlies);
+    // There are no pre-played friendlies any more: last season (prior.js) is the history, and the manager plays one pre-season match of their own (league.preseason).
+    league.friendlies = [];
     league.runSeed = runSeed;
     FM.ensureTwoDivisions(league);
     if (opts.userClub) FM.chooseClub(league, opts.userClub);
@@ -1377,6 +1372,10 @@
     if (league.friendlies && league.friendlies.length < 4 && (league.season || 1) > 1 && !league.fixtures.some((f) => f.played)) league.friendlies = [];   // too few left to mean anything: they are made afresh
   };
   FM.ensureFriendlies = function (league) {
+    league.friendlies = [];   // none are played in advance now
+    return false;
+  };
+  FM.ensureFriendliesOld = function (league) {
     FM.dropStrangeFriendlies(league);
     if (league.fixtures.some((f) => f.played)) return false;
     // the shared league: just load the friendlies that were played in advance

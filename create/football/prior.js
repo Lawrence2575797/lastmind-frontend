@@ -115,14 +115,23 @@
     return { hg, ag, st: out };
   }
 
+  // a double round robin of its own (the real fixtures differ from game to game, last season must not), by the circle method
+  function roundRobin(ids) {
+    const n = ids.length, ring = ids.slice(), out = [];
+    for (let r = 0; r < n - 1; r++) {
+      for (let i = 0; i < n / 2; i++) { const a = ring[i], b = ring[n - 1 - i]; out.push({ round: r, homeId: r % 2 ? b : a, awayId: r % 2 ? a : b }); out.push({ round: r + n - 1, homeId: r % 2 ? a : b, awayId: r % 2 ? b : a }); }
+      ring.splice(1, 0, ring.pop());
+    }
+    return out;
+  }
   // The season, for every division.
   FM.simulatePriorSeason = function (league) {
     const prior = { v: 1, divisions: [], players: {}, season: 0 };
-    const rng = FM.mulberry32((league.seed || 1) + (league.runSeed || 0) * 6151 + 20231);
+    const rng = FM.mulberry32((league.seed || 1) + 20231);   // the same dice for every game: last season is one fixed history
     FM.allDivisions(league).slice().sort((a, b) => a.level - b.level).forEach((d) => {
       const rows = {}; d.teams.forEach((t) => { rows[t.id] = { id: t.id, name: t.name, P: 0, W: 0, D: 0, L: 0, GF: 0, GA: 0, Pts: 0, xg: 0, sh: 0, sot: 0, ps: 0, pok: 0, poss: 0 }; });
       const results = [];
-      d.fixtures.forEach((fx) => {
+      roundRobin(d.teams.map((t) => t.id).sort()).forEach((fx) => {
         const h = d.teams.find((t) => t.id === fx.homeId), a = d.teams.find((t) => t.id === fx.awayId); if (!h || !a) return;
         const m = playMatch(league, h, a, rng, prior);
         [[fx.homeId, m.hg, m.ag], [fx.awayId, m.ag, m.hg]].forEach(([id, gf, ga]) => { const r = rows[id]; r.P++; r.GF += gf; r.GA += ga; if (gf > ga) { r.W++; r.Pts += 3; } else if (gf === ga) { r.D++; r.Pts++; } else r.L++; const s = m.st[id]; r.xg += s.xg; r.sh += s.shots; r.sot += s.sot; r.ps += s.passes; r.pok += s.passOk; r.poss += s.poss; });
@@ -137,7 +146,15 @@
     league.prior = prior;
     return prior;
   };
-  FM.ensurePrior = function (league) { if (!league.prior || league.prior.v !== 1) FM.simulatePriorSeason(league); return league.prior; };
+  // Last season is the same for every game, so it is played once in advance (prior_data.js) and simply handed over: nobody waits for it. The clubs keep their
+  // current names (a league setting from history renames them), and anything missing falls back to playing it out.
+  FM.applyBakedPrior = function (league) {
+    const D = FM.PRIOR_DATA; if (!D || !D.divisions) return false;
+    const prior = JSON.parse(JSON.stringify(D)), names = {}; FM.allTeams(league).forEach((t) => { names[t.id] = t.name; });
+    prior.divisions.forEach((d) => d.table.forEach((r) => { if (names[r.id]) r.name = names[r.id]; }));
+    league.prior = prior; return true;
+  };
+  FM.ensurePrior = function (league) { if (!league.prior || league.prior.v !== 1) { if (!FM.applyBakedPrior(league)) FM.simulatePriorSeason(league); } return league.prior; };
 
   // ---------- reading it ----------
   FM.priorLine = function (league, p) { const pr = FM.ensurePrior(league); return pr.players[p.id] || null; };
