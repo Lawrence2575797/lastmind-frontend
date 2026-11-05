@@ -2889,8 +2889,12 @@
     const sel = el('ngClub'), note = el('ngClubNote'); if (!sel || !FM.clubChoices) return;
     const groups = FM.clubChoices();
     const LEVEL_NOTE = { 1: 'The top flight: the best squads and the biggest budgets.', 2: 'One promotion from the top flight.', 3: 'A long climb: two promotions to the top flight, and a squad to rebuild on the way.', 4: 'The bottom of the pyramid: the hardest start, and the best story.' };
-    sel.innerHTML = groups.map((g) => '<optgroup label="' + g.name + '">' + g.clubs.map((c) => '<option value="' + escapeHtmlNg(c.name) + '"' + (c.name === 'Ashford Rovers' ? ' selected' : '') + '>' + escapeHtmlNg(c.name) + '</option>').join('') + '</optgroup>').join('');
-    const show = () => { const g = groups.find((x) => x.clubs.some((c) => c.name === sel.value)), c = g && g.clubs.find((x) => x.name === sel.value); if (note && c) note.textContent = g.name + ': ' + c.tag + '. ' + LEVEL_NOTE[g.level]; };
+    // each club's expected finish in its division: where its squad ranks on strength, which is how the board sizes up the job too
+    const ord = (n) => n + (n % 100 >= 11 && n % 100 <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10 < 4 ? n % 10 : 0]);
+    groups.forEach((g) => { const by = g.clubs.slice().sort((x, y) => (y.strength || 0) - (x.strength || 0)); g.clubs.forEach((c) => { c.exp = by.indexOf(c) + 1; c.expText = ord(c.exp) + ' of ' + g.clubs.length; }); });
+    const COL = 30;   // the name is padded so the expected finish sits at the right-hand edge
+    sel.innerHTML = groups.map((g) => '<optgroup label="' + g.name + '">' + g.clubs.map((c) => '<option value="' + escapeHtmlNg(c.name) + '"' + (c.name === 'Ashford Rovers' ? ' selected' : '') + ' data-exp="' + escapeHtmlNg(c.expText) + '">' + escapeHtmlNg(c.name) + ' '.repeat(Math.max(2, COL - c.name.length - c.expText.length)) + 'expected ' + c.expText + '</option>').join('') + '</optgroup>').join('');
+    const show = () => { const g = groups.find((x) => x.clubs.some((c) => c.name === sel.value)), c = g && g.clubs.find((x) => x.name === sel.value); if (note && c) note.textContent = g.name + ': ' + c.tag + '. Expected finish ' + c.expText + '. ' + LEVEL_NOTE[g.level]; };
     sel.addEventListener('change', show); show();
     if (DEMO_MODE && el('ngClubBox')) el('ngClubBox').hidden = true;
   })();
