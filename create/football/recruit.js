@@ -43,14 +43,14 @@
   // paying for a player in instalments: what it costs, and what the money would earn in bonds meanwhile
   const planHtml = (league, deal) => {
       if (!FM.PAY_PLANS || !deal || deal.fee == null || !(deal.fee > 0)) return '';
-      const cur = deal.plan || 'now', cmp = Object.keys(FM.PAY_PLANS).map((k) => ({ k, a: FM.planAnalysis(league, deal.fee, k) }));
+      const cur = deal.plan || 'now', cmp = Object.keys(FM.PAY_PLANS).map((k) => ({ k, a: FM.payPlanAnalysis(league, deal.fee, k) }));
       return `<div class="rc-form rc-plan"><b>How to pay the fee</b><p class="note">Paying in instalments leaves more of the budget free now, and costs more in all. The board will not let the club owe more than ${FM.money(FM.paymentCap(league))} for players.</p>
         <div class="tablewrap"><table class="data"><thead><tr><th class="l">Plan</th><th>Now</th><th>Total</th><th>Cost a year</th><th>Bonds would earn</th><th>Net</th></tr></thead><tbody>${cmp.map(({ k, a }) => `<tr class="${k === cur ? 'sel' : ''}"><td class="l"><label><input type="radio" name="rcPlan" data-plan="${k}"${k === cur ? ' checked' : ''}> ${esc(FM.PAY_PLANS[k].label)}</label></td><td>${FM.money(a.first)}</td><td>${FM.money(a.total)}</td><td>${k === 'now' ? '–' : (a.apr * 100).toFixed(1) + '%'}</td><td>${k === 'now' ? '–' : FM.money(a.bondGain)}</td><td class="${a.net >= 0 ? 'up' : 'down'}">${k === 'now' ? '–' : (a.net >= 0 ? '+' : '−') + FM.money(Math.abs(a.net))}</td></tr>`).join('')}</tbody></table></div>
         <p class="note">"Bonds would earn" is what the money held back would earn if it were put into Treasury notes until each payment falls due (${(cmp[1].a.yield1 * 100).toFixed(2)}% for a year, ${(cmp[1].a.yield2 * 100).toFixed(2)}% for two). "Net" is that less the extra you pay. A plan with a positive net pays for itself; the Bonds page shows the market.</p></div>`;
     };
   const offerPlanHtml = (league, o) => {
       if (!FM.PAY_PLANS) return '';
-      return `<div class="rc-plan-sel"><label>How they pay<select data-oplan="${o.id}">${Object.keys(FM.PAY_PLANS).map((k) => { const a = FM.planAnalysis(league, o.fee, k); return `<option value="${k}">${esc(FM.PAY_PLANS[k].label)}${k === 'now' ? '' : ' (' + FM.money(a.total) + ' in all, ' + FM.money(a.first) + ' now)'}</option>`; }).join('')}</select></label><small>Instalments bring in more in all, but later, and a buyer short of money may not pay.</small></div>`;
+      return `<div class="rc-plan-sel"><label>How they pay<select data-oplan="${o.id}">${Object.keys(FM.PAY_PLANS).map((k) => { const a = FM.payPlanAnalysis(league, o.fee, k); return `<option value="${k}">${esc(FM.PAY_PLANS[k].label)}${k === 'now' ? '' : ' (' + FM.money(a.total) + ' in all, ' + FM.money(a.first) + ' now)'}</option>`; }).join('')}</select></label><small>Instalments bring in more in all, but later, and a buyer short of money may not pay.</small></div>`;
     };
   FM.renderRecruit = function (host, league, h) {
     hooks = h || hooks;

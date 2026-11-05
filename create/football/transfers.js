@@ -629,7 +629,7 @@
   };
 
   // What paying a fee in instalments costs, and what it would earn to keep the money back and put it in bonds meanwhile. fee in £m.
-  FM.planAnalysis = function (league, fee, planId) {
+  FM.payPlanAnalysis = function (league, fee, planId) {
     const plan = (FM.PAY_PLANS || {})[planId] || FM.PAY_PLANS.now, total = fee * (1 + plan.premium), parts = plan.parts.map(([share, after]) => ({ amount: total * share, after }));
     // the yearly rate that makes the instalments worth the same as the fee now
     const pv = (r) => parts.reduce((a, x) => a + x.amount / Math.pow(1 + r, x.after / 14), 0);
@@ -644,7 +644,7 @@
     const t = FM.transfer(league), deal = t.deals[pid]; if (!deal || (deal.stage !== 'fee_agreed' && deal.stage !== 'wage_talks')) return { ok: false, text: 'Agree a fee first.' };
     if (!FM.PAY_PLANS || !FM.PAY_PLANS[planId]) return { ok: false, text: 'There is no such plan.' };
     if (planId !== 'now') {
-      const a = FM.planAnalysis(league, deal.fee || 0, planId), owed = (league.biz && league.biz.payables || []).reduce((x, y) => x + y.amount, 0) / 1e6;
+      const a = FM.payPlanAnalysis(league, deal.fee || 0, planId), owed = (league.biz && league.biz.payables || []).reduce((x, y) => x + y.amount, 0) / 1e6;
       if (owed + a.later > FM.paymentCap(league) + 1e-9) return { ok: false, text: 'The board will not let the club owe more than ' + money(FM.paymentCap(league)) + ' for players. You already owe ' + money(owed) + '.' };
     }
     deal.plan = planId; return { ok: true, deal };
@@ -716,7 +716,7 @@
   };
   function finishSigning(league, p, deal, wage, years) {
     const t = FM.transfer(league), me = FM.teamById(league, league.userId), from = FM.clubOf(league, p);
-    const fee = deal.fee != null ? deal.fee : FM.askingPrice(league, p), planId = deal.plan || 'now', pa = FM.planAnalysis(league, fee, planId);
+    const fee = deal.fee != null ? deal.fee : FM.askingPrice(league, p), planId = deal.plan || 'now', pa = FM.payPlanAnalysis(league, fee, planId);
     if (pa.first > (t.budget[me.id] || 0) + 1e-9) return { ok: false, text: 'The transfer budget no longer covers the ' + money(pa.first) + ' that has to be paid now.' };
     if (!move(league, p, me, fee, wage, years, planId)) return { ok: false, text: 'The move could not be completed.' };
     deal.stage = 'signed'; deal.wage = wage; deal.years = years; deal.history.push({ who: 'agent', text: 'Agreed: ' + wage + 'k a week for ' + years + ' years. He signs.' });
@@ -750,7 +750,7 @@
     };
     const complete = (fee) => {
       const bad = sellOk(); if (bad) return { ok: false, text: bad };
-      const pa = FM.planAnalysis(league, fee, planId || 'now');
+      const pa = FM.payPlanAnalysis(league, fee, planId || 'now');
       if (pa.first > (t.budget[buyer.id] || 0) + 1e-9) { t.offers = t.offers.filter((x) => x !== o); return { ok: false, text: buyer.name + ' can no longer afford that.' }; }
       move(league, p, buyer, fee, null, 3, planId || 'now');
       news(league, 'Departure', p, `${p.name} leaves ${me.name} for ${buyer.name}`, `${planId && planId !== 'now' ? money(pa.total) + ' in instalments' : money(fee)}: the deal is done.`, `${buyer.name} have signed ${p.name} from ${me.name} for ${planId && planId !== 'now' ? money(pa.total) + ', paid in instalments' : money(fee)}. The ${FM.ageOf(p)}-year-old ${POS_NAME[p.natural]} has left the club.`, { mine: true, scene: 'departure', teams: [me.id, buyer.id] });
