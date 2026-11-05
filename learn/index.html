@@ -20370,7 +20370,7 @@ SQIDAQAB
     // editor used inside lesson answer boxes.
     const MATH_SHORTCUT_GREEK_MAP_GLOBAL = {
         'a': { lower: 'α', upper: 'Α' }, 'b': { lower: 'β', upper: 'Β' },
-        'd': { lower: '∂', upper: 'Δ' }, 'y': { lower: 'γ', upper: 'Γ' },
+        'd': { lower: 'δ', upper: 'Δ' }, 'y': { lower: 'γ', upper: 'Γ' },
         'u': { lower: 'μ', upper: 'Μ' }, 'p': { lower: 'π', upper: 'Π' },
         't': { lower: 'θ', upper: 'Θ' }, 's': { lower: 'σ', upper: 'Σ' },
         'l': { lower: 'λ', upper: 'Λ' }, 'w': { lower: 'ω', upper: 'Ω' },
@@ -21295,6 +21295,24 @@ SQIDAQAB
         const afterOperand = () => /[A-Za-z0-9)\]′″]$/.test(lineBeforeCaret()) || isSymbolChar(lineBeforeCaret().slice(-1));
         editor.addEventListener('keydown', (ev) => {
             if (ev.key && ev.key.length === 1 && !ev.ctrlKey && !ev.metaKey && !ev.altKey) leaveBarAtEnd();
+            // Backspace straight after a symbol (a Greek letter, ∂, ∫ ...) removes the symbol in one press: the invisible landing character after it goes with it
+            if (ev.key === 'Backspace' && !ev.ctrlKey && !ev.metaKey && !ev.altKey && !ev.shiftKey) {
+                const selS = window.getSelection();
+                if (selS.rangeCount && selS.isCollapsed) {
+                    const rS = selS.getRangeAt(0), nS = rS.startContainer;
+                    if (nS.nodeType === 3 && editor.contains(nS) && rS.startOffset > 0 && /^​+$/.test(nS.textContent.slice(0, rS.startOffset))) {
+                        const prevS = nS.previousSibling;
+                        if (prevS && prevS.nodeType === 1 && prevS.classList && prevS.classList.contains('math-symbol')) {
+                            ev.preventDefault();
+                            const rest = nS.textContent.slice(rS.startOffset), keep = rest || MATH_SHORTCUT_ZWS_GLOBAL;
+                            prevS.remove(); nS.textContent = keep;
+                            const cS = document.createRange(); cS.setStart(nS, rest ? 0 : 1); cS.collapse(true); selS.removeAllRanges(); selS.addRange(cS);
+                            editor.dispatchEvent(new Event('input', { bubbles: true }));
+                            return;
+                        }
+                    }
+                }
+            }
             if (auto && typeof opts.autocorrect === 'function') {
                 if (ev.key === 'Backspace' && !ev.ctrlKey && !ev.metaKey && !ev.altKey && lastFix && undoAutocorrect()) { ev.preventDefault(); return; }
                 if (AC_BOUNDARY.indexOf(ev.key) >= 0 && !ev.ctrlKey && !ev.metaKey && !ev.altKey && opts.autocorrect()) { lastFix = null; nbLoadDictionary(); tryAutocorrect(); }
@@ -21360,6 +21378,8 @@ SQIDAQAB
             if (ev.key === ']' && !ev.shiftKey && !ev.ctrlKey && !ev.metaKey && !ev.altKey && bracketLooksMaths()) {
                 ev.preventDefault(); insertTextAtCaret(']'); growLimitBoxes(); return;
             }
+            // Ctrl + D is the partial-derivative sign (and Shift + D the Greek delta, δ)
+            if ((ev.ctrlKey || ev.metaKey) && !ev.shiftKey && !ev.altKey && (ev.code === 'KeyD' || String(ev.key || '').toLowerCase() === 'd')) { ev.preventDefault(); insertStyledSymbol('∂'); return; }
             // Shift + a letter: a Greek letter, an integral, a matrix or f(x) in maths; just a capital letter in ordinary writing. Alt + Shift always
             // gives the maths one.
             const keyLetter = ev.code && /^Key[A-Z]$/.test(ev.code) ? ev.code.slice(3).toLowerCase() : String(ev.key || '').toLowerCase();
@@ -21449,7 +21469,13 @@ SQIDAQAB
             const zone = currentZone();
             if (zone && (ev.key === 'ArrowRight' || ev.key === ' ')) { ev.preventDefault(); exitZoneAfter(zone); return; }
             const denPart = currentFracPart();
-            if (denPart && denPart.className === 'frac-den' && (ev.key === 'ArrowRight' || ev.key === ' ')) { ev.preventDefault(); exitZoneAfter(denPart.parentNode); return; }
+            if (denPart && denPart.className === 'frac-den' && (ev.key === 'ArrowRight' || ev.key === ' ')) {
+                // A space leaves the denominator, except where it is plainly part of what is being written: after a word (two or more letters in a row), or inside an open bracket.
+                // The right arrow always leaves it.
+                const denText = denPart.textContent.replace(/​/g, '');
+                const keepSpace = ev.key === ' ' && (/[A-Za-z]{2,}/.test(denText) || (denText.split('(').length - denText.split(')').length) > 0 || denPart.querySelector('.math-bracket') && (denText.split('(').length - denText.split(')').length) > 0);
+                if (!keepSpace) { ev.preventDefault(); exitZoneAfter(denPart.parentNode); return; }
+            }
             if (!zone && !denPart && handleMatrixCellKey(ev)) return;
             const intZone = currentIntLimitZone();
             if (intZone && intZone.className === 'int-upper' && ev.key === 'ArrowDown') {
@@ -23156,7 +23182,10 @@ SQIDAQAB
                             if (!parentArrow || !editable.contains(parentArrow)) break;
                             outerArrow = parentArrow;
                         }
-                        outerArrow.after(nextLine);
+                        // a line break the browser left after the arrow would show as an extra blank line, and the new line goes after the line the arrow is on, not inside it
+                        for (let nx = outerArrow.nextSibling; nx;) { const cur = nx; nx = nx.nextSibling; if ((cur.nodeType === 1 && cur.tagName === 'BR') || (cur.nodeType === 3 && !cur.textContent.replace(/[​\s]/g, ''))) cur.remove(); else break; }
+                        const lineHost = outerArrow.parentElement;
+                        if (lineHost && lineHost !== editable && lineHost.parentElement === editable && lineHost.tagName === 'DIV' && !outerArrow.nextSibling) lineHost.after(nextLine); else outerArrow.after(nextLine);
                         const caret = document.createRange();
                         caret.setStart(landing, 1); caret.collapse(true);
                         sel.removeAllRanges(); sel.addRange(caret);
@@ -34494,7 +34523,7 @@ SQIDAQAB
         // still used elsewhere.
         const MATH_SHORTCUT_GREEK_MAP = {
             'a': { lower: 'α', upper: 'Α' }, 'b': { lower: 'β', upper: 'Β' },
-            'd': { lower: '∂', upper: 'Δ' }, 'y': { lower: 'γ', upper: 'Γ' },
+            'd': { lower: 'δ', upper: 'Δ' }, 'y': { lower: 'γ', upper: 'Γ' },
             'u': { lower: 'μ', upper: 'Μ' }, 'p': { lower: 'π', upper: 'Π' },
             't': { lower: 'θ', upper: 'Θ' }, 's': { lower: 'σ', upper: 'Σ' },
             'l': { lower: 'λ', upper: 'Λ' }, 'w': { lower: 'ω', upper: 'Ω' },
