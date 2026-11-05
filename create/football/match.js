@@ -1580,8 +1580,8 @@
       const r = rng(), cards = [];
       const give = (team, p, how) => { const card = how === 'red' ? redPlayer(match, team, p) : bookPlayer(match, team, p); cards.push({ team: team.id, player: p.number, card }); record(match, { type: 'foul', team: team.id, player: p.number, vs: p === aggressor ? victim.number : aggressor.number, card, x: victim.x, y: victim.y, drama: true }); };
       let outcome;
-      if (r < 0.4) { outcome = 'booked'; give(defT, aggressor, 'yellow'); give(attT, victim, 'yellow'); }
-      else if (r < 0.8) { outcome = 'aggressor'; give(defT, aggressor, 'red'); give(attT, victim, 'yellow'); }
+      if (r < 0.62) { outcome = 'booked'; give(defT, aggressor, 'yellow'); give(attT, victim, 'yellow'); }
+      else if (r < 0.92) { outcome = 'aggressor'; give(defT, aggressor, 'red'); give(attT, victim, 'yellow'); }
       else { outcome = 'both'; give(defT, aggressor, 'red'); give(attT, victim, 'red'); }
       record(match, { type: 'drama', kind: 'scuffle', team: defT.id, player: aggressor.number, vs: victim.number, vsTeam: attT.id, outcome, cards, x: victim.x, y: victim.y });
       startRestart(match, 'freekick', attT, clamp(victim.x, 0.5, L - 0.5), clamp(victim.y, 0.5, W - 0.5));
@@ -1646,8 +1646,8 @@
     const r = match.rng();
     const denial = opts && opts.denial;
     const heat = match.derby ? match.derby.heat : 0;   // a rivalry: more cards
-    const pRed = (0.002 + 0.006 * aggr + (dangerous ? 0.006 : 0) + (denial ? 0.3 : 0)) * (1 + heat);
-    const pYellow = (0.04 + 0.18 * aggr + (dangerous ? 0.08 : 0) + (denial ? 0.4 : 0)) * (1 + 0.5 * heat) * (fouler.yellows ? 0.6 : 1);
+    const pRed = (0.0004 + 0.0015 * aggr + (dangerous ? 0.0015 : 0) + (denial ? 0.1 : 0)) * (1 + 0.5 * heat);   // straight reds are rare
+    const pYellow = (0.04 + 0.18 * aggr + (dangerous ? 0.08 : 0) + (denial ? 0.4 : 0)) * (1 + 0.5 * heat) * (fouler.yellows ? 0.3 : 1);   // a man already booked is careful, so second yellows (which are reds) are rare too
     let card = null;
     if (r < pRed) card = 'red';
     else if (r < pRed + pYellow) {
