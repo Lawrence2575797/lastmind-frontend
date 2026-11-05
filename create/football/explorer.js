@@ -27,7 +27,12 @@
     const tackles = log.tackles.filter((p) => p[1] === ti).map((p) => ({ t: p[0], player: p[2], vs: p[3], ok: p[4], x: fx_(p[5]), y: fy_(p[6]), depth: p[7], cover: p[8] }));
     const dribbles = log.dribbles.filter((p) => p[1] === ti).map((p) => ({ t: p[0], player: p[2], ok: p[3], x: fx_(p[4]), y: fy_(p[5]), def: p[6], p: p[7] }));
     const others = log.other.filter((e) => e.team === teamId);
-    return { lg, fx, log, L, W, ti, team, opp, teamId, oppId, name: (n) => name(team, n), short: (n) => short(team, n), oname: (n) => name(opp, n), shots: myShots, against: theirShots, passes, tackles, dribbles, others, heat: (log.heat && log.heat.teams && log.heat.teams[teamId]) || null, heatPlayers: (log.heat && log.heat.players) || {}, fxAt: fx_, fyAt: fy_ };
+    const heatPos = (num) => {
+      const pl = team.players && team.players.find((q) => q.number === num), g = pl && log.heat && log.heat.players && log.heat.players[pl.id]; if (!g) return null;
+      const GX = FM.HEAT.GX; let sx = 0, sy = 0, sn = 0; g.forEach((n, i) => { if (!n) return; sx += n * ((i % GX) + 0.5) / GX * L; sy += n * (Math.floor(i / GX) + 0.5) / FM.HEAT.GY * W; sn += n; });
+      return sn ? { x: fx_(sx / sn), y: fy_(sy / sn) } : null;
+    };
+    return { lg, fx, log, L, W, ti, team, opp, teamId, oppId, heatPos, name: (n) => name(team, n), short: (n) => short(team, n), oname: (n) => name(opp, n), shots: myShots, against: theirShots, passes, tackles, dribbles, others, heat: (log.heat && log.heat.teams && log.heat.teams[teamId]) || null, heatPlayers: (log.heat && log.heat.players) || {}, fxAt: fx_, fyAt: fy_ };
   }
 
   // ---------- drawing ----------
@@ -104,11 +109,13 @@
       const ps = c.passes.filter((p) => !cameOn.has(p.from) && !cameOn.has(p.to)), pos = {}, edges = {}, made = {};
       ps.forEach((p) => { if (!Number.isFinite(p.x)) return; const o = pos[p.from] || (pos[p.from] = { x: 0, y: 0, n: 0 }); o.x += p.x; o.y += p.y; o.n++; made[p.from] = (made[p.from] || 0) + 1; if (p.res === 1) { const k = p.from + '>' + p.to; edges[k] = (edges[k] || 0) + 1; } });
       const pair = {}; Object.keys(edges).forEach((k) => { const [a, b] = k.split('>').map(Number), key = Math.min(a, b) + '-' + Math.max(a, b); pair[key] = (pair[key] || 0) + edges[k]; });
+      let fallback = false;
+      if (!Object.keys(pos).length) { const nums = {}; ps.forEach((p) => { nums[p.from] = 1; made[p.from] = (made[p.from] || 0) + 1; if (p.res === 1) { const k = p.from + '>' + p.to; edges[k] = (edges[k] || 0) + 1; } }); Object.keys(nums).forEach((k) => { const q = c.heatPos(+k); if (q) pos[k] = { x: q.x, y: q.y, n: 1 }; }); fallback = true; Object.keys(edges).forEach((k) => { const [a, b] = k.split('>').map(Number), key = Math.min(a, b) + '-' + Math.max(a, b); pair[key] = (pair[key] || 0) + edges[k]; }); }
       const max = Math.max.apply(null, Object.values(pair).concat([1])); let g = '';
       Object.keys(pair).filter((k) => pair[k] >= 3).forEach((k) => { const [a, b] = k.split('-').map(Number), A = pos[a], B = pos[b]; if (!A || !B) return; g += `<line x1="${px(A.x / A.n)}" y1="${py(A.y / A.n)}" x2="${px(B.x / B.n)}" y2="${py(B.y / B.n)}" stroke="#f2c14e" stroke-opacity="${(0.18 + 0.7 * pair[k] / max).toFixed(2)}" stroke-width="${(1 + 7 * pair[k] / max).toFixed(1)}"><title>${esc(c.short(a))} and ${esc(c.short(b))}: ${pair[k]} completed passes</title></line>`; });
       Object.keys(pos).forEach((k) => { const o = pos[k], r = 8 + 10 * (made[k] || 0) / Math.max.apply(null, Object.values(made)); g += `<circle cx="${px(o.x / o.n)}" cy="${py(o.y / o.n)}" r="${r.toFixed(1)}" fill="#1c2420" stroke="#fff" stroke-width="2"/><text x="${px(o.x / o.n)}" y="${(o.y / o.n * PS + 4).toFixed(1)}" text-anchor="middle" font-size="11" font-weight="700" fill="#fff" style="font-family:Arial,sans-serif">${k}</text><title>${esc(c.name(+k))}: ${made[k]} passes</title>`; });
       const top = Object.keys(pair).map((k) => { const [a, b] = k.split('-').map(Number); return [esc(c.name(a)) + ' and ' + esc(c.name(b)), pair[k]]; }).sort((a, b) => b[1] - a[1]).slice(0, 8);
-      return `<div class="ex-fig">${pitch(g, { label: 'Pass network' })}<p class="ex-note">Starters only. Node size is the number of passes made; line width is completed passes between the pair (3 or more shown).</p></div>` + section('Strongest links', table(['Pair', 'Completed passes'], top));
+      return `<div class="ex-fig">${pitch(g, { label: 'Pass network' })}<p class="ex-note">Starters only. Node size is the number of passes made; line width is completed passes between the pair (3 or more shown).${fallback ? ' This match was saved before pass positions were kept, so each player is placed where he spent most of his time instead.' : ''}</p></div>` + section('Strongest links', table(['Pair', 'Completed passes'], top));
     } });
 
   add({ id: 'lanes', group: 'Passing', title: 'Passing lanes and pressure', tags: 'lanes pressure clearance defender interception risk completion receiver marked space tight', blurb: 'How completion changes as the lane narrows and the receiver is closed down.', needs: 'match',
@@ -304,5 +311,18 @@
     host.querySelector('#exWbOpen').addEventListener('click', () => { wb.hidden = false; if (!wbHost.dataset.ready && FM.renderWorkbench) { wbHost.dataset.ready = '1'; try { FM.renderWorkbench(wbHost, lg, { save: () => FM.saveLeague(lg) }); } catch (e) { wbHost.textContent = 'The Workbook could not open.'; } } });
     host.querySelector('#exWbClose').addEventListener('click', () => { wb.hidden = true; });
   };
-  FM.explorer = { INV, makeCtx, playedWithLogs, add, kpis, table, section, legend, ensureCss: () => { if (!document.getElementById('exCss')) { const st = document.createElement('style'); st.id = 'exCss'; st.textContent = css + (FM.anLab ? FM.anLab.css : ''); document.head.appendChild(st); } } };
+  // Opens the Workbook drawer on this page and puts the example into its Notes (and onto the clipboard, in case the notebook is slow to open).
+  function openWorkbook(lg, text) {
+    const wb = document.querySelector('#exWb'), wbH = document.querySelector('#exWbHost'); if (!wb || !wbH) return;
+    wb.hidden = false;
+    try { if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text); } catch (e) { /* the notes get it anyway */ }
+    const send = () => { const f = wbH.querySelector('#wbNotes'); if (f && f.contentWindow) f.contentWindow.postMessage({ lm: 'wb-notes', op: 'append', text }, location.origin); };
+    if (wbH.dataset.ready && wbH.querySelector('#wbNotes')) { send(); return; }
+    let sent = false; const once = () => { if (sent) return; sent = true; window.removeEventListener('message', onMsg); send(); };
+    const onMsg = (e) => { if (e.origin === location.origin && e.data && e.data.lm === 'wb-notes' && e.data.op === 'ready') once(); };
+    window.addEventListener('message', onMsg); setTimeout(once, 60000);
+    wbH.dataset.ready = '1';
+    if (FM.renderWorkbench) { try { FM.renderWorkbench(wbH, lg, { save: () => FM.saveLeague(lg) }); } catch (e) { wbH.textContent = 'The Workbook could not open.'; } }
+  }
+  FM.explorer = { openWorkbook, INV, makeCtx, playedWithLogs, add, kpis, table, section, legend, ensureCss: () => { if (!document.getElementById('exCss')) { const st = document.createElement('style'); st.id = 'exCss'; st.textContent = css + (FM.anLab ? FM.anLab.css : ''); document.head.appendChild(st); } } };
 })();
