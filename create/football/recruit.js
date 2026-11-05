@@ -132,9 +132,9 @@
       const note = rs.contractNote ? `<div class="rc-notice ${rs.contractNote.kind}" role="status">${esc(rs.contractNote.text)}</div>` : '';
       const rowsC = mine.map((q) => { const left = FM.contractLeft(q), last = left <= 1, ask = FM.extensionTerms(league, q, 3);
         return `<tr class="${last ? 'out' : ''}"><td class="l"><b>${esc(q.name)}</b></td><td class="l">${q.natural}</td><td>${FM.ageOf(q)}</td><td><b>${FM.abilityOf(q)}</b></td><td>${FM.wageOf(q)}k</td><td>${left} season${left === 1 ? '' : 's'}${last ? ' <span class="out">last season</span>' : ''}</td>
-          <td class="l"><select data-cyears="${esc(q.id)}">${[1, 2, 3, 4, 5].map((y) => `<option value="${y}"${y === 3 ? ' selected' : ''}>${y} yr</option>`).join('')}</select> <button type="button" data-extend="${esc(q.id)}">Extend (about ${ask}k)</button></td></tr>`; }).join('');
+          <td class="l"><button type="button" class="${last ? 'primary' : ''}" data-renew="${esc(q.id)}">${FM.renewalFor(league, q.id) && FM.renewalFor(league, q.id).open ? 'Continue talks' : 'Negotiate a new contract'}</button> <small>about ${ask}k</small></td></tr>`; }).join('');
       body = `${note}<p class="note">A contract is the number of seasons left. When the last one ends, a player who has not been extended leaves for nothing and joins the free agents. Younger players are signed for longer.</p>
-        <div class="tablewrap rc-table"><table class="data"><thead><tr><th class="l">Player</th><th class="l">Pos</th><th>Age</th><th>Ability</th><th>Wage</th><th>Contract left</th><th class="l">Extend</th></tr></thead><tbody>${rowsC}</tbody></table></div>`;
+        <div class="tablewrap rc-table"><table class="data"><thead><tr><th class="l">Player</th><th class="l">Pos</th><th>Age</th><th>Ability</th><th>Wage</th><th>Contract left</th><th class="l">New contract</th></tr></thead><tbody>${rowsC}</tbody></table></div>`;
     } else if (rs.tab === 'shortlist') {
       body = shortlist.length ? `<div class="tablewrap rc-table"><table class="data">${head}<tbody>${shortlist.map((p) => rowHtml({ p, tm: FM.clubOf(league, p) })).join('')}</tbody></table></div>` : '<p class="note">Nobody on your shortlist yet. Declaring interest in a player, or approaching his club, adds him here.</p>';
     } else {
@@ -169,6 +169,10 @@
     host.querySelectorAll('[data-scout]').forEach((r) => r.addEventListener('click', () => { rs.scout = r.dataset.scout; draw(); window.scrollTo(0, 0); }));
     { const sh = host.querySelector('#rcScoutHost'), sp = rs.scout && FM.findPlayer(league, rs.scout); if (sh && sp && FM.openPlayerProfile) FM.openPlayerProfile(league, sp, { inline: sh, onClose: () => { rs.scout = null; draw(); } }); }
     host.querySelectorAll('[data-rctab]').forEach((b) => b.addEventListener('click', () => { rs.tab = b.dataset.rctab; rs.offerNote = null; draw(); }));
+    host.querySelectorAll('[data-renew]').forEach((b) => b.addEventListener('click', () => {
+      const out = FM.startRenewal(league, b.dataset.renew); rs.open = b.dataset.renew; rs.contractNote = out.ok ? null : { kind: 'no', text: out.text }; save(); draw();
+      const side = host.querySelector('#rcSide'); if (side && side.scrollIntoView) side.scrollIntoView({ block: 'nearest' });
+    }));
     host.querySelectorAll('[data-extend]').forEach((b) => b.addEventListener('click', () => {
       const id = b.dataset.extend, yrs = host.querySelector('[data-cyears="' + id + '"]').value, out = FM.extendContract(league, id, yrs);
       rs.contractNote = { kind: out.ok ? 'ok' : 'no', text: out.text }; save(); draw();
@@ -223,7 +227,19 @@
     const profileBtn = '<div class="rc-actions"><button type="button" id="rcProfile" class="primary">Full profile and analysis</button></div>';
     let action = '';
     if (stage === 'signed' && mine) action = `<div class="rc-done"><div class="rc-scene" id="rcScene"></div><p><b>${esc(p.name)} has signed for ${esc(me.name)}.</b> He is in your squad and can be picked from the bench or swapped into the team.</p><button type="button" id="rcToSquad" class="primary">Go to the squad</button></div>`;
-    else if (mine) action = '<p class="note">He plays for you.</p>';
+    else if (mine) {
+      const rn = FM.renewalFor(league, p.id), left = FM.contractLeft(p);
+      action = `<p class="note">He plays for you. His contract has ${left} season${left === 1 ? '' : 's'} left, at ${FM.wageOf(p)}k a week.</p>`;
+      if (rn && rn.open) {
+        const hist = rn.history.slice(-6).map((x) => `<div class="rc-bubble ${x.who}"><small>${x.who === 'you' ? 'You' : 'Agent'}</small>${esc(x.text)}</div>`).join('');
+        action += `<div class="rc-form rc-neg"><b>Contract talks with ${esc(p.name.split(' ')[0])} and his agent</b>
+          <p class="note">He earns ${FM.wageOf(p)}k a week now. Your wage room is ${FM.wageRoom(league, me.id)}k. The agent has ${rn.patience} round${rn.patience === 1 ? '' : 's'} of patience left.</p>
+          <div class="rc-chat">${hist}</div>
+          <label>Weekly wage (£k)<input id="rcRnWage" type="number" step="0.5" min="0" value="${r1(rn.wageCur)}"></label>
+          <label>Contract<select id="rcRnYears">${[1, 2, 3, 4, 5].map((y) => `<option value="${y}"${y === (rn.years || 3) ? ' selected' : ''}>${y} year${y === 1 ? '' : 's'}</option>`).join('')}</select></label>
+          <div><button type="button" id="rcRnAccept" class="primary">Accept ${r1(rn.wageCur)}k a week</button> <button type="button" id="rcRnGo">Offer the figure above</button> <button type="button" id="rcRnWalk">End the talks</button></div></div>`;
+      } else action += `<div class="rc-actions"><button type="button" id="rcRnStart" class="primary">Negotiate a new contract</button></div>${msg ? `<p class="rc-msg">${esc(msg)}</p>` : ''}`;
+    }
     else if (club && club.isPool) {
       const talks = stage === 'wage_talks';
       action = `<div class="rc-actions"><button type="button" id="rcFree" class="primary"${talks ? ' disabled' : ''}>${talks ? 'In talks' : 'Talk to his agent: no fee to pay'}</button>${t.shortlist.indexOf(p.id) >= 0 ? '<button type="button" id="rcUnlist">Remove from shortlist</button>' : '<button type="button" id="rcShort">Add to shortlist</button>'}</div>${msg ? `<p class="rc-msg">${esc(msg)}</p>` : ''}`;
@@ -321,6 +337,10 @@
     });
     on('#rcWalk', () => { const d = FM.dealOf(league, p.id); if (d) { d.stage = 'interest'; d.fee = null; d.agreedRound = null; d.wageAsk = null; d.history.push({ who: 'you', text: 'You walked away from the talks.' }); } say('You have walked away. He stays on your shortlist.'); });
     on('#rcToSquad', () => { if (hooks.openSquad) hooks.openSquad(); });
+    on('#rcRnStart', () => { const out = FM.startRenewal(league, p.id); say(out.ok ? '' : out.text); });
+    on('#rcRnGo', () => { const out = FM.offerRenewal(league, p.id, side.querySelector('#rcRnWage').value, side.querySelector('#rcRnYears').value); say(out.status === 'signed' ? out.text : (out.text || '')); });
+    on('#rcRnAccept', () => { const rn = FM.renewalFor(league, p.id), years = side.querySelector('#rcRnYears').value, out = FM.offerRenewal(league, p.id, rn ? FM.renewalAsk(rn, Number(years)) : 0, years); say(out.status === 'signed' ? out.text : (out.text || '')); });
+    on('#rcRnWalk', () => { FM.endRenewal(league, p.id); say('You ended the talks.'); });
   }
   const r1 = (v) => Math.round(v * 10) / 10;
 

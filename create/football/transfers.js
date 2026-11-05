@@ -370,6 +370,45 @@
     p.wage = wage; p.contract = years;
     return { ok: true, wage, years, text: p.name + ' signs a new ' + years + '-year contract on ' + wage + 'k a week.' };
   };
+  // ---------- renewing a contract: talks with the player's agent, as when signing him ----------
+  const renewAdj = (years) => (years >= 4 ? 0.97 : years <= 1 ? 1.05 : 1);
+  FM.renewalFor = (league, pid) => { const t = FM.transfer(league); return (t.renewals && t.renewals[pid]) || null; };
+  FM.renewalAsk = (r, years) => r1(r.wageCur * renewAdj(years));
+  FM.startRenewal = function (league, pid) {
+    const t = FM.transfer(league), me = FM.teamById(league, league.userId), p = me.squad.find((q) => q.id === pid);
+    if (!p) return { ok: false, text: 'He is not in your squad.' };
+    t.renewals = t.renewals || {};
+    let r = t.renewals[pid];
+    if (r && r.open) return { ok: true, renewal: r };
+    if (r && r.closedRound === userRounds(league)) return { ok: false, text: 'His agent has ended the talks for now. Try again after the next game.' };
+    const ask = FM.extensionTerms(league, p, 3), wage = FM.wageOf(p);
+    r = t.renewals[pid] = { open: true, wageCur: ask, wageFloor: r1(Math.max(wage, ask * 0.9)), patience: 3, years: 3, closedRound: null, history: [{ who: 'agent', text: 'His agent opens: ' + ask + 'k a week for three years.' }] };
+    return { ok: true, renewal: r };
+  };
+  FM.offerRenewal = function (league, pid, wage, years) {
+    const t = FM.transfer(league), me = FM.teamById(league, league.userId), p = me.squad.find((q) => q.id === pid), r = t.renewals && t.renewals[pid];
+    if (!p || !r || !r.open) return { ok: false, text: 'There are no contract talks open with this player.' };
+    wage = r1(Number(wage)); years = Math.max(1, Math.min(5, Math.round(Number(years)) || 3));
+    if (!(wage > 0)) return { ok: false, text: 'Enter a weekly wage first.' };
+    const adj = renewAdj(years), ask = r1(r.wageCur * adj), floor = r1(r.wageFloor * adj);
+    if (wage - FM.wageOf(p) > FM.wageRoom(league, me.id) + 1e-9) return { ok: false, text: 'That is more than the wage budget allows. You have ' + FM.wageRoom(league, me.id) + 'k a week of room.' };
+    r.history.push({ who: 'you', text: 'You offer ' + wage + 'k a week for ' + years + ' year' + (years === 1 ? '' : 's') + '.' });
+    if (wage >= ask * 0.94) {
+      p.wage = wage; p.contract = years; r.open = false; r.done = true;
+      r.history.push({ who: 'agent', text: 'Agreed: ' + wage + 'k a week for ' + years + ' year' + (years === 1 ? '' : 's') + '. He signs.' });
+      story(league, { kind: 'Contract', headline: p.name + ' signs a new contract with ' + me.name, dek: wage + 'k a week for ' + years + ' year' + (years === 1 ? '' : 's') + '.', body: p.name + ' has agreed a new ' + years + '-year deal at ' + me.name + ' after talks with his representatives.', mine: true });
+      return { ok: true, status: 'signed', text: p.name + ' signs a new ' + years + '-year contract on ' + wage + 'k a week.', wage, years };
+    }
+    r.patience -= 1;
+    let reply, mood;
+    if (wage >= floor) { const next = r1(Math.max(floor, Math.min(r.wageCur * adj, wage + (ask - wage) * 0.4))); r.wageCur = r1(next / adj); mood = 'counter'; reply = 'His agent thinks about it and comes back at ' + next + 'k a week.'; }
+    else if (wage >= floor * 0.8) { r.wageCur = r1(Math.max(r.wageFloor, r.wageCur - (r.wageCur - r.wageFloor) * 0.3)); mood = 'short'; reply = 'His agent says that is some way short, and asks you to come back with something nearer ' + r1(r.wageCur * adj) + 'k.'; }
+    else { r.wageCur = r1(Math.max(r.wageFloor, r.wageCur * 0.97)); mood = 'insulted'; reply = 'His agent is not impressed: that is below what they expected, and the player\'s side are losing patience.'; }
+    r.history.push({ who: 'agent', text: reply });
+    if (r.patience <= 0) { r.open = false; r.closedRound = userRounds(league); r.history.push({ who: 'agent', text: 'His agent ends the talks for now.' }); return { ok: true, status: 'closed', text: reply + ' The talks are over for now: try again after the next game.' }; }
+    return { ok: true, status: mood, text: reply };
+  };
+  FM.endRenewal = function (league, pid) { const r = FM.renewalFor(league, pid); if (r && r.open) { r.open = false; r.history.push({ who: 'you', text: 'You ended the talks.' }); } return { ok: true }; };
   FM.signFreeAgent = function (league, pid) {
     const p = FM.findPlayer(league, pid), club = p && FM.clubOf(league, p);
     if (!club || !club.isPool) return { ok: false, text: 'He is not a free agent.' };
