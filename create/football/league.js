@@ -519,7 +519,7 @@
     const scout = scoutedTactics(league, team, opp);
     const adj = {};
     if (scout) {
-      const s = 0.5 * scout.weight * (scout.lost ? 1.3 : 1), plan = counterPlan(scout.tactics);
+      const s = 0.2 * scout.weight * (scout.lost ? 1.2 : 1), plan = counterPlan(scout.tactics);   // computer clubs adjust to you a little, not a lot
       Object.keys(plan).forEach((k) => { adj[k] = plan[k] * s; });
     }
     const t = Object.assign({}, base);

@@ -15,8 +15,8 @@
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
   const mean = (a) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0);
 
-  FM.RATING_W = 0.7;
-  FM.eff = (r) => 60 + 22 * Math.tanh((r - 60) / 22);
+  FM.RATING_W = 1.0;   // better players count for more, so a better squad wins more often than it loses
+  FM.eff = (r) => 60 + 32 * Math.tanh((r - 60) / 32);
   // A rating as the match uses it: softened, weighted, and moved by the player's form and the club's momentum (p.mbonus is set when the match starts).
   FM.sk = (p, key) => {
     const r = p && p.ratings && Number.isFinite(p.ratings[key]) ? p.ratings[key] : 60;
@@ -64,12 +64,13 @@
 
   // ---------- momentum ----------
   FM.setMomentumBonus = function (team) {
-    team.squad.forEach((p) => { p.mbonus = FM.MOM.player * clamp(p.form || 0, -1, 1) + FM.MOM.club * clamp(team.momentum || 0, -1, 1); });
+    const mine = FM.curLeague && FM.curLeague.userId === team.id;
+    team.squad.forEach((p) => { const b = FM.MOM.player * clamp(p.form || 0, -1, 1) + FM.MOM.club * clamp(team.momentum || 0, -1, 1); p.mbonus = mine && b < 0 ? b * 0.4 : b; });   // a run of bad results does not spiral the managed club downwards
   };
   // The game leans a little towards the manager, as a career game does: a club with a good manager can climb the divisions over a few seasons, and a smaller club can
   // beat a better one more often than the ratings alone say. A steady lift (base) for the managed club's players, and a further lift when the other side is the
   // better one (a share of the gap, up to the cap). It is a few rating points, which the softening in FM.sk shrinks again: a nudge, not a different sport.
-  FM.USER_EDGE = { base: 2, gapK: 0.35, cap: 6 };
+  FM.USER_EDGE = { base: 4, gapK: 0.5, cap: 10 };
   const XI_KEYS = ['pace', 'dribbling', 'passing', 'finishing', 'tackling', 'heading', 'composure', 'stamina'];
   const xiLevel = (t) => { const ps = (t.players && t.players.length ? t.players : t.squad.slice(0, 11)).filter((p) => p.group !== 'GK'); return ps.length ? mean(ps.map((p) => mean(XI_KEYS.map((k) => ((p.baseRatings || p.ratings || {})[k]) || 55)))) : 55; };
   FM.userEdgeFor = function (league, team, opp) {
