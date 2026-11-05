@@ -580,8 +580,8 @@
     const greed = 1.12 + (h % 30) / 100;                              // 1.12 to 1.41 times what the club pays him now
     const age = FM.ageOf(p);
     deal.wageAsk = r1(base * greed * (age <= 21 ? 0.88 : 1));
-    deal.wageFloor = r1(base * (1.02 + ((h >> 5) % 12) / 100) * (age <= 21 ? 0.9 : 1));
-    deal.wageCur = deal.wageAsk; deal.patience = 4; deal.years = deal.years || 3;
+    deal.wageFloor = r1(base * (0.96 + ((h >> 5) % 12) / 100) * (age <= 21 ? 0.9 : 1));   // agents give ground: the lowest he will take is about what he earns now
+    deal.wageCur = deal.wageAsk; deal.patience = 5; deal.years = deal.years || 3;
   }
   FM.startWageTalks = function (league, pid) {
     const t = FM.transfer(league), p = FM.findPlayer(league, pid), deal = t.deals[pid];
@@ -615,18 +615,18 @@
     if (wage - (FM.wageOf(p)) > FM.wageRoom(league, me.id) + 1e-9) {
       return { ok: false, text: 'That is more than the wage budget allows. You have ' + FM.wageRoom(league, me.id) + 'k a week of room.' };
     }
-    if (wage >= ask) return finishSigning(league, p, deal, wage, years);
+    if (wage >= ask || wage >= ask * 0.94) return finishSigning(league, p, deal, wage, years);   // near enough to what he asks: the agent takes it
     deal.patience -= 1;
     let reply, mood;
     if (wage >= floor) {
-      const next = r1(Math.max(floor, Math.min(deal.wageCur * adj, (ask + wage) / 2 + 0.2)));
+      const next = r1(Math.max(floor, Math.min(deal.wageCur * adj, wage + (ask - wage) * 0.4)));   // he comes most of the way towards a fair offer
       deal.wageCur = r1(next / adj); mood = 'counter';
       reply = 'His agent thinks about it and comes back at ' + next + 'k a week.';
     } else if (wage >= floor * 0.8) {
-      deal.wageCur = r1(deal.wageCur * 0.98); mood = 'short';
+      deal.wageCur = r1(Math.max(deal.wageFloor, deal.wageCur - (deal.wageCur - deal.wageFloor) * 0.3)); mood = 'short';
       reply = 'His agent says that is some way short, and asks you to come back with something nearer ' + r1(deal.wageCur * adj) + 'k.';
     } else {
-      deal.wageCur = r1(deal.wageCur * 1.03); deal.patience -= 1; mood = 'insulted';
+      deal.wageCur = r1(Math.max(deal.wageFloor, deal.wageCur * 0.97)); mood = 'insulted';
       reply = 'His agent is not impressed: that is below what they expected, and the player\'s side are losing patience.';
     }
     deal.history.push({ who: 'agent', text: reply });
