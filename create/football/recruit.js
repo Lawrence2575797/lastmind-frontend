@@ -115,12 +115,18 @@
 
     const shortlist = t.shortlist.map((id) => FM.findPlayer(league, id)).filter(Boolean).filter((p) => FM.clubOf(league, p) !== me);
     const openOffers = t.offers.filter((o) => FM.findPlayer(league, o.pid) && FM.clubOf(league, FM.findPlayer(league, o.pid)) === me);
-    const tabs = `<div class="rc-tabs">${[['players', 'Players'], ['shortlist', 'Shortlist (' + shortlist.length + ')'], ['contracts', 'Contracts' + (FM.expiringContracts(league).length ? ' (' + FM.expiringContracts(league).length + ' expiring)' : '')], ['offers', 'Offers and deals' + (openOffers.length ? ' (' + openOffers.length + ')' : '')]].map(([k, n]) => `<button type="button" data-rctab="${k}" class="${rs.tab === k ? 'on' : ''}">${n}</button>`).join('')}</div>`;
+    const tabs = `<div class="rc-tabs">${[['players', 'Players'], ['scouting', 'Scouting'], ['shortlist', 'Shortlist (' + shortlist.length + ')'], ['contracts', 'Contracts' + (FM.expiringContracts(league).length ? ' (' + FM.expiringContracts(league).length + ' expiring)' : '')], ['offers', 'Offers and deals' + (openOffers.length ? ' (' + openOffers.length + ')' : '')]].map(([k, n]) => `<button type="button" data-rctab="${k}" class="${rs.tab === k ? 'on' : ''}">${n}</button>`).join('')}</div>`;
 
     let body = '';
     if (rs.tab === 'players') {
       body = `${filters}<section class="rc-player-results"><p class="rc-count">${rows.length} player${rows.length === 1 ? '' : 's'}</p>
         <div class="tablewrap rc-table"><table class="data">${head}<tbody>${rows.slice(0, rs.shown || 25).map(rowHtml).join('') || '<tr><td colspan="19" class="l">No players match those filters.</td></tr>'}</tbody></table></div>${rows.length > (rs.shown || 25) ? `<div class="rc-showmore"><button type="button" id="rcShowMore">Show 25 more (${rows.length - (rs.shown || 25)} not shown)</button></div>` : ''}</section></div>`;
+    } else if (rs.tab === 'scouting') {
+      // the same filters, but a click opens the whole profile and the scouting analysis in the page, beside nothing else: the list is one click back
+      const sel = rs.scout && all.find((x) => x.p.id === rs.scout);
+      const lite = ({ p, tm }) => `<tr class="player-row" data-scout="${esc(p.id)}" tabindex="0"><td class="l"><b>${esc(p.name)}</b> ${FM.isInjured(p) ? '<span class="out">injured</span>' : ''}</td><td class="l">${tm.isPool ? '<b>Free agent</b>' : esc(tm.name)}</td><td class="l">${p.natural === 'FB' ? (FM.sideOf(p) === 'L' ? 'LB' : 'RB') : p.natural}</td><td>${FM.ageOf(p)}</td><td><b>${FM.abilityOf(p)}</b></td><td>${FM.potentialOf(p)}</td><td>${FM.playerRating(p).toFixed(1)}</td><td><b>${tm.isPool ? 'Free' : FM.money(FM.askingPrice(league, p))}</b></td><td>${FM.wageOf(p)}k</td><td class="l">${status(p)}</td></tr>`;
+      body = sel ? `<div class="rc-scout-open"><div id="rcScoutHost"></div></div>` : `${filters}<section class="rc-player-results"><p class="rc-count">${rows.length} player${rows.length === 1 ? '' : 's'}. Pick one to see the whole profile and the scouting analysis.</p>
+        <div class="tablewrap rc-table"><table class="data"><thead><tr><th class="l">Player</th><th class="l">Club</th><th class="l">Pos</th><th>Age</th><th>Ability</th><th>Potential</th><th>Rating</th><th>Price</th><th>Wage</th><th class="l">Status</th></tr></thead><tbody>${rows.slice(0, rs.shown || 25).map(lite).join('') || '<tr><td colspan="10" class="l">No players match those filters.</td></tr>'}</tbody></table></div>${rows.length > (rs.shown || 25) ? `<div class="rc-showmore"><button type="button" id="rcShowMore">Show 25 more (${rows.length - (rs.shown || 25)} not shown)</button></div>` : ''}</section></div>`;
     } else if (rs.tab === 'contracts') {
       const mine = me.squad.slice().sort((a, b) => FM.contractLeft(a) - FM.contractLeft(b) || FM.playerRating(b) - FM.playerRating(a));
       const note = rs.contractNote ? `<div class="rc-notice ${rs.contractNote.kind}" role="status">${esc(rs.contractNote.text)}</div>` : '';
@@ -160,6 +166,8 @@
       <div class="rc-side" id="rcSide"></div></div>`;
 
     // ----- events
+    host.querySelectorAll('[data-scout]').forEach((r) => r.addEventListener('click', () => { rs.scout = r.dataset.scout; draw(); window.scrollTo(0, 0); }));
+    { const sh = host.querySelector('#rcScoutHost'), sp = rs.scout && FM.findPlayer(league, rs.scout); if (sh && sp && FM.openPlayerProfile) FM.openPlayerProfile(league, sp, { inline: sh, onClose: () => { rs.scout = null; draw(); } }); }
     host.querySelectorAll('[data-rctab]').forEach((b) => b.addEventListener('click', () => { rs.tab = b.dataset.rctab; rs.offerNote = null; draw(); }));
     host.querySelectorAll('[data-extend]').forEach((b) => b.addEventListener('click', () => {
       const id = b.dataset.extend, yrs = host.querySelector('[data-cyears="' + id + '"]').value, out = FM.extendContract(league, id, yrs);

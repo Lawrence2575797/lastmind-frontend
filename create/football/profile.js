@@ -329,23 +329,23 @@
   // ---------- the page ----------
   const TABS = [['overview', 'Overview', overview], ['season', 'Last season', lastSeason], ['value', 'Price and value', priceAndValue], ['lab', 'Regression lab', lab], ['fit', 'Squad fit', squadFit], ['case', 'The case', theCase]];
   FM.openPlayerProfile = function (league, p, opts) {
-    opts = opts || {}; const old = document.getElementById('pfOverlay'); if (old) old.remove();
+    opts = opts || {}; const inline = opts.inline || null; if (!inline) { const old = document.getElementById('pfOverlay'); if (old) old.remove(); }
     const state = { tab: opts.tab || 'overview', local: { sameDiv: false, y: 'goals', x: ['a_finishing', 'xg'], scope: 'pos', minMins: 360, xOpen: false } };
     const row0 = () => marketRows(league).find((r) => r.id === p.id);
     const defaults = () => { const r = row0(); if (!r) return; if (r.pos === 'GK') { state.local.y = 'savePct'; state.local.x = ['a_gk', 'age']; state.local.scope = 'pos'; } else if (['CB', 'FB', 'DM'].indexOf(r.pos) >= 0) { state.local.y = 'tackles'; state.local.x = ['a_tackling', 'a_stamina']; } else if (['CM', 'AM'].indexOf(r.pos) >= 0) { state.local.y = 'keyPasses'; state.local.x = ['a_passing', 'a_composure']; } };
     defaults();
-    const host = document.createElement('div'); host.id = 'pfOverlay'; host.className = 'pf-overlay'; document.body.appendChild(host); document.body.classList.add('pf-open');
-    const close = () => { host.remove(); document.body.classList.remove('pf-open'); document.removeEventListener('keydown', onKey); if (opts.onClose) opts.onClose(); };
+    const host = inline || document.createElement('div'); if (inline) host.classList.add('pf-inline'); else { host.id = 'pfOverlay'; host.className = 'pf-overlay'; document.body.appendChild(host); document.body.classList.add('pf-open'); }
+    const close = () => { if (!inline) { host.remove(); document.body.classList.remove('pf-open'); } document.removeEventListener('keydown', onKey); if (opts.onClose) opts.onClose(); };
     const onKey = (e) => { if (e.key === 'Escape') close(); }; document.addEventListener('keydown', onKey);
     const draw = () => {
       const rows = marketRows(league), row = rows.find((r) => r.id === p.id); if (!row) { host.innerHTML = '<div class="pf-shell"><p>He is no longer in the game.</p><button type="button" id="pfClose">Close</button></div>'; host.querySelector('#pfClose').addEventListener('click', close); return; }
       const ctx = { row, rows, league, local: state.local }, tab = TABS.find((t) => t[0] === state.tab) || TABS[0];
       let body; try { body = tab[2](ctx); } catch (e) { console.error('Player profile:', e); body = '<div class="pf-card"><h3>This tab could not be drawn</h3><p class="note">' + esc(e && e.message) + '</p></div>'; }
       const club = row.pool ? 'Free agent' : row.club;
-      host.innerHTML = `<div class="pf-shell"><header class="pf-head"><div><div class="eyebrow">${esc(POSNAME[row.pos] || row.pos)} · ${esc(club)}</div><h2>${esc(row.p.name)}</h2><div class="pf-sub">Age ${row.age} · ability ${row.ability} · potential ${row.potential} · ${row.pool ? 'free agent' : money(row.price)} · ${f1(row.wage)}k a week</div></div><button type="button" id="pfClose" class="pf-x-btn" aria-label="Close the profile">Close ✕</button></header>
+      host.innerHTML = `<div class="pf-shell"><header class="pf-head"><div><div class="eyebrow">${esc(POSNAME[row.pos] || row.pos)} · ${esc(club)}</div><h2>${esc(row.p.name)}</h2><div class="pf-sub">Age ${row.age} · ability ${row.ability} · potential ${row.potential} · ${row.pool ? 'free agent' : money(row.price)} · ${f1(row.wage)}k a week</div></div><button type="button" id="pfClose" class="pf-x-btn" aria-label="${inline ? 'Back to the list' : 'Close the profile'}">${inline ? '← Back to the list' : 'Close ✕'}</button></header>
         <nav class="pf-tabs" role="tablist">${TABS.map(([k, n]) => `<button type="button" role="tab" data-pftab="${k}" class="${state.tab === k ? 'on' : ''}">${n}</button>`).join('')}</nav><div class="pf-body">${body}</div></div>`;
       host.querySelector('#pfClose').addEventListener('click', close);
-      host.querySelectorAll('[data-pftab]').forEach((b) => b.addEventListener('click', () => { state.tab = b.dataset.pftab; draw(); host.scrollTop = 0; }));
+      host.querySelectorAll('[data-pftab]').forEach((b) => b.addEventListener('click', () => { state.tab = b.dataset.pftab; draw(); if (!inline) host.scrollTop = 0; }));
       const sd = host.querySelector('#pfSameDiv'); if (sd) sd.addEventListener('change', () => { state.local.sameDiv = sd.checked; draw(); });
       const L = state.local, y = host.querySelector('#pfY'); if (y) y.addEventListener('change', () => { L.y = y.value; draw(); });
       const sc = host.querySelector('#pfScope'); if (sc) sc.addEventListener('change', () => { L.scope = sc.value; draw(); });
