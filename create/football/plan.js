@@ -73,8 +73,6 @@
       T('shooting', 'Shooting', '', [o('patient', 'Work a better chance', { r: [['team', [E.shoot(-0.5)]]] }), STD('Normal'), o('sight', 'Shoot on sight', { r: [['team', [E.shoot(0.6)]]] })]),
       T('box', 'Bodies in the box', 'More players in the box means more chances, and fewer players covering a counter.', [
         o('few', 'Few', { r: [['mid', [E.runs(-0.5)]]], pos: [['mid', -3, 0]] }), STD('Normal'), o('many', 'Many', { r: [['mid', [E.runs(0.6)]], ['WF', [E.runs(0.4)]]], pos: [['mid', 5, 0]] })]),
-      T('rest', 'Rest defence', 'Who stays back to stop the counter when we attack.', [
-        o('more', 'More stay back', { pos: [['FB', -6, 0], ['DM', -4, 0]] }), STD('Normal'), o('less', 'Fewer stay back', { pos: [['FB', 6, 0], ['DM', 3, 0]] })]),
       T('dribbling', 'Taking players on', '', [o('less', 'Move it quickly', { r: [['att', [E.drib(-0.5)]], ['AM', [E.drib(-0.5)]]] }), STD('Normal'), o('more', 'Take them on', { r: [['att', [E.drib(0.5)]], ['AM', [E.drib(0.5)]]] })]),
     ],
     transDef: [
