@@ -40,6 +40,18 @@
     host.innerHTML = fallbackHtml || '';
   }
 
+  // paying for a player in instalments: what it costs, and what the money would earn in bonds meanwhile
+  const planHtml = (league, deal) => {
+      if (!FM.PAY_PLANS || !deal || deal.fee == null || !(deal.fee > 0)) return '';
+      const cur = deal.plan || 'now', cmp = Object.keys(FM.PAY_PLANS).map((k) => ({ k, a: FM.planAnalysis(league, deal.fee, k) }));
+      return `<div class="rc-form rc-plan"><b>How to pay the fee</b><p class="note">Paying in instalments leaves more of the budget free now, and costs more in all. The board will not let the club owe more than ${FM.money(FM.paymentCap(league))} for players.</p>
+        <div class="tablewrap"><table class="data"><thead><tr><th class="l">Plan</th><th>Now</th><th>Total</th><th>Cost a year</th><th>Bonds would earn</th><th>Net</th></tr></thead><tbody>${cmp.map(({ k, a }) => `<tr class="${k === cur ? 'sel' : ''}"><td class="l"><label><input type="radio" name="rcPlan" data-plan="${k}"${k === cur ? ' checked' : ''}> ${esc(FM.PAY_PLANS[k].label)}</label></td><td>${FM.money(a.first)}</td><td>${FM.money(a.total)}</td><td>${k === 'now' ? '–' : (a.apr * 100).toFixed(1) + '%'}</td><td>${k === 'now' ? '–' : FM.money(a.bondGain)}</td><td class="${a.net >= 0 ? 'up' : 'down'}">${k === 'now' ? '–' : (a.net >= 0 ? '+' : '−') + FM.money(Math.abs(a.net))}</td></tr>`).join('')}</tbody></table></div>
+        <p class="note">"Bonds would earn" is what the money held back would earn if it were put into Treasury notes until each payment falls due (${(cmp[1].a.yield1 * 100).toFixed(2)}% for a year, ${(cmp[1].a.yield2 * 100).toFixed(2)}% for two). "Net" is that less the extra you pay. A plan with a positive net pays for itself; the Bonds page shows the market.</p></div>`;
+    };
+  const offerPlanHtml = (league, o) => {
+      if (!FM.PAY_PLANS) return '';
+      return `<div class="rc-plan-sel"><label>How they pay<select data-oplan="${o.id}">${Object.keys(FM.PAY_PLANS).map((k) => { const a = FM.planAnalysis(league, o.fee, k); return `<option value="${k}">${esc(FM.PAY_PLANS[k].label)}${k === 'now' ? '' : ' (' + FM.money(a.total) + ' in all, ' + FM.money(a.first) + ' now)'}</option>`; }).join('')}</select></label><small>Instalments bring in more in all, but later, and a buyer short of money may not pay.</small></div>`;
+    };
   FM.renderRecruit = function (host, league, h) {
     hooks = h || hooks;
     const t = FM.transfer(league), me = FM.teamById(league, league.userId);
@@ -125,7 +137,7 @@
       const offerHtml = openOffers.filter((o) => FM.teamById(league, o.from)).map((o) => {
         const p = FM.findPlayer(league, o.pid), buyer = FM.teamById(league, o.from);
         return `<div class="rc-offer"><div><b>${esc(buyer.name)}</b> offer <b>${FM.money(o.fee)}</b> for <b>${esc(p.name)}</b> <small>(${p.natural}, ${FM.ageOf(p)}, ability ${FM.abilityOf(p)}, potential ${FM.potentialOf(p)}; worth about ${FM.money(FM.valueOf(p))})</small>${o.status === 'countered' ? ' ' + chip('They raised their offer', 'st-counter') : ''}</div>
-          <div class="rc-offer-actions"><button type="button" class="primary" data-offer="accept" data-id="${o.id}">Accept ${FM.money(o.fee)}</button><button type="button" data-offer="reject" data-id="${o.id}">Reject</button>
+          ${offerPlanHtml(league, o)}<div class="rc-offer-actions"><button type="button" class="primary" data-offer="accept" data-id="${o.id}">Accept ${FM.money(o.fee)}</button><button type="button" data-offer="reject" data-id="${o.id}">Reject</button>
           <label>Ask for £m<input type="number" step="0.1" min="0" value="${(o.status === 'countered' ? o.fee : o.fee * 1.2).toFixed(1)}" data-counter="${o.id}"></label><button type="button" data-offer="counter" data-id="${o.id}">Counter</button></div>
           ${rs.msg['o' + o.id] ? `<p class="rc-msg">${esc(rs.msg['o' + o.id])}</p>` : ''}</div>`;
       }).join('');
@@ -164,6 +176,7 @@
     bind('#rcClub', 'club'); bind('#rcPos', 'pos'); bind('#rcNation', 'nation'); bind('#rcAgeMin', 'ageMin'); bind('#rcAgeMax', 'ageMax'); bind('#rcRating', 'ratingMin'); bind('#rcPot', 'potMin'); bind('#rcPrice', 'priceMax'); bind('#rcWage', 'wageMax'); bind('#rcWageFit', 'wageFit'); bind('#rcFit', 'fit'); bind('#rcSort', 'sort');
     const step = (d) => { const ids = ['all'].concat(universe.map((x) => x.id)); rs.club = ids[(ids.indexOf(rs.club) + d + ids.length) % ids.length]; rs.shown = 25; draw(); };
     const pv = host.querySelector('#rcPrev'), nx = host.querySelector('#rcNext'); if (pv) pv.addEventListener('click', () => step(-1)); if (nx) nx.addEventListener('click', () => step(1));
+    side.querySelectorAll('[data-plan]').forEach((r) => r.addEventListener('change', () => { const out = FM.setPaymentPlan(league, rs.open, r.dataset.plan); if (!out.ok) say(out.text); draw(); }));
     const cl = host.querySelector('#rcClear'); if (cl) cl.addEventListener('click', () => { Object.assign(rs, { q: '', club: 'all', pos: 'all', nation: 'all', ageMin: '', ageMax: '', ratingMin: '', potMin: '', priceMax: '', wageMax: '', wageFit: false, fit: false, sort: 'rating' }); draw(); });
     host.querySelectorAll('[data-open]').forEach((r) => r.addEventListener('click', () => { rs.open = r.dataset.open; rs.bid = null; draw(); const side = host.querySelector('#rcSide'); if (side && side.scrollIntoView) side.scrollIntoView({ block: 'nearest' }); }));
     host.querySelectorAll('[data-offer]').forEach((b) => b.addEventListener('click', () => {
@@ -171,7 +184,7 @@
       const offer = t.offers.find((x) => x.id === id), pl = offer && FM.findPlayer(league, offer.pid), buyer = offer && FM.teamById(league, offer.from);
       const action = b.dataset.offer, asked = counter ? FM.round1 ? FM.round1(counter.value) : Math.round(Number(counter.value) * 10) / 10 : 0;
       const before = offer ? offer.fee : 0;
-      const r = FM.respondOffer(league, id, action, counter ? counter.value : 0);
+      const planSel = host.querySelector('[data-oplan="' + id + '"]'), r = FM.respondOffer(league, id, action, counter ? counter.value : 0, planSel ? planSel.value : 'now');
       const who = buyer ? buyer.name : 'The club', name = pl ? pl.name : 'the player';
       // the answer is shown straight away, at the top, in plain words: accepted, rejected, or a different offer
       let note;
@@ -232,10 +245,10 @@
           <label>Offer (£m)<input id="rcBidFee" type="number" step="0.1" min="0" value="${r1(deal && deal.counter ? deal.counter : ask)}" data-lo="${lo}"></label><button type="button" id="rcBidGo" class="primary">Make the offer</button> <button type="button" id="rcBidCancel">Cancel</button></div>`;
       }
       if (stage === 'counter') action += `<div class="rc-form"><b>${esc(club.name)} want ${FM.money(deal.counter)}</b><div><button type="button" id="rcAcceptCounter" class="primary">Accept ${FM.money(deal.counter)}</button> <button type="button" id="rcRejectCounter">Reject</button> <button type="button" id="rcBidOther">Offer something else</button></div></div>`;
-      if (stage === 'fee_agreed') action += `<div class="rc-form"><div class="rc-scene" id="rcScene"></div><p><b>Fee agreed: ${FM.money(deal.fee)}.</b> ${esc(club.name)} have given you permission to speak to ${esc(p.name.split(' ')[0])}. Press Negotiate to talk wages.</p></div>`;
+      if (stage === 'fee_agreed') action += `<div class="rc-form"><div class="rc-scene" id="rcScene"></div><p><b>Fee agreed: ${FM.money(deal.fee)}.</b> ${esc(club.name)} have given you permission to speak to ${esc(p.name.split(' ')[0])}. Press Negotiate to talk wages.</p></div>${planHtml(league, deal)}`;
       if (stage === 'wage_talks') {
         const hist = (deal.history || []).filter((x) => x.who !== 'club').slice(-6).map((x) => `<div class="rc-bubble ${x.who}"><small>${x.who === 'you' ? 'You' : 'Agent'}</small>${esc(x.text)}</div>`).join('');
-        action += `<div class="rc-form rc-neg"><div class="rc-scene" id="rcScene"></div><b>Wage talks with ${esc(p.name.split(' ')[0])} and his agent</b>
+        action += planHtml(league, deal) + `<div class="rc-form rc-neg"><div class="rc-scene" id="rcScene"></div><b>Wage talks with ${esc(p.name.split(' ')[0])} and his agent</b>
           <p class="note">His wage now is about ${FM.wageOf(p)}k a week. Your wage room is ${FM.wageRoom(league, me.id)}k. The agent has ${deal.patience} round${deal.patience === 1 ? '' : 's'} of patience left.</p>
           <div class="rc-chat">${hist}</div>
           <label>Weekly wage (£k)<input id="rcWage" type="number" step="0.5" min="0" value="${r1(deal.wageCur)}"></label>

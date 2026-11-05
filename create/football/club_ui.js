@@ -97,8 +97,8 @@
   const meter = (label, value, sub) => `<div class="approval-line"><span><b>${esc(label)}</b><small>${esc(FM.approvalBand(value))}${sub ? ' · ' + esc(sub) : ''}</small></span><div class="approval-track"><i style="width:${Math.max(0, Math.min(100, value))}%"></i></div><strong>${Math.round(value)}%</strong></div>`;
 
   // ---------- the books: tables laid out as a company's accounts are ----------
-  const CF_IN = [['tickets', 'Ticket sales'], ['matchday', 'Food, drink and programmes'], ['broadcast', 'Broadcasting rights'], ['sponsor', 'Sponsorship'], ['advert', 'Advertising boards'], ['merch', 'Merchandise'], ['prize', 'League prize money'], ['sales', 'Sale of players'], ['loans', 'Bank loans received'], ['shares', 'Shares issued']];
-  const CF_OUT = [['wages', 'Wages'], ['matchday', 'Matchday running costs'], ['merchCost', 'Cost of merchandise'], ['marketing', 'Marketing'], ['admin', 'Stadium and administration'], ['fees', 'Transfer fees paid'], ['capex', 'Stadium and facilities'], ['loanPay', 'Loan repayments'], ['interest', 'Interest paid'], ['tax', 'Corporation tax'], ['dividends', 'Dividends paid']];
+  const CF_IN = [['tickets', 'Ticket sales'], ['matchday', 'Food, drink and programmes'], ['broadcast', 'Broadcasting rights'], ['sponsor', 'Sponsorship'], ['advert', 'Advertising boards'], ['merch', 'Merchandise'], ['prize', 'League prize money'], ['sales', 'Sale of players'], ['divest', 'Bonds sold or redeemed'], ['loans', 'Bank loans received'], ['shares', 'Shares issued']];
+  const CF_OUT = [['wages', 'Wages'], ['matchday', 'Matchday running costs'], ['merchCost', 'Cost of merchandise'], ['marketing', 'Marketing'], ['admin', 'Stadium and administration'], ['fees', 'Transfer fees paid'], ['invest', 'Bonds bought'], ['capex', 'Stadium and facilities'], ['loanPay', 'Loan repayments'], ['interest', 'Interest paid, net of interest on bonds'], ['tax', 'Corporation tax'], ['dividends', 'Dividends paid']];
   const val = (c, grp, key) => (c[grp][key] || 0);
   FM.bizCashFlowHtml = function (lg) {
     const cols = FM.bizCashFlow(lg), tot = (key, grp) => cols.reduce((a, c) => a + val(c, grp, key), 0);
@@ -155,8 +155,8 @@
     const b = FM.bizBalance(lg), row = (l, v, cls) => `<tr class="${cls || ''}"><td class="l">${l}</td>${cell(v)}</tr>`;
     return `<div class="books-wrap"><table class="books-table"><thead><tr><th class="l">${T('balancesheet', 'Statement of financial position')}</th><th>£</th></tr></thead><tbody>
       <tr class="sec"><td class="l" colspan="2">Non-current assets</td></tr>${row(`Stadium and facilities (net of ${T('depreciation', 'depreciation')})`, b.stadium)}${row(`Player registrations (net of ${T('depreciation', 'depreciation')})`, b.players)}${row('Total non-current assets', b.stadium + b.players, 'tot')}
-      <tr class="sec"><td class="l" colspan="2">Current assets</td></tr>${row('Cash at bank', b.cash)}${row(T('balancesheet', 'Total assets'), b.assets, 'tot key')}
-      <tr class="sec"><td class="l" colspan="2">Current liabilities</td></tr>${row(T('overdraft', 'Bank overdraft'), b.overdraft)}
+      <tr class="sec"><td class="l" colspan="2">Current assets</td></tr>${row('Cash at bank', b.cash)}${b.bonds ? row('Bonds, at market value', b.bonds) : ''}${b.receivables ? row('Owed to the club for players sold', b.receivables) : ''}${row(T('balancesheet', 'Total assets'), b.assets, 'tot key')}
+      <tr class="sec"><td class="l" colspan="2">Current liabilities</td></tr>${row(T('overdraft', 'Bank overdraft'), b.overdraft)}${b.payables ? row('Owed for players bought', b.payables) : ''}
       <tr class="sec"><td class="l" colspan="2">Non-current liabilities</td></tr>${row(T('loans', 'Bank loans'), b.loans)}${row('Total liabilities', b.liabilities, 'tot key')}
       ${row('Net assets (total assets − total liabilities)', b.assets - b.liabilities, 'tot')}
       <tr class="sec"><td class="l" colspan="2">Equity</td></tr>${row(T('shares', 'Share capital'), b.capital)}${row('Share premium', b.premium)}${row(T('shares', 'Retained earnings'), b.retained)}${row(T('balancesheet', 'Total equity'), b.equity, 'tot key')}

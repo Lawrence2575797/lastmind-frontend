@@ -1004,9 +1004,9 @@
   el('injuryTen').addEventListener('click', () => { if (world.match) FM.resolveInjury(world.match); });
 
   // ---------- views and navigation ----------
-  const VIEWS = ['home', 'board', 'league', 'squad', 'recruit', 'analysis', 'workbench', 'reports', 'news', 'preview', 'mp', 'match'];
+  const VIEWS = ['home', 'board', 'bonds', 'league', 'squad', 'recruit', 'analysis', 'workbench', 'reports', 'news', 'preview', 'mp', 'match'];
   const NAV = [];
-  const SCREEN_TITLES = { home: 'Club overview', board: 'The Books', league: 'League centre', squad: 'First-team squad', recruit: 'Recruitment', develop: 'Player development', reports: 'Opposition intelligence', news: 'Football world', analysis: 'Performance analysis', preview: 'Match preview', mp: 'Playing with other managers' };
+  const SCREEN_TITLES = { home: 'Club overview', board: 'The Books', league: 'League centre', squad: 'First-team squad', recruit: 'Recruitment', bonds: 'The bond market', develop: 'Player development', reports: 'Opposition intelligence', news: 'Football world', analysis: 'Performance analysis', preview: 'Match preview', mp: 'Playing with other managers' };
   function demoMatchPlayed() {
     return !!(DEMO_MODE && world.league && world.league.fixtures.some((f) => f.played && (f.homeId === world.league.userId || f.awayId === world.league.userId)));
   }
@@ -1097,6 +1097,7 @@
     else if (v === 'league') renderLeague();
     else if (v === 'squad') renderSquad();
     else if (v === 'recruit') FM.renderRecruit(el('view-recruit'), world.league, { save: saveSoon, openSquad: () => setView('squad') });
+    else if (v === 'bonds') FM.renderBonds(el('view-bonds'), world.league, { save: saveSoon });
     else if (v === 'analysis') {
       const av = el('view-analysis');
       if (FM.preseasonPending(world.league)) {
@@ -1157,6 +1158,7 @@
     host.innerHTML = `<button data-top="home" class="${world.view === 'home' ? 'on' : ''}">Home</button>
       ${lg.mp && lg.mp.kind === 'match' ? '' : `<button data-flow="analysis" class="${flowOn('analysis')}"${FM.preseasonPending(lg) ? ' disabled title="Analysis opens after the pre-season match"' : ''}>Analysis</button>`}<button data-flow="prepare" class="${flowOn('prepare')}">Tactics</button><button data-flow="test" class="${flowOn('test')}">Test phases</button>
       ${lg.mp && lg.mp.kind === 'match' ? '' : `<button data-top="board" class="${world.view === 'board' ? 'on' : ''}">The Books</button>`}
+      ${lg.mp ? '' : `<button data-top="bonds" class="${world.view === 'bonds' ? 'on' : ''}">Bonds</button>`}
       <button data-top="squad" class="${world.view === 'squad' ? 'on' : ''}">Squad</button>
       ${lg.mp ? '' : `<button data-top="recruit" class="${world.view === 'recruit' ? 'on' : ''}">Recruitment</button>`}
       ${lg.mp && lg.mp.kind === 'match' ? '' : `<button data-top="news" class="${world.view === 'news' ? 'on' : ''}">News</button>`}

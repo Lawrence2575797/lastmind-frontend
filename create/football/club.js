@@ -119,6 +119,10 @@
     if (!b.board) b.board = { kind: 'steady', legacy: true, pct: 100, reserve: 0, briefSeen: true, owner: null, history: [] };
     if (!b.flags) b.flags = {};
     if (!b.pending.capex) b.pending.capex = 0;
+    if (!b.pending.invest) b.pending.invest = 0;
+    if (!b.pending.divest) b.pending.divest = 0;
+    if (!b.payables) b.payables = [];     // what the club still owes for players bought in instalments
+    if (!b.receivables) b.receivables = [];   // what is still to come from players sold in instalments
     if (!b.equity) {
       const debt = b.loans.reduce((a, l) => a + l.balance, 0), players = b.signings.reduce((a, s) => a + (s.sold ? 0 : s.book), 0);
       const net = b.ledger.reduce((a, e) => a + e.pl.net, 0);
@@ -228,7 +232,7 @@
     const interestLoans = b.loans.reduce((a, l) => a + l.balance * l.rate / ROUNDS, 0), interestOd = od * odRate / ROUNDS;
     const outflow = {
       wages: wageBill(lg), matchday: home ? (RUN_FIXED + RUN_PER_HEAD * att) * eff.run : 0, marketing: b.marketing || 0, admin: ADMIN + eff.upkeep + leverCost(b), merchCost: merch * MERCH_COST,
-      loanPay: b.loans.reduce((a, l) => a + Math.min(l.balance, l.perRound), 0), interest: interestLoans + interestOd,
+      loanPay: b.loans.reduce((a, l) => a + Math.min(l.balance, l.perRound), 0), interest: interestLoans + interestOd - (FM.bonds ? FM.bonds.couponPerRound(b) : 0),   // interest received on bonds comes off the interest paid
     };
     return { att, d, inflow, outflow };
   }
@@ -243,8 +247,8 @@
     const opening = b.lastClose;
     const dep = signingDep(b) + stadiumDep(b), depStad = stadiumDep(b);
     // the books for the round
-    const inflow = Object.assign({}, l.inflow, { sales: p.sales, loans: p.loans, shares: p.shares });
-    const outflow = Object.assign({}, l.outflow, { fees: p.fees, capex: p.capex, tax: 0, dividends: 0 });
+    const inflow = Object.assign({}, l.inflow, { sales: p.sales, loans: p.loans, shares: p.shares, divest: p.divest || 0 });
+    const outflow = Object.assign({}, l.outflow, { fees: p.fees, capex: p.capex, invest: p.invest || 0, tax: 0, dividends: 0 });
     const seasonRows = b.ledger.filter((e) => e.season === lg.season);
     const revenue = l.inflow.tickets + l.inflow.matchday + l.inflow.broadcast + l.inflow.sponsor + l.inflow.advert + l.inflow.merch + l.inflow.prize;
     const cos = l.outflow.matchday + l.outflow.merchCost;
@@ -283,7 +287,7 @@
     };
     b.ledger.push(entry);
     b.lastClose = b.cash;
-    b.pending = { fees: 0, sales: 0, loans: 0, shares: 0, saleProfit: 0, capex: 0 };
+    b.pending = { fees: 0, sales: 0, loans: 0, shares: 0, saleProfit: 0, capex: 0, invest: 0, divest: 0 };
     // the signings lose their book value as the years go by
     b.signings.forEach((s) => { if (!s.sold && s.book > 0) s.book = Math.max(0, Math.round(s.book - s.fee / (s.years * ROUNDS))); });
     // building work moves on
@@ -298,6 +302,8 @@
     if (last) b.seasons.push({ season: lg.season, pos: userPos(lg), revenue: seasonSum(b, lg.season, 'revenue'), net: seasonSum(b, lg.season, 'net'), close: b.cash, dividend });
     updateApproval(lg, b, dividend, last);
     offersAfterRound(lg, b, fx);
+    settlePlans(lg, b);
+    if (FM.bonds) { try { FM.bonds.afterRound(lg, b); } catch (e) { console.error('The bond market:', e); } }
     FM.bizSyncBudget(lg);
     financeNews(lg, b, entry, dividend);
     confidenceCheck(lg, b, fx);
@@ -393,21 +399,44 @@
     t.budget[lg.userId] = Math.round(pool * pct / 100 / 1e5) / 10;   // £m, to one decimal
   };
   // Called by the transfer code when a player moves between clubs.
-  FM.bizTransfer = function (lg, p, from, to, fee, wage, years) {
+  // A payment plan: the fee is paid in parts (the first now), and the whole plan costs a little more than paying at once. parts is [[share, matchdays from now], ...].
+  FM.PAY_PLANS = {
+    now: { label: 'All at once', premium: 0, parts: [[1, 0]] },
+    two: { label: 'Two payments: half now, half in 14 matchdays', premium: 0.03, parts: [[0.5, 0], [0.5, 14]] },
+    three: { label: 'Three payments: a third now, then every 14 matchdays', premium: 0.07, parts: [[1 / 3, 0], [1 / 3, 14], [1 / 3, 28]] },
+    four: { label: 'Four payments: a quarter now, then every 14 matchdays', premium: 0.11, parts: [[0.25, 0], [0.25, 14], [0.25, 28], [0.25, 42]] },
+  };
+  FM.bizTransfer = function (lg, p, from, to, fee, wage, years, planId) {
     if (lg.mp && lg.mp.kind === 'match') return;
-    const b = FM.biz(lg), me = lg.userId, pay = Math.round(fee * 1e6);
+    const b = FM.biz(lg), me = lg.userId, plan = FM.PAY_PLANS[planId] || FM.PAY_PLANS.now, total = Math.round(fee * (1 + plan.premium) * 1e6), played = b.ledger.length;
+    const first = Math.round(total * plan.parts[0][0]);
     if (to && to.id === me) {
-      b.cash -= pay; b.pending.fees += pay;
-      b.signings.push({ pid: p.id, name: p.name, season: lg.season, round: lg.fixtures.filter((f) => f.played && (f.homeId === me || f.awayId === me)).length, fee: pay, wage: wage != null ? wage : FM.wageOf(p), years: years || 3, book: pay, from: from ? from.name : '' });
+      b.cash -= first; b.pending.fees += first;
+      b.signings.push({ pid: p.id, name: p.name, season: lg.season, round: lg.fixtures.filter((f) => f.played && (f.homeId === me || f.awayId === me)).length, fee: total, wage: wage != null ? wage : FM.wageOf(p), years: years || 3, book: total, from: from ? from.name : '', plan: planId || 'now' });
+      plan.parts.slice(1).forEach(([share, after], i) => { b.payables.push({ id: 'P' + (b.seq++), pid: p.id, name: p.name, amount: Math.round(total * share), due: played + after, to: from ? from.name : '' }); });
     } else if (from && from.id === me) {
       const s = b.signings.find((x) => x.pid === p.id && !x.sold), book = s ? s.book : 0;
-      b.cash += pay; b.pending.sales += pay; b.pending.saleProfit += pay - book;
-      if (s) s.sold = { fee: pay, season: lg.season };
+      b.cash += first; b.pending.sales += first; b.pending.saleProfit += total - book;
+      plan.parts.slice(1).forEach(([share, after]) => { b.receivables.push({ id: 'R' + (b.seq++), pid: p.id, name: p.name, amount: Math.round(total * share), due: played + after, from: to ? to.name : '', buyerId: to ? to.id : null }); });
+      if (s) s.sold = { fee: total, season: lg.season };
     }
     FM.bizSyncBudget(lg);
   };
+  // What is owed for players, and what is owed to the club, falls due as matchdays are played.
+  function settlePlans(lg, b) {
+    const played = b.ledger.length, t = FM.transfer ? FM.transfer(lg) : null;
+    b.payables = b.payables.filter((x) => { if (x.due > played) return true; b.cash -= x.amount; b.pending.fees += x.amount; return false; });
+    b.receivables = b.receivables.filter((x) => {
+      if (x.due > played) return true;
+      const bk = t && t.backing && x.buyerId ? t.backing[x.buyerId] : null, risk = bk ? (bk.kind === 'debt' ? 0.1 : bk.kind === 'tight' ? 0.04 : 0.005) : 0.01;
+      const roll = FM.mulberry32((lg.seed || 1) + (lg.runSeed || 0) + hashStr(x.id) + played * 977)();
+      if (roll < risk) { b.pending.saleProfit -= x.amount; if (FM.pushNews) FM.pushNews(lg, { round: played - 1, day: lg.day, kind: 'Transfer', headline: x.from + ' fail to pay the instalment for ' + x.name, body: 'The payment of ' + gbp(x.amount) + ' due from ' + x.from + ' for ' + x.name + ' has not arrived, and the club has had to write it off.', mine: true }); return false; }
+      b.cash += x.amount; b.pending.sales += x.amount; return false;
+    });
+  }
+  const hashStr = (s) => { let h = 0; for (let i = 0; i < String(s).length; i++) h = (h * 31 + String(s).charCodeAt(i)) | 0; return Math.abs(h); };
   // A new season: the figures reset, the cash, loans, sponsors and the squad's book values carry on.
-  FM.bizNewSeason = function (lg) {
+  const baseNewSeason = function (lg) {
     if (!lg.biz) return;
     const b = FM.biz(lg); b.season = lg.season; b.lastShare = b.shares.price;
     b.sponsors = b.sponsors.filter((s) => s.left > 0); b.boards = b.boards.filter((s) => s.left > 0);
@@ -468,8 +497,11 @@
     const cash = Math.max(0, Math.round(b.cash)), overdraft = Math.max(0, Math.round(-b.cash)), loans = Math.round(loanBalance(b));
     const retained = Math.round(b.equity.reserves + b.ledger.reduce((a, e) => a + e.pl.net, 0) + (b.pending.saleProfit || 0) - b.dividendsPaid);
     const capital = Math.round(b.equity.capital), premium = Math.round(b.equity.premium);
-    const assets = stadium + players + cash, liabilities = overdraft + loans, equity = capital + premium + retained;
-    return { stadium, players, cash, overdraft, loans, capital, premium, retained, assets, liabilities, equity, balanced: Math.abs(assets - liabilities - equity) <= 60 };
+    const bd = FM.bonds ? FM.bonds.balance(lg) : { value: 0, cost: 0, realised: 0 }, bonds = Math.round(bd.value);
+    const payables = Math.round((b.payables || []).reduce((a, x) => a + x.amount, 0)), receivables = Math.round((b.receivables || []).reduce((a, x) => a + x.amount, 0));
+    const retained2 = retained + Math.round(bd.value - bd.cost + bd.realised);   // gains and losses on bonds, held and sold
+    const assets = stadium + players + cash + bonds + receivables, liabilities = overdraft + loans + payables, equity = capital + premium + retained2;
+    return { stadium, players, cash, overdraft, loans, capital, premium, retained: retained2, bonds, payables, receivables, assets, liabilities, equity, balanced: Math.abs(assets - liabilities - equity) <= 60 };
   };
 
   // ---------- sponsors and advertisers: they come to you, in the news, and they will talk about the price ----------
@@ -594,8 +626,8 @@
       l.inflow.prize = r === ROUNDS ? prizeFor(lg) : 0;   // at today's league position
       b.sponsors = saveSp; b.boards = saveBo; b.loans = saveLn; b.cash = saveCash;
       // what has been signed, sold, borrowed or built since the last matchday goes into the first matchday still to come
-      const pend = firstForecast ? b.pending : { sales: 0, loans: 0, shares: 0, fees: 0, capex: 0 }; firstForecast = false;
-      const inflow = Object.assign({}, l.inflow, { sales: pend.sales, loans: pend.loans, shares: pend.shares }), outflow = Object.assign({}, l.outflow, { fees: pend.fees, capex: pend.capex || 0, tax: 0, dividends: 0 });
+      const pend = firstForecast ? b.pending : { sales: 0, loans: 0, shares: 0, fees: 0, capex: 0, invest: 0, divest: 0 }; firstForecast = false;
+      const inflow = Object.assign({}, l.inflow, { sales: pend.sales, loans: pend.loans, shares: pend.shares, divest: pend.divest || 0 }), outflow = Object.assign({}, l.outflow, { fees: pend.fees, capex: pend.capex || 0, invest: pend.invest || 0, tax: 0, dividends: 0 });
       const revenue = l.inflow.tickets + l.inflow.matchday + l.inflow.broadcast + l.inflow.sponsor + l.inflow.advert + l.inflow.merch + l.inflow.prize;
       const pbt = revenue - (l.outflow.matchday + l.outflow.merchCost) - (l.outflow.wages + l.outflow.marketing + l.outflow.admin) - depPerRound(b) - l.outflow.interest;
       seasonPbtSoFar += pbt;
@@ -679,6 +711,7 @@
   };
   // The start of a new season: the owners' funding for the year follows who is behind the club and how the finances were looked after, and now and then a takeover happens.
   FM.bizNewSeason = function (lg) {
+    baseNewSeason(lg);
     const b = FM.biz(lg), bd = b.board; if (bd.legacy || lg.mp) return null;
     const rng = FM.mulberry32((lg.seed || 1) + (lg.runSeed || 0) * 911 + lg.season * 7727 + 5), base = LVL_BASE[lg.divisionLevel || 1] || LVL_BASE[1], round = (v) => Math.round(v / 1e5) * 1e5;
     const put = (amount) => { b.cash += amount; b.equity.premium += amount; b.pending.shares += amount; };

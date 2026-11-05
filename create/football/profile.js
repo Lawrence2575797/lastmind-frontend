@@ -64,7 +64,7 @@
 
   // ---------- drawing ----------
   const W = 640, H = 360;
-  const niceTicks = (lo, hi, n) => { if (!(hi > lo)) { hi = lo + 1; } const span = hi - lo, step0 = span / Math.max(2, n), mag = Math.pow(10, Math.floor(Math.log10(step0))), norm = step0 / mag, step = (norm < 1.5 ? 1 : norm < 3 ? 2 : norm < 7 ? 5 : 10) * mag, out = []; for (let v = Math.ceil(lo / step) * step; v <= hi + 1e-9; v += step) out.push(Math.round(v / step) * step); return out; };
+  const niceTicks = (lo, hi, n) => { if (!(hi - lo > 1e-9)) { hi = lo + 1; } const span = hi - lo, step0 = span / Math.max(2, n), mag = Math.pow(10, Math.floor(Math.log10(step0))), norm = step0 / mag, step = (norm < 1.5 ? 1 : norm < 3 ? 2 : norm < 7 ? 5 : 10) * mag, out = []; for (let v = Math.ceil(lo / step) * step; v <= hi + 1e-9; v += step) out.push(Math.round(v / step) * step); return out; };
   const tickLabel = (v) => (Math.abs(v) >= 100 ? String(Math.round(v)) : Math.abs(v) >= 10 ? f1(v).replace(/\.0$/, '') : String(Math.round(v * 100) / 100));
   function frame(w, h, body, cls) { return `<svg class="pf-svg ${cls || ''}" viewBox="0 0 ${w} ${h}" role="img" preserveAspectRatio="xMidYMid meet">${body}</svg>`; }
   // a scatter plot with an optional fitted line and prediction band; points are {x, y, k: 'peer'|'mine'|'hl', t: tooltip}
@@ -73,7 +73,7 @@
     const xs = points.map((p) => p.x).filter(Number.isFinite), ys = points.map((p) => p.y).filter(Number.isFinite); if (!xs.length) return '<p class="note">Nothing to plot.</p>';
     let x0 = Math.min.apply(null, xs), x1 = Math.max.apply(null, xs), y0 = Math.min.apply(null, ys), y1 = Math.max.apply(null, ys);
     if (o.line) { y0 = Math.min(y0, o.line.a + o.line.b * x0, o.line.a + o.line.b * x1); y1 = Math.max(y1, o.line.a + o.line.b * x0, o.line.a + o.line.b * x1); }
-    const px = (x1 - x0) * 0.04 || 1, py = (y1 - y0) * 0.06 || 1; x0 -= px; x1 += px; y0 -= py; y1 += py;
+    const px = (x1 - x0) > 1e-6 ? (x1 - x0) * 0.04 : 1, py = (y1 - y0) > 1e-6 ? (y1 - y0) * 0.06 : 1; x0 -= px; x1 += px; y0 -= py; y1 += py;
     const X = (v) => ml + (v - x0) / (x1 - x0) * (w - ml - mr), Y = (v) => h - mb - (v - y0) / (y1 - y0) * (h - mt - mb);
     const xf = o.xFmt || tickLabel, yf = o.yFmt || tickLabel;
     let g = '';
@@ -102,13 +102,14 @@
   function lines(series, o) {
     o = o || {}; const w = o.w || W, h = o.h || 300, ml = 52, mr = 16, mt = 14, mb = 40, all = [].concat.apply([], series.map((s) => s.pts)).filter((p) => Number.isFinite(p[1]));
     if (!all.length) return '<p class="note">Nothing to plot.</p>';
-    let x0 = Math.min.apply(null, all.map((p) => p[0])), x1 = Math.max.apply(null, all.map((p) => p[0])), y0 = o.y0 != null ? o.y0 : Math.min.apply(null, all.map((p) => p[1])), y1 = Math.max.apply(null, all.map((p) => p[1])); if (x1 === x0) x1 = x0 + 1; const py = (y1 - y0) * 0.08 || 1; if (o.y0 == null) y0 -= py; y1 += py;
+    let x0 = o.x0 != null ? o.x0 : Math.min.apply(null, all.map((p) => p[0])), x1 = o.x1 != null ? o.x1 : Math.max.apply(null, all.map((p) => p[0])), y0 = o.y0 != null ? o.y0 : Math.min.apply(null, all.map((p) => p[1])), y1 = o.y1 != null ? o.y1 : Math.max.apply(null, all.map((p) => p[1])); if (o.marks) o.marks.forEach((mk) => { y0 = Math.min(y0, mk.y); y1 = Math.max(y1, mk.y); }); if (x1 === x0) x1 = x0 + 1; const py = (y1 - y0) > 1e-6 ? (y1 - y0) * 0.08 : 1; if (o.y0 == null) y0 -= py; y1 += py;
     const X = (v) => ml + (v - x0) / (x1 - x0) * (w - ml - mr), Y = (v) => h - mb - (v - y0) / (y1 - y0) * (h - mt - mb); let g = '';
     niceTicks(x0, x1, 8).forEach((v) => { g += `<line x1="${X(v)}" x2="${X(v)}" y1="${mt}" y2="${h - mb}" class="pf-grid"/><text x="${X(v)}" y="${h - mb + 16}" class="pf-tick" text-anchor="middle">${esc((o.xFmt || tickLabel)(v))}</text>`; });
     niceTicks(y0, y1, 6).forEach((v) => { g += `<line x1="${ml}" x2="${w - mr}" y1="${Y(v)}" y2="${Y(v)}" class="pf-grid"/><text x="${ml - 6}" y="${Y(v) + 4}" class="pf-tick" text-anchor="end">${esc((o.yFmt || tickLabel)(v))}</text>`; });
     g += `<text x="${(ml + w - mr) / 2}" y="${h - 6}" class="pf-axis" text-anchor="middle">${esc(o.xl || '')}</text><text transform="translate(14 ${(mt + h - mb) / 2}) rotate(-90)" class="pf-axis" text-anchor="middle">${esc(o.yl || '')}</text>`;
-    series.forEach((s) => { const pts = s.pts.filter((p) => Number.isFinite(p[1])); if (s.band) g += `<polygon points="${pts.map((p) => X(p[0]).toFixed(1) + ',' + Y(p[1] + s.band).toFixed(1)).join(' ')} ${pts.slice().reverse().map((p) => X(p[0]).toFixed(1) + ',' + Y(p[1] - s.band).toFixed(1)).join(' ')}" class="pf-band"/>`; g += `<polyline points="${pts.map((p) => X(p[0]).toFixed(1) + ',' + Y(p[1]).toFixed(1)).join(' ')}" class="pf-line ${s.cls || ''}"/>`; if (s.dots) pts.forEach((p) => { g += `<circle cx="${X(p[0]).toFixed(1)}" cy="${Y(p[1]).toFixed(1)}" r="3" class="pf-dot ${s.cls || ''}"><title>${esc(s.label + ': ' + f1(p[1]))}</title></circle>`; }); });
-    const lx = ml + 8; series.forEach((s, i) => { g += `<line x1="${lx}" x2="${lx + 18}" y1="${mt + 8 + i * 15}" y2="${mt + 8 + i * 15}" class="pf-line ${s.cls || ''}"/><text x="${lx + 24}" y="${mt + 12 + i * 15}" class="pf-tick">${esc(s.label)}</text>`; });
+    series.forEach((s) => { const pts = s.pts.filter((p) => Number.isFinite(p[1])); if (s.band) g += `<polygon points="${pts.map((p) => X(p[0]).toFixed(1) + ',' + Y(p[1] + s.band).toFixed(1)).join(' ')} ${pts.slice().reverse().map((p) => X(p[0]).toFixed(1) + ',' + Y(p[1] - s.band).toFixed(1)).join(' ')}" class="pf-band"/>`; g += `<polyline points="${pts.map((p) => X(p[0]).toFixed(1) + ',' + Y(p[1]).toFixed(1)).join(' ')}" class="pf-line ${s.cls || ''}"${s.dash ? ' stroke-dasharray="6 4"' : ''}${s.opacity ? ' opacity="' + s.opacity + '"' : ''}/>`; if (s.dots) pts.forEach((p) => { g += `<circle cx="${X(p[0]).toFixed(1)}" cy="${Y(p[1]).toFixed(1)}" r="3" class="pf-dot ${s.cls || ''}"><title>${esc(s.label + ': ' + f1(p[1]))}</title></circle>`; }); });
+    (o.marks || []).forEach((mk) => { if (mk.guide) g += `<line x1="${X(mk.x)}" x2="${X(mk.x)}" y1="${Y(mk.y)}" y2="${h - mb}" class="pf-guide"/><line x1="${ml}" x2="${X(mk.x)}" y1="${Y(mk.y)}" y2="${Y(mk.y)}" class="pf-guide"/>`; g += `<circle cx="${X(mk.x).toFixed(1)}" cy="${Y(mk.y).toFixed(1)}" r="5.5" class="pf-dot ${mk.cls || 'hl'}"><title>${esc(mk.t || '')}</title></circle>`; if (mk.label) g += `<text x="${clamp(X(mk.x) + 9, ml, w - 120)}" y="${Y(mk.y) - 8}" class="pf-hl">${esc(mk.label)}</text>`; });
+    const lx = o.legendRight ? w - mr - 170 : ml + 8; series.forEach((s, i) => { g += `<line x1="${lx}" x2="${lx + 18}" y1="${mt + 8 + i * 15}" y2="${mt + 8 + i * 15}" class="pf-line ${s.cls || ''}"${s.dash ? ' stroke-dasharray="6 4"' : ''}/><text x="${lx + 24}" y="${mt + 12 + i * 15}" class="pf-tick">${esc(s.label)}</text>`; });
     return frame(w, h, g, 'pf-lines');
   }
   function bars(items, o) {
@@ -355,5 +356,6 @@
     };
     draw(); return { close, redraw: draw };
   };
+  FM.charts = { scatter, lines, bars, radar, niceTicks, tickLabel, frame, esc };
   FM.profileData = { marketRows, METLIST, fit, predict, projection };
 })();

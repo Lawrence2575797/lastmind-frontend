@@ -948,6 +948,8 @@
   .pf-svg { width: 100%; height: auto; display: block; } .pf-grid { stroke: rgba(241,234,214,.1); stroke-width: 1; } .pf-ring { fill: none; stroke: rgba(241,234,214,.14); } .pf-tick { fill: rgba(241,234,214,.7); font-size: 11px; font-family: var(--sans); } .pf-axis { fill: rgba(241,234,214,.85); font-size: 11.5px; font-weight: 700; font-family: var(--sans); } .pf-val { fill: var(--cream); font-size: 11.5px; font-weight: 700; font-family: var(--sans); } .pf-hl { fill: var(--gold); font-size: 12px; font-weight: 700; font-family: var(--sans); }
   .pf-pt.peer { fill: rgba(241,234,214,.35); } .pf-pt.mine { fill: #6fb7ff; stroke: #0d1210; } .pf-pt.hl { fill: var(--gold); stroke: #fff; stroke-width: 1.5; } .pf-fit { stroke: #7fe3a6; stroke-width: 2; stroke-dasharray: 5 3; } .pf-band { fill: rgba(127,227,166,.12); }
   .pf-poly { fill-opacity: .18; stroke-width: 2; } .pf-poly.avg, .pf-dot.avg { fill: #9aa8a0; stroke: #9aa8a0; } .pf-poly.mine, .pf-dot.mine { fill: #6fb7ff; stroke: #6fb7ff; } .pf-poly.hl, .pf-dot.hl { fill: var(--gold); stroke: var(--gold); }
+  .pf-guide { stroke: rgba(241,234,214,.35); stroke-width: 1; stroke-dasharray: 2 3; }
+  .pf-line.warn { stroke: #e77a6a; } .pf-line.good { stroke: #7fe3a6; } .pf-line.gold { stroke: var(--gold); } .pf-line.blue { stroke: #6fb7ff; }
   .pf-line { fill: none; stroke-width: 2.4; } .pf-line.avg { stroke: #9aa8a0; } .pf-line.mine { stroke: #6fb7ff; } .pf-line.hl { stroke: var(--gold); }
   .pf-key { display: flex; gap: 16px; font-size: .8rem; flex-wrap: wrap; } .pf-key span::before { content: ''; display: inline-block; width: 10px; height: 10px; margin-right: 6px; background: #9aa8a0; } .pf-key .mine::before { background: #6fb7ff; } .pf-key .hl::before { background: var(--gold); }
   .pf-track { fill: rgba(241,234,214,.08); } .pf-bar { fill: #9aa8a0; } .pf-bar.good { fill: #7fe3a6; } .pf-bar.bad { fill: #e77a6a; } .pf-bar.mine { fill: #6fb7ff; } .pf-bar.hl { fill: var(--gold); } .pf-mid { stroke: rgba(241,234,214,.45); stroke-dasharray: 3 2; }
@@ -960,6 +962,14 @@
   .pf-meter { position: relative; height: 8px; background: linear-gradient(90deg, rgba(231,122,106,.5), rgba(241,234,214,.12) 50%, rgba(127,227,166,.5)); } .pf-meter i { position: absolute; top: -4px; width: 4px; height: 16px; background: var(--cream); transform: translateX(-2px); }
   .pf-row.good .pf-meter i { background: #7fe3a6; } .pf-row.bad .pf-meter i { background: #e77a6a; } b.bad { color: #e77a6a; }
   @media (max-width: 760px) { .pf-two { grid-template-columns: 1fr; } .pf-row { grid-template-columns: 1fr; gap: 4px; } .pf-shell { padding: 12px 12px 60px; } }
+
+  /* the bond market */
+  .bn-wrap { display: grid; gap: 14px; } .bn-head h2 { margin: 2px 0 4px; font: 700 1.6rem var(--serif); }
+  .bn-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; } .bn-kpis div { background: rgba(255,255,255,.035); border: 1px solid var(--line); padding: 10px 14px; display: grid; gap: 2px; } .bn-kpis span { font-size: .68rem; letter-spacing: .08em; text-transform: uppercase; opacity: .65; } .bn-kpis b { font: 700 1.25rem var(--sans); } .bn-kpis small { opacity: .65; }
+  .bn-table td, .bn-table th { text-align: right; padding: 8px 10px; } .bn-table td.l, .bn-table th.l { text-align: left; } .bn-table tr.sel td { background: rgba(242,193,78,.08); } .bn-table tbody tr[data-sel] { cursor: pointer; } .bn-table small { opacity: .65; }
+  .bn-table .up, .bn-wrap .up { color: #7fe3a6; } .bn-table .down, .bn-wrap .down { color: #e77a6a; }
+  .bn-buy { min-width: 250px; } .bn-buy input { width: 110px; background: #1b2420; color: var(--cream); border: 1px solid var(--line); padding: 6px 8px; font: inherit; } .bn-buy button { margin-left: 6px; } .bn-quote { font-size: .72rem; opacity: .7; margin-top: 4px; text-align: right; }
+  .bn-why { font-size: .88rem; line-height: 1.55; } .bn-shock { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; } .bn-shock input { width: 260px; accent-color: var(--gold); } .bn-log div { padding: 5px 0; border-bottom: 1px solid var(--line); font-size: .85rem; } .bn-log small { opacity: .6; margin-right: 8px; }
   .rc-window { margin: 4px 0 12px; padding: 10px 14px; border-left: 4px solid; font-size: .86rem; line-height: 1.5; background: rgba(255,255,255,.05); } .rc-window.open { border-color: #50b46e; } .rc-window.shut { border-color: #d6a446; }
   .rc-notice { margin: 4px 0 12px; padding: 12px 14px; border-radius: 0; font-weight: 700; border-left: 4px solid; background: rgba(255,255,255,.07); } .rc-notice.ok { border-color: #50b46e; background: rgba(80,180,110,.15); } .rc-notice.no { border-color: #d65046; background: rgba(214,80,70,.15); } .rc-notice.counter { border-color: #e6b43c; background: rgba(230,180,60,.15); }
   .nw-kind { display: inline-block; padding: 2px 9px; border-radius: 0; font-size: .72rem; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; background: rgba(255,255,255,.12); }
@@ -1196,6 +1206,7 @@
   <section id="view-league" hidden></section>
   <section id="view-squad" hidden></section>
   <section id="view-recruit" hidden></section>
+  <section id="view-bonds" hidden></section>
   <section id="view-analysis" hidden></section>
   <section id="view-workbench" hidden></section>
   <section id="view-reports" hidden></section>
@@ -1298,13 +1309,15 @@
 <script src="/create/football/lab_replay.js?v=20261106i-r2"></script>
 <script src="/create/football/lab_board.js?v=20261202a-r2"></script>
 <script src="/create/football/lab_results.js?v=20261202a-r2"></script>
-<script src="/create/football/transfers.js?v=20261107c"></script>
+<script src="/create/football/transfers.js?v=20261108a"></script>
 <script src="/create/football/prior.js?v=20261108b"></script>
-<script src="/create/football/profile.js?v=20261108b"></script>
-<script src="/create/football/recruit.js?v=20261108a"></script>
+<script src="/create/football/profile.js?v=20261108d"></script>
+<script src="/create/football/bonds.js?v=20261108b"></script>
+<script src="/create/football/bonds_ui.js?v=20261108b"></script>
+<script src="/create/football/recruit.js?v=20261108b"></script>
 <script src="/create/football/development.js?v=20261101a"></script>
-<script src="/create/football/club.js?v=20261106c"></script>
-<script src="/create/football/club_ui.js?v=20261106b"></script>
+<script src="/create/football/club.js?v=20261108a"></script>
+<script src="/create/football/club_ui.js?v=20261108a"></script>
 <script src="/create/football/controls.js?v=20261101a"></script>
 <script src="/create/football/recovery.js?v=20261122a-r2"></script>
 <script src="/create/football/review_teach.js?v=20261110b-r2"></script>
@@ -1368,6 +1381,6 @@
 <script src="/create/football/stadium.js?v=20261028b-r2"></script>
 <script src="/create/football/playermodel.js?v=20261028c-r2"></script>
 <script src="/create/football/view3d.js?v=20261029pjkmnrstu-r2"></script>
-<script src="/create/football/main.js?v=20261108a"></script>
+<script src="/create/football/main.js?v=20261108b"></script>
 </body>
 </html>
