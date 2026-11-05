@@ -2889,6 +2889,7 @@
     if (!DEMO_MODE && FM.ensurePreseason) FM.ensurePreseason(world.league);
     { const sk = ngSkin && ngSkin.value(); if (sk) FM.applySkin(world.league, sk); }   // a league setting from a period of history, if one was chosen (the stories already written are renamed)
     if (FM.transfer) FM.transfer(world.league);   // the opening offers are made now and saved with the game, not when a screen first asks
+    if (FM.announceBacking) { try { FM.announceBacking(world.league); } catch (e) { /* no news this time */ } }   // the clubs with new owners, in debt or banned from signing players
     if (FM.biz) { FM.biz(world.league); FM.bizSyncBudget(world.league); }
     await FM.playFriendlies(world.league, (i, n) => { btn.textContent = 'Playing pre-season friendlies (' + i + ' of ' + n + ')...'; });
     FM.saveLeague(world.league);

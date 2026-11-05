@@ -56,15 +56,55 @@
   const shut = (league) => { const w = FM.transferWindow(league); return w.open ? null : { ok: false, text: 'The transfer window is shut, so no deal can be done now. ' + w.text.replace(/^The window is closed\. /, '') }; };
   const avgRating = (team) => { const ps = team.players && team.players.length ? team.players : team.squad; return ps.length ? ps.reduce((a, q) => a + FM.playerRating(q), 0) / ps.length : 0; };
 
+  // ---------- the money behind every club ----------
+  // Every club is in one of the same situations as the manager's (a huge takeover, a takeover, steady backing, short of money, deep in debt, a frozen bank balance or a transfer
+  // ban), drawn afresh each season and scaled to its division: a top-flight club has far more to spend than one in League Two, whatever its situation. The situation sets how much
+  // it can spend, how readily it sells, and (for a ban) whether it can buy at all.
+  const LEVEL_MONEY = { 1: 14, 2: 7, 3: 3.5, 4: 1.8 }, LEVEL_WAGES = { 1: 1, 2: 0.6, 3: 0.35, 4: 0.2 };
+  const BACK_MONEY = { mega: 5, takeover: 2, steady: 1, tight: 0.5, debt: 0.2, loans: 0.6, ban: 1 }, BACK_WAGES = { mega: 2.5, takeover: 1.5, steady: 1, tight: 0.6, debt: 0.3, loans: 0.8, ban: 1 };
+  const BACK_OWNERS = ['the Zenith Sovereign Investment Authority', 'Halvorsen Global Holdings', 'the Kestrel Gulf Consortium', 'Meridian Sports Group', 'Northgate Capital Partners', 'Calder Bay Holdings'];
+  function backingFor(league, team, level, store, season) {
+    const s = season || league.season || 1, rng = FM.mulberry32(league.seed + (league.runSeed || 0) * 911 + hsh(team.id) + s * 7919 + 3), r = rng();
+    const kind = r < 0.03 ? 'mega' : r < 0.12 ? 'takeover' : r < 0.55 ? 'steady' : r < 0.75 ? 'tight' : r < 0.85 ? 'debt' : r < 0.92 ? 'loans' : 'ban';
+    const strength = team.strength || 0, lm = LEVEL_MONEY[level] || LEVEL_MONEY[1];
+    const out = { kind, season: s, level, owner: BACK_OWNERS[Math.floor(rng() * BACK_OWNERS.length)], money: Math.max(0.2, Math.min(60 * (lm / 14), r1((lm + 5 * strength * lm / 14) * BACK_MONEY[kind]))), wageRoom: Math.max(2, r1((25 + 8 * strength) * (LEVEL_WAGES[level] || 1) * BACK_WAGES[kind])) };
+    store[team.id] = out;
+    return out;
+  }
+  const levelOf = (league, team) => { const d = FM.allDivisions(league).find((x) => x.teams.indexOf(team) >= 0); return d ? d.level : 1; };
+  // The situation of a club this season (for the news, the prices it asks and whether it can buy).
+  FM.clubBacking = (league, team) => { const t = FM.transfer(league); return (t.backing && t.backing[team.id]) || null; };
+  // A club's money at the start of a new season: its situation is drawn again, and it has that much to spend (plus a little of what it did not spend).
+  FM.refreshClubMoney = function (league, team, level) {
+    const t = FM.transfer(league); t.backing = t.backing || {};
+    const bk = backingFor(league, team, level, t.backing);
+    const prev = Number.isFinite(t.budget[team.id]) ? Math.max(0, t.budget[team.id]) : 0;
+    t.budget[team.id] = r1(bk.money + Math.min(prev, bk.money * 0.5) * 0.3);
+    t.wageBudget[team.id] = r1(team.squad.reduce((a, p) => a + FM.wageOf(p), 0) + bk.wageRoom);
+    return bk;
+  };
+  const backingStory = (league, team, bk) => {
+    const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1), o = cap(bk.owner);
+    if (bk.kind === 'mega') story(league, { kind: 'Club', headline: `${team.name} taken over by ${bk.owner}: a ${money(bk.money)} war chest`, dek: 'Rivals will have to pay attention.', body: `${o} have bought ${team.name} and made ${money(bk.money)} available for new players. The club can now outbid almost anyone in its division, and will be looking at the best players in the league.`, mine: false, teams: [team.id] });
+    else if (bk.kind === 'takeover') story(league, { kind: 'Club', headline: `${team.name} have new owners with money to spend`, dek: `${o} have taken control.`, body: `${o} have taken over ${team.name} and have given the manager ${money(bk.money)} to spend this season.`, mine: false, teams: [team.id] });
+    else if (bk.kind === 'debt') story(league, { kind: 'Club', headline: `${team.name} in financial trouble: players may have to go`, dek: 'The bank is waiting.', body: `${team.name} are deep in debt and have very little to spend. Other clubs expect them to sell their best players, and to sell them for less than they are worth.`, mine: false, teams: [team.id] });
+    else if (bk.kind === 'ban') story(league, { kind: 'Club', headline: `${team.name} hit with a transfer ban`, dek: 'No signings this season.', body: `The league has banned ${team.name} from signing players this season for breaking its financial rules. They can still sell.`, mine: false, teams: [team.id] });
+  };
+  FM.announceBacking = function (league) {
+    const t = FM.transfer(league); if (!t.backing) return;
+    league.teams.forEach((tm) => { const bk = t.backing[tm.id]; if (bk && tm.id !== league.userId && bk.kind !== 'steady' && bk.kind !== 'tight' && bk.kind !== 'loans') { try { backingStory(league, tm, bk); } catch (e) { /* a missing story is not a problem */ } } });
+  };
+
   // ---------- state ----------
   FM.transfer = function (league) {
     if (!league.transfer) {
-      const budget = {}, wageBudget = {};
+      const budget = {}, wageBudget = {}, backing = {};
       FM.allTeams(league).forEach((t) => {
-        budget[t.id] = r1(14 + 5 * (t.strength || 0));
-        wageBudget[t.id] = r1(t.squad.reduce((a, p) => a + FM.wageOf(p), 0) + 25 + 8 * (t.strength || 0));
+        const bk = backingFor(league, t, levelOf(league, t), backing);
+        budget[t.id] = bk.money;
+        wageBudget[t.id] = r1(t.squad.reduce((a, p) => a + FM.wageOf(p), 0) + bk.wageRoom);
       });
-      league.transfer = { v: 1, budget, wageBudget, shortlist: [], deals: {}, offers: [], ai: {}, hikes: {}, seq: 1, moves: [] };
+      league.transfer = { v: 1, budget, wageBudget, backing, shortlist: [], deals: {}, offers: [], ai: {}, hikes: {}, seq: 1, moves: [] };
       if (FM.bizSyncBudget && !league.mp) FM.bizSyncBudget(league);   // the money to spend is the cash in the club's books
     }
     if (!league.transfer.reserves) { league.transfer.reserves = true; addReserves(league); }
@@ -206,8 +246,9 @@
       if (d < need) price *= 1.1 + 0.08 * (need - d);                  // thin in that position: he is harder to buy
       else if (d >= need + 2) price *= 0.88;                           // plenty of cover: they will listen
       if (isKeyPlayer(club, p)) price *= 1.1;
-      const budget = t.budget[club.id] || 0;
+      const budget = t.budget[club.id] || 0, bk = t.backing && t.backing[club.id];
       if (budget < 2) price *= 0.93;                                   // a club short of money sells a little cheaper
+      if (bk) price *= bk.kind === 'debt' ? 0.86 : bk.kind === 'tight' ? 0.95 : bk.kind === 'mega' ? 1.08 : 1;   // a club in debt has to sell; one with a bottomless pocket does not
     }
     price *= t.hikes[p.id] || 1;
     price *= 0.96 + (hsh(p.id + ':ask') % 9) / 100;                    // every club values the same player a little differently
@@ -220,6 +261,7 @@
     if (d < need) out.push(club.name + ' are short of ' + POS_NAME[p.natural] + 's, so they are reluctant to sell');
     else if (d >= need + 2) out.push(club.name + ' have plenty of cover in his position');
     if (isKeyPlayer(club, p)) out.push('he is a key player for them');
+    { const bk = t.backing && t.backing[club.id]; if (bk && bk.kind === 'debt') out.push(club.name + ' are deep in debt and need to sell'); else if (bk && bk.kind === 'tight') out.push(club.name + ' are short of money'); else if (bk && bk.kind === 'mega') out.push(club.name + ' have enormous owners and are in no hurry to sell'); else if (bk && bk.kind === 'ban') out.push(club.name + ' are under a transfer ban and cannot replace him'); }
     if ((t.hikes[p.id] || 1) > 1.01) out.push('rival interest has pushed the price up');
     if ((t.ai[p.id])) out.push('another club is already in talks for him');
     return out;
@@ -726,6 +768,7 @@
     // 4. new moves
     league.teams.forEach((team) => {
       if (team.id === league.userId || !winOpen) return;
+      if (t.backing && t.backing[team.id] && t.backing[team.id].kind === 'ban') return;   // under a transfer ban: no signings
       if (rng() > (round <= 1 ? 0.9 : 0.5)) return;
       const needs = FM.clubNeeds(team);
       const budget = t.budget[team.id] || 0;
