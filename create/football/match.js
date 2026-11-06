@@ -499,11 +499,18 @@
       // Recovery. A defender who has been beaten does not stay behind the ball: he sprints to get goal-side again, between the man with the ball and
       // his goal, rather than trailing after him.
       if (FM.toTeamSpace(c.team.attackDir, c.player.x, c.player.y).d > 0.6) {
-        opp.players.forEach((p) => {
-          if (p.group === 'GK' || ov.has(p)) return;
+        // He is beaten if the man is nearer the goal than he is and has got past him on the way to it: judged by who is nearer the goal, not by who is further up the pitch (a winger on the
+        // byline is beyond the whole box in length, but the defenders in the box are between him and the goal and are not beaten by him). And only the nearest couple of beaten men go
+        // after him; the rest stay with the men they have, or the box empties for the cross.
+        const gpt = { x: opp.attackDir === 1 ? 0 : L, y: W / 2 }, cg = Math.hypot(c.player.x - gpt.x, c.player.y - gpt.y);
+        const beaten = opp.players.filter((p) => {
+          if (p.group === 'GK' || ov.has(p)) return false;
           const gap = (c.player.x - p.x) * c.team.attackDir;
+          return gap > 1 && gap < 30 && Math.abs(p.y - c.player.y) < 26 && Math.hypot(p.x - gpt.x, p.y - gpt.y) > cg + 1;
+        }).sort((x, y) => FM.timeTo(x, c.player.x, c.player.y) - FM.timeTo(y, c.player.x, c.player.y)).slice(0, 2);
+        beaten.forEach((p) => {
           JOB = 'recovers goal-side';
-          if (gap > 1 && gap < 30 && Math.abs(p.y - c.player.y) < 26) ov.set(p, { x: c.player.x + c.team.attackDir * (FM.RECOVER_AHEAD == null ? 4 : FM.RECOVER_AHEAD), y: c.player.y + (p.y - c.player.y) * 0.3 });
+          ov.set(p, { x: c.player.x + c.team.attackDir * (FM.RECOVER_AHEAD == null ? 4 : FM.RECOVER_AHEAD), y: c.player.y + (p.y - c.player.y) * 0.3 });
         });
       }
       // Tight markers follow the nearest attacker; a centre-half told to step up follows a forward who drops deep.

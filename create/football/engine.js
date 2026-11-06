@@ -817,7 +817,14 @@
     const pull = clamp((FM.GROUP_BALL_PULL[player.group] || 0.4) + phase.ballPull + 0.25 * m.roam, 0, 1);
     // With the ball the team mostly holds its board's shape (only a little drawn toward the ball); without it the block shifts with the ball.
     d += (b.d - d) * pull * (1 - 0.85 * drawn) * (hasBall ? (FM.SHIFT_D_ATT == null ? 0.14 : FM.SHIFT_D_ATT) : 0.3 * (1 - 0.8 * lowK));
-    w += (b.w - w) * pull * (1 - 0.85 * drawn) * (hasBall ? (FM.SHIFT_W_ATT == null ? 0.09 : FM.SHIFT_W_ATT) : (FM.SHIFT_W_DEF == null ? 0.55 : FM.SHIFT_W_DEF));
+    // A defender who has a man to look after does not slide across to the ball: an attacker in or near our box, close to him, is his job, and the ball being out wide does not change that. Only
+    // a defender with nobody near him shifts over with the ball (the far side and the spare men), so a winger going down the line draws the near side across, not the whole back line.
+    let busy = 1;
+    if (!hasBall && ['CB', 'FB', 'DM', 'CM'].indexOf(player.group) >= 0 && team.oppRef) {
+      const mine = team.oppRef.players.filter((o) => { if (o.group === 'GK') return false; const od = toTeamSpace(team.attackDir, o.x, o.y).d; return od < 0.4 && Math.hypot(o.x - player.x, o.y - player.y) < 11 && Math.hypot(o.x - ball.x, o.y - ball.y) > 4; }).length;
+      busy = mine ? Math.max(0.15, 1 - 0.45 * mine) : 1;
+    }
+    w += (b.w - w) * pull * (1 - 0.85 * drawn) * (hasBall ? (FM.SHIFT_W_ATT == null ? 0.09 : FM.SHIFT_W_ATT) : (FM.SHIFT_W_DEF == null ? 0.55 : FM.SHIFT_W_DEF) * busy);
     // Both sides play compactly round the ball: the length of a team is about 40 m and the men near the ball are close to each other, so the players of a side are drawn in toward the play,
     // the more the further they stand from it. (A shirt the manager placed holds its place.)
     if (player.group !== 'GK') { const cp = (FM.COMPACT == null ? 0 : FM.COMPACT) * (1 - 0.85 * drawn); d += (b.d - d) * cp; w += (b.w - w) * cp * 0.45; }
