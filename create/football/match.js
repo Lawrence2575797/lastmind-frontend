@@ -588,14 +588,17 @@
         JOB = 'meets the ball';
         if (f.claim) ov.set(f.claim.p, runPoint(f.claim.p, f, match.ball));   // he goes onto the ball
         JOB = 'covers the pass';
-        if (f.t > 0.2) other(match, f.team).players.filter((q) => q.group !== 'GK' || segInfo(q.x, q.y, match.ball.x, match.ball.y, match.ball.x + f.dir.x * 20, match.ball.y + f.dir.y * 20).d < 10).map((q) => ({ q, d: segInfo(q.x, q.y, match.ball.x, match.ball.y, match.ball.x + f.dir.x * Math.max(0, f.len + 6 - f.run), match.ball.y + f.dir.y * Math.max(0, f.len + 6 - f.run)).d })).filter((o) => o.d < 14).sort((a, b) => a.d - b.d).slice(0, 2).forEach(({ q }) => ov.set(q, runPoint(q, f, match.ball)));
+        const endX = match.ball.x + f.dir.x * Math.max(0, f.len - f.run), endY = match.ball.y + f.dir.y * Math.max(0, f.len - f.run), defT = other(match, f.team), ownX = defT.attackDir === 1 ? 0 : L;
+        // the keeper leaves his goal for a pass only if it ends in his own area and he can reach it before any attacker can: otherwise his team-mates deal with it and he holds his place
+        const gkCan = (q) => Math.hypot(endX - ownX, endY - W / 2) < 22 && FM.timeTo(q, endX, endY) + 0.25 < f.team.players.reduce((m, o) => (o.group === 'GK' ? m : Math.min(m, FM.timeTo(o, endX, endY))), 9);
+        if (f.t > 0.2) other(match, f.team).players.filter((q) => q.group !== 'GK' || gkCan(q)).map((q) => ({ q, d: segInfo(q.x, q.y, match.ball.x, match.ball.y, match.ball.x + f.dir.x * Math.max(0, f.len + 6 - f.run), match.ball.y + f.dir.y * Math.max(0, f.len + 6 - f.run)).d })).filter((o) => o.d < 14).sort((a, b) => a.d - b.d).slice(0, 2).forEach(({ q }) => ov.set(q, runPoint(q, f, match.ball)));
       JOB = 'waits for the ball';
       } else ov.set(f.target, f.outcome === 'complete' ? { x: f.ex, y: f.ey } : { x: f.target.x, y: f.target.y });
     } else if (!match.flight) {
       match.teams.forEach((team) => {
         JOB = 'chases the loose ball';
         team.players.map((p) => ({ p, d: Math.hypot(p.x - match.ball.x, p.y - match.ball.y) }))
-          .filter(({ p, d }) => p.group !== 'GK' || d < 14)
+          .filter(({ p, d }) => p.group !== 'GK' || (d < 14 && FM.timeTo(p, match.ball.x, match.ball.y) + 0.2 < other(match, team).players.reduce((m, o) => (o.group === 'GK' ? m : Math.min(m, FM.timeTo(o, match.ball.x, match.ball.y))), 9)))   // a keeper goes for a loose ball only if he gets there first
           .sort((a, b) => a.d - b.d).slice(0, 2)
           .forEach(({ p }) => { const bs = Math.hypot(match.ball.vx || 0, match.ball.vy || 0), lead = Math.min(0.8, Math.hypot(p.x - match.ball.x, p.y - match.ball.y) / 7); ov.set(p, { x: clamp(match.ball.x + (match.ball.vx || 0) * lead, 0.5, L - 0.5), y: clamp(match.ball.y + (match.ball.vy || 0) * lead, 0.5, W - 0.5) }); });
       });
