@@ -138,8 +138,13 @@
   // Skipping (to the next break, or to full time) used to run the whole stretch in one go, which freezes the page for as long as it takes
   // and ignores every click meanwhile. It now runs a few milliseconds at a time between screen updates, so the page stays alive, the Play
   // button turns into "Stop skipping", and it stops by itself at a break, at full time, or when a player is injured.
+  // An opponent's change of approach is worth stopping for, whatever is running (play, skipping, highlights): these are the events that say so, looked for as the match is simulated.
+  const isAlert = (m, e) => e.type === 'tactic' && e.alert && e.team !== (world.league || {}).userId && e.team != null;
+  function alertSince(m, from) { for (let i = from; i < m.events.length; i++) if (isAlert(m, m.events[i])) return i; return -1; }
+  function stopForAlert() { world.skipTo = null; world.running = false; world.highlightSearching = false; world.hlWait = null; world.hlScanned = null; hlOverlay(false); }
   function skipSlice(m) {
     const t0 = performance.now();
+    let seen = m.events.length;
     while (performance.now() - t0 < 30) {
       if (m.injuryPause || m.phase === 'fulltime') { world.skipTo = null; return; }
       if (m.phase === 'halftime') {
@@ -147,6 +152,8 @@
         else { world.skipTo = null; return; }
       }
       FM.stepMatch(m, SUBSTEP);
+      if (alertSince(m, seen) >= 0) { stopForAlert(); return; }
+      seen = m.events.length;
     }
   }
   // Highlights are goals, missed penalties and a few clear chances that were missed or saved, and nothing else. Between them the match is simulated at speed behind a loading screen that
@@ -209,6 +216,7 @@
     let scanned = world.hlScanned;
     while (performance.now() - t0 < 34 && m.phase !== 'halftime' && m.phase !== 'fulltime' && !m.injuryPause) {
       FM.stepMatch(m, SUBSTEP);
+      if (alertSince(m, scanned) >= 0) { stopForAlert(); return; }
       for (; scanned < m.events.length; scanned++) {
         const e = m.events[scanned];
         if (e.type === 'goal') return hlStartReplay(m, e, scanned, 1.0);
@@ -446,7 +454,7 @@
       else if (e.type === 'restart' && (e.kind === 'corner' || e.kind === 'penalty')) text = (e.kind === 'corner' ? 'Corner' : 'PENALTY') + ' to ' + team.name;
       else if (e.type === 'sub') text = 'Substitution, ' + team.name + ': ' + who(e.on) + ' on for ' + who(e.off);
       else if (e.type === 'injury') text = 'Injury: ' + who(e.player) + ' (' + team.name + ') with ' + e.name + ', out for ' + (e.matches === 1 ? 'one match' : e.matches + ' matches');
-      else if (e.type === 'tactic') { text = e.alert ? e.alert.text : team.name + (e.direction === 'attack' ? ' have changed approach: more attacking' : ' have changed approach: more cautious'); if (e.alert && reveal && team.id !== (world.league || {}).userId) showTacticAlert(e.alert); }
+      else if (e.type === 'tactic') { text = e.alert ? e.alert.text : team.name + (e.direction === 'attack' ? ' have changed approach: more attacking' : ' have changed approach: more cautious'); if (e.alert && team.id !== (world.league || {}).userId) { showTacticAlert(e.alert); world.running = false; world.skipTo = null; } }
       else if (e.type === 'keeperSwap') text = team.name + ' goalkeeper change: ' + who(e.on) + ' in goal' + (e.emergency ? ' (an outfield player)' : '');
       if (reveal && e.type === 'goal') {
         world.highlightUntil = world.vt + 4.5;
