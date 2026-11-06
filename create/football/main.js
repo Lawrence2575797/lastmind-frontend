@@ -2643,12 +2643,12 @@
     world.liveMoved = world.liveMoved || {}; world.liveMoved[key] = world.liveMoved[key] || {};
     const title = def ? (key === 'press' ? 'Pressing their build-up' : 'Defending your third') : ({ build: 'Build-up', midfield: 'Through midfield', final: 'Final third' })[tab];
     host.innerHTML = `<div class="tb-grid"><aside class="tb-controls">
-        <div class="row"><button type="button" id="liveRefresh">Update to the latest averages</button><button type="button" id="liveReset">Put this page back to the plan</button></div>
+        <div class="row"><button type="button" id="liveReset">Put this page back to the plan</button></div>
       </aside><div class="tb-left">
         ${def ? '<div class="def-sub" role="tablist"><button data-msub="press" class="' + (key === 'press' ? 'on' : '') + '">Pressing their build-up</button><button data-msub="organised" class="' + (key === 'without' ? 'on' : '') + '">Defending your third</button></div>' : ''}
         <h2>${title}</h2><p class="note" id="liveNote"></p><div id="liveHost"></div></div></div>`;
     const lh = host.querySelector('#liveHost'); let drag = null, snap = liveSnapshot(team, opp, key);
-    const draw = () => { lh.innerHTML = liveBoardSvg(team, opp, key, snap); const ln = host.querySelector('#liveNote'); if (ln) ln.textContent = snap.haveAvg ? 'Where every player on both sides has stood on average in this phase so far (' + Math.round(snap.t / 60 * 10) / 10 + ' minutes of it). Nothing here moves. Drag one of your players to set where he stands in this phase for the rest of the match; nobody else changes.' : 'This phase has not been played for long yet, so your players are shown where your plan has them and theirs where they stand now. Nothing here moves. Drag one of your players to set where he stands in this phase for the rest of the match; nobody else changes.'; };
+    const draw = () => { lh.innerHTML = liveBoardSvg(team, opp, key, snap); const ln = host.querySelector('#liveNote'); if (ln) ln.textContent = snap.haveAvg ? 'Where every player on both sides has stood on average in this phase so far (' + Math.round(snap.t / 60 * 10) / 10 + ' minutes of it). It updates as the match plays and holds still when you pause. Drag one of your players to set where he stands in this phase for the rest of the match; nobody else changes.' : 'This phase has not been played for long yet, so your players are shown where your plan has them and theirs where they stand now. It updates as the match plays and holds still when you pause. Drag one of your players to set where he stands in this phase for the rest of the match; nobody else changes.'; };
     draw();
     const toPos = (svg, ev) => { const r = svg.getBoundingClientRect(), W = 68, L = 105, vx = -2 + (ev.clientX - r.left) / r.width * (W + 4), vy = -2 + (ev.clientY - r.top) / r.height * (L + 4); return { d: clamp01(1 - vy / L, 0.02, 0.98), w: clamp01(vx / W, 0.03, 0.97) }; };
     lh.addEventListener('touchstart', (ev) => { if (ev.target.closest && ev.target.closest('[data-live]')) ev.preventDefault(); }, { passive: false });
@@ -2665,14 +2665,19 @@
     });
     lh.addEventListener('pointerup', () => { if (drag) { drag = null; draw(); } });
     host.querySelectorAll('[data-msub]').forEach((b) => b.addEventListener('click', () => { world.defSubM = b.dataset.msub; renderTactics(); }));
-    host.querySelector('#liveRefresh').addEventListener('click', () => { snap = liveSnapshot(team, opp, key); draw(); });
     host.querySelector('#liveReset').addEventListener('click', () => {
       // put the shirts of this page back to how the plan had them for this game, and let them follow play again
       const snap = world.matchSnap;
       if (snap && snap.phasePos && snap.phasePos[key]) team.phasePos[key] = JSON.parse(JSON.stringify(snap.phasePos[key])); else if (team.phasePos) delete team.phasePos[key];
       world.liveMoved[key] = {}; renderTactics();
     });
+    // The averages follow the match while it plays; paused, or while a shirt is being dragged, nothing moves. A player the manager has placed stays where he put him.
+    const refresh = () => { snap = liveSnapshot(team, opp, key); Object.keys(world.liveMoved[key] || {}).forEach((i) => { const p = team.players.find((q) => q.index === +i); if (p) { const a = FM.phasePos(team, p, key); snap.ours[p.index] = { d: a.d, w: a.w }; } }); draw(); };
     clearInterval(world.liveTimer);
+    world.liveTimer = setInterval(() => {
+      if (!lh.isConnected || world.view !== 'match' || world.tab !== tab) { clearInterval(world.liveTimer); return; }
+      if (world.running && !drag) refresh();
+    }, 1000);
   }
   function renderBoardTab(team, tab) {
     // In a match, Defending is the same two pages as in the preparation (pressing their build-up, and defending your third), each just the positions.
