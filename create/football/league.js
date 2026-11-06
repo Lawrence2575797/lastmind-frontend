@@ -927,7 +927,7 @@
       p.stats = { apps: 0, goals: 0, shots: 0, yellows: 0, reds: 0 };
       p.condition = 1; p.form = (p.form || 0) * 0.5; delete p.injury; p.age = FM.ageOf ? FM.ageOf(p) + 1 : (p.age || 24) + 1;
     });
-    team.momentum = (team.momentum || 0) * 0.5;
+    team.momentum = (team.momentum || 0) * 0.5; if (team.run) { team.run.streak = Math.trunc(team.run.streak / 2); team.run.broken = 0; }
     team.drift = {}; team.rules = []; team.scenarios = []; team.defScenarios = []; team.scenarioEvidence = {}; team.scenarioDefEvidence = {};
     // Summer interrupts the rhythm, but a club does not forget its entire base.
     if (team.tacticalFamiliarity) { team.tacticalFamiliarity.score = Math.max(75, Math.round(team.tacticalFamiliarity.score * 0.9)); team.tacticalFamiliarity.delta = 0; }
@@ -998,7 +998,7 @@
       id: t.id, name: t.name, kit: t.kit, kits: t.kits, style: t.style, strength: t.strength, seed: t.seed, formationKey: t.formationKey, formationLabel: t.formationLabel || null, tactics: t.tactics,
       subsUsed: t.subsUsed, maxSubs: t.maxSubs, snap: t.snap || null, baseTactics: t.baseTactics, drift: t.drift, shape: t.shape, phasePos: t.phasePos, phaseBall: t.phaseBall || {}, pages: t.pages || {}, pageDefaults: t.pageDefaults || {}, scenarios: t.scenarios || [], defScenarios: t.defScenarios || [], rules: t.rules || [],
       scenarioEnd: t.scenarioEnd || {}, scenarioInfo: t.scenarioInfo || {}, scenarioBall: t.scenarioBall || {}, scenarioEvidence: t.scenarioEvidence || {}, scenarioDefEvidence: t.scenarioDefEvidence || {},
-      tacticalFamiliarity: t.tacticalFamiliarity || null, momentum: t.momentum || 0,
+      tacticalFamiliarity: t.tacticalFamiliarity || null, momentum: t.momentum || 0, run: t.run || null,
       squad: t.squad.map((p) => { const o = {}; PLAYER_KEYS.forEach((k) => { if (p[k] !== undefined) o[k] = p[k]; }); if (p.baseRatings) o.ratings = p.baseRatings; return o; }),
       players: t.players.map((p) => p.id), bench: t.bench.map((p) => p.id),
     };
@@ -1010,7 +1010,7 @@
       id: t.id, name: t.name, kit: t.kit, kits: t.kits, style: t.style, strength: t.strength, seed: t.seed, attackDir: 1, formationKey: t.formationKey, formationLabel: t.formationLabel || null,
       tactics: Object.assign(FM.defaultTactics(), t.tactics), subsUsed: t.subsUsed || 0, maxSubs: t.maxSubs || 5, snap: t.snap || null, baseTactics: Object.assign(FM.defaultTactics(), t.baseTactics || t.tactics), drift: t.drift || {}, shape: t.shape || {}, phasePos: t.phasePos || {}, phaseBall: t.phaseBall || {}, pages: t.pages || {}, pageDefaults: t.pageDefaults || {}, scenarios: t.scenarios || [], defScenarios: t.defScenarios || [], rules: t.rules || [],
       scenarioEnd: t.scenarioEnd || {}, scenarioInfo: t.scenarioInfo || {}, scenarioBall: t.scenarioBall || {}, scenarioEvidence: t.scenarioEvidence || {}, scenarioDefEvidence: t.scenarioDefEvidence || {},
-      tacticalFamiliarity: t.tacticalFamiliarity || null, tacticalFactor: 1, momentum: t.momentum || 0,
+      tacticalFamiliarity: t.tacticalFamiliarity || null, tacticalFactor: 1, momentum: t.momentum || 0, run: t.run || null,
       squad, players: t.players.map(byId), bench: t.bench.map(byId), sentOff: [],
     };
   }

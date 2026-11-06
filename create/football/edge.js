@@ -25,8 +25,23 @@
   FM.edgeFor = () => 0;
 
   // ---------- momentum ----------
+  // A run of results. Two or three wins in a row and a side plays with a confidence that shows in everything it does; a run of defeats does the same the other way. It is carried as a
+  // streak (wins counted up, defeats counted down; a draw only slows it) and moves every player's ratings like the club's momentum and the manager's edge do. Streaks do not run for ever:
+  // on any game one can simply be broken (a bad day, a good one), and a change of plan breaks one more often than not (a shake-up: a new shape, a new way of playing, and neither the
+  // confidence nor the doubt carries over). The computer's managers make such changes now and then at random (see FM.updateMomentum).
+  FM.STREAK = { per: 1.0, from: 2, cap: 3.5, breakBase: 0.10, breakPer: 0.05, shakeWin: 0.35, shakeLose: 0.6, aiChange: 0.14 };
+  const run = (t) => t.run || (t.run = { streak: 0, broken: 0, sig: null });
+  const SIG_KEYS = ['tempo', 'pressing', 'lineHeight', 'directness', 'risk', 'buildDirect', 'counterAttack', 'attackWidth', 'defWidth'];
+  const planSig = (t) => { const T = t.baseTactics || t.tactics || {}, o = { f: t.formationKey, t: {} }; SIG_KEYS.forEach((k) => { o.t[k] = Math.round((T[k] == null ? 0.5 : T[k]) * 100) / 100; }); return o; };
+  const planShift = (a, b) => (!a || !b ? 0 : (a.f !== b.f ? 1.2 : 0) + SIG_KEYS.reduce((n, k) => n + Math.abs((a.t[k] || 0) - (b.t[k] || 0)), 0));
+  FM.streakBonus = (t) => { const r = run(t), n = Math.abs(r.streak), S = FM.STREAK; if (r.broken || n < S.from) return 0; return Math.sign(r.streak) * Math.min(S.cap, S.per * (n - S.from + 1) + 0.5); };
   FM.setMomentumBonus = function (team) {
-    team.squad.forEach((p) => { p.mbonus = FM.MOM.player * clamp(p.form || 0, -1, 1) + FM.MOM.club * clamp(team.momentum || 0, -1, 1); });
+    const r = run(team), sig = planSig(team);
+    // a change of plan since the last match breaks a run, more often when it is a run of defeats (the shake-up) than of wins (a winning side that changes loses its rhythm less often)
+    if (r.sig && Math.abs(r.streak) >= FM.STREAK.from && !r.broken && planShift(r.sig, sig) >= 0.6 && Math.random() < (r.streak < 0 ? FM.STREAK.shakeLose : FM.STREAK.shakeWin)) r.broken = 1;
+    r.sig = sig;
+    const sb = FM.streakBonus(team);
+    team.squad.forEach((p) => { p.mbonus = FM.MOM.player * clamp(p.form || 0, -1, 1) + FM.MOM.club * clamp(team.momentum || 0, -1, 1) + sb; });
   };
   // The game leans a little towards the manager, as a career game does: a club with a good manager can climb the divisions over a few seasons, and a smaller club can
   // beat a better one more often than the ratings alone say. A steady lift (base) for the managed club's players, and a further lift when the other side is the
@@ -72,6 +87,19 @@
       });
       const target = clamp(0.6 * result + 0.12 * clamp(gf - ga, -3, 3), -1, 1), m0 = clamp(t.momentum || 0, -1, 1);
       t.momentum = clamp(m0 + LR * (target - m0), -1, 1);
+      // the streak: a run that was broken for this game starts again from this result; otherwise wins and defeats add up, a draw slows it
+      const r = run(t), S = FM.STREAK; if (r.broken) { r.streak = 0; r.broken = 0; }
+      r.streak = result > 0 ? (r.streak > 0 ? r.streak + 1 : 1) : result < 0 ? (r.streak < 0 ? r.streak - 1 : -1) : Math.trunc(r.streak / 2);
+      const n = Math.abs(r.streak);
+      if (n >= S.from) {
+        // on any game it may simply break; and a computer-run manager now and then changes things at random (a tweak to tempo, pressing, the line or how direct they are), which
+        // shows up as a change of plan when the next match starts and may break the run that way
+        if (Math.random() < S.breakBase + S.breakPer * (n - S.from)) r.broken = 1;
+        else if (t.id !== league.userId && Math.random() < S.aiChange) {
+          const ks = ['tempo', 'pressing', 'lineHeight', 'directness', 'risk'].sort(() => Math.random() - 0.5).slice(0, 2);
+          ks.forEach((k) => { const d = (Math.random() < 0.5 ? -1 : 1) * (0.14 + 0.1 * Math.random()); [t.baseTactics, t.tactics, t.liveBase].forEach((T) => { if (T && T[k] != null) T[k] = clamp(T[k] + d, 0, 1); }); });
+        }
+      }
     });
   };
   FM.formLabel = function (p) {
