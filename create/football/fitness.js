@@ -55,11 +55,11 @@
     team.squad.forEach((p) => {
       if (p.baseRatings) { const keep = p.ratings.gk; Object.assign(p.ratings, p.baseRatings); if (p.emergencyKeeper) p.ratings.gk = keep; p.maxSpeed = FM.speedFromPace(p.baseRatings.pace); delete p.baseRatings; }
       if (played.has(p.id)) {
-        p.condition = clamp(p.energy == null ? 1 : p.energy, 0.2, 1);
+        p.condition = clamp(p.energy == null ? 1 : p.energy, 0.4, 1);   // nobody leaves a match more than about three-fifths spent: the last of it is the match, and the body gives it back over the days that follow
         // What he can get back to depends on what he has just done: the more he ran (the longer he played and the harder), the further short of full the body stays for a few days, and a man
         // with little stamina stays further short. It lifts a little each day (see FM.recoverDay).
         const drop = Math.max(0, 1 - p.condition);
-        p.restCap = clamp(1 - 0.15 * drop * (1.4 - FM.stamina(p) / 100), 0.88, 1);
+        p.restCap = clamp(1 - 0.1 * drop * (1.4 - FM.stamina(p) / 100), 0.92, 1);
       }
       delete p.energy;
     });
@@ -75,7 +75,7 @@
         if (p.restCap != null) { p.restCap = Math.min(1, p.restCap + 0.04); if (p.restCap >= 1) delete p.restCap; }
         const cap = p.restCap == null ? 1 : p.restCap;
         if (p.condition >= cap) return;
-        const rate = clamp((0.38 + 0.2 * (FM.stamina(p) / 100 - 0.5)) * k, 0.08, 0.7);
+        const rate = clamp((0.5 + 0.2 * (FM.stamina(p) / 100 - 0.5)) * k, 0.1, 0.8);
         p.condition = Math.min(cap, p.condition + (cap - p.condition) * rate + 0.01);
       });
     });
