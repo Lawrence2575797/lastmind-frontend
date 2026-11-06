@@ -446,7 +446,7 @@
       else if (e.type === 'restart' && (e.kind === 'corner' || e.kind === 'penalty')) text = (e.kind === 'corner' ? 'Corner' : 'PENALTY') + ' to ' + team.name;
       else if (e.type === 'sub') text = 'Substitution, ' + team.name + ': ' + who(e.on) + ' on for ' + who(e.off);
       else if (e.type === 'injury') text = 'Injury: ' + who(e.player) + ' (' + team.name + ') with ' + e.name + ', out for ' + (e.matches === 1 ? 'one match' : e.matches + ' matches');
-      else if (e.type === 'tactic') text = team.name + (e.direction === 'attack' ? ' have changed approach: more attacking' : ' have changed approach: more cautious');
+      else if (e.type === 'tactic') { text = e.alert ? e.alert.text : team.name + (e.direction === 'attack' ? ' have changed approach: more attacking' : ' have changed approach: more cautious'); if (e.alert && reveal && team.id !== (world.league || {}).userId) showTacticAlert(e.alert); }
       else if (e.type === 'keeperSwap') text = team.name + ' goalkeeper change: ' + who(e.on) + ' in goal' + (e.emergency ? ' (an outfield player)' : '');
       if (reveal && e.type === 'goal') {
         world.highlightUntil = world.vt + 4.5;
@@ -1531,6 +1531,18 @@
     ['transdef', '5. Defensive transition'], ['organised', '6. Organised defending'], ['transatt', '7. Attacking transition'], ['setpieces', 'Set pieces'],
   ];
   // In a match: the squad, then the shape in each phase of play.
+  // The other side has changed how it plays: say so, and offer to go straight to the part of our own tactics that answers it.
+  function showTacticAlert(a) {
+    const old = document.getElementById('tacAlert'); if (old) old.remove();
+    const box = document.createElement('div'); box.id = 'tacAlert'; box.className = 'tac-alert'; box.setAttribute('role', 'alert');
+    box.innerHTML = `<b>${esc(a.text)}</b><p>${esc(a.advice)}</p><div class="tac-alert-row"><button type="button" class="primary" data-go>${esc(a.label)}</button><button type="button" data-x>Dismiss</button></div>`;
+    document.body.appendChild(box);
+    const gone = () => { if (box.parentNode) box.remove(); };
+    box.querySelector('[data-x]').addEventListener('click', gone);
+    box.querySelector('[data-go]').addEventListener('click', () => { gone(); world.tab = a.tab; renderTactics(); const t = document.getElementById('tactics'); if (t && t.scrollIntoView) t.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+    setTimeout(gone, 30000);
+    if (!document.getElementById('tacAlertCss')) { const st = document.createElement('style'); st.id = 'tacAlertCss'; st.textContent = '.tac-alert{position:fixed;right:18px;bottom:18px;z-index:9000;max-width:360px;padding:14px 16px;background:#16241e;border:1px solid var(--gold,#f2c14e);box-shadow:0 14px 34px rgba(0,0,0,.5);display:grid;gap:8px}.tac-alert p{margin:0;font-size:.9rem;line-height:1.5;opacity:.92}.tac-alert-row{display:flex;gap:8px;flex-wrap:wrap}.tac-alert-row button{flex:1 1 auto}'; document.head.appendChild(st); }
+  }
   const MATCH_TABS = [['squad', 'Squad and substitutes'], ['build', 'Build-up'], ['midfield', 'Through midfield'], ['final', 'Final third'], ['organised', 'Defending']];
   const TEST_TABS = [['build','Build-up'],['midfield','Midfield'],['final','Final third'],['press','Pressing their build-up'],['organised','Defending your third'],['transdef','Defensive transition'],['transatt','Attacking transition']];
   // Each tab with a board shows the team in that phase of play.

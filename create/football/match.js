@@ -2494,13 +2494,38 @@
         const v = clamp(base[k] + adj[k], r[0], r[1]);
         team.tactics[k] = (k === 'cornerAttackers' || k === 'cornerMarkers') ? Math.round(v) : v;
       });
-      // Tell the user when an opponent visibly changes approach.
+      // Tell the user when an opponent visibly changes approach: what they now do, what it means for us, and where to change our own.
       const prev = team.liveLean || 0;
-      if (Math.abs(lean - prev) > 0.12) {
+      const alert = tacticAlert(match, team, opp);
+      if (alert) { record(match, { type: 'tactic', team: team.id, direction: lean > prev ? 'attack' : 'defend', alert }); team.liveLean = lean; }
+      else if (Math.abs(lean - prev) > 0.12) {
         record(match, { type: 'tactic', team: team.id, direction: lean > prev ? 'attack' : 'defend' });
         team.liveLean = lean;
       }
     });
+  }
+
+  // What the other side has just started doing, if it is worth telling the manager. It is read from how they play now against how they were last time we told him: the moments at which
+  // they press (the goalkeeper, a centre-back, a full-back), how high their line is, how direct they are, whether they are set to counter.
+  function tacticAlert(match, team, opp) {
+    const t = team.tactics, trig = FM.pressTriggersOf ? FM.pressTriggersOf(team) : null, last = team._told || (team._told = { trig: Object.assign({}, trig || {}), line: t.lineHeight, direct: t.directness, counter: t.counterAttack, told: -1e9 });
+    if (match.clock - last.told < 240) return null;   // no more than one every four minutes
+    const n = team.name;
+    let out = null;
+    const NAME = { gk: 'our goalkeeper', cb: 'our centre-backs', fb: 'our full-backs', mid: 'in the middle third', back: 'when we pass it backwards', touch: 'when we are near the touchline', turn: 'when we turn with our back to play', loose: 'when we take a heavy touch' };
+    const gained = trig ? Object.keys(NAME).filter((k) => trig[k] && !last.trig[k]) : [], lost = trig ? Object.keys(NAME).filter((k) => !trig[k] && last.trig[k]) : [];
+    const buildUp = (a) => a.some((k) => ['gk', 'cb', 'fb'].indexOf(k) >= 0), list = (a) => a.map((k) => NAME[k]).join(', ');
+    if (gained.length) out = buildUp(gained)
+      ? { kind: 'press', text: n + ' have started pressing our build-up: they now go for the ball when ' + list(gained.filter((k) => ['gk', 'cb', 'fb'].indexOf(k) >= 0)) + ' have it.', advice: 'Play past it with short passes into midfield, or go long to the forwards and win the second ball.', tab: 'build', label: 'Change our build-up' }
+      : { kind: 'press', text: n + ' are pressing more: they now go for the ball ' + list(gained) + '.', advice: 'Move the ball quicker and keep a man free to receive it; do not hold it in those moments.', tab: 'midfield', label: 'Change midfield play' };
+    else if (lost.length) out = { kind: 'drop', text: n + ' have stopped pressing ' + (buildUp(lost) ? 'our build-up' : 'so much') + ' and are sitting back.', advice: 'There is more room to build from the back, but less space behind them. Be patient and move the ball side to side.', tab: 'midfield', label: 'Change midfield play' };
+    else if (t.lineHeight - last.line > 0.03) out = { kind: 'line', text: n + ' have pushed their defensive line up.', advice: 'There is room behind them: look for runners in behind and quick balls over the top.', tab: 'final', label: 'Change the final third' };
+    else if (last.line - t.lineHeight > 0.03) out = { kind: 'deep', text: n + ' have dropped their line deeper.', advice: 'Less room in behind. Use the width, work the ball patiently and shoot from range.', tab: 'final', label: 'Change the final third' };
+    else if (t.directness - last.direct > 0.03) out = { kind: 'direct', text: n + ' are going more direct.', advice: 'Win the second balls and keep the middle compact so the long ball finds no one.', tab: 'organised', label: 'Change our defending' };
+    else if (t.counterAttack - last.counter > 0.03) out = { kind: 'counter', text: n + ' are setting up to counter-attack.', advice: 'Keep cover behind the ball when we attack: do not leave one centre-back against two.', tab: 'organised', label: 'Change our defending' };
+    if (out) { last.told = match.clock; }
+    last.trig = Object.assign({}, trig || {}); last.line = t.lineHeight; last.direct = t.directness; last.counter = t.counterAttack;
+    return out;
   }
 
   function aiSubstitution(match, team, minute) {
