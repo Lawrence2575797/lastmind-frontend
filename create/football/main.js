@@ -1959,7 +1959,7 @@
   }
   function renderTacticsInner() {
     const team = userTeam();
-    if (FM.inferShapeTactics) FM.inferShapeTactics(team);
+    if (FM.inferShapeTactics && !(world.view === 'match' && world.match)) FM.inferShapeTactics(team);   // in a match, moving a player moves only him: the side's line and width are not re-worked
     // During a match the board under the pitch is the squad and formation page, with the substitutes on the side: no tabs, no tests, no plans.
     // In a match the pages are the squad and the substitutes, and where the team stands in each phase of play as it is playing now: drag a
     // shirt to change it and the team plays from there. (No ball, no opposition, no tests: those are for the preparation.)
@@ -2449,7 +2449,7 @@
   // After a shirt (or the ball) has been dropped: draw the diagrams again in place and bring the side panels up to date, without redrawing the
   // whole page. A full redraw empties the page for a moment, which throws a zoomed-in view (or a scrolled one) to somewhere else.
   function afterBoardChange(team) {
-    if (FM.inferShapeTactics) FM.inferShapeTactics(team);
+    if (FM.inferShapeTactics && !(world.view === 'match' && world.match)) FM.inferShapeTactics(team);
     if (world.redrawBoards) {
       try { world.redrawBoards(); } catch (e) { renderTactics(); return; }
       if (el('playerPanel')) renderPlayerPanel(team);
@@ -2643,7 +2643,7 @@
       const pos = toPos(lh.querySelector('svg'), ev);
       FM.setPhasePos(team, p, key, pos); world.liveMoved[key][p.index] = true; draw();
     });
-    lh.addEventListener('pointerup', () => { if (drag) { drag = null; try { FM.inferShapeTactics(team); } catch (e) { /* fine */ } if (m && m.avgPos && m.avgPos[key]) delete m.avgPos[key]; draw(); } });   // the average starts again from the moment he changes it
+    lh.addEventListener('pointerup', () => { if (drag) { drag = null; if (m && m.avgPos && m.avgPos[key]) delete m.avgPos[key]; draw(); } });   // the average starts again from the moment he changes it
     host.querySelectorAll('[data-msub]').forEach((b) => b.addEventListener('click', () => { world.defSubM = b.dataset.msub; renderTactics(); }));
     host.querySelector('#liveReset').addEventListener('click', () => {
       // put the shirts of this page back to how the plan had them for this game, and let them follow play again
