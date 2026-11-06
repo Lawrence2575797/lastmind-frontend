@@ -174,7 +174,7 @@
     hlRestore(); world.hl = null; world.hlHold = null; if (world.match) world.match.hlNow = null; world.hlScanned = null; world.hlWait = null; world.highlightSearching = false; hlOverlay(false);
   }
   function hlStartReplay(m, e, index, tail) {
-    const r = m.rec, t0 = e.t - (e.type === 'goal' ? 10 : 8), t1 = e.t + tail;
+    const r = m.rec, t0 = e.t - (e.type === 'goal' ? 20 : 16), t1 = e.t + tail;   // a long run-up: for the first part of it there is no telling who the attack will come through
     const frames = r && r.buf ? r.buf.filter((f) => f.t >= t0 && f.t <= t1 + 0.01) : [];
     world.highlightRevealFrom = index;
     world.highlightSearching = false; hlOverlay(false);
