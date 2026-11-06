@@ -85,6 +85,7 @@
 
   FM.ensurePreseasonNews = function (league) {
     ensurePreseasonBasics(league);
+    if (FM.ensureBoardNews) { try { FM.ensureBoardNews(league); } catch (e) { /* the news is a nicety */ } }
     ensureHistoryPack(league);
     // Where the club finished last season goes in after the others, so it is the newest story and is read first.
     if (!league.news.some((n) => n.lastSeason)) {
@@ -122,6 +123,8 @@
 
   FM.publishInterview = function (league, record, fx) {
     if (!record.answers.length) return;
+    // the paper only runs an interview that is a story (a fiery one, big talk the result makes look silly, a candid one in a bad run); the rest change public opinion and go unprinted
+    if (FM.interviewFeature) { const feat = FM.interviewFeature(league, record, fx); if (feat) FM.pushFeature(league, feat); return; }
     const team = FM.teamById(league, league.userId), opp = FM.teamById(league, fx.homeId === team.id ? fx.awayId : fx.homeId);
     const pre = record.kind === 'pre';
     const has = (m) => record.answers.some((a) => a.mood === m);
@@ -295,8 +298,19 @@
       const gap = tbl[5].pts - tbl[6].pts;
       push('Relegation', `${bottom[1].name} and ${bottom[0].name} in the relegation zone`, `${bottom[1].name} (${bottom[1].pts} points) and ${bottom[0].name} (${bottom[0].pts}) occupy the bottom two places, ${gap > 0 ? gap + ' point' + (gap > 1 ? 's' : '') + ' from safety' : 'level on points with the club above them'}.`, mineBottom);
     }
-    items.forEach((it) => FM.pushNews(league, it));
-    return items.length;
+    // The paper does not answer everything: the routine items (a man of the match, a short run of wins, a clean sheet, a big win) are dropped, and what is left is given some context.
+    const KEEP = { 'Hat-trick': 1, 'Red card': 1, Derby: 1, Touchline: 1, 'Shock result': 1, Champions: 1, Relegation: 1, Injury: 1, 'Top scorer': 1, Table: 1 };
+    let out = items.filter((it) => KEEP[it.kind] && (it.kind !== 'Injury' || it.mine));
+    if (FM.newsContext) out.forEach((it) => {
+      if (!it.club) return;
+      const cx = FM.newsContext(league, it.club), tl = cx.row.p ? ` ${cx.name} are ${cx.pos === 1 ? 'top' : cx.pos === cx.n ? 'bottom' : ordinal(cx.pos)} on ${cx.row.pts} points from ${cx.row.p}` + (cx.last5.length ? `, with ${cx.last5.filter((x) => x.r === 'W').length} win${cx.last5.filter((x) => x.r === 'W').length === 1 ? '' : 's'} in their last ${cx.last5.length}` : '') + '.' : '';
+      if (tl && !it.body.includes('points from')) it.body += tl;
+    });
+    // the managed club's own match, when it was worth a story, gets one in full
+    const feat = userFx && FM.matchFeature ? FM.matchFeature(league, userFx) : null;
+    if (feat) { if (feat.topic === 'sentoff') out = out.filter((it) => !(it.mine && it.kind === 'Red card')); FM.pushFeature(league, feat); }
+    out.forEach((it) => FM.pushNews(league, it));
+    return out.length + (feat ? 1 : 0);
   };
 
   // ---------- the page ----------
@@ -310,7 +324,7 @@
     host.innerHTML = `<div style="display:grid;gap:16px"><div class="card"><h2>News</h2>
       <p class="desc">Stories from the league, the training ground and the press room.</p>
       <div class="row"><button id="nwAll" class="${fstate.mine ? '' : 'on'}">Whole league</button><button id="nwMine" class="${fstate.mine ? 'on' : ''}">My club</button></div></div>
-      ${keys.length ? keys.map((r) => `<div class="card"><h2>${r < 0 ? 'Pre-season' : 'After round ' + (r + 1)}</h2>${rounds[r].map((n) => `<article class="hyp news-story"><div class="hyp-head"><span class="lvl ${n.mine ? 'alevel' : 'gcse'}">${esc(n.kind)}</span> <b>${esc(n.headline)}</b></div><p class="note news-byline">${esc(n.reporter || 'The LastMind Football desk')} · ${esc(n.publication || 'The Touchline')}</p><p class="desc">${esc(n.body)}</p></article>`).join('')}</div>`).join('') : '<div class="card"><p class="note">No stories yet.</p></div>'}</div>`;
+      ${keys.length ? keys.map((r) => `<div class="card"><h2>${r < 0 ? 'Pre-season' : 'After round ' + (r + 1)}</h2>${rounds[r].map((n) => `<article class="hyp news-story"><div class="hyp-head"><span class="lvl ${n.mine ? 'alevel' : 'gcse'}">${esc(n.kind)}</span> <b>${esc(n.headline)}</b></div><p class="note news-byline">${esc(n.reporter || 'The LastMind Football desk')} · ${esc(n.publication || 'The Touchline')}</p>${n.standfirst ? `<p class="news-standfirst"><b>${esc(n.standfirst)}</b></p>` : ''}${n.paras && n.paras.length ? n.paras.map((t) => `<p class="desc">${esc(t)}</p>`).join('') : `<p class="desc">${esc(n.body)}</p>`}</article>`).join('')}</div>`).join('') : '<div class="card"><p class="note">No stories yet.</p></div>'}</div>`;
     host.querySelector('#nwAll').addEventListener('click', () => { fstate.mine = false; FM.renderNews(host, league); });
     host.querySelector('#nwMine').addEventListener('click', () => { fstate.mine = true; FM.renderNews(host, league); });
     void me;

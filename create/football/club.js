@@ -761,7 +761,7 @@
       if (grant) { put(grant); bd.history.push({ season: lg.season, kind: 'grant', amount: grant }); notice = { title: 'The owners\' funding for the season', lines: ['The owners have paid ' + gbp(grant) + ' into the club for the new season, because the finances have been looked after.'] }; }
       else if (bd.kind === 'tight' || bd.kind === 'debt') notice = { title: bd.kind === 'debt' ? 'The debt is still weighing on the club' : 'Money is still tight', lines: ['The owners have put nothing new in. The transfer budget is only what the club has earned and kept, and the board still releases ' + bd.pct + '% of it.'] };
     }
-    if (notice) { bd.notice = notice; bd.briefSeen = false; }
+    if (notice) { bd.notice = notice; bd.briefSeen = false; if (FM.boardFeature && !(bd.kind === 'takeover' && notice.title === 'The club has been taken over')) { try { FM.boardFeature(lg, 'notice', notice); } catch (e) { /* the news is a nicety */ } } }
     FM.bizSyncBudget(lg);
     return notice;
   };
