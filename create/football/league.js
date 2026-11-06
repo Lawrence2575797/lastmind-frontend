@@ -429,6 +429,14 @@
     const cup = league.cup;
     for (const other of cup.fixtures.filter((f) => f.stage === fx.stage && !f.played)) { cupQuickResult(league, other); if (onResult) await onResult(other, league, true); }
     const stageIndex = cup.stages.findIndex((s) => s.key === fx.stage), next = cup.stages[stageIndex + 1];
+    // The tie pays: the gate (a share of the home club's at an away tie, which is much more at a big club's ground), and the round's prize money, more for a win than a defeat and more each round.
+    if (FM.bizCupTie && (fx.homeId === league.userId || fx.awayId === league.userId)) {
+      const won = cupWinner(fx) === league.userId, r = FM.bizCupTie(league, fx, stageIndex, won);
+      if (r) {
+        (cup.prizes = cup.prizes || []).push({ stage: fx.stage, won, prize: r.prize, tickets: r.tickets, home: r.home });
+        if (FM.pushNews) FM.pushNews(league, { round: fx.round, day: league.day, kind: 'Cup money', mine: true, headline: (won ? 'Through: ' : 'Out: ') + FM.money(r.prize) + ' prize money for the ' + (cup.stages[stageIndex].label || 'round'), body: 'The ' + (cup.stages[stageIndex].label || 'round') + ' tie brought £' + Math.round(r.tickets / 1000) + 'k from the gate' + (r.home ? ' at your ground' : ' (your share of the home side’s gate)') + ' and ' + FM.money(r.prize) + ' in prize money, which is added to your transfer budget.' });
+      }
+    }
     cup.activeKey = null;
     if (next) cup.drawPending = next.key;
     else {
@@ -664,6 +672,7 @@
       }
     });
     [home, away].forEach((t) => t.squad.forEach((p) => { if (played.has(p.id)) p.stats.apps++; }));
+    if (FM.recordPlayerStats) FM.recordPlayerStats(league, fx, match, home, away, played);   // assists, passes, tackles, clean sheets and his rating for the season boards
     if (FM.updateMomentum) FM.updateMomentum(league, fx, match, played);   // form and momentum follow the result and how each player did
     // minutes on the pitch, which is what a player's development follows
     { const mins = new Map(); [home, away].forEach((t) => match.starters[t.id].forEach((id) => mins.set(id, 90)));

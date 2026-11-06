@@ -6,7 +6,7 @@
   const gbp = (v) => (FM.gbp ? FM.gbp(v) : '£' + Math.round(v).toLocaleString('en-GB'));
   const short = (v) => { const a = Math.abs(v), s = v < 0 ? '−' : ''; return a >= 1e6 ? s + '£' + (a / 1e6).toFixed(a >= 1e7 ? 1 : 2) + 'm' : a >= 1e3 ? s + '£' + Math.round(a / 1e3) + 'k' : s + '£' + Math.round(a); };
   const sum = (o) => Object.keys(o || {}).reduce((a, k) => a + (o[k] || 0), 0);
-  const IN = { tickets: 'Tickets', matchday: 'Matchday extras', broadcast: 'Broadcasting', sponsor: 'Sponsors', advert: 'Advertising', merch: 'Merchandise', prize: 'Prize money', sales: 'Player sales' };
+  const IN = { tickets: 'Tickets', matchday: 'Matchday extras', broadcast: 'Broadcasting', sponsor: 'Sponsors', advert: 'Advertising', merch: 'Merchandise', prize: 'Prize money', cup: 'Cup ties (gate and prizes)', sales: 'Player sales' };
   const OUT = { wages: 'Wages', fees: 'Transfer fees', admin: 'Running costs', matchday: 'Matchday costs', merchCost: 'Merchandise costs', marketing: 'Marketing', loanPay: 'Loan repayments', interest: 'Interest', tax: 'Tax', dividends: 'Dividends', capex: 'Ground and facilities' };
 
   // a small trend line with the last point marked

@@ -197,6 +197,14 @@
   const stadiumDep = (b) => Math.max(0, Math.min(b.assets.cost - b.assets.dep, b.assets.cost * STADIUM_DEP / ROUNDS));
   const depPerRound = (b) => signingDep(b) + stadiumDep(b);
   const sum = (o) => Object.keys(o).reduce((a, k) => a + (o[k] || 0), 0);
+  // The crowd at another club's ground: the bigger the division and the bigger the club, the bigger the ground and the fuller it is. A top-flight leader fills about 70,000; near the bottom of
+  // that division it is about 30,000; the lower divisions hold a fraction of that. (Used for the visitors' share of the gate, in the league and the cup.)
+  FM.groundCrowd = function (lg, team, str) {
+    const div = FM.allDivisions(lg).find((d) => d.teams.indexOf(team) >= 0), level = div ? div.level : (lg.divisionLevel || 1);
+    const s = clamp(((str == null ? ((team && team.strength) || 0) + 0.5 : str)) / 1.5, 0, 1);
+    const span = { 1: [30000, 72000], 2: [16000, 34000], 3: [8000, 19000], 4: [3500, 9500] }[level] || [3500, 9500];
+    return (span[0] + (span[1] - span[0]) * s) * 0.93;
+  };
   const prizeFor = (lg) => { const table = PRIZE[lg.divisionLevel || 1] || PRIZE[1]; return table[clamp(userPos(lg) - 1, 0, table.length - 1)]; };
   FM.bizPrize = (lg) => ({ position: userPos(lg), amount: prizeFor(lg), table: PRIZE[lg.divisionLevel || 1] || PRIZE[1] });
 
@@ -215,7 +223,7 @@
     if (!home && fx) {
       const opp = FM.teamById(lg, fx.homeId === lg.userId ? fx.awayId : fx.homeId), str = clamp(((opp && opp.strength) || 0) + 0.5, 0, 1.5);
       const noise = est ? 1 : 0.94 + 0.12 * FM.mulberry32(lg.seed + (lg.runSeed || 0) + fx.round * 4999 + lg.season * 37 + 5)();
-      const crowd = (5200 + 3600 * str) * noise, seats = FM.SEGMENTS.reduce((a, s) => a + (b.seats[s.id] || s.seats), 0);
+      const crowd = FM.groundCrowd(lg, opp, str) * noise, seats = FM.SEGMENTS.reduce((a, s) => a + (b.seats[s.id] || s.seats), 0);
       const avgPrice = FM.SEGMENTS.reduce((a, s) => a + (b.seats[s.id] || s.seats) * clamp((b.prices[s.id] || { price: s.ref }).price, 3, 400), 0) / Math.max(1, seats);
       tickets = Math.round(crowd * avgPrice * AWAY_SHARE / 100) * 100;
     }
@@ -237,6 +245,24 @@
     return { att, d, inflow, outflow };
   }
 
+  // The League Cup: what each round pays, in £m, to the club that plays it. It rises every round, and a win pays much more than a defeat (the final pays most of all). The smaller divisions
+  // are paid less. Money goes into the club's cash and is released to the transfer budget in full (see FM.bizSyncBudget).
+  const CUP_WIN = [0.30, 0.55, 0.95, 1.60, 3.00], CUP_LOSE = [0.12, 0.22, 0.40, 0.70, 1.30], CUP_LEVEL = { 1: 1, 2: 0.65, 3: 0.4, 4: 0.25 };
+  FM.cupPrizeMoney = (lg, stageIndex, won) => { const k = clamp(stageIndex, 0, CUP_WIN.length - 1), f = CUP_LEVEL[lg.divisionLevel || 1] || 0.25; return Math.round((won ? CUP_WIN[k] : CUP_LOSE[k]) * f * 100) / 100; };
+  // A cup tie of the managed club: the gate (his own ground, or the visitors' share of theirs), what the matchday brings in and costs, and the prize for the round.
+  FM.bizCupTie = function (lg, fx, stageIndex, won) {
+    if (!fx || (lg.mp && lg.mp.kind === 'match')) return null;
+    const b = FM.biz(lg), me = lg.userId, home = fx.homeId === me;
+    if (b.conf && b.conf.dismissed) return null;
+    const l = lines(lg, fx, home, false), prizeM = FM.cupPrizeMoney(lg, stageIndex, won), prize = Math.round(prizeM * 1e6);
+    const run = home ? Math.round(l.outflow.matchday) : 0, tickets = Math.round(l.inflow.tickets), spend = home ? Math.round(l.inflow.matchday) : 0;
+    b.cash = Math.round(b.cash + tickets + spend - run + prize);
+    const p = b.pending; p.cupTickets = (p.cupTickets || 0) + tickets; p.cupMatchday = (p.cupMatchday || 0) + spend; p.cupRun = (p.cupRun || 0) + run; p.cupPrize = (p.cupPrize || 0) + prize;
+    b.prizeFund = (b.prizeFund || 0) + prize;
+    FM.bizSyncBudget(lg);
+    return { home, tickets, prize: prizeM, att: l.att || null };
+  };
+
   // Called once the user's match of a round has been played (and the rest of the round is done).
   FM.bizAfterRound = function (lg, fx) {
     if (!fx || (lg.mp && lg.mp.kind === 'match')) return;
@@ -247,11 +273,12 @@
     const opening = b.lastClose;
     const dep = signingDep(b) + stadiumDep(b), depStad = stadiumDep(b);
     // the books for the round
-    const inflow = Object.assign({}, l.inflow, { sales: p.sales, loans: p.loans, shares: p.shares, divest: p.divest || 0 });
+    const cupIn = (p.cupTickets || 0) + (p.cupMatchday || 0) + (p.cupPrize || 0);
+    const inflow = Object.assign({}, l.inflow, { sales: p.sales, loans: p.loans, shares: p.shares, divest: p.divest || 0, cup: cupIn });
     const outflow = Object.assign({}, l.outflow, { fees: p.fees, capex: p.capex, invest: p.invest || 0, tax: 0, dividends: 0 });
     const seasonRows = b.ledger.filter((e) => e.season === lg.season);
-    const revenue = l.inflow.tickets + l.inflow.matchday + l.inflow.broadcast + l.inflow.sponsor + l.inflow.advert + l.inflow.merch + l.inflow.prize;
-    const cos = l.outflow.matchday + l.outflow.merchCost;
+    const revenue = l.inflow.tickets + l.inflow.matchday + l.inflow.broadcast + l.inflow.sponsor + l.inflow.advert + l.inflow.merch + l.inflow.prize + cupIn;
+    const cos = l.outflow.matchday + l.outflow.merchCost + (p.cupRun || 0);
     const gross = revenue - cos;
     const expenses = l.outflow.wages + l.outflow.marketing + l.outflow.admin + dep;
     const op = gross - expenses + p.saleProfit;
@@ -288,6 +315,7 @@
     b.ledger.push(entry);
     b.lastClose = b.cash;
     b.pending = { fees: 0, sales: 0, loans: 0, shares: 0, saleProfit: 0, capex: 0, invest: 0, divest: 0 };
+    if ((fx.round | 0) === ROUNDS - 1) b.prizeFund = 0;   // the season's prize money is spent or absorbed by the end of it
     // the signings lose their book value as the years go by
     b.signings.forEach((s) => { if (!s.sold && s.book > 0) s.book = Math.max(0, Math.round(s.book - s.fee / (s.years * ROUNDS))); });
     // building work moves on
@@ -396,7 +424,8 @@
     // The board does not hand over the whole bank balance: it keeps a reserve back and releases a share of what is above it (a saved game from before this has no policy, so
     // everything is released, as it always was).
     const pool = Math.max(0, b.cash - (bd.reserve || 0)), pct = bd.pct != null ? bd.pct : 100;
-    t.budget[lg.userId] = Math.round(pool * pct / 100 / 1e5) / 10;   // £m, to one decimal
+    const pf = Math.min(Math.max(0, b.prizeFund || 0), pool);   // cup prize money is released in full, not at the board's usual share
+    t.budget[lg.userId] = Math.round(((pool - pf) * pct / 100 + pf) / 1e5) / 10;   // £m, to one decimal
   };
   // Called by the transfer code when a player moves between clubs.
   // A payment plan: the fee is paid in parts (the first now), and the whole plan costs a little more than paying at once. parts is [[share, matchdays from now], ...].
@@ -411,7 +440,7 @@
     const b = FM.biz(lg), me = lg.userId, plan = FM.PAY_PLANS[planId] || FM.PAY_PLANS.now, total = Math.round(fee * (1 + plan.premium) * 1e6), played = b.ledger.length;
     const first = Math.round(total * plan.parts[0][0]);
     if (to && to.id === me) {
-      b.cash -= first; b.pending.fees += first;
+      b.cash -= first; b.pending.fees += first; b.prizeFund = Math.max(0, (b.prizeFund || 0) - first);
       b.signings.push({ pid: p.id, name: p.name, season: lg.season, round: lg.fixtures.filter((f) => f.played && (f.homeId === me || f.awayId === me)).length, fee: total, wage: wage != null ? wage : FM.wageOf(p), years: years || 3, book: total, from: from ? from.name : '', plan: planId || 'now' });
       plan.parts.slice(1).forEach(([share, after], i) => { b.payables.push({ id: 'P' + (b.seq++), pid: p.id, name: p.name, amount: Math.round(total * share), due: played + after, to: from ? from.name : '' }); });
     } else if (from && from.id === me) {
