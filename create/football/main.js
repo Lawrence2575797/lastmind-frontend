@@ -1533,15 +1533,15 @@
   // In a match: the squad, then the shape in each phase of play.
   // The other side has changed how it plays: say so, and offer to go straight to the part of our own tactics that answers it.
   function showTacticAlert(a) {
-    const old = document.getElementById('tacAlert'); if (old) old.remove();
-    const box = document.createElement('div'); box.id = 'tacAlert'; box.className = 'tac-alert'; box.setAttribute('role', 'alert');
+    let stack = document.getElementById('tacAlerts'); if (!stack) { stack = document.createElement('div'); stack.id = 'tacAlerts'; document.body.appendChild(stack); }   // alerts stack up and stay until dismissed
+    while (stack.children.length >= 4) stack.firstChild.remove();
+    const box = document.createElement('div'); box.className = 'tac-alert'; box.setAttribute('role', 'alert');
     box.innerHTML = `<b>${esc(a.text)}</b><p>${esc(a.advice)}</p><div class="tac-alert-row"><button type="button" class="primary" data-go>${esc(a.label)}</button><button type="button" data-x>Dismiss</button></div>`;
-    document.body.appendChild(box);
+    stack.appendChild(box);
     const gone = () => { if (box.parentNode) box.remove(); };
     box.querySelector('[data-x]').addEventListener('click', gone);
     box.querySelector('[data-go]').addEventListener('click', () => { gone(); world.tab = a.tab; renderTactics(); const t = document.getElementById('tactics'); if (t && t.scrollIntoView) t.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
-    setTimeout(gone, 30000);
-    if (!document.getElementById('tacAlertCss')) { const st = document.createElement('style'); st.id = 'tacAlertCss'; st.textContent = '.tac-alert{position:fixed;right:18px;bottom:18px;z-index:9000;max-width:360px;padding:14px 16px;background:#16241e;border:1px solid var(--gold,#f2c14e);box-shadow:0 14px 34px rgba(0,0,0,.5);display:grid;gap:8px}.tac-alert p{margin:0;font-size:.9rem;line-height:1.5;opacity:.92}.tac-alert-row{display:flex;gap:8px;flex-wrap:wrap}.tac-alert-row button{flex:1 1 auto}'; document.head.appendChild(st); }
+    if (!document.getElementById('tacAlertCss')) { const st = document.createElement('style'); st.id = 'tacAlertCss'; st.textContent = '#tacAlerts{position:fixed;right:18px;bottom:18px;z-index:9000;display:flex;flex-direction:column;gap:10px;max-width:360px}.tac-alert{padding:14px 16px;background:#16241e;color:#f4ede0;border:1px solid var(--gold,#f2c14e);box-shadow:0 14px 34px rgba(0,0,0,.5);display:grid;gap:8px}.tac-alert b{color:#fff;font-size:.98rem;line-height:1.4}.tac-alert p{margin:0;font-size:.9rem;line-height:1.5;color:#d9d2c4}.tac-alert-row{display:flex;gap:8px;flex-wrap:wrap}.tac-alert-row button{flex:1 1 auto}'; document.head.appendChild(st); }
   }
   const MATCH_TABS = [['squad', 'Squad and substitutes'], ['build', 'Build-up'], ['midfield', 'Through midfield'], ['final', 'Final third'], ['organised', 'Defending']];
   const TEST_TABS = [['build','Build-up'],['midfield','Midfield'],['final','Final third'],['press','Pressing their build-up'],['organised','Defending your third'],['transdef','Defensive transition'],['transatt','Attacking transition']];
