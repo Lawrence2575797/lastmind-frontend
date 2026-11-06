@@ -89,15 +89,18 @@
     return BOARDS.map((d) => ({ id: d.id, title: d.title, unit: d.unit, top: board(d, list, 5) }));
   };
 
-  const boardHtml = (b) => `<div class="ld-board"><h3>${esc(b.title)}</h3>${b.top.length ? `<ol>${b.top.map((r, i) => `<li${i === 0 ? ' class="first"' : ''}><span class="nm">${esc(r.name)}${r.club ? ` <small>${esc(r.club)}</small>` : ''}</span><b>${esc(r.shown)}</b></li>`).join('')}</ol>` : '<p class="note">Nobody yet.</p>'}</div>`;
-  const clubRows = (list, sign) => list.length ? `<ol>${list.map((o) => `<li><span class="nm">${esc(o.name)} <small>${o.pos}${['th', 'st', 'nd', 'rd'][o.pos % 10 < 4 && (o.pos % 100 < 11 || o.pos % 100 > 13) ? o.pos % 10 : 0]}, squad says ${o.exp}${['th', 'st', 'nd', 'rd'][o.exp % 10 < 4 && (o.exp % 100 < 11 || o.exp % 100 > 13) ? o.exp % 10 : 0]}</small></span><b>${sign}${Math.abs(o.diff)}</b></li>`).join('')}</ol>` : '<p class="note">None yet.</p>';
+  // One leader per board, the figure beside him; the boards are stacked one above the other.
+  const lead = (name, sub, fig) => `<div class="ld-lead"><span class="nm"><b>${esc(name)}</b>${sub ? `<small>${esc(sub)}</small>` : ''}</span><strong>${esc(fig)}</strong></div>`;
+  const boardHtml = (b) => `<div class="ld-board"><h3>${esc(b.title)}</h3>${b.top.length ? lead(b.top[0].name, b.top[0].club, b.top[0].shown) : '<p class="note">Nobody yet.</p>'}</div>`;
+  const ord = (n) => n + ['th', 'st', 'nd', 'rd'][n % 10 < 4 && (n % 100 < 11 || n % 100 > 13) ? n % 10 : 0];
+  const clubBoard = (title, list, sign) => `<div class="ld-board"><h3>${title}</h3>${list.length ? lead(list[0].name, ord(list[0].pos) + ', squad says ' + ord(list[0].exp), sign + Math.abs(list[0].diff)) : '<p class="note">None yet.</p>'}</div>`;
 
-  FM.leadersCss = '.ld-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px}.ld-board{border:1px solid var(--line,#3a4540);padding:10px 12px}.ld-board h3{margin:0 0 6px;font-size:.78rem;letter-spacing:.08em;text-transform:uppercase;opacity:.75}.ld-board ol{margin:0;padding:0;list-style:none}.ld-board li{display:flex;justify-content:space-between;gap:10px;padding:3px 0;border-top:1px solid rgba(255,255,255,.06)}.ld-board li.first .nm{font-weight:700}.ld-board li small{opacity:.6;margin-left:4px}.ld-board b{font-variant-numeric:tabular-nums}.ld-tabs{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 12px}.ld-tabs button.on{background:var(--accent,#f4c34d);color:#111}';
+  FM.leadersCss = '.ld-grid{display:grid;grid-template-columns:1fr;gap:10px}.ld-board{border:1px solid var(--line,#3a4540);padding:10px 14px}.ld-board h3{margin:0 0 6px;font-size:.78rem;letter-spacing:.08em;text-transform:uppercase;opacity:.75}.ld-lead{display:flex;justify-content:space-between;align-items:baseline;gap:12px}.ld-lead .nm{display:grid;gap:2px}.ld-lead .nm b{font-size:1.05rem}.ld-lead small{opacity:.65;font-size:.82rem}.ld-lead strong{font-size:1.6rem;font-variant-numeric:tabular-nums}.ld-tabs{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 12px}.ld-tabs button.on{background:var(--accent,#f4c34d);color:#111}';
   // mode: 'league' (the division on show) or 'club' (the manager's own)
   FM.leadersHtml = function (league, mode, level) {
     const boards = mode === 'club' ? FM.clubLeaders(league) : FM.leagueLeaders(league, level);
     let html = `<div class="ld-grid">${boards.map(boardHtml).join('')}`;
-    if (mode !== 'club') { const o = FM.clubOverperformers(league, level); html += `<div class="ld-board"><h3>Overperforming clubs</h3>${clubRows(o.over, '+')}</div><div class="ld-board"><h3>Underperforming clubs</h3>${clubRows(o.under, '−')}</div>`; }
+    if (mode !== 'club') { const o = FM.clubOverperformers(league, level); html += clubBoard('Overperforming club', o.over, '+') + clubBoard('Underperforming club', o.under, '−'); }
     return html + '</div><p class="note">Updated after every matchday. League Cup ties are not counted. A player needs three appearances to be rated. Overperforming means a club stands higher in the table than its squad strength says it should.</p>';
   };
 })();
