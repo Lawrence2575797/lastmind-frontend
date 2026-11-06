@@ -697,8 +697,14 @@
       if (!FM.NO_OFFER && depth < 0.95) {
         const mates = T.players.filter((q) => q !== cp && q.group !== 'GK'), pressedNow = perceivedPressure(match, T, cp), cpSide = cp.y >= W / 2 ? 1 : -1;
         const keepsRestDefence = (q) => q.group === 'CB' ? depth > 0.4 : q.group === 'DM' ? depth > 0.55 : false;
+        // A man being squeezed with nobody to give it to needs a way out, and whoever is nearest him sees that and makes himself one, whatever his job (a forward drops to link, a winger comes inside):
+        // when the man on the ball is pressed and fewer than two of his team-mates can be found along an open line, the two nearest stop waiting for a better place and take the first good one.
+        const lineOpen = (q) => !O.players.some((o) => o.group !== 'GK' && segInfo(o.x, o.y, cp.x, cp.y, q.x, q.y).d < 2.2);
+        const outlets = mates.filter((q) => { const d = dist(q, cp); return d > 5 && d < 35 && lineOpen(q); }).length;
+        const needy = new Set(pressedNow > 0.45 && outlets < 2 ? mates.filter((q) => !keepsRestDefence(q)).sort((a, b) => dist(a, cp) - dist(b, cp)).slice(0, 2) : []);
         T.players.forEach((q) => {
           if (!open(q) || q.group === 'GK' || keepsRestDefence(q)) return;
+          const need = needy.has(q);
           const home = FM.targetFor(T, q, match.ball, true), reachM = q.group === 'CB' ? 12 : q.group === 'FB' ? 16 : 20, homePull = q.group === 'CB' ? 0.22 : 0.11;
           const marker = O.players.filter((o) => o.group !== 'GK').reduce((b, o) => (!b || Math.hypot(o.x - q.x, o.y - q.y) < Math.hypot(b.x - q.x, b.y - q.y) ? o : b), null);
           const ahead = FM.instrMods(q, true).runs >= 0;
@@ -707,7 +713,7 @@
             if ((x - cp.x) * dir > 0 && (x * dir) > (T.offsideLine == null ? 1e9 : T.offsideLine * dir) + (ahead ? 0.5 : -1.2) && depth > 0.4) return -1e9;   // never past the offside line
             const lane = O.players.reduce((n, o) => { if (o.group === 'GK') return n; const dl = segInfo(o.x, o.y, cp.x, cp.y, x, y).d; return n + (dl < 2.2 ? 1 : dl < 4 ? 0.35 : 0); }, 0);
             const room = Math.min(9, O.players.reduce((m, o) => Math.min(m, Math.hypot(o.x - x, o.y - y)), 99));
-            const find = (lane ? -4 - 2 * lane : 3) + 0.55 * room + (dd < 6 ? -3 : dd > 28 ? -(dd - 28) * 0.4 : -Math.abs(dd - (pressedNow > 0.5 ? 11 : 15)) * 0.1);   // when he is squeezed, a short safe option is worth more than a bold one
+            const find = (lane ? -4 - 2 * lane : (need ? 6 : 3)) + 0.55 * room + (dd < 6 ? -3 : dd > 28 ? -(dd - 28) * 0.4 : -Math.abs(dd - (pressedNow > 0.5 ? 11 : 15)) * 0.1);   // when he is squeezed, a short safe option is worth more than a bold one
             const worth = 9 * FM.threat(dir, x, y) + 0.07 * Math.max(-8, Math.min(10, (x - cp.x) * dir));
             const pull = marker ? 0.05 * Math.min(14, Math.hypot(marker.x - x, marker.y - y)) : 0;   // being far from my marker drags him out of position
             const sw = pressedNow > 0.55 && (y >= W / 2 ? 1 : -1) !== cpSide && room > 6 ? 1.6 : 0;   // a way out for a pressed man: the far side, where there is room
@@ -721,7 +727,7 @@
             const x = clamp(q.x + ox, 2, L - 2), y = clamp(q.y + oy, 2.5, W - 2.5), sc = score(x, y);
             if (sc > bs) { bs = sc; best = { x, y }; }
           }
-          if (best && bs > cur + 1.4) give(q, best.x, best.y, FM.OFFER_SECS == null ? 1.3 : FM.OFFER_SECS, 'offer');
+          if (best && bs > cur + (need ? 0.3 : 1.4)) give(q, best.x, best.y, need ? 1.8 : (FM.OFFER_SECS == null ? 1.3 : FM.OFFER_SECS), 'offer');
         });
       }
     }
