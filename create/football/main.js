@@ -2924,18 +2924,19 @@
       const cur = allClubs.find((c) => c.name === sel.value) || allClubs[0];
       box.innerHTML = '<button type="button" class="ngc-btn" aria-haspopup="listbox" aria-expanded="false" aria-label="The club you will manage"><span>' + escapeHtmlNg(cur.name) + '</span><span class="ngc-pos">' + ord(cur.exp) + '</span></button><div class="ngc-list" role="listbox" hidden><div class="ngc-h"><span>Club</span><span>Expected finish</span></div>' + groups.map((g) => '<div class="ngc-g">' + escapeHtmlNg(g.name) + '</div>' + g.clubs.map((c) => '<button type="button" role="option" class="ngc-row' + (c.name === sel.value ? ' on' : '') + '" data-club="' + escapeHtmlNg(c.name) + '"><span>' + escapeHtmlNg(c.name) + '</span><span class="ngc-pos">' + ord(c.exp) + '</span></button>').join('')).join('') + '</div>';
       const btn = box.querySelector('.ngc-btn'), list = box.querySelector('.ngc-list');
-      const close = () => { list.hidden = true; btn.setAttribute('aria-expanded', 'false'); document.removeEventListener('mousedown', away); };
-      const away = (e) => { if (!box.contains(e.target)) close(); };
+      const close = () => { list.hidden = true; if (list.parentNode !== box) box.appendChild(list); btn.setAttribute('aria-expanded', 'false'); document.removeEventListener('mousedown', away); };
+      const away = (e) => { if (!box.contains(e.target) && !list.contains(e.target)) close(); };
       const place = () => {   // the list sits on the screen, not inside the card: it is as tall as the room below (or above) the button, so every club can be scrolled to
         const r = btn.getBoundingClientRect(), below = window.innerHeight - r.bottom - 12, above = r.top - 12, up = below < 220 && above > below, room = Math.max(160, up ? above : below);
-        list.style.position = 'fixed'; list.style.left = r.left + 'px'; list.style.width = r.width + 'px'; list.style.right = 'auto'; list.style.maxHeight = room + 'px';
+        if (list.parentNode !== document.body) document.body.appendChild(list);   // out of the card, so nothing in it can clip or shift the list
+        list.style.zIndex = '9999'; list.style.position = 'fixed'; list.style.left = r.left + 'px'; list.style.width = r.width + 'px'; list.style.right = 'auto'; list.style.maxHeight = room + 'px';
         if (up) { list.style.top = 'auto'; list.style.bottom = (window.innerHeight - r.top) + 'px'; } else { list.style.bottom = 'auto'; list.style.top = r.bottom + 'px'; }
       };
       window.addEventListener('resize', () => { if (!list.hidden) place(); });
       window.addEventListener('scroll', (e) => { if (!list.hidden && !list.contains(e.target)) place(); }, true);
       btn.addEventListener('click', () => { if (!list.hidden) { close(); return; } list.hidden = false; place(); btn.setAttribute('aria-expanded', 'true'); document.addEventListener('mousedown', away); const on = list.querySelector('.on'); if (on) list.scrollTop = Math.max(0, on.offsetTop - 120); });
       btn.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
-      list.querySelectorAll('.ngc-row').forEach((r) => { r.addEventListener('click', () => { sel.value = r.dataset.club; sel.dispatchEvent(new Event('change')); draw(); }); r.addEventListener('keydown', (e) => { if (e.key === 'Escape') { close(); btn.focus(); } else if (e.key === 'ArrowDown' && r.nextElementSibling) { e.preventDefault(); let n = r.nextElementSibling; if (n && !n.classList.contains('ngc-row')) n = n.nextElementSibling; if (n) n.focus(); } else if (e.key === 'ArrowUp') { e.preventDefault(); let n = r.previousElementSibling; if (n && !n.classList.contains('ngc-row')) n = n.previousElementSibling; if (n && n.classList.contains('ngc-row')) n.focus(); } }); });
+      list.querySelectorAll('.ngc-row').forEach((r) => { r.addEventListener('click', () => { sel.value = r.dataset.club; close(); sel.dispatchEvent(new Event('change')); draw(); }); r.addEventListener('keydown', (e) => { if (e.key === 'Escape') { close(); btn.focus(); } else if (e.key === 'ArrowDown' && r.nextElementSibling) { e.preventDefault(); let n = r.nextElementSibling; if (n && !n.classList.contains('ngc-row')) n = n.nextElementSibling; if (n) n.focus(); } else if (e.key === 'ArrowUp') { e.preventDefault(); let n = r.previousElementSibling; if (n && !n.classList.contains('ngc-row')) n = n.previousElementSibling; if (n && n.classList.contains('ngc-row')) n.focus(); } }); });
     };
     draw();
     const show = () => { const g = groups.find((x) => x.clubs.some((c) => c.name === sel.value)), c = g && g.clubs.find((x) => x.name === sel.value); if (note && c) note.textContent = g.name + ': ' + c.tag + '. Expected finish ' + ord(c.exp) + '. ' + LEVEL_NOTE[g.level]; };
