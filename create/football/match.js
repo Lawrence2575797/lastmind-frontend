@@ -1577,7 +1577,7 @@
       from: lead ? lead.from : 0, leadDist: lead ? lead.dist : 0, leadAir: lead && lead.aerial ? 1 : 0, movePasses: cur && cur.team === team.id ? cur.passes : 0, moveSecs: cur && cur.team === team.id ? match.clock - cur.t : 0,
       gkDist: gk ? Math.hypot(gk.x - carrier.x, gk.y - carrier.y) : 0, crowd: crowd(match, team, carrier) });
     match.carrier = null; match.carry = null;
-    match.flight = { kind: 'shot', team, shooter: carrier, speed: 28, target: null, ex, ey: clamp(ey, 0.5, W - 0.5), outcome, gk, blocker, xg: shotXg };
+    match.flight = { kind: 'shot', team, shooter: carrier, speed: 28, target: null, ex, ey: clamp(ey, 0.5, W - 0.5), outcome, gk, blocker, xg: shotXg, x0: carrier.x, y0: carrier.y };
     match.ball.state = 'flight';
   }
 
@@ -2505,7 +2505,7 @@
 
     if (match.phase === 'celebration') { stepCelebration(match, dt); return; }
     if (match.phase === 'replay') { match.replayWait += dt; if (match.replayDone || !match.wantReplay || match.replayWait > 40) endCelebration(match); return; }
-    if (match.hold) { match.hold.t -= dt; match.teams.forEach((t) => FM.stepTeam(t, match.ball, false, dt)); if (match.hold.t <= 0) { const fn = match.hold.fn; match.hold = null; fn(); } return; }
+    if (match.hold) { match.hold.t -= dt; const gl = match.hold.glide; if (gl) { const bb = match.ball, gd = Math.hypot(gl.tx - bb.x, gl.ty - bb.y), st = Math.min(gd, gl.speed * dt); if (gd > 0.01) { bb.x += (gl.tx - bb.x) / gd * st; bb.y += (gl.ty - bb.y) / gd * st; } bb.z = 0; } match.teams.forEach((t) => FM.stepTeam(t, match.ball, false, dt)); if (match.hold.t <= 0) { const fn = match.hold.fn; match.hold = null; fn(); } return; }
     if (match.phase === 'kickoff') {
       const poss = match.kickoffTeam;
       match.teams.forEach((t) => FM.stepTeam(t, match.ball, t === poss, dt));
@@ -2811,6 +2811,11 @@
     }
   }
 
+  // A ball that goes out is seen going out: it carries on over the line (or the goal line, wide of the post) at the speed it had, and the restart is given when it has crossed.
+  function sendOut(match, tx, ty, speed, fn) {
+    const b = match.ball, d = Math.hypot(tx - b.x, ty - b.y);
+    match.hold = { t: d / speed + 0.35, fn, glide: { tx, ty, speed } }; b.state = 'dead'; b.vx = b.vy = 0;
+  }
   function arrive(match, f) {
     if (f.kind === 'cross') { crossArrive(match, f); return; }
     if (f.kind === 'pass') {
@@ -2853,7 +2858,10 @@
     } else if (f.outcome === 'saved') {
       after(() => {
         const r = match.rng(), pParry = clamp(0.08 + 0.55 * (f.xg || 0.1), 0.08, 0.4);   // the harder the chance, the less likely he holds it
-        if (r < (FM.SHOT_CORNER == null ? 0.34 : FM.SHOT_CORNER)) startRestart(match, 'corner', team, team.attackDir === 1 ? L - 0.5 : 0.5, f.ey < W / 2 ? 0.5 : W - 0.5);
+        if (r < (FM.SHOT_CORNER == null ? 0.34 : FM.SHOT_CORNER)) {   // tipped round the post: the keeper was the last to touch it, and it crosses the goal line wide
+          const side = f.ey < W / 2 ? -1 : 1, gxl = team.attackDir === 1 ? L : 0;
+          sendOut(match, gxl + team.attackDir * 1.2, W / 2 + side * (6 + 3 * match.rng()), 8, () => startRestart(match, 'corner', team, team.attackDir === 1 ? L - 0.5 : 0.5, side < 0 ? 0.5 : W - 0.5));
+        }
         else if (r < (FM.SHOT_CORNER == null ? 0.34 : FM.SHOT_CORNER) + pParry && !f.penalty) {
           const gx = team.attackDir === 1 ? L : 0, b = match.ball;
           b.x = gx - team.attackDir * (1.2 + 1.6 * match.rng()); b.y = clamp(f.ey + (match.rng() - 0.5) * 5, W / 2 - 9, W / 2 + 9); b.z = 0;
@@ -2861,11 +2869,16 @@
         } else giveBall(match, opp, f.gk, 1.6);
       });
     } else if (f.outcome === 'blocked') {
-      if (match.rng() < (FM.SHOT_CORNER == null ? 0.34 : FM.SHOT_CORNER)) startRestart(match, 'corner', team, team.attackDir === 1 ? L - 0.5 : 0.5, f.ey < W / 2 ? 0.5 : W - 0.5);
-      else { match.ball.state = 'loose'; match.lastTeam = opp; }
+      if (match.rng() < (FM.SHOT_CORNER == null ? 0.34 : FM.SHOT_CORNER)) {   // it came off the defender and over the goal line: the defender was the last to touch it
+        const side = match.ball.y < W / 2 ? -1 : 1, gxl = team.attackDir === 1 ? L : 0;
+        sendOut(match, gxl + team.attackDir * 1.2, W / 2 + side * (7 + 3 * match.rng()), 14, () => startRestart(match, 'corner', team, team.attackDir === 1 ? L - 0.5 : 0.5, side < 0 ? 0.5 : W - 0.5));
+      } else { match.ball.state = 'loose'; match.lastTeam = opp; }
     } else {
       // Off target: goal kick.
-      after(() => startRestart(match, 'goalkick', opp, opp.attackDir === 1 ? 5.5 : L - 5.5, W / 2));
+      if (f.outcome === 'off' && !f.penalty && f.x0 != null) {   // wide of the post and on past the goal line, rolling on to the boards, then the goal kick
+        const dx = f.ex - f.x0, dy = f.ey - f.y0, dl = Math.hypot(dx, dy) || 1, gxl = team.attackDir === 1 ? L : 0;
+        sendOut(match, clamp(f.ex + dx / dl * 5, -6, L + 6), clamp(f.ey + dy / dl * 5, -3, W + 3), 9, () => startRestart(match, 'goalkick', opp, opp.attackDir === 1 ? 5.5 : L - 5.5, W / 2));
+      } else after(() => startRestart(match, 'goalkick', opp, opp.attackDir === 1 ? 5.5 : L - 5.5, W / 2));
     }
   }
 
