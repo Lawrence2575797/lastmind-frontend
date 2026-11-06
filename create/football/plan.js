@@ -82,8 +82,6 @@
       T('foul', 'Stopping a break', '', [STD('Never foul'), o('foul', 'Foul to stop it if needed', { r: [['DM', [E.tackle(0.7)]], ['CM', [E.tackle(0.5)]]] })]),
     ],
     defence: [
-      T('block', 'How high we defend', 'A high line squeezes the game but leaves space behind; a low block is safe and invites pressure.', [
-        o('low', 'Low block', { pos: [['out', -8, 0], ['CB', -2, 0]], tac: { block: 'low', pressing: 0.25, pressBuildUp: 0.1 } }), STD('Mid block'), o('high', 'High line', { pos: [['out', 6, 0], ['CB', 2, 0]], tac: { block: 'high', pressing: 0.55 } })]),
       T('compact', 'Compactness', 'Narrow is harder to play through; wide covers the flanks.', [o('tight', 'Narrow and tight', { pos: [['CM', 0, -3], ['AM', 0, -4], ['WF', 0, -4], ['FB', 0, -3]] }), STD('Normal'), o('wide', 'Wide', { pos: [['CM', 0, 3], ['AM', 0, 3], ['WF', 0, 4], ['FB', 0, 2]] })]),
       T('marking', 'Marking', 'Zonal holds an area; man-marking follows the nearest attacker.', [
         STD('Zonal'), o('man', 'Man-marking', { r: [['CB', [E.mark({ group: 'ST' })]], ['FB', [E.mark({ group: 'WF' })]], ['DM', [E.mark({ group: 'AM' })]]] }), o('mixed', 'Mixed (defenders man-mark)', { r: [['CB', [E.mark({ group: 'ST' })]]] })]),

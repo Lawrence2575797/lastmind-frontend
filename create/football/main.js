@@ -2024,9 +2024,8 @@
     const host = el('tabBody');
     const defTab = tab === 'organised', sub = defTab ? (world.defSub || 'press') : tab;
     const blk = defTab ? blockWord(team.tactics) : '';
-    host.innerHTML = (defTab ? '<div class="block-presets" style="margin-bottom:10px"><b>Defensive block</b>' + [['high', 'High press'], ['mid', 'Mid block'], ['low', 'Low block']].map(([k, l]) => '<button type="button" data-blockpick="' + k + '" class="' + (blk === k ? 'on' : '') + '">' + l + '</button>').join('') + '</div>' : '') + (defTab ? '<div class="def-sub" role="tablist"><button data-sub="press" class="' + (sub === 'press' ? 'on' : '') + '">1. Pressing their build-up</button><button data-sub="organised" class="' + (sub === 'organised' ? 'on' : '') + '">2. Defending your third</button></div>' : '') + '<div id="scnHost"></div>' + (DEMO_MODE ? '' : '<div id="scnInstr"></div>');
+    host.innerHTML = (defTab ? '<div class="def-sub" role="tablist"><button data-sub="press" class="' + (sub === 'press' ? 'on' : '') + '">1. Pressing their build-up</button><button data-sub="organised" class="' + (sub === 'organised' ? 'on' : '') + '">2. Defending your third</button></div>' : '') + '<div id="scnHost"></div>' + (DEMO_MODE ? '' : '<div id="scnInstr"></div>');
     host.querySelectorAll('[data-sub]').forEach((b) => b.addEventListener('click', () => { world.defSub = b.dataset.sub; renderScenarioTab(team, tab); }));
-    host.querySelectorAll('[data-blockpick]').forEach((b) => b.addEventListener('click', () => { applyBlock(team, b.dataset.blockpick); saveSoon(); renderScenarioTab(team, tab); }));
     world.scn = world.scn || {};
     FM.renderScenario(host.querySelector('#scnHost'), team, nextOpponent(), sub, { store: world.scn, save: saveSoon, applied: (done) => {
       FM.inferShapeTactics(team); renderPrepFlow();
@@ -2603,9 +2602,9 @@
     const avgOf = (side, id) => { const r = AV && AV[side][id]; return r && AV.t > 0 ? { d: r.d / AV.t, w: r.w / AV.t } : null; };
     const theirs = opp ? opp.players.map((q) => { const t = (haveAvg && avgOf('theirs', q.number)) || FM.toTeamSpace(team.attackDir, q.x, q.y), c = toXY(t.d, t.w); return `<g pointer-events="none"><circle cx="${c.x.toFixed(2)}" cy="${c.y.toFixed(2)}" r="2.1" fill="#7fb3e0" stroke="#0e2a44" stroke-width=".35"/><text x="${c.x.toFixed(2)}" y="${(c.y + .85).toFixed(2)}" text-anchor="middle" font-size="2.4" font-weight="700" fill="#06182a">${q.number}</text></g>`; }).join('') : '';
     const ours = team.players.map((p) => {
-      const pos = moved[p.index] ? FM.phasePos(team, p, key) : ((haveAvg && avgOf('ours', p.index)) || FM.phasePos(team, p, key)), c = toXY(clamp01(pos.d, 0, 1), clamp01(pos.w, 0, 1));
+      const mv = moved[p.index] && !haveAvg, pos = (haveAvg && avgOf('ours', p.index)) || FM.phasePos(team, p, key), c = toXY(clamp01(pos.d, 0, 1), clamp01(pos.w, 0, 1));   // placed by hand until the phase has been played again, then where he actually averages
       const nm = esc((p.name || '').split(' ').slice(-1)[0]);
-      return `<g data-live="${p.index}" style="cursor:grab"><circle cx="${c.x.toFixed(2)}" cy="${c.y.toFixed(2)}" r="3.6" fill="transparent"/><circle cx="${c.x.toFixed(2)}" cy="${c.y.toFixed(2)}" r="2.3" fill="${moved[p.index] ? '#f4edda' : '#fff'}" stroke="${moved[p.index] ? '#e0a82e' : '#1f8a4c'}" stroke-width=".5"/><text x="${c.x.toFixed(2)}" y="${(c.y + .9).toFixed(2)}" text-anchor="middle" font-size="2.5" font-weight="700" fill="#14653a" pointer-events="none">${p.number}</text><text x="${c.x.toFixed(2)}" y="${(c.y + 5).toFixed(2)}" text-anchor="middle" font-size="2.2" fill="#fff" stroke="#000" stroke-width=".5" style="paint-order:stroke" pointer-events="none">${nm}</text></g>`;
+      return `<g data-live="${p.index}" style="cursor:grab"><circle cx="${c.x.toFixed(2)}" cy="${c.y.toFixed(2)}" r="3.6" fill="transparent"/><circle cx="${c.x.toFixed(2)}" cy="${c.y.toFixed(2)}" r="2.3" fill="${mv ? '#f4edda' : '#fff'}" stroke="${mv ? '#e0a82e' : '#1f8a4c'}" stroke-width=".5"/><text x="${c.x.toFixed(2)}" y="${(c.y + .9).toFixed(2)}" text-anchor="middle" font-size="2.5" font-weight="700" fill="#14653a" pointer-events="none">${p.number}</text><text x="${c.x.toFixed(2)}" y="${(c.y + 5).toFixed(2)}" text-anchor="middle" font-size="2.2" fill="#fff" stroke="#000" stroke-width=".5" style="paint-order:stroke" pointer-events="none">${nm}</text></g>`;
     }).join('');
     return `<svg id="liveSvg" viewBox="-2 -2 ${W + 4} ${L + 4}" style="width:100%;max-width:560px;display:block;border-radius: 0;background:#2c7d40;touch-action:pan-y">${lines}${theirs}${ours}</svg>`;
   }
@@ -2615,7 +2614,6 @@
     world.liveMoved = world.liveMoved || {}; world.liveMoved[key] = world.liveMoved[key] || {};
     const title = def ? (key === 'press' ? 'Pressing their build-up' : 'Defending your third') : ({ build: 'Build-up', midfield: 'Through midfield', final: 'Final third' })[tab];
     host.innerHTML = `<div class="tb-grid"><aside class="tb-controls">
-        ${def ? '<div class="block-presets"><b>Defensive block</b><button data-block="low">Low block</button><button data-block="mid">Mid block</button><button data-block="high">High press</button></div>' : ''}
         <div class="row"><button type="button" id="liveReset">Let them move as they were</button></div>
       </aside><div class="tb-left">
         ${def ? '<div class="def-sub" role="tablist"><button data-msub="press" class="' + (key === 'press' ? 'on' : '') + '">Pressing their build-up</button><button data-msub="organised" class="' + (key === 'without' ? 'on' : '') + '">Defending your third</button></div>' : ''}
@@ -2636,8 +2634,7 @@
       const pos = toPos(lh.querySelector('svg'), ev);
       FM.setPhasePos(team, p, key, pos); world.liveMoved[key][p.index] = true; draw();
     });
-    lh.addEventListener('pointerup', () => { if (drag) { drag = null; try { FM.inferShapeTactics(team); } catch (e) { /* fine */ } } });
-    host.querySelectorAll('[data-block]').forEach((b) => b.addEventListener('click', () => { applyBlock(team, b.dataset.block); world.liveMoved = {}; renderTactics(); }));
+    lh.addEventListener('pointerup', () => { if (drag) { drag = null; try { FM.inferShapeTactics(team); } catch (e) { /* fine */ } if (m && m.avgPos && m.avgPos[key]) delete m.avgPos[key]; draw(); } });   // the average starts again from the moment he changes it
     host.querySelectorAll('[data-msub]').forEach((b) => b.addEventListener('click', () => { world.defSubM = b.dataset.msub; renderTactics(); }));
     host.querySelector('#liveReset').addEventListener('click', () => {
       // put the shirts of this page back to how the plan had them for this game, and let them follow play again
@@ -2667,7 +2664,6 @@
       <div class="tb-grid${pair ? ' tb-pair' : ''}${isShape ? ' tb-shape' : ''}">
         <aside class="tb-controls">
           ${isShape ? `<label>Formation<select id="formSel">${team.formationLabel ? `<option value="__custom" selected disabled>Current shape: ${esc(formationTitle)}</option>` : ''}${formationOptions}</select></label>${world.view === 'match' ? '' : '<button type="button" class="primary" id="useFormationDefaults">Use default tactics with this formation</button>' + (world.undoDefaults ? '<button type="button" id="undoFormationDefaults" title="Put back everything the default tactics replaced">Undo</button>' : '')}` : ((world.oppMoved && world.oppMoved[key] && Object.keys(world.oppMoved[key]).length) ? '<button class="phase-report-reset" id="oppReset">Reset their shirts to the scouted positions</button>' : '')}
-          ${tab === 'organised' ? '<div class="block-presets"><b>Defensive block</b><button data-block="low">Low block</button><button data-block="mid">Mid block</button><button data-block="high">High press</button></div>' : ''}
           <div id="phaseSliders"></div>
           ${key === 'press' ? '<div id="pressDetail"></div>' : ''}
           ${['build', 'midfield', 'final', 'press', 'without'].indexOf(key) >= 0 ? '<div id="simCard"></div>' : ''}
@@ -2694,7 +2690,6 @@
       drawBoard(board, team, key, isShape ? { fit: true } : undefined);
       if (isShape) world.redrawBoards = () => { if (board.isConnected) drawBoard(board, team, key, { fit: true }); };
     }
-    host.querySelectorAll('[data-block]').forEach((b) => b.addEventListener('click', () => { applyBlock(team, b.dataset.block); saveSoon(); renderTactics(); }));
     host.querySelectorAll('[data-msub]').forEach((b) => b.addEventListener('click', () => { world.defSubM = b.dataset.msub; renderTactics(); }));
     const oppReset = host.querySelector('#oppReset');
     if (oppReset) oppReset.addEventListener('click', () => { delete world.oppMoved[key]; renderTactics(); });
