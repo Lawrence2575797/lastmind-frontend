@@ -1227,7 +1227,8 @@
       // A shot is worth the goal it might be (on the same scale as everything else: a pass is worth its chance of arriving times what the ball is worth where it lands) and it costs what losing
       // the ball costs, because it nearly always ends the move; a corner or a rebound gives some of that back. So a shot from where it has no chance is never the best of the lot, however
       // few good passes there are, and one from a good position is. His manager's freedom to shoot is how much he weighs the goal; nothing else is added to it.
-      options.push({ kind: 'shoot', xg, score: GOAL_VALUE * xg * (0.5 + risk * 0.8) * (0.45 + tac.shootFreedom) * mods.shoot - (1 - xg) * 0.6 * (1 - risk) * lossFactor * (1 - SHOT_KEEPS) });
+      // nobody shoots when he can see it has next to no chance (a defender on top of him, miles out): the choice below is loose enough to hand such a shot a share of the decisions
+      if (xg >= 0.02) options.push({ kind: 'shoot', xg, score: GOAL_VALUE * xg * (0.5 + risk * 0.8) * (0.45 + tac.shootFreedom) * mods.shoot - (1 - xg) * 0.6 * (1 - risk) * lossFactor * (1 - SHOT_KEEPS) });
     }
 
     // Under severe pressure near their own goal, defenders can deliberately
