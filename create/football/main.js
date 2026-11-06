@@ -2926,7 +2926,14 @@
       const btn = box.querySelector('.ngc-btn'), list = box.querySelector('.ngc-list');
       const close = () => { list.hidden = true; btn.setAttribute('aria-expanded', 'false'); document.removeEventListener('mousedown', away); };
       const away = (e) => { if (!box.contains(e.target)) close(); };
-      btn.addEventListener('click', () => { if (!list.hidden) { close(); return; } list.hidden = false; btn.setAttribute('aria-expanded', 'true'); document.addEventListener('mousedown', away); const on = list.querySelector('.on'); if (on) list.scrollTop = Math.max(0, on.offsetTop - 120); });
+      const place = () => {   // the list sits on the screen, not inside the card: it is as tall as the room below (or above) the button, so every club can be scrolled to
+        const r = btn.getBoundingClientRect(), below = window.innerHeight - r.bottom - 12, above = r.top - 12, up = below < 220 && above > below, room = Math.max(160, up ? above : below);
+        list.style.position = 'fixed'; list.style.left = r.left + 'px'; list.style.width = r.width + 'px'; list.style.right = 'auto'; list.style.maxHeight = room + 'px';
+        if (up) { list.style.top = 'auto'; list.style.bottom = (window.innerHeight - r.top) + 'px'; } else { list.style.bottom = 'auto'; list.style.top = r.bottom + 'px'; }
+      };
+      window.addEventListener('resize', () => { if (!list.hidden) place(); });
+      window.addEventListener('scroll', (e) => { if (!list.hidden && !list.contains(e.target)) place(); }, true);
+      btn.addEventListener('click', () => { if (!list.hidden) { close(); return; } list.hidden = false; place(); btn.setAttribute('aria-expanded', 'true'); document.addEventListener('mousedown', away); const on = list.querySelector('.on'); if (on) list.scrollTop = Math.max(0, on.offsetTop - 120); });
       btn.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
       list.querySelectorAll('.ngc-row').forEach((r) => { r.addEventListener('click', () => { sel.value = r.dataset.club; sel.dispatchEvent(new Event('change')); draw(); }); r.addEventListener('keydown', (e) => { if (e.key === 'Escape') { close(); btn.focus(); } else if (e.key === 'ArrowDown' && r.nextElementSibling) { e.preventDefault(); let n = r.nextElementSibling; if (n && !n.classList.contains('ngc-row')) n = n.nextElementSibling; if (n) n.focus(); } else if (e.key === 'ArrowUp') { e.preventDefault(); let n = r.previousElementSibling; if (n && !n.classList.contains('ngc-row')) n = n.previousElementSibling; if (n && n.classList.contains('ngc-row')) n.focus(); } }); });
     };
