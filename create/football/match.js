@@ -38,6 +38,11 @@
     return clampP(sig((FM.TAKEON_BASE == null ? 0.25 : FM.TAKEON_BASE) + 0.05 * SK(carrier, 'dribbling') - 1.8 * Math.exp(-defDist / 2.5) - dfn + 0.35 * (edge || 0)), 0.05, 0.85);
   };
   // Tackle: the defender's tackling against the carrier's dribbling.
+  // The game leans a little towards the manager in the moments that are close to a coin flip: a tackle that could go either way, a shot that may or may not be blocked. Not a better team,
+  // just the bounce going his way slightly more often (about 8% on those odds). Only the managed club in its own matches, never a friendly.
+  FM.LEAN = 0.08;
+  FM.leanOf = (match, team) => (!FM.NO_USER_EDGE && match && !match.friendly && team && match.userId != null && team.id === match.userId ? FM.LEAN : 0);
+  FM.contestK = (match, winner, loser) => 1 + FM.leanOf(match, winner) - FM.leanOf(match, loser);
   FM.tackleProb = function (defender, carrier, edge) {
     return clampP(sig((FM.TACKLE_BASE == null ? -0.1 : FM.TACKLE_BASE) + 0.05 * (SK(defender, 'tackling') - SK(carrier, 'dribbling')) + 0.35 * (edge || 0)), 0.08, 0.88);
   };
@@ -1508,7 +1513,7 @@
       if (sg.t > 0.05 && sg.t < 0.95 && sg.d < bd) { bd = sg.d; blocker = o; }
     });
     const nearD = nearestOpponent(match, team, carrier).d;
-    const pBlock = blocker ? (FM.BLOCK_K == null ? 0.55 : FM.BLOCK_K) * Math.exp(-bd / 1.5) : 0;
+    const pBlock = blocker ? (FM.BLOCK_K == null ? 0.55 : FM.BLOCK_K) * Math.exp(-bd / 1.5) * FM.contestK(match, opp, team) : 0;
     const xgAdj = sig(FM.xgLogit(shooter, carrier.x, carrier.y, team.attackDir, nearD, FM.edgeFor(match, team)) - 0.55 * crowd(match, team, carrier) - 0.03 * (gk ? SK(gk, 'gk') : 0));
     const pOn = sig(0.15 + 0.03 * SK(shooter, 'finishing') - 0.6 * Math.exp(-nearD / 2));
     const conditionalGoal = clamp(xgAdj * (FM.GOAL_K == null ? 3.0 : FM.GOAL_K) / pOn, 0.02, 0.97);
@@ -1534,7 +1539,7 @@
     const nearD = nearestOpponent(match, team, carrier).d;
     // The true chance of this shot going in: it must get past a defender on the line, then the goalkeeper. This is what is recorded as
     // its xG, so that over many shots expected goals and goals agree (the chance the shooter weighed up beforehand, opt.xg, ignores both).
-    const pBlock = blocker ? (FM.BLOCK_K == null ? 0.55 : FM.BLOCK_K) * Math.exp(-bd / 1.5) : 0;
+    const pBlock = blocker ? (FM.BLOCK_K == null ? 0.55 : FM.BLOCK_K) * Math.exp(-bd / 1.5) * FM.contestK(match, opp, team) : 0;
     const xgAdj = sig(FM.xgLogit(shooter, carrier.x, carrier.y, team.attackDir, nearD, FM.edgeFor(match, team)) - 0.55 * crowd(match, team, carrier) - 0.03 * (gk ? SK(gk, 'gk') : 0));
     const pOn = sig(0.15 + 0.03 * SK(shooter, 'finishing') - 0.6 * Math.exp(-nearD / 2));
     // Record the probability the actual outcome routine uses. Previously xG
@@ -2160,7 +2165,7 @@
     const aimX = clamp(cp.x + (cp.vx || 0) * 0.4, 1, L - 1), aimY = clamp(cp.y + (cp.vy || 0) * 0.4, 1, W - 1), dd = Math.hypot(aimX - d.x, aimY - d.y) || 1;
     const behind = (d.x - cp.x) * team.attackDir < -0.6;
     match.tackleLock = match.clock + 1.5; match.slideLock = match.clock + 2.5;
-    const p = FM.tackleProb(d, cp, FM.edgeFor(match, opp)) * (opp.tacticalFactor || 1) * (behind ? 0.5 : 0.88), ok = match.rng() < p, st = statsOf(match, opp);
+    const p = FM.tackleProb(d, cp, FM.edgeFor(match, opp)) * (opp.tacticalFactor || 1) * (behind ? 0.5 : 0.88) * FM.contestK(match, opp, team), ok = match.rng() < p, st = statsOf(match, opp);
     st.tackles++; if (ok) st.tacklesWon++;
     let coverD = 40; opp.players.forEach((q) => { if (q !== d) coverD = Math.min(coverD, Math.hypot(q.x - d.x, q.y - d.y)); });
     record(match, { type: 'tackle', team: opp.id, player: d.number, vs: cp.number, p, ok, slide: true, x: cp.x, y: cp.y, depth: FM.toTeamSpace(opp.attackDir, cp.x, cp.y).d, cover: coverD });
@@ -2568,7 +2573,7 @@
         const rate = (FM.TACKLE_RATE == null ? 1.0 : FM.TACKLE_RATE) * (1 + (FM.MOVE_TACKLE == null ? 0.5 : FM.MOVE_TACKLE) * cSpeed / 3) * .65 * (opp.tacticalFactor || 1) * (0.03 + 0.13 * clamp(1 - dd0 / (1.8 + (FM.MOVE_REACH == null ? 0.25 : FM.MOVE_REACH) * cSpeed), 0, 1) + (d.roleId === 'ball_winning_midfielder' ? 0.06 : 0))   /* the nearer he is, the likelier he goes in: no setting scales it */ * (0.6 + 0.8 * opp.tactics.tackleAggression) * ((FM.CLOSE_TACKLE == null ? 1.8 : FM.CLOSE_TACKLE) > 1 && dist(c.player, { x: opp.attackDir === 1 ? 0 : L, y: W / 2 }) < 26 ? (FM.CLOSE_TACKLE == null ? 1.8 : FM.CLOSE_TACKLE) : 1) * (1 + 0.35 * (FM.instrMods(d).tackle + FM.rulesDelta(opp, d, 'tackle', match.ball, false)));
         if (match.clock >= (match.tackleLock || 0) && match.rng() < rate * dt) {
           match.tackleLock = match.clock + 1.2;
-          const p = FM.tackleProb(d, c.player, FM.edgeFor(match, opp)) * (opp.tacticalFactor || 1);
+          const p = FM.tackleProb(d, c.player, FM.edgeFor(match, opp)) * (opp.tacticalFactor || 1) * FM.contestK(match, opp, c.team);
           const ok = match.rng() < p;
           const st = statsOf(match, opp);
           st.tackles++;
@@ -2594,7 +2599,7 @@
       if (!match.carrier || match.carrier.player !== rg.target || match.clock > rg.until || rg.count > 3) match.regain = null;
       else if (match.clock - rg.from > 0.3 && match.clock >= (match.tackleLock || 0) && dist(rg.player, rg.target) < 1.9 && match.rng() < 2.4 * dt) {
         match.tackleLock = match.clock + 0.8;
-        const p = FM.tackleProb(rg.player, rg.target, FM.edgeFor(match, rg.team)) * 0.9 * (rg.team.tacticalFactor || 1), ok = match.rng() < p, st = statsOf(match, rg.team);
+        const p = FM.tackleProb(rg.player, rg.target, FM.edgeFor(match, rg.team)) * 0.9 * (rg.team.tacticalFactor || 1) * FM.contestK(match, rg.team, other(match, rg.team)), ok = match.rng() < p, st = statsOf(match, rg.team);
         st.tackles++; if (ok) st.tacklesWon++;
         record(match, { type: 'tackle', team: rg.team.id, player: rg.player.number, vs: rg.target.number, p, ok, x: rg.target.x, y: rg.target.y, depth: FM.toTeamSpace(rg.team.attackDir, rg.target.x, rg.target.y).d, cover: 20, duel: rg.count });
         if (ok) { const t0 = rg.target, t1 = rg.player, tm = rg.team; giveBall(match, tm, t1, 0.7); match.regain = { player: t0, team: other(match, tm), target: t1, from: match.clock, until: match.clock + 2.2, count: rg.count + 1 }; }
