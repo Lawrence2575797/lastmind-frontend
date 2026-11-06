@@ -1059,13 +1059,27 @@
       const progK = zone === 'final' ? 1 : (FM.PROG_K == null ? .38 : FM.PROG_K);
       let score = p * (0.35 + directness * 0.9 * prog * progK + 0.5 * prog * risk * progK + boxBonus) - (1 - p) * 0.6 * (1 - risk) * lossFactor;
       // Playing out from the back is patient: a pass through a crowd, with an easy one on, is not tried in your own third.
-      if (zone === 'build' && ownDepth0 < 0.45 && !(FM.NO_PATIENT)) {
-        // With time on the ball (nobody within a few metres) a player does not gamble on a pass he is unlikely to complete when an easy one is there: he can wait, move the ball and the opposition, and play the forward one when it opens.
-        const time = nearNow > 3;
-        const sure = time ? 0.8 : 0.65;
-        if (p < sure) score -= (sure - p) * (time ? 2.4 : (FM.PATIENT_K == null ? 1.6 : FM.PATIENT_K)) * (1 - 0.5 * risk);
-        // Shifting the ball from side to side is how a side opens a gap in the middle: each lateral pass drags the opposition across, so a safe one across the pitch is worth something.
-        if (time && p >= 0.8 && Math.abs(ty - carrier.y) > 8) score += 0.4 * clamp(Math.abs(ty - carrier.y) / 25, 0, 1) * p;
+      if (zone === 'build' && ownDepth0 < 0.45 && p < 0.65 && !(FM.NO_PATIENT)) score -= (0.65 - p) * (FM.PATIENT_K == null ? 1.6 : FM.PATIENT_K) * (1 - 0.5 * risk);
+      // What the pass sets up. A pass is worth more than where it lands: an easy ball to a team-mate who then has a good pass on (a forward one the man on the ball cannot play from here, because
+      // the lane is shut from where he stands) is worth the chance of the first times the best of the second, less its risk. Moving the ball from side to side is exactly this: it makes the
+      // pass that is not on now an easy one a moment later. It counts only while he has time (no one close), and a pass costs no chance for being slow.
+      let contV = 0;
+      if (zone !== 'final' && ownDepth0 < 0.66 && t.group !== 'GK') {
+        const timeK = clamp((nearNow - 1.5) / 3, 0, 1), L2 = 0.6 * (1 - risk) * lossFactor;
+        if (timeK > 0) {
+          let bestNext = 0;
+          team.players.forEach((u) => {
+            if (u === t || u === carrier || u.group === 'GK') return;
+            const d2 = Math.hypot(u.x - tx, u.y - ty); if (d2 < 5 || d2 > 40) return;
+            const li = laneInfo(match, team, { x: tx, y: ty }, u.x, u.y), P2 = FM.passProb(t, d2, li.lane, li.press, 0) * (team.tacticalFactor || 1);
+            const progU = clamp((dGoal - Math.hypot(u.x - goal.x, u.y - goal.y)) / 25, -0.6, 1.2), tdU = FM.toTeamSpace(team.attackDir, u.x, u.y).d;
+            const crossesU = (ownDepth0 < 0.38 && tdU >= 0.38) || (ownDepth0 < 0.68 && tdU >= 0.68) ? 1 : 0;
+            const v = P2 * (0.35 + (0.9 * directness + 0.5 * risk) * progU * 0.6) + crossesU * (FM.ZONE_AIM == null ? 1.3 : FM.ZONE_AIM) * (0.55 + 0.45 * directness + 0.35 * tac.tempo) * P2 * P2 - (1 - P2) * L2;   // valued exactly as the same pass would be played from here
+            if (v > bestNext) bestNext = v;
+          });
+          // only what it adds over playing that ball straight from here is a gain: it is the lane that is the difference
+          contV = p * 0.9 * timeK * clamp(bestNext, 0, 1.6);
+        }
       }
       // The chance it creates. A pass that puts a team-mate somewhere he is clearly likelier to score from than the man on the ball is the
       // pass a player looks for: it counts for what the receiver could do with it, whoever he is.
@@ -1084,7 +1098,7 @@
       // A player through on goal does not turn and play it back, and near the opposition box a pass backwards is a last resort
       // (when he is being closed down hard) rather than the usual choice.
       const back = (carrier.x - t.x) * team.attackDir;
-      let adj = 0;
+      let adj = contV;
       if (zone !== 'final' && nearNow > 4) adj += (FM.CIRC == null ? 1.4 : FM.CIRC) * p * (back > 3 ? (ownDepth0 > 0.45 ? 0.3 : 0.8) : back > -3 ? 1 : 0.1);   // a safe pass to keep the ball when nobody is on him
       // The free man. A teammate with no defender near him is the pass a real player looks for, so an open receiver (nearest defender
       // well away) is favoured, more so for a pass that goes forward or across than one that goes back; a marked one is not.
