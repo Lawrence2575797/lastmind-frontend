@@ -22,9 +22,9 @@
   // [kind][question][tone] -> wordings. Kind is 'pre' or the result of the match.
   const A = {
     pre: [
-      { humble: ['{opp} are a good side and we will have to be at our best.', 'Nothing comes easily against {opp}, and we respect them.', 'They have quality all over the pitch, so we prepare properly and see.'],
-        honest: ['Honestly, I am not sure. They are hard to read, and so are we at the moment.', 'They will test us, and we have not been consistent enough yet.', 'I do not know exactly what to expect, but I know what we have to improve.'],
-        humorous: ['If I knew what they were planning I would be on the pools by now.', 'They have a plan, we have a plan, and one of them is wrong.', 'I asked my analyst and he fell asleep, so we shall find out together.'] },
+      { humble: ['{opp} will be well organised and hard to break down, and we will have to be at our best.', 'They will make it difficult in midfield, and we respect that.', 'They have quality all over the pitch, so I expect them to set up to use it.'],
+        honest: ['Honestly, I am not sure how they will set up. They are hard to read, and so are we at the moment.', 'They will test us, and I am not certain we are consistent enough yet to deal with it.', 'I do not know exactly how they will play, but I know what we have to improve.'],
+        humorous: ['If I knew what they were planning I would be on the pools by now.', 'They have a plan, we have a plan, and one of them is wrong.', 'I asked my analyst how they would set up and he fell asleep, so we shall find out together.'] },
       { humble: ['Doing the simple things well and staying patient.', 'Getting the basics right: that usually decides games like this.', 'Work rate first. Everything else follows from that.'],
         honest: ['We have to stop giving the ball away cheaply. It has cost us.', 'Being more clinical. We have not been good enough in the box.', 'Defending the first ten minutes better than we have been.'],
         humorous: ['Fewer heart attacks on the touchline, if somebody could arrange that.', 'A goal early, so I can sit down and relax for once.', 'Keeping my voice for the second half. It has been a struggle lately.'] },

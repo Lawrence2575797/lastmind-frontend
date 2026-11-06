@@ -639,9 +639,9 @@
     const extra = [[], [], []];
     if (kind === 'pre') {
       const gap = (me.strength || 0) - (opp.strength || 0), atHome = home.id === me.id;
-      if (gap <= -0.3) { extra[0].push(`We are the underdogs and I am fine with that. ${opp.name} have more to lose than we do.`); extra[1].push('Staying in the game and being ruthless with the few chances we get.'); extra[2].push('Nobody expects anything from us. Go and enjoy proving them wrong.'); }
-      else if (gap >= 0.3) { extra[0].push(`We are expected to win, and that is a different kind of pressure. ${opp.name} will sit and hope.`); extra[1].push('Being patient against a team that will defend deep, and not forcing it.'); extra[2].push('Do not wait for it to happen. Set the pace and make the quality count.'); }
-      else { extra[0].push(`There is very little between us and ${opp.name}. The details will decide it.`); }
+      if (gap <= -0.3) { extra[0].push(`${opp.name} will have the ball and the pressure, so we sit in, stay compact and look to hurt them on the break.`); extra[1].push('Staying in the game and being ruthless with the few chances we get.'); extra[2].push('Nobody expects anything from us. Go and enjoy proving them wrong.'); }
+      else if (gap >= 0.3) { extra[0].push(`${opp.name} will sit deep and hope to counter, so we will need to be patient and not force it.`); extra[1].push('Being patient against a team that will defend deep, and not forcing it.'); extra[2].push('Do not wait for it to happen. Set the pace and make the quality count.'); }
+      else { extra[0].push(`There is very little between us, so I expect them to set up much as we do. The details will decide it.`); }
       if (!atHome) extra[2].push('Silence their crowd early: a good start away from home changes the whole afternoon.'); else extra[2].push('Our supporters will lift us, so give them something to shout about from the first minute.');
     } else {
       const gf = fx.played ? (me.id === fx.homeId ? fx.hg : fx.ag) : (world.match ? world.match.score[me.id] : 0), ga = fx.played ? (me.id === fx.homeId ? fx.ag : fx.hg) : (world.match ? world.match.score[opp.id] : 0);
@@ -667,8 +667,8 @@
         `A hard game. ${opp.name} are well organised and they will make it difficult for us.`,
         `They are dangerous when they break, so we have to look after the ball and be careful when we lose it.`,
         `I expect them to sit deep and test our patience, so we will need to be sharp with the ball.`,
-        `A close game. They have good players, and so do we.`,
-        `Nothing different from any other match: ninety minutes of hard work, and the team that is better at the details will win it.`,
+        `A tight game. They are set up to be hard to break down, and they have good players.`,
+        `I expect them to press high and try to hurry us, so the first pass out of defence matters.`,
       ],
       [
         `Keeping our shape and being patient until the chances come.`,
@@ -728,12 +728,12 @@
     let confident, provocative;
     if (kind === 'pre') {
       const confidentSet = [
-        [`We respect ${opp.name}, but if we play our game, we win.`, `They are a fine side, and we are better when we play to our level.`, `Whoever they put out, we have the quality to beat them.`],
+        [`They will set up to frustrate us, but we have the quality to break them down.`, `Whatever shape ${opp.name} play, we have players who can hurt them.`, `They will make it hard, and we will be better than whatever they try.`],
         ['We will take control early and make them react to us.', 'We set the tempo and they follow, that is the plan.', 'We go out to dominate the ball and the game.'],
         ['Be brave, impose yourselves and give them a match they will remember.', 'Go and play like you know you can, and the rest takes care of itself.', 'Believe in each other and take the game to them.']
       ];
       const provocativeSet = [
-        [`I do not see one ${opp.name} player who gets into my team.`, `${opp.name} have had a good press. I have not seen it on the pitch.`, `If ${opp.name} think they are favourites, they are in for a shock.`],
+        [`${opp.name} will sit deep and hope for a mistake. It is the only plan they have.`, `They will park the bus and call it tactics. We will pick it apart.`, `They have one idea, kick it long and hope. We have seen it already.`],
         ['Their plan is predictable. We know exactly where they are vulnerable.', 'They will try to wind us up. It will not work, and it will cost them.', 'We have studied them. There are weaknesses we will go straight for.'],
         ['Go after them from the first whistle. They will not enjoy it.', 'Make them uncomfortable from the first tackle. They are not used to it.', 'Remind them whose ground this is, and whose game.']
       ];
@@ -812,7 +812,7 @@
       el('pressRoomTitle').textContent = kind === 'pre' ? 'Pre-match press conference' : 'Post-match press conference';
       const answers = answerSets[index] || [];
       body.innerHTML = `<div class="press-progress">${questions.map((_, i) => `<i class="${i <= index ? 'on' : ''}"></i>`).join('')}</div><p class="press-question">${esc(questions[index])}</p><div class="press-answers">${answers.map((a, i) => `<button class="press-answer" data-answer="${i}"><small class="press-tone">${esc((FM.INTERVIEW_MOOD_LABEL || {})[a.mood] || '')}</small>${esc(a.text)}</button>`).join('')}</div>
-        ${FM.piiFilter ? `<div class="press-free"><label for="pressFree">Or say it in your own words</label><textarea id="pressFree" maxlength="240" rows="2" placeholder="Type your answer"></textarea><div class="press-free-row"><button type="button" id="pressFreeGo" class="primary">Answer in my own words</button><span id="pressFreeNote" class="press-free-note" role="status"></span></div><p class="press-free-small">Your words stay private and are never printed. The paper writes its own report from the tone and the subjects you talk about. Emails, phone numbers, addresses and links are removed first.</p></div>` : ''}
+        ${FM.piiFilter ? `<div class="press-free"><label for="pressFree">Or say it in your own words</label><textarea id="pressFree" maxlength="240" rows="2" placeholder="Type your answer"></textarea><div class="press-free-row"><button type="button" id="pressFreeGo" class="primary">Answer in my own words</button><span id="pressFreeNote" class="press-free-note" role="status"></span></div></div>` : ''}
         <button id="skipInterview">Skip interview</button>`;
       body.querySelectorAll('[data-answer]').forEach((b) => b.addEventListener('click', () => {
         const picked = answers[+b.dataset.answer];
