@@ -54,7 +54,7 @@
   };
 
   FM.pushFeature = function (league, f) {
-    const item = { round: f.round != null ? f.round : (league.fixtures.filter((x) => x.played && (x.homeId === league.userId || x.awayId === league.userId)).length - 1), day: league.day, kind: f.kind, headline: f.headline, standfirst: f.standfirst || '', paras: f.paras, body: f.paras.join(' '), club: f.club || league.userId, mine: f.mine !== false, reporter: f.reporter, feature: true };
+    const item = { round: f.round != null ? f.round : (league.fixtures.filter((x) => x.played && (x.homeId === league.userId || x.awayId === league.userId)).length - 1), day: league.day, kind: f.kind, headline: f.headline, standfirst: f.standfirst || '', paras: f.paras, body: f.paras.join(' '), club: f.club || league.userId, mine: f.mine !== false, reporter: f.reporter, feature: true, pull: f.pull || null };
     if (f.publication) item.publication = f.publication;
     FM.pushNews(league, item);
     return item;
@@ -210,34 +210,57 @@
     else if (honest && !pre && c.l >= 2) angle = 'candid';
     else if (humorous && c.l >= 2 && !pre) angle = 'laugh';
     if (!angle) return null;
+    // Only what the manager actually said is reported, and only the answers he chose from the list can be printed word for word (what he typed himself never is). Nothing is
+    // said about his words beyond what the record shows: the tone of what he picked, and what he picked.
+    const said = (a) => (a && a.answer && !a.free ? a.answer : null);
     const lead = answers.find((a) => a.mood === 'provocative') || answers.find((a) => a.mood === 'confident') || answers.find((a) => a.mood === 'honest') || answers[0];
-    const quote = lead && lead.answer && !lead.free ? lead.answer : null;
+    const quote = said(lead);
+    const preLead = preRec ? (preRec.answers.find((a) => a.mood === 'provocative') || preRec.answers.find((a) => a.mood === 'confident')) : null, preQuote = said(preLead);
+    const home = fx.homeId === league.userId, gf = home ? fx.hg : fx.ag, ga = home ? fx.ag : fx.hg, played = fx.hg != null && fx.ag != null;
+    const score = played ? `${team} ${res === 'W' ? 'beat' : res === 'L' ? 'lost to' : 'drew with'} ${opp} ${Math.max(gf, ga)}–${Math.min(gf, ga)}` + (home ? ' at home' : ' away') : '';
     const delta = (Number(record.opinionAfter) || 50) - (Number(record.opinionBefore) || 50), tl = tableLine(c), form = formWords(c), md = mood(c, pick), st = stakes(c, pick);
-    const reaction = delta >= 3 ? 'Supporters loved it.' : delta > 0 ? 'Most supporters seemed to like the edge.' : delta <= -3 ? 'It went down badly with supporters, and the phone-ins were busy.' : delta < 0 ? 'The reaction among supporters was mixed.' : 'Reaction among supporters was muted.';
-    let h, sf, ps;
+    const reaction = delta >= 3 ? 'Supporters took to it.' : delta > 0 ? 'Most supporters seemed to like the edge.' : delta <= -3 ? 'It went down badly with supporters.' : delta < 0 ? 'The reaction among supporters was mixed.' : 'Reaction among supporters was muted.';
+    const table = `${cap(tl)}${form ? ', with ' + form : ''}.`;
+    const q = (t) => `“${t}”`;
+    let h, sf, ps, pull = null;
     if (angle === 'fiery') {
-      h = pick([pre ? `${team} manager lights the fuse before ${opp}` : `${team} manager erupts after ${opp}`, pre ? `War of words: ${team} boss goes after ${opp}` : `“I will say what I think”: ${team} manager fires back after ${opp}`, `${team} manager says what everyone was thinking, and then some`]);
-      sf = pre ? `The manager did not waste the chance to turn up the heat on ${opp}.` : `After ${res === 'W' ? 'a win' : res === 'L' ? 'a defeat' : 'a draw'} against ${opp}, the manager had plenty to say.`;
-      ps = [quote ? `It started quietly enough and ended with a quote that went straight to the top of the evening's bulletins: “${quote}”` : `The manager sat down expecting the usual questions and gave answers that were anything but usual.`,
-        `${pre ? `The target was ${opp}, a club ${team} will meet at the weekend and a manager who may now regret not having been in the room.` : `The result, ${res === 'W' ? 'a win' : res === 'L' ? 'a defeat' : 'a draw'}, set the tone, but the comments went a long way past it.`} Reporters who had come for a routine press conference left with a headline and a feud.`,
-        `${cap(tl)}, with ${form || 'a season still taking shape'}. ${reaction}`, `${pick(['Whether it was calculated or just honest, it will be repeated in the opposition dressing room.', 'The risk is that words come back to haunt people. The reward is that the players heard every one.'])} ${md}`];
+      h = pick([pre ? `${team} manager takes aim at ${opp} before the match` : `${team} manager lets rip after ${opp}`, pre ? `War of words: ${team} boss goes after ${opp}` : `${team} manager speaks his mind after ${opp}`]);
+      sf = pre ? `The ${team} manager used his pre-match press conference to take a swipe at ${opp}.` : `The ${team} manager used his post-match press conference to speak bluntly after ${res === 'W' ? 'a win' : res === 'L' ? 'a defeat' : 'a draw'} against ${opp}.`;
+      pull = quote;
+      ps = [pre ? `${team} meet ${opp} this weekend, and their manager chose his press conference to speak bluntly about the game.` : `${score}, and the manager did not hold back afterwards.`,
+        quote ? `Asked about it, he said: ${q(quote)}` : `His answers in the press room were pointed throughout.`,
+        table, `${reaction} ${md}`];
     } else if (angle === 'eatwords') {
-      h = pick([`${team} manager eats his words after ${opp} defeat`, `Big talk, big fall: ${team} lose to ${opp} after the manager's promises`]);
-      sf = `He promised before the match. The scoreline said otherwise.`;
-      ps = [`Before the match the manager had been bullish about what ${team} would do to ${opp}. On the evidence of the afternoon, he might wish he had been less so.`, quote ? `“${quote}” was the post-match line, and it landed very differently from the pre-match one.` : 'The post-match tone was different. Everyone noticed.', `${cap(tl)}, with ${form}. ${st}`, `${reaction} ${md}`];
+      h = pick([`${team} manager's confidence before ${opp} is not matched on the pitch`, `Big talk, then defeat: ${team} lose to ${opp}`]);
+      sf = `The ${team} manager had spoken confidently before the game. The result went the other way.`;
+      pull = preQuote;
+      ps = [score ? `${score}, a day after talk that gave no hint of it.`.replace('a day after talk', 'after talk') : `${team} were beaten by ${opp}.`,
+        preQuote ? `Before the game the manager had said: ${q(preQuote)}` : `Before the game the manager's tone had been confident.`,
+        quote ? `Afterwards he said: ${q(quote)}` : '',
+        table, `${st} ${reaction}`];
     } else if (angle === 'vindicated') {
-      h = pick([`Manager's boldness repaid as ${team} beat ${opp}`, `He said it, and then ${team} did it: win over ${opp} backs up the talk`]);
-      sf = `The manager promised a performance. The players delivered it.`;
-      ps = [`There is a risk in being loud before a match, and the manager took it before ${opp}. The risk paid off.`, quote ? `“${quote}”, he said afterwards, and for once nobody wanted to argue.` : 'Afterwards he was not shy about saying he had called it.', `${cap(tl)}, with ${form}. ${st}`, `${reaction} ${md}`];
+      h = pick([`Confident ${team} manager backed up by the result against ${opp}`, `He said it, and then ${team} did it: win over ${opp}`]);
+      sf = `The ${team} manager had spoken confidently before the game, and the team won.`;
+      pull = preQuote;
+      ps = [score ? `${score}, after a manager who had spoken confidently about the game beforehand.` : `${team} won, after a confident build-up.`,
+        preQuote ? `Before the game he had said: ${q(preQuote)}` : `Before the game his tone had been confident.`,
+        quote ? `After the final whistle: ${q(quote)}` : '',
+        table, `${reaction} ${md}`];
     } else if (angle === 'candid') {
-      h = pick([`“It is on me”: ${team} manager faces the music after ${opp}`, `Honest and hurting: ${team} manager on a bad run`]);
-      sf = `${num(c.l)} defeats in a row, and the manager did not hide from it.`;
-      ps = [quote ? `He could have blamed the referee, the pitch, the opposition. Instead the manager said: “${quote}”` : 'He could have blamed anyone. He chose not to.', `${cap(tl)}, with ${form}. ${st}`, `${reaction} ${md}`, `${pick(['Candour only buys time, as every manager knows. What happens on the pitch decides how much.', 'The honesty has earned some goodwill. It will not stretch indefinitely.'])}`];
+      h = pick([`${team} manager takes the blame after ${opp}`, `Honest and hurting: ${team} manager on a bad run`]);
+      sf = `${cap(num(c.l))} defeats in a row, and the manager spoke plainly about it.`;
+      pull = quote;
+      ps = [score ? `${score}, the club's ${ord(c.l)} defeat in a row.` : `${team} have now lost ${num(c.l)} in a row.`,
+        quote ? `Asked about the run, he said: ${q(quote)}` : `Asked about the run, he gave honest answers.`,
+        table, `${st} ${reaction}`];
     } else {
-      h = `${team} manager keeps his sense of humour through a bad run`;
-      sf = 'When the table looks like this, a joke is a brave thing.';
-      ps = [quote ? `“${quote}”, he said, to laughter in the room that was not entirely comfortable.` : 'A joke or two helped the mood in the press room, though perhaps not in the dressing room.', `${cap(tl)}, with ${form}. ${st}`, `${reaction} ${md}`];
+      h = `${team} manager keeps his humour through a bad run`;
+      sf = `${cap(num(c.l))} defeats in a row, and the manager kept the mood light in the press room.`;
+      pull = quote;
+      ps = [score ? `${score}, the club's ${ord(c.l)} defeat in a row.` : `${team} have now lost ${num(c.l)} in a row.`,
+        quote ? `He said: ${q(quote)}` : `He answered with a joke or two.`,
+        table, `${reaction} ${md}`];
     }
-    return { kind: 'Interview', headline: h, standfirst: sf, paras: ps.filter(Boolean), round: record.round, club: league.userId, reporter: 'Sofia Bennett' };
+    return { kind: 'Interview', headline: h, standfirst: sf, paras: ps.filter(Boolean), pull: pull, round: record.round, club: league.userId, reporter: 'Sofia Bennett' };
   };
 })();

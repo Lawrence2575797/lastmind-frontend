@@ -368,15 +368,17 @@
       const p = playerFor(league, open);
       // a spoken line is set apart as a pull quote, and taken out of the paragraphs so it is not said twice
       const qm = open.body.match(/"([^"]{12,160})"[^.]*?(said|says|added)[^.]*\.\s*/);
-      const quote = qm ? qm[1].replace(/,$/, '') : null, bodyText = qm ? open.body.replace(qm[0], '') : open.body;
-      const paras = paragraphs(bodyText);
+      const structured = !!(open.paras && open.paras.length);
+      const quote = !structured && qm ? qm[1].replace(/,$/, '') : (open.pull || null), bodyText = qm && !structured ? open.body.replace(qm[0], '') : open.body;
+      const paras = open.paras && open.paras.length ? open.paras.slice() : paragraphs(bodyText);
       const more = all.filter((n) => n.id !== open.id).slice(0, 5);
       host.innerHTML = `<div class="nw-article"><button type="button" id="nwBack">‹ All stories</button>
-        <article class="card"><div class="nw-meta"><span class="nw-kind ${open.mine ? 'mine' : ''}">${esc(open.kind)}</span><span>${esc(dateLine(open))}</span></div>
-          <h1>${esc(open.headline)}</h1>${open.dek ? `<p class="nw-dek">${esc(open.dek)}</p>` : ''}
-          <p class="note news-byline">${esc(open.reporter || 'The LastMind Football desk')} · ${esc(open.publication || 'The Touchline')}</p>
-          ${p ? `<figure class="nw-photo"><div id="nwPhoto" class="rc-scene"></div><figcaption>${esc(p.name)}, ${esc((FM.clubOf(league, p) || {}).name || '')}</figcaption></figure>` : ''}
-          ${paras.map((x, i) => `<p class="nw-body">${esc(x)}</p>${i === 0 && quote ? `<blockquote>“${esc(quote)}”</blockquote>` : ''}`).join('')}
+        <article class="paper"><header class="paper-head"><span class="paper-name">${esc(open.publication || 'The Touchline')}</span><span class="paper-date">${esc(dateLine(open))}</span></header>
+          <div class="paper-kicker">${esc(open.kind)}</div>
+          <h1>${esc(open.headline)}</h1>${open.standfirst || open.dek ? `<p class="paper-dek">${esc(open.standfirst || open.dek)}</p>` : ''}
+          <p class="paper-by">By <b>${esc(open.reporter || 'The LastMind Football desk')}</b></p>
+          ${p ? `<figure class="nw-photo paper-photo"><div id="nwPhoto" class="rc-scene"></div><figcaption>${esc(p.name)}, ${esc((FM.clubOf(league, p) || {}).name || '')}</figcaption></figure>` : ''}
+          <div class="paper-cols">${paras.map((x, i) => `<p>${esc(x)}</p>${i === 0 && quote ? `<blockquote>“${esc(quote)}”</blockquote>` : ''}`).join('')}</div>
           ${open.cupTree && FM.cupTreeHtml ? `<h2>League Cup tree</h2>${FM.cupTreeHtml(league)}` : ''}
           ${open.offer && FM.bizOfferBlock ? FM.bizOfferBlock(league, open.offer) : ''}
         </article>
