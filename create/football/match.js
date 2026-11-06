@@ -1227,8 +1227,10 @@
       // A shot is worth the goal it might be (on the same scale as everything else: a pass is worth its chance of arriving times what the ball is worth where it lands) and it costs what losing
       // the ball costs, because it nearly always ends the move; a corner or a rebound gives some of that back. So a shot from where it has no chance is never the best of the lot, however
       // few good passes there are, and one from a good position is. His manager's freedom to shoot is how much he weighs the goal; nothing else is added to it.
-      // nobody shoots when he can see it has next to no chance (a defender on top of him, miles out): the choice below is loose enough to hand such a shot a share of the decisions
-      if (xg >= 0.02) options.push({ kind: 'shoot', xg, score: GOAL_VALUE * xg * (0.5 + risk * 0.8) * (0.45 + tac.shootFreedom) * mods.shoot - (1 - xg) * 0.6 * (1 - risk) * lossFactor * (1 - SHOT_KEEPS) });
+      options.push({ kind: 'shoot', xg, score: GOAL_VALUE * xg * (0.5 + risk * 0.8) * (0.45 + tac.shootFreedom) * mods.shoot - (1 - xg) * 0.6 * (1 - risk) * lossFactor * (1 - SHOT_KEEPS) });
+      // What he sees decides whether the shot is even in his mind. With a man on top of him, a body in the lane or the goal a long way off he sees little of it, and the less he sees the less likely he is to
+      // go for it: how much of the goal he reads is his judgement (it varies with his composure), and the chance that the shot comes to mind at all rises smoothly with what he reads.
+      { const so = options[options.length - 1], read = xg * Math.exp((rng() - 0.5) * 2 * (0.2 + 0.5 * (1 - carrier.ratings.composure / 100))), seen = clamp(read / 0.06, 0.02, 1); so.score += (0.22 + 0.25 * (1 - carrier.ratings.composure / 100)) * Math.log(seen * seen); so.seen = seen; }
     }
 
     // Under severe pressure near their own goal, defenders can deliberately
