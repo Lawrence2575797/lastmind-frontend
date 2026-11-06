@@ -42,7 +42,7 @@
   const PROFIT_TARGET = 400000;
   const STADIUM_DEP = 0.025;       // of the stadium's cost, a season
   const OPENING_STADIUM = 12000000;
-  const MERCH_COST = 0.55, SPEND_PER_HEAD = 5.5, RUN_PER_HEAD = 2.4, RUN_FIXED = 14000, ADMIN = 100000, BROADCAST = { 1: 64000, 2: 38000 };
+  const MERCH_COST = 0.55, SPEND_PER_HEAD = 5.5, RUN_PER_HEAD = 2.4, RUN_FIXED = 14000, ADMIN = 100000, BROADCAST = { 1: 64000, 2: 38000, 3: 16000, 4: 8000 };
   const EXPECTED_DIVIDEND = 0.2;   // the share of profit the shareholders hope to see paid out
   // Prize money, paid at the end of the season by where the club finished: first place down to eighth, in the top division and the second.
   // Scaled to what good players cost: a star is £20m or more, so a title is worth about one top player, and finishing last still pays a squad player's fee.
