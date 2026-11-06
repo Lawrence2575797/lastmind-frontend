@@ -239,7 +239,41 @@
     { name: 'What makes a good passer?', y: 'passPct', x: ['a_passing', 'a_composure', 'a_stamina', 'age'], scope: 'outfield' },
     { name: 'Wages: rating or age?', y: 'lnwage', x: ['rating', 'age', 'level'], scope: 'pos' },
   ];
+  // The analyses are run for him, not left to the manager to set up: each of the standard questions is fitted on the market, and what it says about this player is written out.
+  function scopeRows(ctx, scope) {
+    const row = ctx.row; let sc = ctx.rows.filter((r) => !r.pool || scope === 'market');
+    if (scope === 'pos') sc = sc.filter((r) => r.pos === row.pos); else if (scope === 'posdiv') sc = sc.filter((r) => r.pos === row.pos && r.level === row.level); else if (scope === 'outfield') sc = sc.filter((r) => r.pos !== 'GK'); else if (scope === 'level') sc = sc.filter((r) => r.level === row.level);
+    return sc;
+  }
+  function autoAnalyses(ctx) {
+    const row = ctx.row, out = [], minsOk = row.line && row.line.mn >= 360;
+    PRESETS.forEach((pr) => {
+      if (pr.scope === 'outfield' && row.pos === 'GK') return;
+      const needsRecord = ['goals', 'mrating', 'passPct'].indexOf(pr.y) >= 0; if (needsRecord && !minsOk) return;
+      const m = fit(scopeRows(ctx, pr.scope).filter((r) => !needsRecord || r.mins >= 360), pr.y, pr.x); if (m.error) return;
+      const p = predict(m, row), actual = val(row, pr.y); if (!p || (!Number.isFinite(actual) && !(pr.y === 'lnprice' && row.pool))) return;
+      out.push({ pr, m, p, actual, over: actual > p.hi ? 2 : actual > p.yhat ? 1 : actual < p.lo ? -2 : -1 });
+    });
+    return out;
+  }
+  // What an analysis says, in a sentence a scout would write.
+  function reading(a, row) {
+    const y = a.pr.y, ex = (v) => Math.exp(v), pct = (x, e) => Math.round(Math.abs(x / e - 1) * 100);
+    if (y === 'lnprice') { const e = ex(a.p.yhat), askText = row.pool ? 'He is a free agent, so there is no fee at all' : 'He is asking £' + f1(ex(a.actual)) + 'm'; return `The market prices a player of his rating, age and potential at about £${f1(e)}m. ${askText}${row.pool ? ': the saving is the whole fee.' : ', ' + (Math.abs(ex(a.actual) / e - 1) < 0.1 ? 'about what he is worth.' : ex(a.actual) > e ? pct(ex(a.actual), e) + '% more than that.' : pct(ex(a.actual), e) + '% less than that, which is a bargain if the model is right.')}`; }
+    if (y === 'lnwage') { const e = ex(a.p.yhat); return `Players like him are paid about ${f1(e)}k a week. He is on ${f1(ex(a.actual))}k, ${Math.abs(ex(a.actual) / e - 1) < 0.1 ? 'in line with that.' : ex(a.actual) > e ? pct(ex(a.actual), e) + '% above it.' : pct(ex(a.actual), e) + '% below it.'}`; }
+    if (y === 'goals') return `With his finishing, composure and the chances he had, he would be expected to score ${f2(a.p.yhat)} goals per 90. He scored ${f2(a.actual)}: ${a.over === 2 ? 'well above what the chances justify, and some of that is likely to fall back.' : a.over === 1 ? 'a little above, which is within normal variation.' : a.over === -1 ? 'a little below, which is within normal variation.' : 'well below what the chances justify, so he may be due more.'}`;
+    if (y === 'mrating') return `His attributes predict a match rating of ${f2(a.p.yhat)}. He averaged ${f2(a.actual)}: ${a.over >= 1 ? 'better than his attributes alone suggest' : 'a little under what his attributes suggest'}${Math.abs(a.over) === 2 ? ', and by more than chance explains' : ''}.`;
+    if (y === 'ability') return `Players of his age and potential average an ability of ${f1(a.p.yhat)}. He is ${f1(a.actual)}: ${a.actual > a.p.yhat + 2 ? 'ahead of what is normal at his age.' : a.actual < a.p.yhat - 2 ? 'behind what is normal at his age.' : 'where you would expect for his age.'}`;
+    if (y === 'passPct') return `Passing accuracy of ${f1(a.p.yhat)}% is expected from his passing, composure, stamina and age. He completes ${f1(a.actual)}%${a.over >= 1 ? ', better than that.' : ', less than that.'}`;
+    return '';
+  }
   function lab(ctx) {
+    const row = ctx.row, runs = autoAnalyses(ctx), L = ctx.local;
+    const body = runs.length ? `<table class="data pf-table pf-auto"><thead><tr><th class="l">Analysis</th><th class="l">What the data says about ${esc(row.p.name)}</th><th>Fit (r²)</th><th>Players</th></tr></thead><tbody>${runs.map((a) => `<tr><td class="l"><b>${esc(a.pr.name)}</b></td><td class="l">${esc(reading(a, row))}</td><td>${f2(a.m.res.r2)}</td><td>${a.m.n}</td></tr>`).join('')}</tbody></table>
+      <p class="note">Each line is a regression fitted on comparable players in the market, with his own figures run through it. A low fit means the model is a weak guide for that question.</p>` : '<p class="note">There is not enough data on comparable players to run the analyses for him.</p>';
+    return `<div class="pf-card"><h3>Analysis of ${esc(row.p.name)}</h3>${body}</div><details id="pfCustom" class="pf-card"${L.customOpen ? ' open' : ''}><summary><b>Run a different model</b></summary>${labCustom(ctx)}</details>`;
+  }
+  function labCustom(ctx) {
     const L = ctx.local, row = ctx.row, rows = ctx.rows;
     let scoped = rows.filter((r) => !r.pool || L.scope === 'market');
     if (L.scope === 'pos') scoped = scoped.filter((r) => r.pos === row.pos); else if (L.scope === 'posdiv') scoped = scoped.filter((r) => r.pos === row.pos && r.level === row.level); else if (L.scope === 'outfield') scoped = scoped.filter((r) => r.pos !== 'GK'); else if (L.scope === 'level') scoped = scoped.filter((r) => r.level === row.level);
@@ -306,24 +340,51 @@
   }
 
   // ---------- the case ----------
+  const ordN = (n) => n + (['th', 'st', 'nd', 'rd'][(n % 100 > 10 && n % 100 < 14) ? 0 : (n % 10 < 4 ? n % 10 : 0)]);
   function theCase(ctx) {
     const { row, rows, league } = ctx, me = FM.teamById(league, league.userId), t = FM.transfer(league), room = FM.wageRoom(league, me.id), pm = priceModel(rows, row);
-    const peers = rows.filter((r) => r.pos === row.pos && !r.pool && r.mins >= 360), mates = me.squad.filter((q) => q.natural === row.pos).sort((a, b) => FM.playerRating(b, b.natural) - FM.playerRating(a, a.natural)), starters = Math.max(1, me.players.filter((q) => q.natural === row.pos).length), cut = mates[Math.min(mates.length - 1, starters - 1)];
+    const peers = rows.filter((r) => r.pos === row.pos && !r.pool && r.mins >= 360), pos = (POSNAME[row.pos] || row.pos).toLowerCase();
+    const rowOf = (q) => rows.find((r) => r.id === q.id), mates = me.squad.filter((q) => q.natural === row.pos && q.id !== row.id).map((q) => ({ q, r: rowOf(q) })).filter((x) => x.r).sort((a, b) => b.r.ability - a.r.ability);
+    const slots = Math.max(1, me.players.filter((q) => q.natural === row.pos).length), startersN = Math.min(slots, mates.length), starters = mates.slice(0, startersN);
+    const weakest = starters[starters.length - 1] || null, best = mates[0] || null, injured = mates.filter((x) => FM.isInjured(x.q)), old = mates.filter((x) => x.r.age >= 31), expiring = mates.filter((x) => x.r.contract <= 1);
     const items = [];
     const add = (name, score, text, detail) => items.push({ name, score: clamp(score, -1, 1), text, detail });
-    if (pm.predicted && !row.pool && row.price > 0) { const z = (Math.log(row.price) - pm.predicted.yhat) / pm.predicted.se; add('Price', -z / 2, (z < -0.5 ? 'Cheaper' : z > 0.5 ? 'Dearer' : 'In line with') + ' the market for his rating, age and potential (model £' + f1(Math.exp(pm.predicted.yhat)) + 'm against £' + f1(row.price) + 'm asked).', 'regression on ' + pm.m.n + ' players, r² ' + f2(pm.m.res.r2)); } else if (row.pool) add('Price', 0.8, 'A free agent: no fee, only wages.', '');
-    if (cut) { const d = row.rating - cut.rating; add('Quality', d / 0.8, d > 0 ? 'Better than ' + cut.name + ' (+' + f1(d) + ') who starts in his position.' : 'Not better than ' + cut.name + ' who starts in his position (' + f1(d) + ').', 'rating on the 0–10 scale'); }
-    const p3 = projection(row)[3]; add('Future', (p3.value - row.value) / Math.max(1, row.value) * 1.6, 'Projected value in three seasons ' + money(p3.value) + ' against ' + money(row.value) + ' now; potential ' + row.potential + '.', 'age ' + row.age);
-    const pc = row.line && row.line.mn >= 360 ? pctile(peers.map((r) => r.mrating), row.mrating) : NaN; if (Number.isFinite(pc)) add('Form', (pc - 50) / 40, 'Last season he rated in the ' + f0(pc) + 'th percentile for his position (' + f2(row.mrating) + ' a match).', row.line.mn + ' minutes'); else add('Form', 0, 'Too little playing time last season to judge him by his record.', '');
-    add('Wages', room >= row.wage * 1.25 ? Math.min(0.6, (room - row.wage * 1.25) / Math.max(5, room)) : -0.9, room >= row.wage * 1.25 ? 'His likely wage (' + f1(row.wage * 1.25) + 'k) fits in the wage room (' + f1(room) + 'k).' : 'His likely wage (' + f1(row.wage * 1.25) + 'k) is more than the wage room (' + f1(room) + 'k).', '');
-    if (!row.pool) { const left = (t.budget[me.id] || 0) - row.price; add('Budget', left >= 0 ? clamp(left / Math.max(2, t.budget[me.id] || 1), 0, 0.6) : -1, left >= 0 ? 'Affordable: ' + money(left) + ' of the budget is left after the fee.' : 'Not affordable now: ' + money(-left) + ' short.', ''); }
-    add('Availability', FM.isInjured(row.p) ? -0.7 : 0.2, FM.isInjured(row.p) ? 'He is injured.' : 'He is fit.', '');
-    add('Contract', row.pool ? 0 : (row.contract >= 3 ? 0.3 : row.contract === 1 ? -0.3 : 0), row.pool ? 'Free agent: you set the contract.' : row.contract + ' year' + (row.contract === 1 ? '' : 's') + ' left: ' + (row.contract === 1 ? 'a short deal, with a renewal to pay for soon.' : 'a settled deal.'), '');
+    // quality: his ability against the men he would be competing with
+    if (weakest) {
+      const dW = row.ability - weakest.r.ability, dB = row.ability - best.r.ability;
+      add('Quality', dW / 9, dB > 0 ? `Better than everyone you have at ${pos}: ${f0(dB)} ahead of ${best.q.name} (${f0(best.r.ability)}) and ${f0(dW)} ahead of ${weakest.q.name}, your weakest starter.` : dW > 0 ? `Would start: ${f0(dW)} better than ${weakest.q.name} (${f0(weakest.r.ability)}), though ${f0(-dB)} short of ${best.q.name} (${f0(best.r.ability)}).` : `Would not start: ${f0(-dW)} below ${weakest.q.name} (${f0(weakest.r.ability)}), your weakest starter at ${pos}.`, 'ability ' + f0(row.ability));
+    } else add('Quality', 0.5, `You have no other ${pos}, so he would be your first choice.`, 'ability ' + f0(row.ability));
+    // depth: how many you carry, who is hurt or old, and what he does to it
+    const need = slots + (row.pos === 'GK' ? 1 : 2), thin = mates.length < need, crowded = mates.length >= need + 1;
+    const depthBits = [`You carry ${mates.length} ${pos}${mates.length === 1 ? '' : 's'} for ${slots} place${slots === 1 ? '' : 's'}`];
+    if (injured.length) depthBits.push(`${injured.length} injured (${injured.map((x) => x.q.name).join(', ')})`);
+    if (old.length) depthBits.push(`${old.length} aged 31 or over`);
+    if (expiring.length) depthBits.push(`${expiring.length} out of contract within a year`);
+    const displaces = weakest && row.ability > weakest.r.ability ? ` He would take ${weakest.q.name}'s place and move him to the bench.` : '';
+    add('Squad depth', thin ? 0.7 : crowded && (!weakest || row.ability <= weakest.r.ability) ? -0.7 : crowded ? 0 : 0.15, depthBits.join('; ') + `. ${thin ? 'That is thin, so a signing here is needed anyway.' : crowded ? 'That is already a full position.' : 'Cover is about right.'}${displaces}`, '');
+    // price
+    if (pm.predicted && !row.pool && row.price > 0) { const z = (Math.log(row.price) - pm.predicted.yhat) / pm.predicted.se; add('Price', -z / 2, (z < -0.5 ? 'Cheap' : z > 0.5 ? 'Dear' : 'Fairly priced') + ': comparable players cost about £' + f1(Math.exp(pm.predicted.yhat)) + 'm and he is asking £' + f1(row.price) + 'm.', pm.m.n + ' players compared'); } else if (row.pool) add('Price', 0.8, 'A free agent: no fee, only wages.', '');
+    // future
+    const p3 = projection(row)[3], gone = (p3.value - row.value) / Math.max(1, row.value);
+    add('Future', gone * 1.6, row.age >= 30 ? `At ${row.age} his value falls to about ${money(p3.value)} in three seasons (${money(row.value)} now): a player for the next two years, not an investment.` : `Worth about ${money(p3.value)} in three seasons against ${money(row.value)} now, at ${row.age} with potential ${row.potential}.`, '');
+    // form and the evidence from the analyses
+    const pc = row.line && row.line.mn >= 360 ? pctile(peers.map((r) => r.mrating), row.mrating) : NaN;
+    if (Number.isFinite(pc)) add('Form', (pc - 50) / 40, `Last season he rated in the ${ordN(Math.round(pc))} percentile for ${pos}s (${f2(row.mrating)} a match over ${row.line.mn} minutes).`, ''); else add('Form', 0, 'Not enough minutes last season to judge him on his record.', '');
+    const goalRun = autoAnalyses(ctx).find((a) => a.pr.y === 'goals');
+    if (goalRun) add('Finishing', goalRun.over === 2 ? -0.5 : goalRun.over === -2 ? 0.4 : 0, goalRun.over === 2 ? `He scored ${f2(goalRun.actual)} a match against ${f2(goalRun.p.yhat)} expected from his chances: that is unlikely to last.` : goalRun.over === -2 ? `He scored ${f2(goalRun.actual)} against ${f2(goalRun.p.yhat)} expected: unlucky, and likely to improve.` : `Goals (${f2(goalRun.actual)}) are in line with his chances (${f2(goalRun.p.yhat)} expected).`, '');
+    // money
+    const wage = row.wage * 1.25;
+    add('Wages', room >= wage ? Math.min(0.6, (room - wage) / Math.max(5, room)) : -0.9, room >= wage ? `His likely wage of ${f1(wage)}k a week fits the ${f1(room)}k of wage room.` : `His likely wage of ${f1(wage)}k a week is more than the ${f1(room)}k of wage room, so someone would have to go.`, '');
+    if (!row.pool) { const left = (t.budget[me.id] || 0) - row.price; add('Budget', left >= 0 ? clamp(left / Math.max(2, t.budget[me.id] || 1), 0, 0.6) : -1, left >= 0 ? `Affordable: ${money(left)} of the transfer budget is left after the fee.` : `Not affordable yet: ${money(-left)} short of the fee.`, ''); }
+    add('Fitness', FM.isInjured(row.p) ? -0.7 : 0.2, FM.isInjured(row.p) ? 'He is injured.' : 'Fit.', '');
+    add('Contract', row.pool ? 0 : (row.contract >= 3 ? 0.3 : row.contract === 1 ? -0.3 : 0), row.pool ? 'A free agent: you set the length of the contract.' : `${row.contract} year${row.contract === 1 ? '' : 's'} left: ${row.contract === 1 ? 'a short deal, so a renewal to pay for soon.' : 'a settled deal.'}`, '');
     const total = items.reduce((a, i) => a + i.score, 0) / items.length;
-    const label = total > 0.35 ? 'The evidence is mostly in favour.' : total > 0.1 ? 'More for than against, but not by much.' : total > -0.1 ? 'The evidence is mixed.' : total > -0.35 ? 'More against than for.' : 'The evidence is mostly against.';
-    return `<div class="pf-card"><h3>The case for and against</h3><p class="pf-verdict"><b>${esc(label)}</b> This summarises the numbers on the other tabs. It does not know what your squad needs on the pitch, so it is a prompt for the decision, not the decision.</p>
+    const label = total > 0.3 ? 'Recommended' : total > 0.1 ? 'Worth pursuing' : total > -0.1 ? 'Marginal' : total > -0.3 ? 'Unconvincing' : 'Not recommended';
+    const pros = items.filter((i) => i.score > 0.25).sort((a, b) => b.score - a.score).slice(0, 2), cons = items.filter((i) => i.score < -0.25).sort((a, b) => a.score - b.score).slice(0, 2);
+    const reason = [pros.length ? 'In his favour: ' + pros.map((i) => i.name.toLowerCase()).join(' and ') : '', cons.length ? 'against him: ' + cons.map((i) => i.name.toLowerCase()).join(' and ') : ''].filter(Boolean).join('; ') + '.';
+    return `<div class="pf-card"><h3>Scouting verdict</h3><p class="pf-verdict"><b>${esc(label)}.</b> ${esc(reason.charAt(0).toUpperCase() + reason.slice(1))}</p>
       <div class="pf-case">${items.map((i) => `<div class="pf-row ${i.score > 0.15 ? 'good' : i.score < -0.15 ? 'bad' : ''}"><div class="pf-rn">${esc(i.name)}</div><div class="pf-meter"><i style="left:${50 + i.score * 50}%"></i></div><div class="pf-rt">${esc(i.text)}${i.detail ? ' <small>(' + esc(i.detail) + ')</small>' : ''}</div></div>`).join('')}</div>
-      <p class="note">Each bar runs from against (left) to for (right). Open the Regression lab to test a claim: for example, whether his goals last season were more than his chances were worth.</p></div>`;
+      <p class="note">Bars run from against (left) to for (right). The full analysis is on the Regression lab tab.</p></div>`;
   }
 
   // ---------- the page ----------
@@ -350,6 +411,7 @@
       const L = state.local, y = host.querySelector('#pfY'); if (y) y.addEventListener('change', () => { L.y = y.value; draw(); });
       const sc = host.querySelector('#pfScope'); if (sc) sc.addEventListener('change', () => { L.scope = sc.value; draw(); });
       const mi = host.querySelector('#pfMins'); if (mi) mi.addEventListener('change', () => { L.minMins = Math.max(0, +mi.value || 0); draw(); });
+      const cd = host.querySelector('#pfCustom'); if (cd) cd.addEventListener('toggle', () => { L.customOpen = cd.open; });
       const dt = host.querySelector('.pf-x'); if (dt) dt.addEventListener('toggle', () => { L.xOpen = dt.open; });
       host.querySelectorAll('[data-x]').forEach((c) => c.addEventListener('change', () => { const id = c.dataset.x; L.x = c.checked ? L.x.concat([id]).filter((v, i, a) => a.indexOf(v) === i) : L.x.filter((v) => v !== id); L.xOpen = true; draw(); }));
       host.querySelectorAll('[data-preset]').forEach((b) => b.addEventListener('click', () => { const pr = PRESETS[+b.dataset.preset]; L.y = pr.y; L.x = pr.x.slice(); L.scope = pr.scope; L.minMins = pr.y === 'goals' || pr.y === 'mrating' || pr.y === 'passPct' ? 360 : 0; draw(); }));
