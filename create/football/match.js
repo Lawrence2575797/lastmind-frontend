@@ -1773,7 +1773,18 @@
   }
 
   // ---------- out of play ----------
+  // The ball goes out and is seen going out: it carries on over the line in the direction it was travelling (a few metres, slowing), and only then is the throw, corner or goal kick given.
   function handleOut(match, lastTouchTeam, x, y) {
+    const b = match.ball, bp = match._bp;
+    if (match.hold || match.shootout || !b) { finishOut(match, lastTouchTeam, x, y); return; }
+    let dx = bp ? b.x - bp.x : 0, dy = bp ? b.y - bp.y : 0; const dl = Math.hypot(dx, dy);
+    if (dl < 0.01) { dx = y < 0 ? 0 : y > W ? 0 : (x < 0 ? -1 : 1); dy = y < 0 ? -1 : y > W ? 1 : 0; } else { dx /= dl; dy /= dl; }
+    const sp = clamp(dl > 0.01 ? dl / 0.1 * 0.5 : 6, 4, 11);   // a little of the speed it had, up to a jog
+    const tx = clamp(b.x + dx * 3.5, -6, L + 6), ty = clamp(b.y + dy * 3.5, -4, W + 4);
+    match.flight = null; match.carrier = null; match.carry = null;
+    sendOut(match, tx, ty, sp, () => finishOut(match, lastTouchTeam, x, y));
+  }
+  function finishOut(match, lastTouchTeam, x, y) {
     const lastTouchOpp = other(match, lastTouchTeam);
     if (y < 0 || y > W) {
       startRestart(match, 'throw', lastTouchOpp, clamp(x, 1, L - 1), y < 0 ? 0.5 : W - 0.5);
@@ -2810,7 +2821,7 @@
   }
 
   function updateBall(match, dt) {
-    const ball = match.ball; if (!(match.flight && match.flight.air)) ball.z = 0;
+    const ball = match.ball; match._bp = { x: ball.x, y: ball.y }; if (!(match.flight && match.flight.air)) ball.z = 0;
     if (match.carrier) { carryBall(match, dt); return; }
     const f = match.flight;
     if (f && f.free) { stepFreePass(match, f, dt); return; }
