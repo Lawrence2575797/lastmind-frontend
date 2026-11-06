@@ -491,7 +491,11 @@
     { const pp = el('pitchPlay'); if (pp) { pp.hidden = playing || m.phase === 'fulltime' || !!m.injuryPause || !!world.skipTo; pp.textContent = m.phase === 'halftime' ? 'Start second half' : (m.clock > 0 ? 'Play on' : 'Kick off'); } }
     const ip = m.injuryPause;
     el('injuryBox').hidden = !ip;
-    if (ip) { world.running = false; el('injuryText').textContent = ip.player.name + ' (number ' + ip.player.number + ') is injured and cannot continue, so play is stopped. Substitute him on the tactics board below (click a bench player, then his shirt), or play on with ten men.'; }
+    if (ip) {
+      world.running = false; el('injuryText').textContent = ip.player.name + ' (number ' + ip.player.number + ') is injured. Choose a substitute from the bench below, or play on with ten men.';
+      // take the manager straight to the squad page under the pitch, with the injured man marked and picked, so the next click on the bench is the substitution
+      if (world.injuryFocus !== ip.player) { world.injuryFocus = ip.player; world.tab = 'squad'; world.selBench = null; world.subArmed = ip.player; try { renderTactics(); } catch (e) { /* the page will draw on its next pass */ } const t = document.getElementById('tactics'); if (t && t.scrollIntoView) t.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+    } else world.injuryFocus = null;
     const done = m.phase === 'fulltime';
     // a cup match that is level goes straight to the penalties: the shootout screen opens by itself, and the way on is shown only once it has been played
     const fxC = world.fixture, level = !!(done && fxC && fxC.cup && m.score[home.id] === m.score[away.id]);
@@ -1329,7 +1333,7 @@
     const hurt = team.squad.filter(FM.isInjured), tired = team.players.filter((p) => !FM.isInjured(p) && FM.conditionOf(p) < 0.7);
     const hurtXI = team.players.filter(FM.isInjured);
     const fitCard = '<h2>Squad fitness</h2>' + (hurt.length ? '<div class="tablewrap"><table class="data"><tbody>' + hurt.map((p) => `<tr class="out"><td class="l">${esc(p.name)} (${p.natural})</td><td class="l">${esc(injuryText(p))}</td></tr>`).join('') + '</tbody></table></div>' : '<p class="desc">No injuries.</p>') +
-      (hurtXI.length ? `<p class="note warnnote">${hurtXI.map((p) => esc(p.name)).join(', ')} ${hurtXI.length > 1 ? 'are' : 'is'} in your starting line-up but injured. The best available replacement will start unless you change it on the Tactics page.</p>` : '') +
+      (hurtXI.length ? `<p class="note warnnote">${outList(hurtXI, ' (and in your starting line-up)')}. The best available replacement will start unless you change it on the Tactics page.</p>` : '') +
       (tired.length ? `<p class="desc">Tired starters: ${tired.map((p) => esc(shortName(p)) + ' ' + Math.round(100 * FM.conditionOf(p)) + '%').join(', ')}.</p><p class="note">Tired players slow down, make more mistakes and risk injury. Rest helps.</p>` : '<p class="note">The starting eleven is fresh.</p>');
     const latest = (world.league.news || []).slice(-3).reverse();
     const newsCard = '<h2>Latest news</h2>' + (latest.length ? latest.map((n) => `<div class="hyp"><div class="hyp-head"><span class="lvl ${n.mine ? 'alevel' : 'gcse'}">${esc(n.kind)}</span> <b>${esc(n.headline)}</b></div></div>`).join('') + '<div class="row"><button data-nav-news>All the news</button></div>' : '<p class="note">News appears after the first round of matches.</p>');
@@ -1362,6 +1366,8 @@
     while (sat % 7 !== 5) sat++;
     return Math.max(1, Math.ceil((until - sat) / 7));
   }
+  const outWhy = (p) => (p && p.injury && p.injury.suspended ? 'suspended' : 'injured');
+  const outList = (ps, tail) => { const g = { injured: [], suspended: [] }; ps.forEach((p) => g[outWhy(p)].push(p)); return Object.keys(g).filter((k) => g[k].length).map((k) => g[k].map((p) => esc(p.name)).join(', ') + (g[k].length > 1 ? ' are ' : ' is ') + k + (tail || '')).join('; '); };
   const injuryText = (p) => (p.injury ? p.injury.name + ', misses ' + (missesCount(p.injury.until) === 1 ? 'the next match' : 'the next ' + missesCount(p.injury.until) + ' matches') : '');
   const condClass = (p) => (FM.isInjured(p) ? 'out' : FM.conditionOf(p) < 0.6 ? 'low' : '');
 
@@ -2512,10 +2518,11 @@
       const manual = key === 'shape' ? !!(team.shape && team.shape[p.index]) : FM.isManual(team, p, key);
       return `<g class="dot" data-idx="${p.index}" transform="translate(${pt.x.toFixed(1)},${pt.y.toFixed(1)})">
         <circle r="46" fill="transparent"/>
+        ${world.view === 'match' && FM.isInjured(p) ? '<circle r="44" fill="rgba(255,90,90,.15)" stroke="#ff5a5a" stroke-width="5"><animate attributeName="stroke-opacity" values="1;.25;1" dur="1.2s" repeatCount="indefinite"/></circle>' : ''}
         ${FM.planGfx ? `<g transform="scale(${(sr / 27 * 1.85).toFixed(2)})">${FM.planGfx.shirt(team.kit, p.number, sel ? { stroke: '#F2C14E', sw: 2.4 } : {})}</g>${sel ? '<circle r="40" fill="none" stroke="#F2C14E" stroke-width="4"/>' : ''}` : `<circle r="${sr}" fill="${team.kit.shirt}" stroke="${sel ? '#F2C14E' : '#fff'}" stroke-width="${sel ? 5 : 3}"/>
         <text y="10" text-anchor="middle" font-size="25" font-weight="700" fill="${team.kit.number}">${p.number}</text>`}
         <text y="52" text-anchor="middle" font-size="20" font-weight="700" fill="#fff" stroke="#000" stroke-width="4" style="paint-order:stroke">${esc(boardName(p))}</text>
-        <text y="72" text-anchor="middle" font-size="16" fill="${FM.isInjured(p) ? '#FF9A9A' : FM.conditionOf(p) < 0.6 ? '#F2C8A0' : '#cfe8cf'}" stroke="#000" stroke-width="3.5" style="paint-order:stroke">${FM.isInjured(p) ? 'injured' : FM.playerRating(p, p.group).toFixed(1) + ' · ' + Math.round(100 * FM.conditionOf(p)) + '%'}</text>
+        <text y="72" text-anchor="middle" font-size="16" fill="${FM.isInjured(p) ? '#FF9A9A' : FM.conditionOf(p) < 0.6 ? '#F2C8A0' : '#cfe8cf'}" stroke="#000" stroke-width="3.5" style="paint-order:stroke">${FM.isInjured(p) ? outWhy(p) : FM.playerRating(p, p.group).toFixed(1) + ' · ' + Math.round(100 * FM.conditionOf(p)) + '%'}</text>
         ${manual ? '<circle cx="23" cy="-23" r="7.5" fill="#F2C14E" stroke="#1A232D" stroke-width="1.5"/>' : ''}</g>`;
     }).join('');
     let guides = '';
@@ -2687,7 +2694,7 @@
     const formationOptions = Object.keys(FM.FORMATIONS).map((k) => `<option value="${k}"${!team.formationLabel && k === team.formationKey ? ' selected' : ''}>${k}</option>`).join('');
     const bench = team.bench.map((p) => `
       <button class="chip${world.selBench === p ? ' sel' : ''}${world.match && p._offMatch === world.match ? ' off' : ''}" data-bench="${p.id}"${world.match && p._offMatch === world.match ? ' title="Substituted off: cannot return"' : ''}>
-        <span class="num" style="${KITNUM(team)}">${p.number}</span><span>${p.natural} ${esc(shortName(p))}</span><span class="meta ${FM.isInjured(p) ? 'out' : FM.conditionOf(p) < 0.6 ? 'low' : ''}">${FM.ratingText(p)} · ${world.match && p._offMatch === world.match ? 'subbed off' : FM.isInjured(p) ? 'injured' : Math.round(100 * FM.conditionOf(p)) + '%'}</span>
+        <span class="num" style="${KITNUM(team)}">${p.number}</span><span>${p.natural} ${esc(shortName(p))}</span><span class="meta ${FM.isInjured(p) ? 'out' : FM.conditionOf(p) < 0.6 ? 'low' : ''}">${FM.ratingText(p)} · ${world.match && p._offMatch === world.match ? 'subbed off' : FM.isInjured(p) ? outWhy(p) : Math.round(100 * FM.conditionOf(p)) + '%'}</span>
       </button>`).join('');
     const pair = inDef ? null : BOARD_PAIRS[tab];
     host.innerHTML = `
@@ -2778,7 +2785,7 @@
     const host = el('warnPanel');
     if (!host) return;
     const hurt = team.players.filter(FM.isInjured);
-    host.innerHTML = hurt.length && !inLive() ? `<p class="note warnnote">${hurt.map((p) => esc(p.name)).join(', ')} ${hurt.length > 1 ? 'are' : 'is'} injured. Substitute ${hurt.length > 1 ? 'them' : 'him'} here, or the best available replacement will start at kick-off.</p>` : '';
+    host.innerHTML = hurt.length && !inLive() ? `<p class="note warnnote">${outList(hurt)}. Substitute ${hurt.length > 1 ? 'them' : 'him'} here, or the best available replacement will start at kick-off.</p>` : '';
   }
 
   // A player's profile: where he is from, his ratings as bars, his condition, and what he has done this season.

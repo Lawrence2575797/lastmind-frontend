@@ -117,7 +117,7 @@
     const k = team.players.indexOf(outPlayer);
     const bi = team.bench.indexOf(inPlayer);
     if (k < 0 || bi < 0) return 'Not a valid substitution.';
-    if (FM.isInjured && FM.isInjured(inPlayer)) return inPlayer.name + ' is injured and cannot play.';
+    if (FM.isInjured && FM.isInjured(inPlayer)) return inPlayer.name + (inPlayer.injury && inPlayer.injury.suspended ? ' is suspended and cannot play.' : ' is injured and cannot play.');
     const live = match && match.phase !== 'kickoff' || (match && match.clock > 0);
     if (live && match && inPlayer._offMatch === match) return inPlayer.name + ' has already been substituted off and cannot come back on.';
     if (live && team.subsUsed >= team.maxSubs) return 'No substitutions left.';
