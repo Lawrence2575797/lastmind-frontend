@@ -35,7 +35,7 @@
   // Dribble past the nearest defender.
   FM.dribbleProb = function (carrier, defDist, defender, edge) {
     const dfn = defender ? 0.03 * SK(defender, 'tackling') : 0;
-    return clampP(sig((FM.TAKEON_BASE == null ? 0.25 : FM.TAKEON_BASE) + 0.05 * SK(carrier, 'dribbling') - 1.8 * Math.exp(-defDist / 2.5) - dfn + 0.35 * (edge || 0)), 0.05, 0.85);
+    return clampP(sig((FM.TAKEON_BASE == null ? 0.7 : FM.TAKEON_BASE) + 0.05 * SK(carrier, 'dribbling') - 1.8 * Math.exp(-defDist / 2.5) - dfn + 0.35 * (edge || 0)), 0.05, 0.85);
   };
   // Tackle: the defender's tackling against the carrier's dribbling.
   // The game leans a little towards the manager in the moments that are close to a coin flip: a tackle that could go either way, a shot that may or may not be blocked. Not a better team,
@@ -61,7 +61,7 @@
   };
 
   // ---------- roles' tendencies when on the ball ----------
-  const GROUP_DRIBBLE = { GK: -1.2, CB: -0.3, FB: 0, DM: -0.1, CM: 0, AM: 0.1, WF: 0.25, ST: 0.05 };
+  const GROUP_DRIBBLE = { GK: -1.2, CB: -0.3, FB: 0, DM: -0.1, CM: -0.05, AM: 0.1, WF: 0.25, ST: -0.15 };
   const ROLE_DRIBBLE = { winger: 0.15, inside_forward: 0.2, advanced_playmaker: 0.05, box_to_box: 0.1 };
   const ROLE_RISK = { advanced_playmaker: 0.2, deep_lying_playmaker: 0.15, number_10: 0.2, sweeper_keeper: 0.1, anchor: -0.2, defensive_full_back: -0.15, centre_half: -0.1, goalkeeper: -0.1 };
 
@@ -1164,8 +1164,14 @@
     if ((nearD > 3.5 || drive) && carrier.group !== 'GK' && (FM.NO_BOXSHOT || !(dGoal < 12 && !through))) options.push({ kind: 'carry', nearD, drive, score: .38 + (.4 + (FM.CARRY_BONUS == null ? .3 : FM.CARRY_BONUS)) * carrySpace + .22 * directness + .18 * counter - .22 * (zone === 'build' && carrier.group === 'CB' && FM.NO_AIM ? 1 : 0) + (!FM.NO_AIM && zone === 'build' && ['CB', 'FB', 'DM'].indexOf(carrier.group) >= 0 ? (FM.CARRY_AIM == null ? 0.45 : FM.CARRY_AIM) * carrySpace * (0.6 + 0.4 * tac.tempo) : 0) + (drive ? (FM.DRIVE_K == null ? 0.5 : FM.DRIVE_K) * (ownDepth0 > 0.72 ? 1.7 : 1) * (['WF', 'ST', 'AM'].includes(carrier.group) ? 1 : .7) : 0) });
     let dribbleOption = null;
     const willingDribbler = ['WF', 'AM', 'ST', 'CM'].includes(carrier.group) || mods.dribble > 0 || tac.dribbleFreedom > .65;
-    if (nearD < 3.1 && willingDribbler && (zone === 'final' || mods.dribble > 0 || tac.dribbleFreedom > .72)) {
-      dribbleOption = { kind: 'dribble', p: dp, nearOpp, nearD, behind: nearBehind, score: dp * (.05 + .3 * directness + dribbleBias + mods.dribble + (tac.dribbleFreedom - .5) * .55 + (zone === 'final' ? .15 : 0) + (through ? .2 : 0)) - (1 - dp) * .9 * (1 - risk) * lossFactor - .25 };
+    if (nearD < 3.6 && willingDribbler && (zone === 'final' || mods.dribble > 0 || tac.dribbleFreedom > .72 || (zone !== 'build' && Math.abs(carrier.y - W / 2) > 16 && ['WF', 'AM', 'FB'].indexOf(carrier.group) >= 0))) {   // out wide, a winger or full-back takes his man on in midfield too, not only in the final third
+      // A take-on is worth what beating the man gets him (the ball a few metres on, past him and a step nearer goal, a winger cutting in towards the middle) against what losing it costs, the
+      // same way a pass is weighed. So it is the move when the way on is blocked by one man and the ball is worth more beyond him than a pass gives: out wide against a full-back, most of all.
+      const aim = { x: carrier.x + team.attackDir * 5, y: carrier.y + (W / 2 - carrier.y) * (carrier.group === 'WF' ? 0.15 : 0.05) };
+      const prog = clamp((dGoal - Math.hypot(aim.x - goal.x, aim.y - goal.y)) / 12, -0.6, 1.2);
+      const gain = 0.35 + (0.9 * directness + 0.5 * risk) * prog * 0.35 + 3 * Math.max(0, FM.threat(team.attackDir, aim.x, aim.y) - FM.threat(team.attackDir, carrier.x, carrier.y));
+      const appetite = 1 + 2 * (dribbleBias + mods.dribble + (tac.dribbleFreedom - .5) * .55);   // who he is, what he has been told, and what the manager allows
+      dribbleOption = { kind: 'dribble', p: dp, nearOpp, nearD, behind: nearBehind, score: dp * gain * clamp(appetite, 0.3, 2.5) - (1 - dp) * 0.6 * (1 - risk) * lossFactor };
       options.push(dribbleOption);
     }
 
