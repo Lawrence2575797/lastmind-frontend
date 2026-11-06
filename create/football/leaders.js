@@ -52,6 +52,41 @@
     });
   };
 
+  // The other divisions are played as quick results (FM.quickFixture: a score and the team figures, no match), so their players have no match to read figures from. Their season
+  // figures are made from the result and the team figures instead: the goals go to the men who would score them (forwards first, by finishing), the assists to those who would make them,
+  // the passes, tackles and saves are shared out by position and by the ratings, and each man is rated as he would be for a real match. It is the same set of figures the real matches fill in,
+  // so the boards for every division are read the same way. Done once per fixture (fx.ps), and for the results already played in a save when the boards are first looked at.
+  const FIN = { ST: 1, WF: 0.7, AM: 0.6, CM: 0.25, DM: 0.08, FB: 0.1, CB: 0.12, GK: 0 }, ASS = { ST: 0.3, WF: 0.8, AM: 1, CM: 0.8, DM: 0.3, FB: 0.5, CB: 0.1, GK: 0 }, PASS = { GK: 0.5, CB: 1.1, FB: 1, DM: 1.3, CM: 1.3, AM: 1, WF: 0.7, ST: 0.5 }, TACK = { GK: 0, CB: 1.2, FB: 1.2, DM: 1.5, CM: 1, AM: 0.5, WF: 0.5, ST: 0.3 };
+  FM.quickPlayerStats = function (home, away, fx) {
+    if (!fx || fx.ps || fx.hg == null || !fx.stats) return; fx.ps = 1;
+    const rng = FM.mulberry32((fx.seed || 1) + 31337), pickW = (arr, w) => { const tot = arr.reduce((a, x, i) => a + w[i], 0); if (tot <= 0) return arr[0]; let r = rng() * tot; for (let i = 0; i < arr.length; i++) { r -= w[i]; if (r <= 0) return arr[i]; } return arr[arr.length - 1]; };
+    const rate = (p) => FM.playerRating(p, p.natural);
+    [[home, away, fx.hg, fx.ag], [away, home, fx.ag, fx.hg]].forEach(([t, o, gf, ga]) => {
+      const fit = (t.squad || []).filter((p) => !(FM.isInjured && FM.isInjured(p))), gk = fit.filter((p) => p.natural === 'GK').sort((a, b) => rate(b) - rate(a))[0], out = fit.filter((p) => p.natural !== 'GK').sort((a, b) => rate(b) - rate(a)).slice(0, 10);
+      const xi = (gk ? [gk] : []).concat(out); if (!xi.length) return;
+      const st = fx.stats[t.id] || {}, ost = fx.stats[o.id] || {}, lines = new Map(xi.map((p) => [p, { g: 0, a: 0, xg: 0, sh: 0, pa: 0, po: 0, tk: 0, tw: 0, sv: 0, yc: 0, rc: 0 }]));
+      const fw = xi.map((p) => FIN[p.natural] * Math.pow((p.ratings.finishing || 50) / 60, 2)), aw = xi.map((p) => ASS[p.natural] * Math.pow((p.ratings.passing || 50) / 60, 2));
+      for (let i = 0; i < gf; i++) { const s = pickW(xi, fw); lines.get(s).g++; if (rng() < 0.72) { const aw2 = xi.map((p, k) => (p === s ? 0 : aw[k])); lines.get(pickW(xi, aw2)).a++; } }
+      const shots = Math.max(gf, st.shots || gf), xgTot = st.xg || 0;
+      for (let i = 0; i < shots; i++) lines.get(pickW(xi, fw)).sh++;
+      xi.forEach((p) => { const l = lines.get(p); l.xg = shots ? xgTot * l.sh / shots : 0; });
+      const pw = xi.map((p) => PASS[p.natural] * (0.6 + 0.4 * (p.ratings.passing || 50) / 60)), pt = pw.reduce((a, b) => a + b, 0), okRate = st.passes ? (st.passesOk || 0) / st.passes : 0.8;
+      xi.forEach((p, k) => { const l = lines.get(p); l.pa = Math.round((st.passes || 400) * pw[k] / pt); l.po = Math.round(l.pa * Math.max(0.5, Math.min(0.97, okRate + ((p.ratings.passing || 60) - 60) / 400))); });
+      const tw = xi.map((p) => TACK[p.natural] * (0.6 + 0.4 * (p.ratings.tackling || 50) / 60)), tt = tw.reduce((a, b) => a + b, 0), tackles = 14 + Math.round(rng() * 8);
+      xi.forEach((p, k) => { const l = lines.get(p); l.tk = Math.round(tackles * tw[k] / tt); l.tw = Math.round(l.tk * Math.max(0.3, Math.min(0.85, 0.6 + ((p.ratings.tackling || 60) - 60) / 150))); });
+      if (gk) lines.get(gk).sv = Math.max(0, (ost.onTarget || 0) - ga);
+      if (rng() < 0.45) lines.get(xi[1 + Math.floor(rng() * (xi.length - 1))] || xi[0]).yc++;
+      const res = gf > ga ? 1 : gf < ga ? -1 : 0;
+      xi.forEach((p) => {
+        const m = lines.get(p), s = p.stats || (p.stats = { apps: 0, goals: 0, shots: 0, yellows: 0, reds: 0 });
+        s.apps = (s.apps || 0) + 1; s.goals = (s.goals || 0) + m.g; s.shots = (s.shots || 0) + m.sh; s.yellows = (s.yellows || 0) + m.yc;
+        s.assists = (s.assists || 0) + m.a; s.passes = (s.passes || 0) + m.pa; s.passesOk = (s.passesOk || 0) + m.po; s.tackles = (s.tackles || 0) + m.tk; s.tacklesWon = (s.tacklesWon || 0) + m.tw; s.xg = (s.xg || 0) + m.xg; s.saves = (s.saves || 0) + m.sv;
+        if (p.natural === 'GK' && ga === 0) s.cleanSheets = (s.cleanSheets || 0) + 1;
+        const r = FM.matchRating(m, p.natural, { gc: ga, res }); s.rSum = (s.rSum || 0) + r; s.rN = (s.rN || 0) + 1; s.rBest = Math.max(s.rBest || 0, r);
+      });
+    });
+  };
+
   // ---------- the boards ----------
   const rows = (club, p) => ({ p, club, s: p.stats || {} });
   const avgRating = (s) => (s.rN ? s.rSum / s.rN : 0);
@@ -80,6 +115,7 @@
 
   FM.leagueLeaders = function (league, level) {
     const div = FM.allDivisions(league).find((d) => d.level === level) || FM.allDivisions(league)[0]; if (!div) return [];
+    if (div.level !== league.divisionLevel) (div.fixtures || []).forEach((f) => { if (f.played && !f.ps) { const h = div.teams.find((t) => t.id === f.homeId), a = div.teams.find((t) => t.id === f.awayId); if (h && a) FM.quickPlayerStats(h, a, f); } });   // results already played in a save get their figures the first time they are looked at
     const list = []; div.teams.forEach((t) => t.squad.forEach((p) => list.push(rows(t.name, p))));
     return BOARDS.map((d) => ({ id: d.id, title: d.title, unit: d.unit, top: board(d, list, 5) }));
   };

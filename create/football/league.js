@@ -798,6 +798,7 @@
       const shots = Math.max(g, Math.round(lam * 7 + rng() * 5)), onTarget = Math.max(g, Math.min(shots, Math.round(shots * 0.38 + rng() * 2)));
       fx.stats[t.id] = { goals: g, shots, onTarget, possession: Math.round(5400 * sh), passes: Math.round(340 + 280 * sh + rng() * 60), passesOk: Math.round((340 + 280 * sh) * (0.74 + 0.1 * sh)), xg: Math.round(lam * 100) / 100, formation: FM.formationName ? FM.formationName(t) : t.formationKey, tactics: Object.assign({}, t.tactics), edge: 0 };
     });
+    if (FM.quickPlayerStats) FM.quickPlayerStats(home, away, fx);   // and the players' season figures, so every division's boards fill in
   };
 
   // The other matches of the round, played while the user's own match is on the screen. They are the same matches, with the same seeds and the same engine, only
