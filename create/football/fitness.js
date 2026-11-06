@@ -59,23 +59,23 @@
         // What he can get back to depends on what he has just done: the more he ran (the longer he played and the harder), the further short of full the body stays for a few days, and a man
         // with little stamina stays further short. It lifts a little each day (see FM.recoverDay).
         const drop = Math.max(0, 1 - p.condition);
-        p.restCap = clamp(1 - 0.35 * drop * (1.4 - FM.stamina(p) / 100), 0.7, 1);
+        p.restCap = clamp(1 - 0.15 * drop * (1.4 - FM.stamina(p) / 100), 0.88, 1);
       }
       delete p.energy;
     });
   };
-  // Between matches a player recovers: each day he closes part of the gap to what he can get back to, faster with more stamina (about a quarter of the gap a day, so most of a hard
-  // match is gone within three or four days, and a week's rest all but restores him). What he can get back to itself lifts a little each day towards full.
+  // Between matches a player recovers: each day he closes part of the gap to what he can get back to, faster with more stamina (about a third of the gap a day, so most of a hard
+  // match is gone within two or three days, and a week's rest restores him). What he can get back to itself lifts a little each day towards full.
   FM.recoverDay = function (league) {
     FM.curLeague = league;
     league.teams.forEach((t) => {
       const k = t.id === league.userId && FM.userMod ? FM.userMod('recovery') : 1;
       t.squad.forEach((p) => {
         if (p.condition == null) return;
-        if (p.restCap != null) { p.restCap = Math.min(1, p.restCap + 0.02); if (p.restCap >= 1) delete p.restCap; }
+        if (p.restCap != null) { p.restCap = Math.min(1, p.restCap + 0.04); if (p.restCap >= 1) delete p.restCap; }
         const cap = p.restCap == null ? 1 : p.restCap;
         if (p.condition >= cap) return;
-        const rate = clamp((0.22 + 0.2 * (FM.stamina(p) / 100 - 0.5)) * k, 0.05, 0.6);
+        const rate = clamp((0.38 + 0.2 * (FM.stamina(p) / 100 - 0.5)) * k, 0.08, 0.7);
         p.condition = Math.min(cap, p.condition + (cap - p.condition) * rate + 0.01);
       });
     });
