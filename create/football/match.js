@@ -2078,12 +2078,19 @@
   FM.penaltyOrder = (team) => team.players.slice().sort((a, b) => (a.group === 'GK') - (b.group === 'GK') || FM.penaltyAbility(b) - FM.penaltyAbility(a));
   // everyone not involved in the kick stands in a line along the halfway line, spread across the pitch (the kicker comes from the middle of it)
   const shootoutSlot = (i, n) => ({ x: L / 2, y: n > 1 ? 4 + (W - 8) * i / (n - 1) : W / 2 });
+  // The keeper facing the kick is on his line in the middle of the goal; the other keeper has no part in it and waits just outside the post, beside the goal, not out on the halfway line.
+  const keeperOf = (t) => t.players.find((p) => p.group === 'GK');
+  const GK_LINE = () => ({ x: L - 0.4, y: W / 2 }), GK_SIDE = (k) => ({ x: L - 1.2, y: W / 2 + (k ? 7 : -7) });
   function shootoutOverrides(match, taker, ov) {
     const so = match.shootout, cur = so.cur, gk = cur && cur.gk;
-    const waiting = [];
-    match.teams.forEach((t) => t.players.forEach((p) => { if (p !== taker && p !== gk) waiting.push(p); }));
+    const keepers = match.teams.map(keeperOf).filter(Boolean), waiting = [];
+    match.teams.forEach((t) => t.players.forEach((p) => { if (p !== taker && p !== gk && keepers.indexOf(p) < 0) waiting.push(p); }));
     waiting.forEach((p, i) => ov.set(p, shootoutSlot(i, waiting.length)));
-    if (gk) ov.set(gk, { x: L - 0.4, y: W / 2 });
+    keepers.forEach((k, i) => { if (k !== taker) ov.set(k, k === gk ? GK_LINE() : GK_SIDE(i)); });
+  }
+  function placeShootoutKeepers(match) {
+    const so = match.shootout, gk = so.cur && so.cur.gk;
+    match.teams.forEach((t, i) => { const k = keeperOf(t); if (!k || (so.cur && k === so.cur.taker)) return; const q = k === gk ? GK_LINE() : GK_SIDE(i); k.x = q.x; k.y = q.y; k.vx = 0; k.vy = 0; k.facing = Math.PI; k.sliding = false; });
   }
   FM.startShootout = function (match, orders) {
     const home = match.home, away = match.away, rng = match.rng;
@@ -2093,6 +2100,7 @@
     // everyone to the halfway line to begin with
     const all = []; match.teams.forEach((t) => t.players.forEach((p) => all.push(p)));
     all.forEach((p, i) => { const q = shootoutSlot(i, all.length); p.x = q.x; p.y = q.y; p.vx = 0; p.vy = 0; p.sliding = false; });
+    placeShootoutKeepers(match);
     match.ball.x = L / 2; match.ball.y = W / 2; match.ball.state = 'dead'; match.ball.z = 0;
     return match.shootout;
   };
@@ -2100,6 +2108,7 @@
     const so = match.shootout, team = so.seq[so.turn % 2], opp = other(match, team), list = so.orders[team.id] && so.orders[team.id].length ? so.orders[team.id] : FM.penaltyOrder(team);
     const taker = list[so.taken[team.id] % list.length], gk = opp.players.find((p) => p.group === 'GK') || opp.players[0];
     so.cur = { team, taker, gk };
+    placeShootoutKeepers(match);
     // the goalkeeper of the side that is about to defend is already on his line; the kicker starts on the halfway line
     taker.x = L / 2 - 2; taker.y = W / 2; taker.vx = 0; taker.vy = 0; taker.facing = 0;
     startRestart(match, 'penalty', team, L - 11, W / 2);
