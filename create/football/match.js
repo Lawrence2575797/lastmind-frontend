@@ -2215,7 +2215,7 @@
     st.tackles++; if (ok) st.tacklesWon++;
     let coverD = 40; opp.players.forEach((q) => { if (q !== d) coverD = Math.min(coverD, Math.hypot(q.x - d.x, q.y - d.y)); });
     record(match, { type: 'tackle', team: opp.id, player: d.number, vs: cp.number, p, ok, slide: true, x: cp.x, y: cp.y, depth: FM.toTeamSpace(opp.attackDir, cp.x, cp.y).d, cover: coverD });
-    const foulP = (ok ? 0.05 : 0.28) * (behind ? 2.2 : 1) * (0.6 + 0.8 * opp.tactics.tackleAggression) * (inBox(team.attackDir, cp.x, cp.y) ? 0.6 : 1);
+    const foulP = (ok ? 0.05 : 0.28) * (behind ? 2.2 : 1) * (0.6 + 0.8 * opp.tactics.tackleAggression) * (inBox(team.attackDir, cp.x, cp.y) ? 0.25 : 1);
     (match.slides = match.slides || []).push({ p: d, x0: d.x, y0: d.y, ux: (aimX - d.x) / dd, uy: (aimY - d.y) / dd, k: Math.min(2, (dd + 0.3) / 3.0), t: 0, cp, team, opp, ok, foul: match.rng() < foulP, done: false });
     d.sliding = true;
   }
@@ -2655,7 +2655,7 @@
           // touchline. Central challenges must leave the ball in play.
           if (ok && (c.player.y < 2.5 || c.player.y > W - 2.5) && match.rng() < 0.2) { startRestart(match, 'throw', team, clamp(c.player.x, 1, L - 1), c.player.y < W / 2 ? 0.5 : W - 0.5); break; }
           if (ok) { const lost = c.player; giveBall(match, opp, d, 0.9 + delayBeforeNextDecision(match, opp, d) * 0.4); match.regain = { player: lost, team, target: d, from: match.clock, until: match.clock + 2.6, count: 1 }; break; }
-          if (match.rng() < (FM.FOUL_K == null ? 2.2 : FM.FOUL_K) * (0.06 + 0.1 * opp.tactics.tackleAggression + 0.002 * (60 - d.ratings.tackling) + 0.04 * FM.instrMods(d, false).tackle) * (inBox(team.attackDir, c.player.x, c.player.y) ? (FM.BOX_FOUL == null ? 0.35 : FM.BOX_FOUL) : 1)) { commitFoul(match, d, c.player, opp, team); break; }
+          if (match.rng() < (FM.FOUL_K == null ? 1.7 : FM.FOUL_K) * (0.06 + 0.1 * opp.tactics.tackleAggression + 0.002 * (60 - d.ratings.tackling) + 0.04 * FM.instrMods(d, false).tackle) * (inBox(team.attackDir, c.player.x, c.player.y) ? (FM.BOX_FOUL == null ? 0.15 : FM.BOX_FOUL) : 1)) { commitFoul(match, d, c.player, opp, team); break; }
         }
       }
     }
