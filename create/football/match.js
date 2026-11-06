@@ -431,7 +431,7 @@
       const deep = FM.toTeamSpace(c.team.attackDir, c.player.x, c.player.y).d < 0.33;
       // Near their own goal defenders do close the man on the ball down whatever their triggers say: a shot has to be stopped.
       const ownGoal = { x: opp.attackDir === 1 ? 0 : L, y: W / 2 };
-      const nearGoal = dist(c.player, ownGoal) < (FM.DEF_BOX || 30);
+      const nearGoal = FM.threat(c.team.attackDir, c.player.x, c.player.y) > (FM.DANGER == null ? 0.05 : FM.DANGER);   // he is where a shot is a real chance: whatever the triggers say, it has to be stopped
       const lostIt = match.lastChange && match.lastChange.team === c.team && match.clock - match.lastChange.t < PRESS_WINDOW;
       // Pressing is a trigger, not a setting: the side goes to win the ball when one of the manager's triggers fires for the man who has it (their goalkeeper, a centre-back, a full-back,
       // the middle third, just after a loss). Otherwise it holds its shape and the nearest man only shadows the ball. 'press' here is only that: how the side is going about it right now.
@@ -459,20 +459,23 @@
       // put to cover, and leaving his place does not let a dangerous man go free behind him. So how many press comes out of the situation: a team that presses high
       // and gets a man free behind it pays for it, because nobody is there.
       const depthOpp = (q) => FM.toTeamSpace(opp.attackDir, q.x, q.y).d, attackers = c.team.players.filter((q) => q.group !== 'GK' && q !== c.player);
-      const goalsideCover = (q, o) => q.group !== 'GK' && dist(q, o) < 12 && depthOpp(q) <= depthOpp(o) + 0.04;
+      // Leaving his place is a risk if a team-mate of the carrier is goal-side of him, the carrier can find him, and nobody else could get to him by the time the ball does.
+      const passReach = FM.passRange(c.player).ground, readyTime = 0.6;
+      const covers = (q, o) => q.group !== 'GK' && depthOpp(q) <= depthOpp(o) && FM.timeTo(q, o.x, o.y) < dist(c.player, o) / FM.BALL_SPEED + readyTime + 0.8;
       const exposes = (p, taking) => attackers.some((o) => {
-        if (depthOpp(o) > depthOpp(p) + 0.03 || Math.abs(o.y - p.y) > 22 || dist(o, p) > 28) return false;   // he is not goal-side of this defender, or nowhere near him
-        return !opp.players.some((q) => q !== p && taking.indexOf(q) < 0 && goalsideCover(q, o));   // nobody else is left to pick him up
+        if (depthOpp(o) > depthOpp(p) || dist(c.player, o) > passReach) return false;   // he is not goal-side of this defender, or out of the carrier's range
+        return !opp.players.some((q) => q !== p && taking.indexOf(q) < 0 && covers(q, o));   // nobody else is left to pick him up in time
       });
-      const cornered = Math.min(c.player.y, W - c.player.y) < 7 || dist(c.player, ownGoal) < 24;
+      const cornered = FM.escapeShare(opp.players, c.player) <= 0.4;   // the carrier has few ways out
       const closers = [];
       ranked.forEach(({ p, d }) => {
         if (closers.length >= 4) return;
         const first = closers.length === 0, forced = p === engageP;
         if (!forced) {
-          if (first ? d >= Math.max(pressTrigger(opp, p, press, match), (FM.FIRST_PRESS == null ? 0 : FM.FIRST_PRESS) * (0.4 + 0.6 * press)) : !(d < (lostIt ? 6 + 8 * (opp.tactics.counterPress == null ? 0.5 : opp.tactics.counterPress) : 7 + 6 * press) && (lostIt || nearGoal || cornered))) return;
-          const home = p._bp ? FM.toMetres(opp.attackDir, p._bp.d, p._bp.w) : null;   // the place he was put: the ball has to be within his reach of it
-          if (home && !nearGoal && dist(home, c.player) > 14 + 14 * press) return;
+          const tGo = FM.timeTo(p, c.player.x, c.player.y);
+          if (first ? tGo >= pressTrigger(opp, p, press, match) : !(tGo < (lostIt ? 2.2 : 1.6) && (lostIt || nearGoal || cornered))) return;
+          const home = p._bp ? FM.toMetres(opp.attackDir, p._bp.d, p._bp.w) : null;   // the place he was put: he will only go if he can be back in his job's reach, a time he'll run for
+          if (home && !nearGoal && FM.timeTo({ x: home.x, y: home.y, maxSpeed: p.maxSpeed }, c.player.x, c.player.y) > (fired ? 4.2 : 2.8)) return;
           if (!nearGoal && exposes(p, closers.map((x) => x.p))) return;
         }
         closers.push({ p, d });
@@ -815,16 +818,12 @@
     match.plan = { def: opp.id, carrier, t: match.clock, assign, cd, pairs: Array.from(assign.entries()).map(([p, q]) => [p.number, q.number]) };
     return match.plan;
   }
+  // How long a defender will run for the ball before he commits, in seconds: a man closes down someone he can reach in a second or so even when his side is holding its shape, and runs
+  // for longer when the trigger has fired, when the ball is in the other side's half (they cannot hurt him there), and when his role or the manager's pressing instruction asks it.
   function pressTrigger(team, player, press, match) {
-    const role = player.roleId;
-    const bonus = role === 'pressing_forward' ? 8 : role === 'ball_winning_midfielder' ? 6 : 0;
-    // A mid-block should not behave like a permanent high press. At the
-    // neutral setting the nearest forward now holds the block until the ball
-    // is roughly ten metres away; aggressive pressing roles and instructions
-    // still jump much earlier.
-    // The press starts higher up the pitch: when the ball is in the attacking half for the pressing side (their build-up, their goal kick) the trigger distance grows, so the first man goes for it from further away.
+    const role = player.roleId, bonus = role === 'pressing_forward' ? 1.0 : role === 'ball_winning_midfielder' ? 0.8 : 0;
     const hiBall = match ? clamp((FM.toTeamSpace(team.attackDir, match.ball.x, match.ball.y).d - 0.45) / 0.35, 0, 1) : 0;
-    return (FM.PRESS_BASE == null ? 8 : FM.PRESS_BASE) + 8 * press + bonus + (FM.PRESS_HIGH == null ? 7 : FM.PRESS_HIGH) * hiBall * (0.4 + press) + 5 * (FM.instrMods(player, false).closeDown + (match ? FM.rulesDelta(team, player, 'closeDown', match.ball, false) : 0));
+    return 0.9 + 1.6 * press + bonus + 0.9 * hiBall * (0.4 + press) + 0.6 * (FM.instrMods(player, false).closeDown + (match ? FM.rulesDelta(team, player, 'closeDown', match.ball, false) : 0));
   }
   // Pressing as the manager set it, adjusted for the seconds just after losing the ball:
   // a high counter-press instruction hunts it back at once, a low one drops into shape first.
@@ -947,9 +946,10 @@
     const opp = other(match, team); let sum = 0;
     opp.players.forEach((o) => {
       if (o.group === 'GK') return;
-      const dx = carrier.x - o.x, dy = carrier.y - o.y, d = Math.hypot(dx, dy); if (d > 14) return;
+      // he feels a man by how soon that man can be on him (and sooner still if he is already running at him), not by a distance
+      const dx = carrier.x - o.x, dy = carrier.y - o.y, d = Math.hypot(dx, dy), t = FM.timeTo(o, carrier.x, carrier.y); if (t > 3.2) return;
       const closing = d > 0.1 ? ((o.vx || 0) * dx + (o.vy || 0) * dy) / d : 0;
-      sum += Math.exp(-d / 4.5) * (1 + 0.25 * clamp(closing / 3, 0, 1.5));
+      sum += Math.exp(-t / 0.95) * (1 + 0.25 * clamp(closing / 3, 0, 1.5));
     });
     const comp = (carrier.ratings && carrier.ratings.composure) || 60;
     return clamp(0.95 * sum - 0.1 + (match.rng() - 0.5) * 0.45 * (1 - comp / 110), 0, 1);

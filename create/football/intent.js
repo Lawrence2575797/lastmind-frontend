@@ -47,10 +47,55 @@
     const trig = FM.pressTriggersOf(defTeam), d = att ? FM.toTeamSpace(att.attackDir, carrier.x, carrier.y).d : 0.5;
     if ((g === 'GK' && trig.gk) || (g === 'CB' && trig.cb) || (g === 'FB' && trig.fb) || (!!lostRecently && trig.loss) || (trig.mid && d > 0.33 && d < 0.67)) return true;
     if (trig.back && m && m.recv && m.recv.p === carrier && m.recv.back && m.clock - m.recv.t < 3) return true;
-    if (trig.touch && Math.min(carrier.y, 68 - carrier.y) < 6) return true;
-    if (trig.turn && att && Number.isFinite(carrier.facing) && Math.cos(carrier.facing - (att.attackDir === 1 ? 0 : Math.PI)) < -0.2) return true;
-    if (trig.loose && m && m.carrier && m.carrier.player === carrier && Math.hypot(m.ball.x - carrier.x, m.ball.y - carrier.y) > 1.6) return true;
+    // The three below are read by the man who would go: the defender who can get to the ball carrier soonest.
+    const opps = att ? att.players : [], presser = defTeam.players.filter((p) => p.group !== 'GK').reduce((b, p) => (!b || FM.timeTo(p, carrier.x, carrier.y) < FM.timeTo(b, carrier.x, carrier.y) ? p : b), null);
+    if (!presser || FM.timeTo(presser, carrier.x, carrier.y) > 4) return false;   // nobody is close enough in time to make anything of it
+    // against the touchline: he has few ways out, and the line is as good as a second defender
+    if (trig.touch && FM.escapeShare(defTeam.players, carrier) <= 0.4) return true;
+    // his back to the play: he cannot see the man coming and cannot turn if he is already close
+    if (trig.turn && FM.unsightedBy(presser, carrier) && FM.timeTo(presser, carrier.x, carrier.y) < 2.2) return true;
+    // a heavy touch: the presser judges it, from where the ball is against the carrier's feet and his own way to it
+    if (trig.loose && m && m.carrier && m.carrier.player === carrier && FM.touchLooksHeavy(presser, carrier, m.ball, m.rng)) return true;
     return false;
+  };
+
+  // ---------- seeing the game ----------
+  // Distances in the game's own terms: how long it takes to get somewhere. A man runs at about four fifths of his top speed once he has to get going, and a pass travels at about
+  // twenty metres a second, so "can he get there" and "is he free" are questions about seconds, and a quicker man simply sees more as winnable than a slower one.
+  const speedOf = (p) => Math.max(4, (p && p.maxSpeed) || 7);
+  FM.BALL_SPEED = 20;
+  FM.timeTo = (p, x, y) => Math.max(0, Math.hypot(p.x - x, p.y - y) - 0.7) / (0.82 * speedOf(p));
+  // How hard the man on the ball is squeezed: each opponent counts for how soon he can be on him (a man a second away counts a lot, three seconds away hardly at all).
+  FM.pressureOf = function (opps, carrier) {
+    let sum = 0; opps.forEach((o) => { if (o.group === 'GK') return; sum += Math.exp(-FM.timeTo(o, carrier.x, carrier.y) / 0.9); });
+    return sum;
+  };
+  // How much time the man on the ball has before the nearest opponent is on him.
+  FM.timeFree = (opps, carrier) => opps.reduce((m, o) => (o.group === 'GK' ? m : Math.min(m, FM.timeTo(o, carrier.x, carrier.y))), 9);
+  // The share of ways out he has: of sixteen directions, those in which he can get a few steps away before any opponent can close the gap, and stay on the pitch. A man with
+  // his back to the touchline and a defender in front of him has few; a man in the open has most. This is what a defender reads as "he is pinned".
+  FM.escapeShare = function (opps, carrier) {
+    const stepLen = 0.82 * speedOf(carrier) * 0.8, stepT = 0.8; let free = 0;
+    for (let k = 0; k < 16; k++) {
+      const a = k * Math.PI / 8, x = carrier.x + Math.cos(a) * stepLen, y = carrier.y + Math.sin(a) * stepLen;
+      if (x < 0.5 || x > 104.5 || y < 0.5 || y > 67.5) continue;
+      if (opps.every((o) => o.group === 'GK' || FM.timeTo(o, x, y) > stepT)) free++;
+    }
+    return free / 16;
+  };
+  // What one defender makes of the ball at the carrier's feet. A touch is heavy when the man has to go and get the ball (it is further from him than he can control it from, in the
+  // time it takes him to reach it); it is winnable when this defender can get there clearly before the carrier does. Nobody reads it exactly: the less composed the defender,
+  // the more his judgement wanders.
+  FM.touchLooksHeavy = function (presser, carrier, ball, rng) {
+    const read = (v) => v * (1 + (rng() - 0.5) * 0.5 * (1 - ((presser.ratings && presser.ratings.composure) || 60) / 110));
+    const carrierT = read(FM.timeTo(carrier, ball.x, ball.y)), presserT = read(FM.timeTo(presser, ball.x, ball.y));
+    return carrierT > 0.32 && presserT < carrierT - 0.12;
+  };
+  // Is the carrier's back to this defender? He cannot see him coming if the defender is behind the line of his shoulders.
+  FM.unsightedBy = function (presser, carrier) {
+    if (!Number.isFinite(carrier.facing)) return false;
+    const to = Math.atan2(presser.y - carrier.y, presser.x - carrier.x);
+    return Math.cos(carrier.facing - to) < -0.3;
   };
 
   // The man who has the ball, as the defending side sees it from the pitch alone: the opponent nearest to it.
