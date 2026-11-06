@@ -377,7 +377,7 @@
   };
   const ACTION = { new: 'Take it on', open: 'Continue', wait: 'View', ready: 'Review it', done: 'View' };
   function listHtml(lg) {
-    const b = FM.biz(lg), cov = covered(lg);
+    const b = FM.biz(lg);
     const rowOf = (k) => ({ k, sx: statusOf(lg, k), st: (b.cases || {})[k.id] || null });
     const all = CASES.map(rowOf);
     // projects: everything the board wants that is not yet closed, the ones needing attention first
@@ -388,12 +388,9 @@
     const decisionLine = (r) => { const res = (r.st.result || []).filter(Boolean); return res.length ? res[0] : r.st.choice ? 'Approved.' : 'No decision yet.'; };
     const pRows = papers.map((r) => `<button type="button" class="bc-paper st-${r.sx.k}" data-case="${r.k.id}"><span class="bc-ptitle"><b>${esc(r.k.title)}</b><span class="bc-status st-${r.sx.k}">${esc(r.sx.label)}</span></span><span class="bc-pline">${esc(decisionLine(r))}</span><span class="bc-pmeta">${esc(r.sx.line)}</span></button>`).join('');
     const pCards = projects.map((r) => `<div class="bc-proj st-${r.sx.k}"><div><span class="bc-tag">${esc(r.k.tag)}</span><b>${esc(r.k.title)}</b><span class="bc-pitch">${esc(PITCH[r.k.id] || '')}</span></div><button type="button" class="${r.sx.k === 'new' ? 'primary' : ''}" data-case="${r.k.id}">${ACTION[r.sx.k]}</button></div>`).join('');
-    const list = (FM.BOOKS[LEVEL] || []).reduce((a, th) => a.concat(th.topics.reduce((x, t) => x.concat(t.c.map((c) => c[0])), [])), []), uniq = Array.from(new Set(list)), mapped = new Set(); CASES.forEach((k) => k.concepts.forEach((x) => mapped.add(x)));
-    const n = uniq.length, nd = uniq.filter((x) => cov.done.has(x)).length, nm = uniq.filter((x) => mapped.has(x)).length;
     return `<div class="bc-head"><div class="eyebrow">Board</div><h2>Projects and papers</h2></div>
       <section class="bc-sec bc-first"><h3>Projects the board wants</h3>${pCards || '<p class="bk-lead">Nothing outstanding: every project has been taken on and closed.</p>'}</section>
-      <section class="bc-sec"><h3>Your papers</h3>${pRows || '<p class="bk-lead">Take on a project and the paper it produces will be kept here.</p>'}</section>
-      <details class="bk-keys"><summary>Course coverage: ${nd} of ${n} concepts met</summary><div class="bc-bar"><i style="width:${(100 * nm / n).toFixed(0)}%"></i></div><p class="bk-lead">${nm} of ${n} ${LEVEL === 'gcse' ? 'GCSE' : 'A-level'} concepts appear in a paper; you have completed ${nd}.</p><div class="bc-chips">${uniq.filter((x) => cov.done.has(x)).map((x) => '<span class="bc-chip">' + esc(x) + '</span>').join(' ') || '<span class="bk-why">None yet.</span>'}</div></details>`;
+      <section class="bc-sec"><h3>Your papers</h3>${pRows || '<p class="bk-lead">Take on a project and the paper it produces will be kept here.</p>'}</section>`;
   }
   const exhibitHtml = (lg, m, k) => { const B = BL(); try { return { price: B.wPrice, marketing: B.wMarketing, finance: B.wFinance, dividend: B.wDividend, invest: B.wInvest, scale: B.wScale, signing: B.wSigning, wages: B.wWages }[k] ? { price: B.wPrice, marketing: B.wMarketing, finance: B.wFinance, dividend: B.wDividend, invest: B.wInvest, scale: B.wScale, signing: B.wSigning, wages: B.wWages }[k](lg) : k === 'cashflow' ? `<div class="card bk-card"><h3>Cash-flow forecast</h3>${FM.bizCashFlowHtml(lg)}</div>` : k === 'profit' ? `<div class="card bk-card"><h3>Income statement</h3>${FM.bizProfitHtml(lg)}</div>` : k === 'org' ? (FM.booksLearn && FM.booksLearn.org ? FM.booksLearn.org() : '') : ''; } catch (e) { return ''; } };
 
@@ -417,18 +414,18 @@
   const previewHtml = (rows) => `<table class="data"><tbody>${rows.map((r) => `<tr><td class="l">${esc(r[0])}</td><td><b>${esc(r[1])}</b></td></tr>`).join('')}</tbody></table>`;
   function caseHtml(lg, c) {
     const st = stateOf(lg, c.id), m = mFor(lg), sx = statusOf(lg, c);
-    const memo = (lines) => `<div class="bc-memo"><div class="bc-from"><b>Rafael Morales</b> Director of Finance · to the Manager</div>${P(lines.slice(0, 2))}${lines.length > 2 ? `<details class="bc-more"><summary>More</summary>${P(lines.slice(2))}</details>` : ''}</div>`;
+    const memo = (lines) => `<div class="bc-memo"><div class="bc-from"><b>Rafael Morales</b> Director of Finance · to the Manager</div>${P(lines.slice(0, 3))}</div>`;
     const banner = `<div class="bc-banner st-${sx.k}"><span class="bc-status st-${sx.k}">${esc(sx.label)}</span><span>${esc(sx.line)}</span></div>`;
     const head = `<div class="bc-head"><button type="button" class="bc-back" data-case-list>← Projects and papers</button><div class="eyebrow">Paper · ${esc(c.tag)}</div><h2>${esc(c.title)}</h2>${banner}</div>`;
     if (c.needsMatch && !m.b.ledger.length) return head + `<div class="card bk-card"><p class="bk-lead">${P(['Manager, this paper uses the real accounts, and we have not played yet.', 'Come back after your first match.'])}</p></div>`;
     const read = c.stages.find((x) => x.k === 'read'), calcs = c.stages.filter((x) => x.k === 'calc'), dec = c.stages.find((x) => x.k === 'decide'), rev2 = c.stages.find((x) => x.k === 'review'), form = FM.booksForms && FM.booksForms[c.id];
     const D = FM.booksDiagrams;
     // the situation
-    const brief = `<section class="bc-sec" id="bc-brief"><h3>The situation</h3>${memo(read.memo(m))}${read.facts ? factsTable(read.facts(m)) : ''}${read.sections && read.sections(m).length ? `<details class="bk-keys"><summary>Background</summary>${read.sections(m).map((x) => `<div class="bc-theory"><h4>${esc(x.title)}</h4>${P(x.lines)}</div>`).join('')}</details>` : ''}<div class="bd-block">${read.exhibit ? exhibitHtml(lg, m, read.exhibit) : ''}</div></section>`;
+    const brief = `<section class="bc-sec" id="bc-brief"><h3>The situation</h3>${memo(read.memo(m))}${read.facts ? factsTable(read.facts(m)) : ''}<div class="bd-block">${read.exhibit ? exhibitHtml(lg, m, read.exhibit) : ''}</div></section>`;
     // what the numbers say: each measure with the explanation that belongs to it, and the pictures this scenario needs
     const rowsW = [];
     calcs.forEach((stg) => stg.qs.forEach((q) => { let v, why = []; try { v = q.ans(m, lg); } catch (e) { v = null; } try { why = q.why(m, lg); } catch (e) { why = []; } rowsW.push({ label: q.label || 'Measure', how: q.how || '', res: v == null ? '–' : fmtRes(q, v), why }); }));
-    const working = `<section class="bc-sec" id="bc-working"><h3>What the numbers say</h3><div class="bc-measures">${rowsW.map((r) => `<div class="bc-measure"><div class="bc-mhead"><b>${esc(r.label)}</b><span class="bc-res">${esc(r.res)}</span></div>${r.how || r.why.length ? `<details class="bc-more"><summary>How this is worked out</summary>${r.how ? `<div class="bc-how">${esc(r.how)}</div>` : ''}${r.why.length ? `<div class="bc-meaning">${P(r.why)}</div>` : ''}</details>` : ''}</div>`).join('')}</div><div class="bd-block">${D ? D.figs(c.id, m, lg) : ''}${D ? `<details class="bc-more"><summary>Charts and workings</summary>${D.detail(c.id, m, lg)}</details>` : ''}</div></section>`;
+    const working = `<section class="bc-sec" id="bc-working"><h3>The numbers</h3><div class="bc-measures">${rowsW.map((r) => `<div class="bc-measure"><div class="bc-mhead"><b>${esc(r.label)}</b><span class="bc-res">${esc(r.res)}</span></div></div>`).join('')}</div><div class="bd-block">${D ? D.figs(c.id, m, lg) : ''}</div></section>`;
     // the decision: several choices, a preview of what they would mean, and the real controls behind them
     let options;
     if (st.choice) options = `<section class="bc-sec" id="bc-options"><h3>The decision</h3><div class="bc-done"><b>Approved.</b>${(st.result || []).map((t) => `<span>${esc(t)}</span>`).join('')}</div>${st.values && form ? `<details class="bk-keys"><summary>What was chosen</summary>${previewHtml(form.fields(m).map((f) => [f.label, (typeof f.options === 'function' ? f.options() : (f.options || [])).find((o) => String(o[0]) === String(st.values[f.id])) ? (typeof f.options === 'function' ? f.options() : f.options).find((o) => String(o[0]) === String(st.values[f.id]))[1] : (f.prefix || '') + st.values[f.id] + (f.suffix || '')]))}</details>` : ''}</section>`;

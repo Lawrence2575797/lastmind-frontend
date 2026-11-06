@@ -13,7 +13,7 @@
     const names = new Set(); (FM.BOOKS[level] || []).forEach((th) => th.topics.forEach((tp) => tp.c.forEach((c) => names.add(c[0]))));
     return Array.from(names).sort((a, b) => b.length - a.length);
   }
-  const question = (name, level) => `Can you explain "${name}" for ${LEVEL_NAME[level]} Business, using Ashford Rovers plc as the example? Please send me a question to try afterwards.`;
+  const question = (name, level) => `Can you explain "${name}", using Ashford Rovers plc as the example?`;
   const termBtn = (name, level, label) => esc(label || name);   // keywords are plain words now: Rafael is there to ask
   function linkify(text, own, level, terms) {
     let out = esc(text); const used = new Set([String(own).toLowerCase()]), stash = [];
@@ -117,7 +117,7 @@
     const defs = cur.c.map((c) => `<div class="bk-def"><dt>${termBtn(c[0], level)}</dt><dd>${linkify(c[1], c[0], level, terms)}</dd></div>`).join('');
     const vis = ((VISUALS[level] || {})[cur.id] || []).map((k) => visual(k, lg, level)).join('');
     const live = FM.booksLive ? FM.booksLive.html(lg, level, cur.id) : '';
-    return `<div class="bk-layout">${nav}<div class="bk-article"><div class="eyebrow">${LEVEL_NAME[level]} Business · ${esc(th.title)} · ${cur.id}</div><h2>${esc(cur.t)}</h2><p class="bk-lead">${esc(cur.intro)} Click any underlined word and Rafael will explain it.</p>${live}${live ? vis : ''}<details class="bk-keys"${live ? '' : ' open'}><summary>Key ideas in this topic (${cur.c.length})</summary><dl class="bk-defs">${defs}</dl></details>${live ? '' : vis}</div></div>`;
+    return `<div class="bk-layout">${nav}<div class="bk-article"><div class="eyebrow">${esc(th.title)}</div><h2>${esc(cur.t)}</h2><p class="bk-lead">${esc(cur.intro)} Click any underlined word and Rafael will explain it.</p>${live}${live ? vis : ''}<details class="bk-keys"${live ? '' : ' open'}><summary>Key ideas in this topic (${cur.c.length})</summary><dl class="bk-defs">${defs}</dl></details>${live ? '' : vis}</div></div>`;
   }
 
   FM.booksLearn = {
