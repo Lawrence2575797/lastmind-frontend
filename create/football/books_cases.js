@@ -356,17 +356,44 @@
     if (!rows.length) return '';
     return `<div class="card bk-card"><h3>Projects under way</h3><div class="tablewrap"><table class="data"><thead><tr><th class="l">Paper</th><th class="l">Status</th><th class="l">Next</th></tr></thead><tbody>${rows.map((r) => `<tr><td class="l"><button type="button" class="bc-link" data-case="${r.k.id}">${esc(r.k.title)}</button></td><td class="l"><span class="bc-status st-${r.sx.k}">${esc(r.sx.label)}</span></td><td class="l">${esc(r.sx.line)}</td></tr>`).join('')}</tbody></table></div></div>`;
   }
+  // What the board is asking for, in a line each.
+  const PITCH = {
+    board: 'How much the owners release for transfers, and what to ask them for.',
+    expansion: 'Is a new stand worth building while the town\'s market grows?',
+    pricing: 'Set ticket prices: fill the ground, or earn more from each fan.',
+    marketing: 'How much to spend promoting the club on each matchday.',
+    finance: 'Raise money for the club: a bank loan, new shares, or neither.',
+    cashflow: 'Plan the club\'s cash so the bills can always be paid.',
+    accounts: 'Read the accounts and decide where to improve the profit.',
+    people: 'Pay, bonuses and motivation for the squad and staff.',
+    structure: 'How the club is organised: who decides and who reports to whom.',
+    owners: 'Balance what the owners, the fans and the town want.',
+    strategy: 'Choose the club\'s direction for the next few seasons.',
+    growth: 'How the club should grow: from within, or by taking others over.',
+    operations: 'Run the matchday: stewarding, catering and supplies.',
+    environment: 'Get ready for changes outside the club: the economy, rules, rivals.',
+    global: 'Take the club\'s name beyond the town.',
+    enterprise: 'A new venture: a supporters\' academy.',
+  };
+  const ACTION = { new: 'Take it on', open: 'Continue', wait: 'View', ready: 'Review it', done: 'View' };
   function listHtml(lg) {
-    const b = FM.biz(lg), cov = covered(lg), list = (FM.BOOKS[LEVEL] || []).reduce((a, th) => a.concat(th.topics.reduce((x, t) => x.concat(t.c.map((c) => c[0])), [])), []), uniq = Array.from(new Set(list)), mapped = new Set(); CASES.forEach((k) => k.concepts.forEach((x) => mapped.add(x)));
+    const b = FM.biz(lg), cov = covered(lg);
+    const rowOf = (k) => ({ k, sx: statusOf(lg, k), st: (b.cases || {})[k.id] || null });
+    const all = CASES.map(rowOf);
+    // projects: everything the board wants that is not yet closed, the ones needing attention first
+    const order = { ready: 0, open: 1, wait: 2, new: 3, done: 9 };
+    const projects = all.filter((r) => r.sx.k !== 'done').sort((a, c) => order[a.sx.k] - order[c.sx.k]);
+    // papers: what comes out of the projects you have taken on
+    const papers = all.filter((r) => r.st && (r.st.opened || r.st.choice || r.st.done));
+    const decisionLine = (r) => { const res = (r.st.result || []).filter(Boolean); return res.length ? res[0] : r.st.choice ? 'Approved.' : 'No decision yet.'; };
+    const pRows = papers.map((r) => `<button type="button" class="bc-paper st-${r.sx.k}" data-case="${r.k.id}"><span class="bc-ptitle"><b>${esc(r.k.title)}</b><span class="bc-status st-${r.sx.k}">${esc(r.sx.label)}</span></span><span class="bc-pline">${esc(decisionLine(r))}</span><span class="bc-pmeta">${esc(r.sx.line)}</span></button>`).join('');
+    const pCards = projects.map((r) => `<div class="bc-proj st-${r.sx.k}"><div><span class="bc-tag">${esc(r.k.tag)}</span><b>${esc(r.k.title)}</b><span class="bc-pitch">${esc(PITCH[r.k.id] || '')}</span></div><button type="button" class="${r.sx.k === 'new' ? 'primary' : ''}" data-case="${r.k.id}">${ACTION[r.sx.k]}</button></div>`).join('');
+    const list = (FM.BOOKS[LEVEL] || []).reduce((a, th) => a.concat(th.topics.reduce((x, t) => x.concat(t.c.map((c) => c[0])), [])), []), uniq = Array.from(new Set(list)), mapped = new Set(); CASES.forEach((k) => k.concepts.forEach((x) => mapped.add(x)));
     const n = uniq.length, nd = uniq.filter((x) => cov.done.has(x)).length, nm = uniq.filter((x) => mapped.has(x)).length;
-    const cards = CASES.map((k, i) => { const st = (b.cases || {})[k.id], sx = statusOf(lg, k), status = sx.label, k2 = k.concepts.filter((x) => uniq.indexOf(x) >= 0).length; return `<button type="button" class="bc-card st-${sx.k}" data-case="${k.id}"><span class="bc-tag">Board paper ${i + 1} · ${esc(k.tag)}</span><b>${esc(k.title)}</b><span class="bc-status st-${sx.k}">${esc(status)}</span><span class="bc-meta">${esc(sx.line)}</span></button>`; }).join('');
-    const missing = uniq.filter((x) => !mapped.has(x));
-    return `<div class="bc-head"><div class="eyebrow">From the Director of Finance</div><h2>Board papers</h2><p class="bk-lead">Each paper is a decision the club has to make. Work through it with the club's own figures and controls, then review how it turned out a few matchdays later.</p></div>
-      ${activeStrip(lg)}
-      <div class="bc-grid">${cards}</div>
-      <div class="card bk-card"><h3>Course coverage</h3><div class="bc-bar"><i style="width:${(100 * nm / n).toFixed(0)}%"></i></div><p class="bk-lead">${nm} of ${n} ${LEVEL === 'gcse' ? 'GCSE' : 'A-level'} concepts are covered by a paper, and you have completed papers covering <b>${nd}</b> of them.</p>
-      <details class="bk-keys"><summary>Concepts met so far (${nd})</summary><div class="bc-chips">${uniq.filter((x) => cov.done.has(x)).map((x) => '<span class="bc-chip">' + esc(x) + '</span>').join(' ') || '<span class="bk-why">None yet.</span>'}</div></details>
-      ${missing.length ? `<details class="bk-keys"><summary>Not yet in a paper (${missing.length})</summary><div class="bc-chips">${missing.map((x) => '<span class="bc-chip">' + esc(x) + '</span>').join(' ')}</div></details>` : ''}</div>`;
+    return `<div class="bc-head"><div class="eyebrow">Board</div><h2>Projects and papers</h2></div>
+      <section class="bc-sec bc-first"><h3>Projects the board wants</h3>${pCards || '<p class="bk-lead">Nothing outstanding: every project has been taken on and closed.</p>'}</section>
+      <section class="bc-sec"><h3>Your papers</h3>${pRows || '<p class="bk-lead">Take on a project and the paper it produces will be kept here.</p>'}</section>
+      <details class="bk-keys"><summary>Course coverage: ${nd} of ${n} concepts met</summary><div class="bc-bar"><i style="width:${(100 * nm / n).toFixed(0)}%"></i></div><p class="bk-lead">${nm} of ${n} ${LEVEL === 'gcse' ? 'GCSE' : 'A-level'} concepts appear in a paper; you have completed ${nd}.</p><div class="bc-chips">${uniq.filter((x) => cov.done.has(x)).map((x) => '<span class="bc-chip">' + esc(x) + '</span>').join(' ') || '<span class="bk-why">None yet.</span>'}</div></details>`;
   }
   const exhibitHtml = (lg, m, k) => { const B = BL(); try { return { price: B.wPrice, marketing: B.wMarketing, finance: B.wFinance, dividend: B.wDividend, invest: B.wInvest, scale: B.wScale, signing: B.wSigning, wages: B.wWages }[k] ? { price: B.wPrice, marketing: B.wMarketing, finance: B.wFinance, dividend: B.wDividend, invest: B.wInvest, scale: B.wScale, signing: B.wSigning, wages: B.wWages }[k](lg) : k === 'cashflow' ? `<div class="card bk-card"><h3>Cash-flow forecast</h3>${FM.bizCashFlowHtml(lg)}</div>` : k === 'profit' ? `<div class="card bk-card"><h3>Income statement</h3>${FM.bizProfitHtml(lg)}</div>` : k === 'org' ? (FM.booksLearn && FM.booksLearn.org ? FM.booksLearn.org() : '') : ''; } catch (e) { return ''; } };
 
@@ -390,18 +417,18 @@
   const previewHtml = (rows) => `<table class="data"><tbody>${rows.map((r) => `<tr><td class="l">${esc(r[0])}</td><td><b>${esc(r[1])}</b></td></tr>`).join('')}</tbody></table>`;
   function caseHtml(lg, c) {
     const st = stateOf(lg, c.id), m = mFor(lg), sx = statusOf(lg, c);
-    const memo = (lines) => `<div class="bc-memo"><div class="bc-from"><b>Rafael Morales</b> Director of Finance · to the Manager</div>${P(lines)}</div>`;
+    const memo = (lines) => `<div class="bc-memo"><div class="bc-from"><b>Rafael Morales</b> Director of Finance · to the Manager</div>${P(lines.slice(0, 2))}${lines.length > 2 ? `<details class="bc-more"><summary>More</summary>${P(lines.slice(2))}</details>` : ''}</div>`;
     const banner = `<div class="bc-banner st-${sx.k}"><span class="bc-status st-${sx.k}">${esc(sx.label)}</span><span>${esc(sx.line)}</span></div>`;
-    const head = `<div class="bc-head"><button type="button" class="bc-back" data-case-list>← All board papers</button><div class="eyebrow">Board paper · ${esc(c.tag)}</div><h2>${esc(c.title)}</h2>${banner}</div>`;
+    const head = `<div class="bc-head"><button type="button" class="bc-back" data-case-list>← Projects and papers</button><div class="eyebrow">Paper · ${esc(c.tag)}</div><h2>${esc(c.title)}</h2>${banner}</div>`;
     if (c.needsMatch && !m.b.ledger.length) return head + `<div class="card bk-card"><p class="bk-lead">${P(['Manager, this paper uses the real accounts, and we have not played yet.', 'Come back after your first match.'])}</p></div>`;
     const read = c.stages.find((x) => x.k === 'read'), calcs = c.stages.filter((x) => x.k === 'calc'), dec = c.stages.find((x) => x.k === 'decide'), rev2 = c.stages.find((x) => x.k === 'review'), form = FM.booksForms && FM.booksForms[c.id];
     const D = FM.booksDiagrams;
     // the situation
-    const brief = `<section class="bc-sec" id="bc-brief"><h3>The situation</h3>${memo(read.memo(m))}${read.facts ? factsTable(read.facts(m)) : ''}${read.sections ? read.sections(m).map((x) => `<div class="bc-theory"><h4>${esc(x.title)}</h4>${P(x.lines)}</div>`).join('') : ''}<div class="bd-block">${read.exhibit ? exhibitHtml(lg, m, read.exhibit) : ''}</div></section>`;
+    const brief = `<section class="bc-sec" id="bc-brief"><h3>The situation</h3>${memo(read.memo(m))}${read.facts ? factsTable(read.facts(m)) : ''}${read.sections && read.sections(m).length ? `<details class="bk-keys"><summary>Background</summary>${read.sections(m).map((x) => `<div class="bc-theory"><h4>${esc(x.title)}</h4>${P(x.lines)}</div>`).join('')}</details>` : ''}<div class="bd-block">${read.exhibit ? exhibitHtml(lg, m, read.exhibit) : ''}</div></section>`;
     // what the numbers say: each measure with the explanation that belongs to it, and the pictures this scenario needs
     const rowsW = [];
     calcs.forEach((stg) => stg.qs.forEach((q) => { let v, why = []; try { v = q.ans(m, lg); } catch (e) { v = null; } try { why = q.why(m, lg); } catch (e) { why = []; } rowsW.push({ label: q.label || 'Measure', how: q.how || '', res: v == null ? '–' : fmtRes(q, v), why }); }));
-    const working = `<section class="bc-sec" id="bc-working"><h3>What the numbers say</h3><div class="bc-measures">${rowsW.map((r) => `<div class="bc-measure"><div class="bc-mhead"><b>${esc(r.label)}</b><span class="bc-res">${esc(r.res)}</span></div><div class="bc-how">${esc(r.how)}</div>${r.why.length ? `<div class="bc-meaning">${P(r.why)}</div>` : ''}</div>`).join('')}</div><div class="bd-block">${D ? D.figs(c.id, m, lg) : ''}${D ? D.detail(c.id, m, lg) : ''}</div></section>`;
+    const working = `<section class="bc-sec" id="bc-working"><h3>What the numbers say</h3><div class="bc-measures">${rowsW.map((r) => `<div class="bc-measure"><div class="bc-mhead"><b>${esc(r.label)}</b><span class="bc-res">${esc(r.res)}</span></div>${r.how || r.why.length ? `<details class="bc-more"><summary>How this is worked out</summary>${r.how ? `<div class="bc-how">${esc(r.how)}</div>` : ''}${r.why.length ? `<div class="bc-meaning">${P(r.why)}</div>` : ''}</details>` : ''}</div>`).join('')}</div><div class="bd-block">${D ? D.figs(c.id, m, lg) : ''}${D ? `<details class="bc-more"><summary>Charts and workings</summary>${D.detail(c.id, m, lg)}</details>` : ''}</div></section>`;
     // the decision: several choices, a preview of what they would mean, and the real controls behind them
     let options;
     if (st.choice) options = `<section class="bc-sec" id="bc-options"><h3>The decision</h3><div class="bc-done"><b>Approved.</b>${(st.result || []).map((t) => `<span>${esc(t)}</span>`).join('')}</div>${st.values && form ? `<details class="bk-keys"><summary>What was chosen</summary>${previewHtml(form.fields(m).map((f) => [f.label, (typeof f.options === 'function' ? f.options() : (f.options || [])).find((o) => String(o[0]) === String(st.values[f.id])) ? (typeof f.options === 'function' ? f.options() : f.options).find((o) => String(o[0]) === String(st.values[f.id]))[1] : (f.prefix || '') + st.values[f.id] + (f.suffix || '')]))}</details>` : ''}</section>`;
@@ -415,7 +442,7 @@
     else if (!st.choice) review = `<section class="bc-sec" id="bc-review"><h3>The outcome</h3><p class="bk-lead">The outcome follows a decision, a few matchdays on.</p></section>`;
     else if (!sinceOk(lg, st, rev2.after)) { const left = rev2.after - (rounds(m.b) - (st.r0 || 0)); review = `<section class="bc-sec" id="bc-review"><h3>The outcome</h3>${memo(['Manager, it is too soon to judge this one.', 'The review will be ready after ' + left + ' more matchday' + (left === 1 ? '' : 's') + '. Play on and come back.'])}</section>`; }
     else review = `<section class="bc-sec" id="bc-review"><h3>The outcome</h3>${memo(rev2.body(lg, m, st).lines)}<div class="bk-ctl"><button type="button" class="primary" data-finish>Close this paper</button></div></section>`;
-    const nav = `<nav class="bc-nav" aria-label="Sections of this paper">${[['brief', 'The situation'], ['working', 'What the numbers say'], ['options', 'The decision'], ['review', 'The outcome']].map(([k, n]) => `<a href="#bc-${k}" data-jump="bc-${k}">${n}</a>`).join('')}</nav>`;
+    const nav = `<nav class="bc-nav" aria-label="Sections of this paper">${[['brief', 'Situation'], ['working', 'Numbers'], ['options', 'Decision'], ['review', 'Outcome']].map(([k, n]) => `<a href="#bc-${k}" data-jump="bc-${k}">${n}</a>`).join('')}</nav>`;
     return head + nav + `<div class="bc-body">${brief}${working}${options}${review}</div>`;
   }
 
@@ -453,6 +480,10 @@
     },
   };
   FM.booksLearnCss = (FM.booksLearnCss || '') + (FM.booksCases.css = `
+    .bc-first { border-top: 0; } .bc-proj { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 12px 0; border-top: 1px solid var(--line); } .bc-proj > div { display: grid; gap: 3px; } .bc-proj b { font-size: 1rem; } .bc-pitch { font-size: .88rem; opacity: .75; } .bc-proj button { flex: 0 0 auto; min-width: 110px; }
+    .bc-proj.st-ready { border-left: 3px solid #7fd49a; padding-left: 12px; } .bc-proj.st-open, .bc-proj.st-wait { border-left: 3px solid var(--gold); padding-left: 12px; }
+    .bc-paper { text-align: left; display: grid; gap: 3px; width: 100%; padding: 12px 14px; margin-bottom: 8px; background: rgba(255,255,255,.03); border: 1px solid var(--line); cursor: pointer; } .bc-paper:hover { border-color: var(--gold); } .bc-ptitle { display: flex; justify-content: space-between; gap: 12px; align-items: center; } .bc-pline { font-size: .9rem; } .bc-pmeta { font-size: .78rem; opacity: .65; }
+    .bc-more { margin-top: 6px; } .bc-more summary { cursor: pointer; font-size: .82rem; color: var(--gold); }
     .bc-memo .bk-term, .bc-body .bk-term, .bc-chips .bk-term, .bc-head .bk-term { display: inline; width: auto; min-height: 0; height: auto; padding: 0 1px; margin: 0; border: 0; border-bottom: 1px dashed var(--gold); border-radius: 0; background: transparent; box-shadow: none; color: var(--gold); font: inherit; letter-spacing: normal; text-transform: none; cursor: pointer; text-align: left; line-height: inherit; }
     .bc-body .bk-ctl input[type=number] { width: 8rem; padding: 8px 10px; background: #2f3533; color: var(--cream); border: 1px solid var(--line); font: inherit; min-height: 0; } .bc-body .bk-ctl { align-items: center; }
     .bc-status { display: inline-block; padding: 2px 10px; border: 1px solid var(--line); font-size: .74rem; letter-spacing: .06em; text-transform: uppercase; align-self: start; justify-self: start; } .bc-status.st-wait { color: #f2c14e; border-color: #f2c14e; } .bc-status.st-ready { color: #7fd49a; border-color: #7fd49a; } .bc-status.st-done { color: #7fd49a; border-color: #7fd49a; background: rgba(127,212,154,.1); } .bc-status.st-open { color: var(--gold); border-color: var(--gold); }
