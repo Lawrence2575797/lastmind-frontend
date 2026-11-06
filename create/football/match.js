@@ -1084,7 +1084,7 @@
         // Being closed down is a reason to lay it off, and a short lay-off to a midfielder is fine; a long ball back to a centre-back from the
         // attacking half is not what a player does with a team-mate beside him, so the longer the pass back to a defender the less he wants it.
         const toDef = t.group === 'CB' || t.group === 'GK';
-        adj -= (FM.BACKPASS_K == null ? 1.5 : FM.BACKPASS_K) * (clamp((back - 6) / 14, 0.25, 1) * (toDef ? 1.6 : 1) * clamp((ownDepth0 - 0.42) / 0.3, 0.3, 1)) * (nearNow > 2.0 ? 1 : 0.55) + (toDef ? (FM.BACKLONG_K == null ? 1.0 : FM.BACKLONG_K) * clamp((d - 18) / 18, 0, 1) : 0);
+        adj -= (FM.BACKPASS_K == null ? 0 : FM.BACKPASS_K) * (clamp((back - 6) / 14, 0.25, 1) * (toDef ? 1.6 : 1) * clamp((ownDepth0 - 0.42) / 0.3, 0.3, 1)) * (nearNow > 2.0 ? 1 : 0.55) + (toDef ? (FM.BACKLONG_K == null ? 0 : FM.BACKLONG_K) * clamp((d - 18) / 18, 0, 1) : 0);
       }
       // Playing out short. A team set to build patiently does not send the ball a long way when it has a shorter pass: the longer the pass, and the
       // more patient the setting, the less the player wants it. (A team set to go long has no such penalty.)
@@ -1171,7 +1171,7 @@
       // free: nobody within a few metres, so there is time and room to run at them; pressed: he is being closed down and may need to lay it off
       const freeK = nearD > (FM.FREE_ND == null ? 3.2 : FM.FREE_ND) ? 1 : 0;
       options.forEach((o) => {
-        if (o.kind === 'pass' && (o.tx - carrier.x) * team.attackDir < 5 && !through) o.score -= (FM.FINAL_SIDE_PEN == null ? 0.15 : FM.FINAL_SIDE_PEN) + freeK * (FM.FREE_SIDE_PEN == null ? 0.5 : FM.FREE_SIDE_PEN);
+        if (o.kind === 'pass' && (o.tx - carrier.x) * team.attackDir < 5 && !through) o.score -= (FM.FINAL_SIDE_PEN == null ? 0 : FM.FINAL_SIDE_PEN) + freeK * (FM.FREE_SIDE_PEN == null ? 0 : FM.FREE_SIDE_PEN);
         if (o.kind === 'carry' && freeK) o.score += (FM.FREE_CARRY == null ? 0.4 : FM.FREE_CARRY);
       });
       if (dribbleOption) dribbleOption.score += (FM.FINAL_DRIB == null ? 0 : FM.FINAL_DRIB);
@@ -1188,8 +1188,11 @@
     if (dribbleOption && zone === 'build' && nearD < 3.5) dribbleOption.score -= 0.5 * (1 - nearD / 3.5) * (1 + (1 - risk)) * (['GK', 'CB', 'FB'].indexOf(carrier.group) >= 0 ? 2.4 : ['DM', 'CM'].indexOf(carrier.group) >= 0 ? 1.5 : 1) * (FM.DRIBBLE_BUILD_PEN == null ? 1 : FM.DRIBBLE_BUILD_PEN);
     const attackingThird = FM.toTeamSpace(team.attackDir, carrier.x, carrier.y).d > 0.6;
     if (((dGoal < FM.dialM(team, 'shootRange') && attackingThird) || (through && dGoal < FM.dialM(team, 'shootRange') + 6)) && carrier.group !== 'GK') {
-      const xg = sig(FM.xgLogit(carrier, carrier.x, carrier.y, team.attackDir, nearD) - 0.55 * crowd(match, team, carrier));
-      options.push({ kind: 'shoot', xg, score: xg * 2.75 * (0.5 + risk * 0.8) * (0.45 + tac.shootFreedom) * mods.shoot - (1 - xg) * 0.2 - Math.max(0, 0.1 - xg) * 6.5 * (1.2 - tac.shootFreedom) * (['AM', 'WF', 'CM'].indexOf(carrier.group) >= 0 ? (FM.MID_LOWXG == null ? .85 : FM.MID_LOWXG) : 1) + 0.25 * clamp((nearD - 1.2) / 2.5, 0, 1) * clamp((25 - dGoal) / 13, 0, 1) + (through ? .28 * clamp((36 - dGoal) / 20, 0, 1) : 0) + .75 * ((!FM.OLD_SHOOT_W ? ({ ST: 1.0, WF: .9, AM: .55, CM: .4, DM: .25, FB: .2, CB: .08 }) : ({ ST: 0.45, WF: .85, AM: 1, CM: .8, DM: .3, FB: .25, CB: .1 }))[carrier.group] || 0.4) * clamp((26 - dGoal) / 12, 0, 1) * clamp((nearD - 1.2) / 2.5, 0, 1) + .32 - Math.max(0, .045 - xg) * 5 + ((!FM.OLD_SHOOT_W ? ({ ST: .12, WF: .1, AM: 0, CM: 0 }) : ({ ST: -.28, WF: .12, AM: .1, CM: .02 }))[carrier.group] || 0) + (!FM.OLD_SHOOT_W && ['ST', 'WF'].indexOf(carrier.group) >= 0 && nearD > 2 ? (FM.RANGE_B == null ? 0.8 : FM.RANGE_B) * clamp(1 - Math.abs(dGoal - 17) / 8, 0, 1) * clamp(1 - crowd(match, team, carrier), 0.2, 1) : 0) - (!FM.OLD_SHOOT_W ? (FM.LONG_PEN == null ? 1.4 : FM.LONG_PEN) * clamp((dGoal - 23) / 9, 0, 1) : 0) + (FM.NO_BOXSHOT ? 0 : (FM.BOX_SHOOT == null ? 0.8 : FM.BOX_SHOOT) * clamp((21 - dGoal) / 9, 0, 1)) });
+      const xg = shotChance(match, team, carrier, carrier, W / 2).xg;   // what he can see the shot is really worth, block and keeper included
+      // A shot is worth the goal it might be (on the same scale as everything else: a pass is worth its chance of arriving times what the ball is worth where it lands) and it costs what losing
+      // the ball costs, because it nearly always ends the move; a corner or a rebound gives some of that back. So a shot from where it has no chance is never the best of the lot, however
+      // few good passes there are, and one from a good position is. His manager's freedom to shoot is how much he weighs the goal; nothing else is added to it.
+      options.push({ kind: 'shoot', xg, score: GOAL_VALUE * xg * (0.5 + risk * 0.8) * (0.45 + tac.shootFreedom) * mods.shoot - (1 - xg) * 0.6 * (1 - risk) * lossFactor * (1 - SHOT_KEEPS) });
     }
 
     // Under severe pressure near their own goal, defenders can deliberately
@@ -1208,19 +1211,7 @@
     // unpressured possession and prevents every decision clock becoming an action.
     if (nearNow > 4 && !through && !drive) options.push({ kind: 'hold', score: .48 + .55 * live.patience - .4 * live.urgency - .2 * directness });
 
-    {
-      // Is a shot better than a pass? What a shot is worth is the chance it goes in, and a little more for the follow-up when team-mates are in the box; what a pass is worth is its chance
-      // of arriving times what the ball is worth there, less the cost of giving it away here. If the shot is worth more he is the likelier to take it, and the other way round.
-      const so = options.find((o) => o.kind === 'shoot');
-      if (so) {
-        const goal = team.attackDir === 1 ? L : 0, mates = team.players.filter((q) => q !== carrier && q.group !== 'GK' && Math.hypot(q.x - goal, q.y - W / 2) < 16).length;
-        const lossCost = 0.3 * FM.threat(other(match, team).attackDir, carrier.x, carrier.y);
-        let evPass = 0; options.forEach((o) => { if (o.kind === 'pass') evPass = Math.max(evPass, o.p * FM.threat(team.attackDir, o.tx, o.ty) - (1 - o.p) * lossCost); });
-        so.score += clamp(6 * (so.xg * (1 + 0.12 * Math.min(3, mates)) - evPass), -1.5, 1.5);
-      }
-    }
     if (coast > 0) options.forEach((o) => { if (o.kind === 'shoot' && o.score > 0) o.score *= 1 - 0.45 * coast; });
-    options.forEach((o) => { if (o.kind === 'shoot' && o.score > 0) o.score *= (FM.SHOT_K == null ? 1.45 : FM.SHOT_K); });
     if (RE && RE.shoot) options.forEach((o) => { if (o.kind === 'shoot' && o.score > 0) o.score *= clamp(1 + 0.9 * RE.shoot, 0.1, 2); });
 
     if (!options.length) options.push({ kind: 'carry', nearD: 3, drive: false, score: 0 });   // never nothing to do: he keeps the ball and moves on
@@ -1505,6 +1496,24 @@
     doPass(match, team, carrier, pass);
   }
 
+  // The real chance a shot taken now would score: it has to get past any defender standing on the line to goal, then be on target, then beat the keeper. The man deciding whether to
+  // shoot can see all of this (a defender a metre away on the line is a block waiting to happen), so he weighs the same chance the shot will actually have, not the bare geometry.
+  const GOAL_VALUE = 8, SHOT_KEEPS = 0.25;
+  function shotChance(match, team, carrier, shooter, aimY) {
+    const opp = other(match, team), gk = opp.players.find((p) => p.group === 'GK'), goalX = team.attackDir === 1 ? L : 0;
+    let blocker = null, bd = 99;
+    opp.players.forEach((o) => {
+      if (o === gk) return;
+      const sg = segInfo(o.x, o.y, carrier.x, carrier.y, goalX, aimY);
+      if (sg.t > 0.05 && sg.t < 0.95 && sg.d < bd) { bd = sg.d; blocker = o; }
+    });
+    const nearD = nearestOpponent(match, team, carrier).d;
+    const pBlock = blocker ? (FM.BLOCK_K == null ? 0.55 : FM.BLOCK_K) * Math.exp(-bd / 1.5) : 0;
+    const xgAdj = sig(FM.xgLogit(shooter, carrier.x, carrier.y, team.attackDir, nearD, FM.edgeFor(match, team)) - 0.55 * crowd(match, team, carrier) - 0.03 * (gk ? SK(gk, 'gk') : 0));
+    const pOn = sig(0.15 + 0.03 * SK(shooter, 'finishing') - 0.6 * Math.exp(-nearD / 2));
+    const conditionalGoal = clamp(xgAdj * (FM.GOAL_K == null ? 3.0 : FM.GOAL_K) / pOn, 0.02, 0.97);
+    return { blocker, bd, nearD, pBlock, pOn, conditionalGoal, xg: (1 - pBlock) * pOn * conditionalGoal };
+  }
   function doShot(match, team, carrier, opt) {
     const rng = match.rng;
     const st = statsOf(match, team);
