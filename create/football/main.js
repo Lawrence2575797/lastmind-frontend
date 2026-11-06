@@ -2686,8 +2686,8 @@
     const formationTitle = FM.formationName ? FM.formationName(team) : team.formationKey;
     const formationOptions = Object.keys(FM.FORMATIONS).map((k) => `<option value="${k}"${!team.formationLabel && k === team.formationKey ? ' selected' : ''}>${k}</option>`).join('');
     const bench = team.bench.map((p) => `
-      <button class="chip${world.selBench === p ? ' sel' : ''}" data-bench="${p.id}">
-        <span class="num" style="${KITNUM(team)}">${p.number}</span><span>${p.natural} ${esc(shortName(p))}</span><span class="meta ${FM.isInjured(p) ? 'out' : FM.conditionOf(p) < 0.6 ? 'low' : ''}">${FM.ratingText(p)} · ${FM.isInjured(p) ? 'injured' : Math.round(100 * FM.conditionOf(p)) + '%'}</span>
+      <button class="chip${world.selBench === p ? ' sel' : ''}${world.match && p._offMatch === world.match ? ' off' : ''}" data-bench="${p.id}"${world.match && p._offMatch === world.match ? ' title="Substituted off: cannot return"' : ''}>
+        <span class="num" style="${KITNUM(team)}">${p.number}</span><span>${p.natural} ${esc(shortName(p))}</span><span class="meta ${FM.isInjured(p) ? 'out' : FM.conditionOf(p) < 0.6 ? 'low' : ''}">${FM.ratingText(p)} · ${world.match && p._offMatch === world.match ? 'subbed off' : FM.isInjured(p) ? 'injured' : Math.round(100 * FM.conditionOf(p)) + '%'}</span>
       </button>`).join('');
     const pair = inDef ? null : BOARD_PAIRS[tab];
     host.innerHTML = `

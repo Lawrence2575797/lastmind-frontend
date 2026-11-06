@@ -119,6 +119,7 @@
     if (k < 0 || bi < 0) return 'Not a valid substitution.';
     if (FM.isInjured && FM.isInjured(inPlayer)) return inPlayer.name + ' is injured and cannot play.';
     const live = match && match.phase !== 'kickoff' || (match && match.clock > 0);
+    if (live && match && inPlayer._offMatch === match) return inPlayer.name + ' has already been substituted off and cannot come back on.';
     if (live && team.subsUsed >= team.maxSubs) return 'No substitutions left.';
     if (live && match && match.stands && match.stands[team.id] > match.clock) return 'You have been sent to the stands: no changes can be made for another ' + Math.ceil((match.stands[team.id] - match.clock) / 60) + ' minute(s).';
     inPlayer.x = outPlayer.x; inPlayer.y = outPlayer.y; inPlayer.vx = outPlayer.vx; inPlayer.vy = outPlayer.vy;
@@ -128,7 +129,7 @@
     team.players[k] = inPlayer;
     team.bench[bi] = outPlayer;
     outPlayer.index = -1; outPlayer.slotKey = null; outPlayer.group = outPlayer.natural;
-    if (live) team.subsUsed++;
+    if (live) { team.subsUsed++; if (match) outPlayer._offMatch = match; }   // once off, he is off for the rest of that match
     if (match && match.injuryPause && match.injuryPause.player === outPlayer) match.injuryPause = null;
     if (match && match.carrier && match.carrier.player === outPlayer) match.carrier.player = inPlayer;
     if (match && match.restart && match.restart.taker === outPlayer) match.restart.taker = inPlayer;
