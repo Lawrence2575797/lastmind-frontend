@@ -620,7 +620,7 @@
       else t.tacticalFactor = 1;
     });
     [home, away].forEach((t) => { t.snap = FM.snapshotLineup(t); t.subsUsed = 0; t.sentOff = []; t.retired = []; delete t.liveBase; delete t.liveLean; delete t._told; FM.fitnessBegin(t); });
-    FM.applyUserEdge(league, home, away); FM.applyUserEdge(league, away, home);
+    FM.applyUserEdge(league, home, away, fx); FM.applyUserEdge(league, away, home, fx);
     const match = FM.createMatch(home, away, fx.seed);
     match.day = league.day; match.userId = league.userId; match.interactive = !!(opts && opts.interactive); match.friendly = friendly;
     match.aiTeams = [home, away].filter((t) => !FM.isHuman(league, t.id));

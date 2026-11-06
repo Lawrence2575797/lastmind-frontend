@@ -49,14 +49,23 @@
   FM.USER_EDGE = { base: 2, gapK: 0.35, cap: 6 };
   const XI_KEYS = ['pace', 'dribbling', 'passing', 'finishing', 'tackling', 'heading', 'composure', 'stamina'];
   const xiLevel = (t) => { const ps = (t.players && t.players.length ? t.players : t.squad.slice(0, 11)).filter((p) => p.group !== 'GK'); return ps.length ? mean(ps.map((p) => mean(XI_KEYS.map((k) => ((p.baseRatings || p.ratings || {})[k]) || 55)))) : 55; };
-  FM.userEdgeFor = function (league, team, opp) {
+  // A cup tie is where a small club can beat a big one, so the lean is stronger there when the other side stands higher than the manager's (a higher division, or a better place in the
+  // same one): without that a manager of a lower-league club would never get past the bigger clubs. It reads where both clubs stand now, so it applies to saves already begun.
+  FM.CUP_EDGE = { base: 3, gapK: 0.7, cap: 10, perLevel: 1.5, perPlace: 0.25 };
+  const standingOf = (league, t) => { const d = FM.allDivisions(league).find((x) => x.teams.indexOf(t) >= 0); if (!d) return null; const rows = FM.divisionTableRows(d), i = rows.findIndex((r) => r.id === t.id); return { level: d.level, pos: i < 0 ? d.teams.length : i + 1 }; };
+  FM.userEdgeFor = function (league, team, opp, fx) {
     if (!league || league.mp || !team || team.id !== league.userId || FM.NO_USER_EDGE) return 0;
     const gap = opp ? xiLevel(opp) - xiLevel(team) : 0, E = FM.USER_EDGE;
+    if (fx && fx.stage && opp && !fx.friendly) {
+      const C = FM.CUP_EDGE, me = standingOf(league, team), them = standingOf(league, opp);
+      let up = 0; if (me && them) up = me.level > them.level ? (me.level - them.level) * C.perLevel + 1 : me.level === them.level && them.pos < me.pos ? Math.min(6, me.pos - them.pos) * C.perPlace : 0;
+      if (up > 0) return clamp(C.base + C.gapK * Math.max(0, gap) + up, 0, C.cap);
+    }
     return clamp(E.base + E.gapK * Math.max(0, gap), 0, E.cap);
   };
-  FM.applyUserEdge = function (league, team, opp) {
+  FM.applyUserEdge = function (league, team, opp, fx) {
     const lm = FM.userMod && league && team.id === league.userId && !league.mp ? FM.userMod('performance') : 1;   // spending on the players' motivation (bonuses, team programmes) shows in match-day effort
-    const e = FM.userEdgeFor(league, team, opp) + (lm - 1) * 100; if (!e) return 0;
+    const e = FM.userEdgeFor(league, team, opp, fx) + (lm - 1) * 100; if (!e) return 0;
     team.squad.forEach((p) => { p.mbonus = (p.mbonus || 0) + e; });
     return e;
   };
