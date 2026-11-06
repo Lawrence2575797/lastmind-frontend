@@ -2,12 +2,7 @@
 //
 // 1. Ratings are softened. A rating counts less than it used to (RATING_W) and counts for less and less the higher it goes (eff), so a 99 is better than an 80 but
 //    nowhere near invincible. Every probability in the match reads a rating through FM.sk.
-// 2. Tactical edge. For each match the two sides' plans are compared (FM.tactEdge): a plan that exploits what the other side has chosen to do, and that suits its own
-//    players, gains an edge; one that walks into the other's strengths loses it. The edge is a nudge to the odds of every pass, dribble, tackle and shot the side
-//    makes, recomputed each minute so that changing the plan in the match matters. It is zero-sum between the two sides, and no single setting is best against
-//    every opponent: a high line is a gift to a side that plays long and has pace, a short build-up is a gift to a side that presses it, a team that goes forward
-//    at all costs is a gift to a counter-attack, a patient side is frustrated by a deep block less than a reckless one.
-// 3. Momentum. Every player has a form (-1 to 1) and every club a momentum (-1 to 1) that follow the results and performances of recent matches. A single match
+// 2. Momentum. Every player has a form (-1 to 1) and every club a momentum (-1 to 1) that follow the results and performances of recent matches. A single match
 //    moves them only a little; matches in a row move them further, with less and less effect as they near their limits. They add to (or take from) ratings in the
 //    next match: up to 8 rating points for a player's own form and up to 4 for the club's momentum, before the softening above.
 (function () {
@@ -15,8 +10,8 @@
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
   const mean = (a) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0);
 
-  FM.RATING_W = 1.0;   // better players count for more, so a better squad wins more often than it loses
-  FM.eff = (r) => 60 + 32 * Math.tanh((r - 60) / 32);
+  FM.RATING_W = 0.7;
+  FM.eff = (r) => 60 + 22 * Math.tanh((r - 60) / 22);
   // A rating as the match uses it: softened, weighted, and moved by the player's form and the club's momentum (p.mbonus is set when the match starts).
   FM.sk = (p, key) => {
     const r = p && p.ratings && Number.isFinite(p.ratings[key]) ? p.ratings[key] : 60;
@@ -24,53 +19,19 @@
   };
   FM.MOM = { player: 8, club: 4, lr: 0.3 };
 
-  // ---------- tactical edge ----------
-  const tv = (t, k, d) => (t.tactics && Number.isFinite(t.tactics[k]) ? t.tactics[k] : d);
-  const avg = (team, groups, key) => { const ps = (team.players || []).filter((p) => groups.indexOf(p.group) >= 0); return ps.length ? mean(ps.map((p) => FM.eff((p.ratings && p.ratings[key]) || 60))) : 60; };
-  // How well team a's plan hurts team d's plan.
-  function exploit(a, d) {
-    const pace = clamp((avg(a, ['ST', 'WF', 'AM'], 'pace') - avg(d, ['CB'], 'pace')) / 12, -1, 1);
-    const long = 0.6 * tv(a, 'directness', 0.45) + 0.4 * tv(a, 'counterAttack', 0.5);
-    const e1 = clamp((tv(d, 'lineHeight', 0.5) - 0.45) * (long - 0.45) * 5 * (0.65 + 0.35 * pace), -1, 1);                     // long balls and pace against a high line
-    const bypass = 0.6 * tv(a, 'buildDirect', 0.35) + 0.5 * tv(a, 'beatPress', 0.4);
-    const e2 = clamp((tv(d, 'pressBuildUp', 0.4) - 0.45) * (bypass - 0.5) * 5, -1, 1);                                       // playing round a press, or into it
-    const e3 = clamp(((tv(d, 'risk', 0.5) + tv(d, 'tempo', 0.5)) / 2 - 0.45) * (tv(a, 'counterAttack', 0.5) - 0.45) * 4, -1, 1);   // a counter-attack against a side that goes forward at all costs
-    const block = 0.45 - (tv(d, 'lineHeight', 0.5) + tv(d, 'pressing', 0.5)) / 2;
-    const e4 = clamp(-(block * ((tv(a, 'tempo', 0.5) + tv(a, 'risk', 0.5)) / 2 - 0.45) * 3), -1, 1);                         // forcing it against a deep, passive block gets nowhere
-    return clamp(1.3 * (e1 + e2 + e3 + e4), -2.2, 2.2);
-  }
-  // How well a plan suits the side's own players (pressing needs stamina, a high line needs quick centre-backs, short passing needs passers, long balls need
-  // forwards who can run and jump).
-  function coherence(t) {
-    const stam = avg(t, ['CB', 'FB', 'DM', 'CM', 'AM', 'WF', 'ST'], 'stamina'), cbPace = avg(t, ['CB'], 'pace'), pass = avg(t, ['CB', 'FB', 'DM', 'CM', 'AM'], 'passing'), fwd = (avg(t, ['ST', 'WF'], 'pace') + avg(t, ['ST', 'WF'], 'heading')) / 2;
-    const press = (tv(t, 'pressing', 0.5) - 0.5) * (stam - 62) / 18, line = (tv(t, 'lineHeight', 0.5) - 0.5) * (cbPace - 62) / 14;
-    const style = (0.5 - tv(t, 'directness', 0.45)) * (pass - 60) / 15 + (tv(t, 'directness', 0.45) - 0.5) * (fwd - 60) / 15;
-    // a plan that pulls the team apart (pressing high behind a deep line, or the reverse) or burns it out (maximum risk and tempo together) costs it
-    const gap = Math.abs(tv(t, 'pressing', 0.5) - tv(t, 'lineHeight', 0.5)), disc = gap > 0.3 ? -(gap - 0.3) * 1.6 : 0, burn = Math.max(0, tv(t, 'risk', 0.5) + tv(t, 'tempo', 0.5) - 1.45) * 1.2;
-    return clamp(press + line + style + disc - burn, -1, 1);
-  }
-  const execution = () => 1;   // no penalty for changing tactics
-  FM.tactEdge = function (a, d) {
-    const xa = execution(a) * exploit(a, d) + 0.8 * coherence(a), xd = execution(d) * exploit(d, a) + 0.8 * coherence(d);
-    return clamp(xa - xd, -2.5, 2.5);
-  };
-  FM.computeEdges = function (match) {
-    const e = FM.tactEdge(match.home, match.away);
-    match.edge = { [match.home.id]: e, [match.away.id]: -e };
-    match.edgeSum = match.edgeSum || {}; match.edgeN = (match.edgeN || 0) + 1;
-    match.edgeSum[match.home.id] = (match.edgeSum[match.home.id] || 0) + e; match.edgeSum[match.away.id] = (match.edgeSum[match.away.id] || 0) - e;
-  };
-  FM.edgeFor = (match, team) => (match && match.edge && team && match.edge[team.id]) || 0;
+  // ---------- tactics ----------
+  // There is no tactical edge. Nothing here scores one plan against another: a plan only works through where the players stand, what they see and what they
+  // choose, in the match itself. (FM.edgeFor stays so the probabilities that take an edge read zero.)
+  FM.edgeFor = () => 0;
 
   // ---------- momentum ----------
   FM.setMomentumBonus = function (team) {
-    const mine = FM.curLeague && FM.curLeague.userId === team.id;
-    team.squad.forEach((p) => { const b = FM.MOM.player * clamp(p.form || 0, -1, 1) + FM.MOM.club * clamp(team.momentum || 0, -1, 1); p.mbonus = mine && b < 0 ? b * 0.4 : b; });   // a run of bad results does not spiral the managed club downwards
+    team.squad.forEach((p) => { p.mbonus = FM.MOM.player * clamp(p.form || 0, -1, 1) + FM.MOM.club * clamp(team.momentum || 0, -1, 1); });
   };
   // The game leans a little towards the manager, as a career game does: a club with a good manager can climb the divisions over a few seasons, and a smaller club can
   // beat a better one more often than the ratings alone say. A steady lift (base) for the managed club's players, and a further lift when the other side is the
   // better one (a share of the gap, up to the cap). It is a few rating points, which the softening in FM.sk shrinks again: a nudge, not a different sport.
-  FM.USER_EDGE = { base: 4, gapK: 0.5, cap: 10 };
+  FM.USER_EDGE = { base: 2, gapK: 0.35, cap: 6 };
   const XI_KEYS = ['pace', 'dribbling', 'passing', 'finishing', 'tackling', 'heading', 'composure', 'stamina'];
   const xiLevel = (t) => { const ps = (t.players && t.players.length ? t.players : t.squad.slice(0, 11)).filter((p) => p.group !== 'GK'); return ps.length ? mean(ps.map((p) => mean(XI_KEYS.map((k) => ((p.baseRatings || p.ratings || {})[k]) || 55)))) : 55; };
   FM.userEdgeFor = function (league, team, opp) {

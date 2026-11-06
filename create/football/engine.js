@@ -729,10 +729,7 @@
       drawn = manPress ? 0.9 * pw : (drawnOn('without') || drawnOn('withoutEnd') ? 0.5 : 0);
       // A side that does not press (what the scouting report calls a low block) sits deeper while the ball is up the other end: its whole shape is
       // brought back toward its own goal, so its forwards are about on the halfway line rather than up in the other half.
-      const prsLow = 0.6 * pbuT + 0.4 * (team.tactics.pressing == null ? 0.5 : team.tactics.pressing);
-      const lowBlock = clamp((0.4 - prsLow) / 0.1, 0, 1) * clamp((b.d - 0.35) / 0.3, 0, 1) * (1 - drawn);
-      lowK = lowBlock;
-      if (lowBlock > 0) pos = { d: pos.d * (1 - (FM.LOWBLOCK_K == null ? 0.08 : FM.LOWBLOCK_K) * lowBlock), w: pos.w };
+      // (There is no team-wide dropping back from a setting: a player's place is where the manager put him, and he moves from what he sees.)
       if (ctx.transDef > 0) {
         const react = FM.planTeamChoice ? FM.planTeamChoice(team, 'transDef', 'react') : null, secs = react === 'counterpress' ? 5.5 : react === 'regroup' ? 1.8 : 3.5;   // how long the team takes to drop into its defensive shape
         pos = mix(attShapeAt(ctx.dFrom != null ? ctx.dFrom : b.d), pos, ease(clamp((ctx.tdProg || 0) * TD_SECS / secs, 0, 1)));
@@ -751,7 +748,7 @@
       // A side that sits in a low block does not follow the ball up the pitch while the opposition are building from their own end: its line and
       // its forwards hold their depth, and only a mid block or a high press moves up with the ball.
       const prs = 0.6 * (team.tactics.pressBuildUp == null ? 0.4 : team.tactics.pressBuildUp) + 0.4 * (team.tactics.pressing == null ? 0.5 : team.tactics.pressing);
-      const blockHold = !hasBall && b.d > 0.5 ? clamp(prs / 0.4, 0.12, 1) * (1 - 0.75 * lowK) : 1;
+      const blockHold = 1;
       const free = clamp((FM.FREEDOM == null ? 0.38 : FM.FREEDOM) * (1 + 0.5 * m.roam) * blockHold * (1 - 0.8 * drawn), 0, 0.8);
       const want = hasBall
         ? clamp(b.d + ({ ST: 0.14, AM: 0.09, WF: 0.09, CM: 0.02, FB: 0.0, DM: -0.1, CB: -0.2 })[player.group], 0.04, 0.95)
@@ -839,15 +836,6 @@
       if (cap != null) d = Math.min(d, Math.max(.2, cap));
     }
 
-    // Without the ball a centre-back never goes past the halfway line, however high the press: the other side cannot be offside in their own half, so a
-    // line that high is a long ball over the top and a man in on goal. (A full-back and the holding midfielder are held back a little less firmly.)
-    // A side that presses the build-up hard is the exception while the ball is at the other end: its line and midfield come up with the forwards, so the
-    // press is a squeeze right up to the box rather than two forwards chasing alone. The risk is the ball over the top, which the tactical edge charges for.
-    if (!hasBall && player.group !== 'GK') {
-      const squeeze = clamp((((team.tactics.pressBuildUp == null ? 0.4 : team.tactics.pressBuildUp) + (team.tactics.lineHeight == null ? 0.5 : team.tactics.lineHeight)) / 2 - 0.5) / 0.3, 0, 1) * clamp((b.d - 0.65) / 0.2, 0, 1);
-      const lim = ({ CB: (FM.CB_LIMIT == null ? 0.46 : FM.CB_LIMIT) + 0.14 * squeeze, FB: 0.56 + 0.1 * squeeze, DM: 0.64 + 0.1 * squeeze })[player.group];
-      if (lim != null && !(drawn > 0.6)) d = Math.min(d, lim);   // (a line the manager drew, in a press, is his call)
-    }
     // The keeper without the ball stands on the line from the ball to the middle of his goal, closer to the near post the nearer the ball is, and comes off his line as a sweeper when it is far away.
     if (player.group === 'GK' && !hasBall && !FM.NO_GKT) { const near = clamp((0.4 - b.d) / 0.4, 0, 1); w = 0.5 + (b.w - 0.5) * (0.18 + 0.5 * near); d = 0.02 + 0.11 * clamp((b.d - 0.3) / 0.35, 0, 1) * (1 - near); }
     if (player.group === 'GK' && !hasBall && !FM.NO_GKT) w = clamp(w, 0.5 - 5.5 / W, 0.5 + 5.5 / W);   // a keeper shades toward the ball but stays between the posts and a few metres either side, whatever corner it is in
@@ -862,9 +850,27 @@
       const fzr = hasBall ? clamp((b.d - 0.56) / 0.26, 0, 1) : 0;
       const R = (FM.LEASH == null ? 6 : FM.LEASH) * clamp(1 + 0.5 * m.roam, 0.6, 1.6) * (hasBall ? 1 : (b.d > 0.5 ? (FM.LEASH_PRESS == null ? 1.5 : FM.LEASH_PRESS) : 0.9)) + (hasBall ? 5 * fzr : 0);   // the press of a build-up is left free: pressing is moving a long way
       const dx = at.x - home.x, dy = at.y - home.y, dist = Math.hypot(dx, dy);
-      if (dist > R) { const k = R / dist; return { x: home.x + dx * k, y: home.y + dy * k }; }
+      if (dist > R) { const k = R / dist; at.x = home.x + dx * k; at.y = home.y + dy * k; return lineKeeping(at); }
     }
-    return toMetres(team.attackDir, d, w);
+    return lineKeeping(toMetres(team.attackDir, d, w));
+    // The back line is set by what the defenders can see, and it is the one thing the leash does not hold: a man stays goal-side of any attacker who is level with him or behind him and
+    // could be found by a ball over the top, however far from his place that takes him. He keeps further back the more time the man on the ball has to pick it out, and he can hold
+    // higher when the man on the ball is closed down (or, in a side set to catch men offside, when the man behind him is in our half and would be offside). So a high line is fine against a
+    // pressed ball and costs the side as soon as the press is beaten.
+    function lineKeeping(pt) {
+      if (hasBall || ['CB', 'FB', 'DM'].indexOf(player.group) < 0 || !team.oppRef) return pt;
+      let nearest = Infinity; team.players.forEach((q) => { if (q.group !== 'GK') nearest = Math.min(nearest, Math.hypot(q.x - ball.x, q.y - ball.y)); });
+      const free = clamp((nearest - 2.5) / 6, 0, 1), trap = team.tactics.offsideTrap == null ? 0.3 : team.tactics.offsideTrap, me = toTeamSpace(team.attackDir, pt.x, pt.y);
+      let limit = 1;
+      team.oppRef.players.forEach((o) => {
+        if (o.group === 'GK' || Math.hypot(o.x - ball.x, o.y - ball.y) < 3 || Math.abs(o.y - pt.y) > 26) return;   // the man on the ball is closed down, not tracked
+        const ts = toTeamSpace(team.attackDir, o.x, o.y);
+        if (ts.d > me.d + 0.04) return;   // he is ahead of the line: no ball over the top finds him
+        if (ts.d < 0.5 && trap * (1 - free) > 0.5) return;   // he is in our half, and the line is set to catch him
+        limit = Math.min(limit, ts.d - (0.035 + 0.11 * free));
+      });
+      return me.d > Math.max(limit, 0.1) ? toMetres(team.attackDir, Math.max(limit, 0.1), me.w) : pt;
+    }
   };
 
   // Moves every player of one team one time step toward their target.

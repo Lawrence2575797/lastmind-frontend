@@ -439,7 +439,6 @@
       const press = clamp(Math.max(deep ? 0.6 * pbu + 0.4 * now : now, nearGoal ? (FM.DEF_BOX_PRESS || 0.8) : 0), 0, 1);
       const lostIt = match.lastChange && match.lastChange.team === c.team && match.clock - match.lastChange.t < PRESS_WINDOW;
       const cpx = lostIt ? (opp.tactics.counterPress > 0.6 ? 1 : 0) + (opp.tactics.counterPress > 0.85 ? 1 : 0) : 0, cpl = lostIt ? (opp.tactics.counterPress < 0.3 ? -1 : 0) : 0;   // the counter-press setting: how many close the ball down just after it is lost
-      const n = Math.min(FM.PRESS_NMAX == null ? 1 : FM.PRESS_NMAX, Math.max(1, 1 + (press > 0.65 && (lostIt || nearGoal || (deep && pbu > 0.6)) ? 1 : 0) + Math.round(cpx * (FM.CPX_ON == null ? 1 : FM.CPX_ON)) + cpl));
       let ranked = opp.players.filter((p) => p.group !== 'GK').map((p) => ({ p, d: dist(p, c.player) })).sort((a, b) => a.d - b.d);
       // The manager's press: when the ball goes to a named man (their goalkeeper, centre-backs, or a full-back on one side), a named player closes him down, and he does it from the
       // side that shows the man which way to go (out wide to the full-back, or inside). 'Both sides' makes it the same on the left and the right.
@@ -457,8 +456,30 @@
           }
         } }
       JOB = 'presses the ball';
-      ranked.slice(0, Math.max(n, engageP ? 1 : 0)).forEach(({ p, d }, i) => {
-        if (p !== engageP && d >= (i === 0 ? Math.max(pressTrigger(opp, p, press, match), (FM.FIRST_PRESS == null ? 0 : FM.FIRST_PRESS) * (0.4 + 0.6 * press)) : pressTrigger(opp, p, press, match))) return;   // the nearest man always comes to the ball
+      // Who goes to the man on the ball is each defender's own judgement, from what he can see. The nearest man goes if the ball is within his reach. Another goes only if he is
+      // already close, and the moment calls for it (the ball has just been lost, the man is hemmed in against a touchline or near our goal), the ball is within the area he was
+      // put to cover, and leaving his place does not let a dangerous man go free behind him. So how many press comes out of the situation: a team that presses high
+      // and gets a man free behind it pays for it, because nobody is there.
+      const depthOpp = (q) => FM.toTeamSpace(opp.attackDir, q.x, q.y).d, attackers = c.team.players.filter((q) => q.group !== 'GK' && q !== c.player);
+      const goalsideCover = (q, o) => q.group !== 'GK' && dist(q, o) < 12 && depthOpp(q) <= depthOpp(o) + 0.04;
+      const exposes = (p, taking) => attackers.some((o) => {
+        if (depthOpp(o) > depthOpp(p) + 0.03 || Math.abs(o.y - p.y) > 22 || dist(o, p) > 28) return false;   // he is not goal-side of this defender, or nowhere near him
+        return !opp.players.some((q) => q !== p && taking.indexOf(q) < 0 && goalsideCover(q, o));   // nobody else is left to pick him up
+      });
+      const cornered = Math.min(c.player.y, W - c.player.y) < 7 || dist(c.player, ownGoal) < 24;
+      const closers = [];
+      ranked.forEach(({ p, d }) => {
+        if (closers.length >= 4) return;
+        const first = closers.length === 0, forced = p === engageP;
+        if (!forced) {
+          if (first ? d >= Math.max(pressTrigger(opp, p, press, match), (FM.FIRST_PRESS == null ? 0 : FM.FIRST_PRESS) * (0.4 + 0.6 * press)) : !(d < (lostIt ? 6 + 8 * (opp.tactics.counterPress == null ? 0.5 : opp.tactics.counterPress) : 7 + 6 * press) && (lostIt || nearGoal || cornered))) return;
+          const home = p._bp ? FM.toMetres(opp.attackDir, p._bp.d, p._bp.w) : null;   // the place he was put: the ball has to be within his reach of it
+          if (home && !nearGoal && dist(home, c.player) > 14 + 14 * press) return;
+          if (!nearGoal && exposes(p, closers.map((x) => x.p))) return;
+        }
+        closers.push({ p, d });
+      });
+      closers.forEach(({ p, d }, i) => {
         const stand = 0.5 + 2.2 * (1 - press) + 0.8 * i; // how far off the carrier he stops, in metres
         const dx = p.x - c.player.x, dy = p.y - c.player.y, dd = Math.max(d, 0.1);
         // He closes from the goal side and from the inside, not straight down the line he happens to be on: he is between the man and his goal, and when the man is near a touchline
@@ -894,10 +915,22 @@
   // separate from the manager's underlying tactic: tempo and directness set a
   // preference, while pressure, an opening and match state decide whether this
   // particular moment should be played faster or more vertically.
+  // How hard he feels he is being squeezed, from where the other side actually stand: a man close to him weighs most, men further off count for less, and a man running at
+  // him counts for more, so two or three men round him feel much worse than one. Nobody reads it perfectly: the less composed he is, the more his read wanders.
+  function perceivedPressure(match, team, carrier) {
+    const opp = other(match, team); let sum = 0;
+    opp.players.forEach((o) => {
+      if (o.group === 'GK') return;
+      const dx = carrier.x - o.x, dy = carrier.y - o.y, d = Math.hypot(dx, dy); if (d > 14) return;
+      const closing = d > 0.1 ? ((o.vx || 0) * dx + (o.vy || 0) * dy) / d : 0;
+      sum += Math.exp(-d / 4.5) * (1 + 0.25 * clamp(closing / 3, 0, 1.5));
+    });
+    const comp = (carrier.ratings && carrier.ratings.composure) || 60;
+    return clamp(0.95 * sum - 0.1 + (match.rng() - 0.5) * 0.45 * (1 - comp / 110), 0, 1);
+  }
   function liveBallContext(match, team, carrier) {
     const depth = FM.toTeamSpace(team.attackDir, carrier.x, carrier.y).d;
-    const pressureD = nearestOpponent(match, team, carrier).d;
-    const pressure = clamp((8 - pressureD) / 6, 0, 1);
+    const pressure = perceivedPressure(match, team, carrier);
     let forwardOpening = 0;
     team.players.forEach((mate) => {
       if (mate === carrier || mate.group === 'GK') return;
@@ -1069,8 +1102,7 @@
     // decide. The press is read from the opposition's own settings for pressing its build-up and pressing generally.
     if (ownDepth0 < 0.5) {
       const beat = tac.beatPress == null ? 0.5 : tac.beatPress, ot = other(match, team).tactics;
-      const oppPress = 0.6 * (ot.pressBuildUp == null ? 0.4 : ot.pressBuildUp) + 0.4 * pressingNow(match, other(match, team));
-      const pressure = clamp((oppPress - 0.4) / 0.45, 0, 1);
+      const pressure = live.pressure;   // what he sees round him, not the other side's settings
       // ...but nobody hoofs it away while a team-mate is standing in the clear close by: the long ball is for when the short ones are closed.
       const freeClose = options.some((o) => o.kind === 'pass' && o.d < 26 && o.p >= 0.82 && o.press >= 6 && o.score > -3);
       if (pressure > 0) options.forEach((o) => { if (o.kind === 'pass' && o.d >= 28 && (o.tx - carrier.x) * team.attackDir > 15 && o.score > -3) o.score += beat * (FM.BEAT_K || 2.5) * pressure * (0.4 + o.p) * (0.4 + 0.6 * directness) * (freeClose ? 0.25 : 1); });
@@ -1151,7 +1183,7 @@
     if (nearNow > 4 && !through && !drive) options.push({ kind: 'hold', score: .48 + .55 * live.patience - .4 * live.urgency - .2 * directness });
 
     if (coast > 0) options.forEach((o) => { if (o.kind === 'shoot' && o.score > 0) o.score *= 1 - 0.45 * coast; });
-    options.forEach((o) => { if (o.kind === 'shoot' && o.score > 0) o.score *= (FM.SHOT_K == null ? 0.7 : FM.SHOT_K); });
+    options.forEach((o) => { if (o.kind === 'shoot' && o.score > 0) o.score *= (FM.SHOT_K == null ? 1.45 : FM.SHOT_K); });
     if (RE && RE.shoot) options.forEach((o) => { if (o.kind === 'shoot' && o.score > 0) o.score *= clamp(1 + 0.9 * RE.shoot, 0.1, 2); });
 
     if (!options.length) options.push({ kind: 'carry', nearD: 3, drive: false, score: 0 });   // never nothing to do: he keeps the ball and moves on
@@ -2486,7 +2518,7 @@
         }
         if (dd0 > 1.8 + (FM.MOVE_REACH == null ? 0.25 : FM.MOVE_REACH) * cSpeed) continue;   // (the man or the ball, whichever is nearer)
         if (!FM.TACKLE_ANY && (d.x - c.player.x) * team.attackDir < -0.6 && c.player.vx * team.attackDir > 1.5) continue;   // beaten: a defender chasing a man who is running on cannot tackle him from behind
-        const rate = (FM.TACKLE_RATE == null ? 1.0 : FM.TACKLE_RATE) * (1 + (FM.MOVE_TACKLE == null ? 0.5 : FM.MOVE_TACKLE) * cSpeed / 3) * .65 * (opp.tacticalFactor || 1) * (0.05 + 0.08 * opp.tactics.pressing + (d.roleId === 'ball_winning_midfielder' ? 0.06 : 0)) * (0.6 + 0.8 * opp.tactics.tackleAggression) * ((FM.CLOSE_TACKLE == null ? 1.8 : FM.CLOSE_TACKLE) > 1 && dist(c.player, { x: opp.attackDir === 1 ? 0 : L, y: W / 2 }) < 26 ? (FM.CLOSE_TACKLE == null ? 1.8 : FM.CLOSE_TACKLE) : 1) * (1 + 0.35 * (FM.instrMods(d).tackle + FM.rulesDelta(opp, d, 'tackle', match.ball, false)));
+        const rate = (FM.TACKLE_RATE == null ? 1.0 : FM.TACKLE_RATE) * (1 + (FM.MOVE_TACKLE == null ? 0.5 : FM.MOVE_TACKLE) * cSpeed / 3) * .65 * (opp.tacticalFactor || 1) * (0.03 + 0.13 * clamp(1 - dd0 / (1.8 + (FM.MOVE_REACH == null ? 0.25 : FM.MOVE_REACH) * cSpeed), 0, 1) + (d.roleId === 'ball_winning_midfielder' ? 0.06 : 0))   /* the nearer he is, the likelier he goes in: no setting scales it */ * (0.6 + 0.8 * opp.tactics.tackleAggression) * ((FM.CLOSE_TACKLE == null ? 1.8 : FM.CLOSE_TACKLE) > 1 && dist(c.player, { x: opp.attackDir === 1 ? 0 : L, y: W / 2 }) < 26 ? (FM.CLOSE_TACKLE == null ? 1.8 : FM.CLOSE_TACKLE) : 1) * (1 + 0.35 * (FM.instrMods(d).tackle + FM.rulesDelta(opp, d, 'tackle', match.ball, false)));
         if (match.clock >= (match.tackleLock || 0) && match.rng() < rate * dt) {
           match.tackleLock = match.clock + 1.2;
           const p = FM.tackleProb(d, c.player, FM.edgeFor(match, opp)) * (opp.tacticalFactor || 1);
