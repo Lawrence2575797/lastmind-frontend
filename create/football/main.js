@@ -415,7 +415,7 @@
   function updateHud() {
     const m = world.match, home = m.home, away = m.away;
     { const hold = world.hl && world.hl.phase === 'replay' ? world.hlHold : null; el('scHome').textContent = hold ? hold.home : m.score[home.id]; el('scAway').textContent = hold ? hold.away : m.score[away.id]; }
-    el('clock').textContent = m.shootout && !m.shootout.finished ? 'Penalty shootout: ' + m.shootout.score[m.home.id] + '–' + m.shootout.score[m.away.id] : m.phase === 'halftime' ? 'Half time' : m.phase === 'fulltime' ? (m.shootout ? 'Penalties ' + m.shootout.score[m.home.id] + '–' + m.shootout.score[m.away.id] : 'Full time') : FM.formatClock(m.clock) + (m.restart ? ' · ' + RESTART_NAMES[m.restart.kind] : '');
+    el('clock').textContent = m.shootout && !m.shootout.finished ? 'Penalty shootout: ' + m.shootout.score[m.home.id] + '–' + m.shootout.score[m.away.id] : m.phase === 'halftime' ? 'Half time' : m.phase === 'fulltime' ? (m.shootout ? 'Penalties ' + m.shootout.score[m.home.id] + '–' + m.shootout.score[m.away.id] : 'Full time') : (world.hl && world.hl.phase === 'replay' && m.hlNow != null ? FM.formatClock(m.hlNow) : FM.formatClock(m.clock) + (m.restart ? ' · ' + RESTART_NAMES[m.restart.kind] : ''));   // a highlight being replayed shows the time in the replay, not the restart that followed it
     renderIncidents(m);
     const h = m.stats[home.id], a = m.stats[away.id], tot = h.possession + a.possession;
     const rows = [
