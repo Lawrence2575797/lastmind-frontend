@@ -94,7 +94,11 @@
       T('trigGK', 'Press when their goalkeeper has it', 'The whole side steps up to win it from the keeper.', [o('yes', 'Press', { tac: { trigGK: 1 } }), o('no', 'Hold shape', { tac: { trigGK: 0 } })]),
       T('trigCB', 'Press when a centre-back has it', '', [o('yes', 'Press', { tac: { trigCB: 1 } }), o('no', 'Hold shape', { tac: { trigCB: 0 } })]),
       T('trigFB', 'Press when a full-back has it', 'Usually near the touchline, where the way out is short.', [o('yes', 'Press', { tac: { trigFB: 1 } }), o('no', 'Hold shape', { tac: { trigFB: 0 } })]),
-      T('trigMid', 'Press in the middle third', '', [o('yes', 'Press', { tac: { trigMid: 1 } }), o('no', 'Hold shape', { tac: { trigMid: 0 } })]),
+      T('trigMid', 'Press when it is in the middle third', '', [o('yes', 'Press', { tac: { trigMid: 1 } }), o('no', 'Hold shape', { tac: { trigMid: 0 } })]),
+      T('trigBack', 'Press when it is played backwards to him', 'A pass back or square says he has nothing forward: the moment to go.', [o('yes', 'Press', { tac: { trigBack: 1 } }), o('no', 'Hold shape', { tac: { trigBack: 0 } })]),
+      T('trigTouch', 'Press when he is near the touchline', 'The touchline is another defender: he has one way to turn.', [o('yes', 'Press', { tac: { trigTouch: 1 } }), o('no', 'Hold shape', { tac: { trigTouch: 0 } })]),
+      T('trigTurn', 'Press when he has his back to the play', 'He cannot see the pitch, and he cannot turn if you are close.', [o('yes', 'Press', { tac: { trigTurn: 1 } }), o('no', 'Hold shape', { tac: { trigTurn: 0 } })]),
+      T('trigLoose', 'Press when he takes a heavy touch', 'The ball is away from his feet: nobody waits for that.', [o('yes', 'Press', { tac: { trigLoose: 1 } }), o('no', 'Hold shape', { tac: { trigLoose: 0 } })]),
       T('who', 'Who joins in', '', [
         o('front', 'Forwards only', { r: [['mid', [E.close(-0.5)]], ['def', [E.close(-0.5)]], ['att', [E.close(0.5)]]] }), o('std', 'Forwards and midfield', { r: [['def', [E.close(-0.3)]], ['att', [E.close(0.3)]], ['mid', [E.close(0.3)]]] }), o('all', 'Everyone', { r: [['team', [E.close(0.6)]]] })]),
     ],
@@ -196,8 +200,8 @@
     { k: 'lost', name: 'We lose the ball in a zone', side: 'without', needs: 'zone', stage: 'transDef' },
   ];
   FM.PLAN_DO = [
-    { k: 'press', name: 'press', side: 'without', fx: [E.close(1), E.tackle(0.3)], help: 'closing down hard' },
-    { k: 'hold', name: 'drop off and hold shape', side: 'without', fx: [E.close(-1)], help: 'not chasing' },
+    { k: 'press', name: 'press (the side goes to win it)', side: 'without', fx: [E.close(1), E.tackle(0.3)], help: 'this is a press trigger: the side goes to win the ball when it fires' },
+    { k: 'hold', name: 'hold shape (no press)', side: 'without', fx: [E.close(-1)], help: 'overrules the standard triggers: the side stays in shape when it fires' },
     { k: 'mark', name: 'close him down and follow him', side: 'without', fx: [E.close(0.8), E.step()], help: 'closing down and stepping up' },
     { k: 'run', name: 'run in behind', side: 'with', fx: [E.runs(1)], help: 'making a run beyond the defence' },
     { k: 'long', name: 'play it long', side: 'with', fx: [E.len('long', 0.9), E.dir('forward', 0.5)], help: 'going long' },
@@ -308,7 +312,7 @@
     team.rules = (team.rules || []).filter((r) => r.source !== 'plan').concat(rules);
     team.planOut = { off, n: rules.length };
     team.tactics = team.tactics || {};
-    ['block', 'pressing', 'pressBuildUp', 'trigGK', 'trigCB', 'trigFB', 'trigMid', 'trigLoss'].forEach((k) => { if (tac[k] !== undefined) team.tactics[k] = tac[k]; });
+    ['block', 'pressing', 'pressBuildUp', 'trigGK', 'trigCB', 'trigFB', 'trigMid', 'trigBack', 'trigTouch', 'trigTurn', 'trigLoose', 'trigLoss'].forEach((k) => { if (tac[k] !== undefined) team.tactics[k] = tac[k]; });
     if (FM.inferShapeTactics) FM.inferShapeTactics(team);
   };
 

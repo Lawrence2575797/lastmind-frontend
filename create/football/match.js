@@ -672,27 +672,38 @@
       if (wide > 12 && depth > 0.4 && depth < 0.92) {
         T.players.forEach((q) => { if (!open(q) || (q.group !== 'WF' && q.group !== 'FB') || (q.y >= W / 2 ? 1 : -1) === side || Math.abs(q.y - W / 2) < 8) return; give(q, Math.max(q.x * dir, cp.x * dir + 2) * dir, W / 2 - side * (W / 2 - 7), 1.4, 'wide'); });
       }
-      // 5. everyone else looks for a place he can be found: an open line from the ball, in space, a pass away, and not far from his own place in the shape. This is what
-      // a man without the ball is doing in possession: making himself an option. (The centre-backs, and the holding midfielder once the ball is up the pitch, keep the rest defence.)
-      if (!FM.NO_OFFER && depth < 0.92) {
-        const mates = T.players.filter((q) => q !== cp && q.group !== 'GK');
+      // 5. everyone else is moving to where he is worth most to the man on the ball. One test decides every off-ball move that has no job of its own, so dropping to link, splitting
+      // to receive, a far-post run, a switch of play and a third-man run are all the same thing seen from different places: for each place he could go within reach, how likely
+      // the man on the ball is to find him (an open line, a sensible distance, room round him, onside), what the ball is worth there, how far it pulls the marker out of the game,
+      // how crowded it is with team-mates, and how far it takes him from his own place in the shape. He goes where that is best, and stays with it for a moment.
+      if (!FM.NO_OFFER && depth < 0.95) {
+        const mates = T.players.filter((q) => q !== cp && q.group !== 'GK'), pressedNow = perceivedPressure(match, T, cp), cpSide = cp.y >= W / 2 ? 1 : -1;
+        const keepsRestDefence = (q) => q.group === 'CB' ? depth > 0.4 : q.group === 'DM' ? depth > 0.55 : false;
         T.players.forEach((q) => {
-          if (!open(q) || q.group === 'CB' || (q.group === 'DM' && depth > 0.55)) return;
-          const home = FM.targetFor(T, q, match.ball, true);
-          let best = null, bs = -1e9, cur = null;
+          if (!open(q) || q.group === 'GK' || keepsRestDefence(q)) return;
+          const home = FM.targetFor(T, q, match.ball, true), reachM = q.group === 'CB' ? 12 : q.group === 'FB' ? 16 : 20, homePull = q.group === 'CB' ? 0.22 : 0.11;
+          const marker = O.players.filter((o) => o.group !== 'GK').reduce((b, o) => (!b || Math.hypot(o.x - q.x, o.y - q.y) < Math.hypot(b.x - q.x, b.y - q.y) ? o : b), null);
+          const ahead = FM.instrMods(q, true).runs >= 0;
           const score = (x, y) => {
-            const dd = Math.hypot(x - cp.x, y - cp.y); if (dd < 0.1) return -1e9;
-            const blocked = O.players.reduce((n, o) => (n + (segInfo(o.x, o.y, cp.x, cp.y, x, y).d < 2.2 ? 1 : 0)), 0);
-            const od = Math.min(8, O.players.reduce((m, o) => Math.min(m, Math.hypot(o.x - x, o.y - y)), 99));
+            const dd = Math.hypot(x - cp.x, y - cp.y); if (dd < 4) return -1e9;
+            if ((x - cp.x) * dir > 0 && (x * dir) > (T.offsideLine == null ? 1e9 : T.offsideLine * dir) + (ahead ? 0.5 : -1.2) && depth > 0.4) return -1e9;   // never past the offside line
+            const lane = O.players.reduce((n, o) => { if (o.group === 'GK') return n; const dl = segInfo(o.x, o.y, cp.x, cp.y, x, y).d; return n + (dl < 2.2 ? 1 : dl < 4 ? 0.35 : 0); }, 0);
+            const room = Math.min(9, O.players.reduce((m, o) => Math.min(m, Math.hypot(o.x - x, o.y - y)), 99));
+            const find = (lane ? -4 - 2 * lane : 3) + 0.55 * room + (dd < 6 ? -3 : dd > 28 ? -(dd - 28) * 0.4 : -Math.abs(dd - (pressedNow > 0.5 ? 11 : 15)) * 0.1);   // when he is squeezed, a short safe option is worth more than a bold one
+            const worth = 9 * FM.threat(dir, x, y) + 0.07 * Math.max(-8, Math.min(10, (x - cp.x) * dir));
+            const pull = marker ? 0.05 * Math.min(14, Math.hypot(marker.x - x, marker.y - y)) : 0;   // being far from my marker drags him out of position
+            const sw = pressedNow > 0.55 && (y >= W / 2 ? 1 : -1) !== cpSide && room > 6 ? 1.6 : 0;   // a way out for a pressed man: the far side, where there is room
             const crowd = mates.some((m2) => m2 !== q && Math.hypot((st.runs.has(m2) ? st.runs.get(m2).pt.x : m2.x) - x, (st.runs.has(m2) ? st.runs.get(m2).pt.y : m2.y) - y) < 6.5) ? 3 : 0;
-            return (blocked ? -4 - blocked : 3) + 0.6 * od + (dd < 7 ? -3 : dd > 26 ? -(dd - 26) * 0.4 : -Math.abs(dd - 14) * 0.1) + 0.07 * Math.max(-8, Math.min(10, (x - cp.x) * dir)) - 0.13 * Math.hypot(x - home.x, y - home.y) - crowd;
+            return find + worth + pull + sw - homePull * Math.hypot(x - home.x, y - home.y) - 0.03 * Math.hypot(x - q.x, y - q.y) - crowd;
           };
-          cur = score(q.x, q.y);
-          for (let ox = -8; ox <= 8; ox += 4) for (let oy = -8; oy <= 8; oy += 4) {
-            const x = clamp(cap(q.x + ox), 2, L - 2), y = clamp(q.y + oy, 2.5, W - 2.5), sc = score(x, y);
+          const cur = score(q.x, q.y);
+          let best = null, bs = -1e9;
+          for (let ox = -reachM; ox <= reachM; ox += 4) for (let oy = -reachM; oy <= reachM; oy += 4) {
+            if (Math.hypot(ox, oy) > reachM) continue;
+            const x = clamp(q.x + ox, 2, L - 2), y = clamp(q.y + oy, 2.5, W - 2.5), sc = score(x, y);
             if (sc > bs) { bs = sc; best = { x, y }; }
           }
-          if (best && bs > cur + 1.5) give(q, best.x, best.y, FM.OFFER_SECS == null ? 1.1 : FM.OFFER_SECS, 'offer');
+          if (best && bs > cur + 1.4) give(q, best.x, best.y, FM.OFFER_SECS == null ? 1.3 : FM.OFFER_SECS, 'offer');
         });
       }
     }
@@ -2506,6 +2517,7 @@
     match.teams.forEach((t) => {
       const oo = other(match, t), ctx = { scoreDiff: (match.score[t.id] || 0) - (match.score[oo.id] || 0), minute: match.clock / 60, carrier: match.carrier ? match.carrier.player : null, pressed: false };
       Object.defineProperty(t, 'oppRef', { value: oo, writable: true, configurable: true, enumerable: false });
+      Object.defineProperty(t, 'matchRef', { value: match, writable: true, configurable: true, enumerable: false });
       Object.defineProperty(t, 'ruleCtx', { value: ctx, writable: true, configurable: true, enumerable: false });
     });
     setOffsideLines(match);
@@ -2795,6 +2807,7 @@
         startRestart(match, 'freekick', other(match, f.team), clamp(match.ball.x, 0.5, L - 0.5), clamp(match.ball.y, 0.5, W - 0.5), { indirect: true });
         return;
       }
+      if (f.outcome === 'complete') match.recv = { p: f.target, back: !!f.passer && (f.target.x - f.passer.x) * f.team.attackDir < -2, t: match.clock };   // for the trigger on a pass played backwards
       if (f.outcome === 'complete') giveBall(match, f.team, f.target, 0.12 + delayBeforeNextDecision(match, f.team, f.target));
       // Deflections only become throw-ins when the pass has physically
       // reached the touchline. Previously any interception, including one in
