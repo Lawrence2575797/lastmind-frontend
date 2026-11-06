@@ -1059,7 +1059,14 @@
       const progK = zone === 'final' ? 1 : (FM.PROG_K == null ? .38 : FM.PROG_K);
       let score = p * (0.35 + directness * 0.9 * prog * progK + 0.5 * prog * risk * progK + boxBonus) - (1 - p) * 0.6 * (1 - risk) * lossFactor;
       // Playing out from the back is patient: a pass through a crowd, with an easy one on, is not tried in your own third.
-      if (zone === 'build' && ownDepth0 < 0.45 && p < 0.65 && !(FM.NO_PATIENT)) score -= (0.65 - p) * (FM.PATIENT_K == null ? 1.6 : FM.PATIENT_K) * (1 - 0.5 * risk);
+      if (zone === 'build' && ownDepth0 < 0.45 && !(FM.NO_PATIENT)) {
+        // With time on the ball (nobody within a few metres) a player does not gamble on a pass he is unlikely to complete when an easy one is there: he can wait, move the ball and the opposition, and play the forward one when it opens.
+        const time = nearNow > 3;
+        const sure = time ? 0.8 : 0.65;
+        if (p < sure) score -= (sure - p) * (time ? 2.4 : (FM.PATIENT_K == null ? 1.6 : FM.PATIENT_K)) * (1 - 0.5 * risk);
+        // Shifting the ball from side to side is how a side opens a gap in the middle: each lateral pass drags the opposition across, so a safe one across the pitch is worth something.
+        if (time && p >= 0.8 && Math.abs(ty - carrier.y) > 8) score += 0.4 * clamp(Math.abs(ty - carrier.y) / 25, 0, 1) * p;
+      }
       // The chance it creates. A pass that puts a team-mate somewhere he is clearly likelier to score from than the man on the ball is the
       // pass a player looks for: it counts for what the receiver could do with it, whoever he is.
       let chance = 0;
@@ -1866,8 +1873,13 @@
     }
     if (r.kind === 'goalkick') {
       const own = goalX === L ? 0 : L, inward = own === 0 ? 1 : -1;
+      // There is no offside from a goal kick, so a high line is not protected: a long kick to a forward standing level with or beyond it beats it. However the side is set to press, its back
+      // line therefore sits goal-side of the furthest-forward man the keeper can find (a little way in front of him), ready for the long one; the others can still go up.
+      const kickers = outfield(team), ourGoalX = goalX, depthOf = (x) => Math.abs(x - ourGoalX);
+      const mostAdvanced = kickers.reduce((m, a) => Math.min(m, depthOf(a.x)), 1e9);
       outfield(opp).forEach((p) => {
-        const t = FM.targetFor(opp, p, match.ball, false);
+        let t = FM.targetFor(opp, p, match.ball, false);
+        if (['CB', 'FB', 'DM'].indexOf(p.group) >= 0 && depthOf(t.x) > mostAdvanced - 2.5) t = { x: ourGoalX + (t.x >= ourGoalX ? 1 : -1) * Math.max(8, mostAdvanced - 2.5), y: t.y };
         const depth = (t.x - own) * inward;
         if (depth < 20 && Math.abs(t.y - W / 2) < 23) ov.set(p, { x: own + inward * 20, y: t.y });
         else ov.set(p, t);
