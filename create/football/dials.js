@@ -6,8 +6,6 @@
   // unit: how the number is shown. tac: the tactics field a 0-1 dial writes. lo/hi/def: range and neutral value.
   FM.DIALS = [
     { id: 'line', label: 'Defensive line', unit: 'm', lo: -12, hi: 14, def: 0, step: 1, phases: ['defence'], words: 'metres higher (+) or deeper (-) than the drawn line stands' },
-    { id: 'press', label: 'Press trigger', unit: 'm', lo: -5, hi: 9, def: 0, step: 1, phases: ['press'], words: 'extra metres from the ball at which the nearest man starts to close down' },
-    { id: 'counterPress', label: 'Counter-press', unit: '', lo: 0, hi: 1, def: .5, step: .05, tac: 'counterPress', phases: ['transDef'], words: 'how hard the side hunts the ball in the seconds after losing it' },
     { id: 'tackle', label: 'Tackle aggression', unit: '', lo: 0, hi: 1, def: .5, step: .05, tac: 'tackleAggression', phases: ['defence', 'press'], words: 'how often a tackle is committed to rather than a man shepherded (more fouls, more wins)' },
     { id: 'trap', label: 'Offside trap', unit: '', lo: 0, hi: 1, def: .3, step: .05, tac: 'offsideTrap', phases: ['defence'], words: 'how often the line steps up together to catch a runner' },
     { id: 'buildDirect', label: 'Build-up length', unit: '', lo: 0, hi: 1, def: .35, step: .05, tac: 'buildDirect', phases: ['build'], words: '0 is short passes out from the back, 1 is long balls forward' },

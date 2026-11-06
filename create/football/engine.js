@@ -721,10 +721,12 @@
       // While the opposition build from their own end, a team that presses their build-up takes its pressing positions instead.
       // How far it takes up its pressing positions rests on the setting (an average side takes half the way; a side that hardly presses a build-up
       // stays in its block, and one that presses hard goes the whole way).
-      const pbuT = team.tactics.pressBuildUp == null ? 0.4 : team.tactics.pressBuildUp;
+      // a trigger of his side's has fired for the man who has the ball (while the ball is in the air the last answer stands)
+      if (FM.pressFired) { const car = FM.carrierOf(team, ball); if (car) team._pressOn = FM.pressFired(team, car, (team.phaseCtx || {}).transDef > 0.05) ? 1 : 0; }
+      const pressOn = team._pressOn || 0;
       // A press the manager drew needs no setting to switch it on: it applies whenever the opposition build from their own end.
       const manPress = drawnOn('press');
-      const pw = clamp((b.d - 0.5) / 0.25, 0, 1) * (manPress ? 1 : clamp(0.5 + 2.67 * (pbuT - 0.4), 0, 1));
+      const pw = clamp((b.d - 0.5) / 0.25, 0, 1) * (manPress ? 1 : pressOn);
       if (pw > 0) pos = mix(pos, FM.phasePos(team, player, 'press'), pw);
       drawn = manPress ? 0.9 * pw : (drawnOn('without') || drawnOn('withoutEnd') ? 0.5 : 0);
       // A side that does not press (what the scouting report calls a low block) sits deeper while the ball is up the other end: its whole shape is
@@ -747,7 +749,6 @@
     if (player.group !== 'GK') {
       // A side that sits in a low block does not follow the ball up the pitch while the opposition are building from their own end: its line and
       // its forwards hold their depth, and only a mid block or a high press moves up with the ball.
-      const prs = 0.6 * (team.tactics.pressBuildUp == null ? 0.4 : team.tactics.pressBuildUp) + 0.4 * (team.tactics.pressing == null ? 0.5 : team.tactics.pressing);
       const blockHold = 1;
       const free = clamp((FM.FREEDOM == null ? 0.38 : FM.FREEDOM) * (1 + 0.5 * m.roam) * blockHold * (1 - 0.8 * drawn), 0, 0.8);
       const want = hasBall
@@ -890,6 +891,21 @@
       }
       return t;
     });
+    // The back line moves as one. Each centre-back looks at the others, and they hold the same depth (within a couple of metres), so the line is flat and the offside line means
+    // something: if one has to drop (a man behind him, a marker taking him off), the others go with him, and a full-back close to the line tucks in with it. A man sent to the ball (an
+    // override) is not part of it while he is out of it.
+    if (!hasBall && FM.LINE_TOGETHER !== false) {
+      const cbs = team.players.map((p, i) => ({ p, i })).filter(({ p }) => p.group === 'CB' && !(overrides && overrides.get(p)));
+      if (cbs.length >= 2) {
+        const ds = cbs.map(({ i }) => toTeamSpace(team.attackDir, targets[i].x, targets[i].y).d), lineD = Math.min.apply(null, ds), room = 2 / L_PITCH;
+        cbs.forEach(({ i }, k) => { const q = toTeamSpace(team.attackDir, targets[i].x, targets[i].y), m = toMetres(team.attackDir, clamp(q.d, lineD, lineD + room), q.w); targets[i] = { x: m.x, y: m.y }; });
+        team.players.forEach((p, i) => {
+          if (p.group !== 'FB' || (overrides && overrides.get(p))) return;
+          const q = toTeamSpace(team.attackDir, targets[i].x, targets[i].y);
+          if (Math.abs(q.d - lineD) < 8 / L_PITCH) { const m = toMetres(team.attackDir, lineD + (q.d - lineD) * 0.3, q.w); targets[i] = { x: m.x, y: m.y }; }
+        });
+      }
+    }
     // Players of one line (the centre-backs, the full-backs, the midfielders, the forwards) keep their order across the pitch, with a little room between them,
     // so nobody swaps sides with a team-mate while pressing or following the ball. A player sent to chase the ball (an override) is left alone.
     if (FM.KEEP_ORDER !== false) {

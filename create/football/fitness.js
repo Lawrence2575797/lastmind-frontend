@@ -20,7 +20,7 @@
   FM.drainFor = function (p, team, dt) {
     const vr = Math.hypot(p.vx, p.vy) / (p.maxSpeed || 8);
     const t = team.tactics;
-    const intensity = 0.8 + 0.4 * t.pressing + 0.2 * (t.tempo - 0.5);
+    const intensity = 1 + 0.2 * (t.tempo - 0.5);   // how hard a side presses shows in how far its players run, not in a multiplier
     const stam = 1.7 - FM.stamina(p) / 100;
     return dt * (0.000027 + 0.000046 * vr) * intensity * stam;   // (a match now costs about 40% less than it did: it takes real, sustained running to tire a man)
   };
@@ -69,7 +69,7 @@
     const e = clamp(p.energy == null ? 1 : p.energy, 0, 1), t = team.tactics;
     const mine = FM.curLeague && FM.curLeague.userId === team.id && FM.userMod ? FM.userMod('injuryRisk') : 1;   // custom spending on the medical side
     const relapse = p.relapse && p.relapse.until > FM.today ? p.relapse.mult : 1;   // a player rushed back is likelier to be hurt again
-    return 2.2e-6 * (1 + 3.5 * (1 - e) * (1 - e) + 1.2 * (1 - e)) * (0.7 + 0.6 * t.pressing + 0.2 * t.tackleAggression) * mine * relapse;
+    return 2.2e-6 * (1 + 3.5 * (1 - e) * (1 - e) + 1.2 * (1 - e)) * (0.9 + 0.2 * t.tackleAggression) * mine * relapse;
   };
   // How long: mostly short knocks, sometimes a long lay-off.
   FM.rollInjury = function (rng) {

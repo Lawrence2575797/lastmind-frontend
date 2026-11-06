@@ -429,16 +429,14 @@
       // hard and the ball is deep in their own third. The rest do not chase the ball: see the passing lanes below.
       // Pressing their build-up: when the ball is deep in the carrier's own third, the defending team's setting for it adds to the press.
       const deep = FM.toTeamSpace(c.team.attackDir, c.player.x, c.player.y).d < 0.33;
-      const pbu = opp.tactics.pressBuildUp == null ? 0.4 : opp.tactics.pressBuildUp;
-      // Near their own goal defenders do close the man on the ball down, whatever the team's pressing setting: a shot has to be stopped.
+      // Near their own goal defenders do close the man on the ball down whatever their triggers say: a shot has to be stopped.
       const ownGoal = { x: opp.attackDir === 1 ? 0 : L, y: W / 2 };
       const nearGoal = dist(c.player, ownGoal) < (FM.DEF_BOX || 30);
-      // Against a build-up the side's profile is the press-the-build-up setting weighed with its general pressing: the same figure the scouting
-      // report calls a low block, a mid block or a high press, so a side that "sits in a low block" does not come out to hunt the keeper.
-      const now = pressingNow(match, opp);
-      const press = clamp(Math.max(deep ? 0.6 * pbu + 0.4 * now : now, nearGoal ? (FM.DEF_BOX_PRESS || 0.8) : 0), 0, 1);
       const lostIt = match.lastChange && match.lastChange.team === c.team && match.clock - match.lastChange.t < PRESS_WINDOW;
-      const cpx = lostIt ? (opp.tactics.counterPress > 0.6 ? 1 : 0) + (opp.tactics.counterPress > 0.85 ? 1 : 0) : 0, cpl = lostIt ? (opp.tactics.counterPress < 0.3 ? -1 : 0) : 0;   // the counter-press setting: how many close the ball down just after it is lost
+      // Pressing is a trigger, not a setting: the side goes to win the ball when one of the manager's triggers fires for the man who has it (their goalkeeper, a centre-back, a full-back,
+      // the middle third, just after a loss). Otherwise it holds its shape and the nearest man only shadows the ball. 'press' here is only that: how the side is going about it right now.
+      const fired = FM.pressFired(opp, c.player, lostIt);
+      const press = nearGoal ? (FM.DEF_BOX_PRESS || 0.8) : fired ? 0.78 : 0.35;
       let ranked = opp.players.filter((p) => p.group !== 'GK').map((p) => ({ p, d: dist(p, c.player) })).sort((a, b) => a.d - b.d);
       // The manager's press: when the ball goes to a named man (their goalkeeper, centre-backs, or a full-back on one side), a named player closes him down, and he does it from the
       // side that shows the man which way to go (out wide to the full-back, or inside). 'Both sides' makes it the same on the left and the right.
@@ -560,7 +558,7 @@
       // the whole side swarm the carrier. Keep one presser plus support close
       // (three only during a genuine counter-press or emergency near goal),
       // and hold everybody else outside the immediate pressure circle.
-      const closeLimit = lostIt && press > .78 && match.clock - match.lastChange.t < 2.5 ? 3 : 2;
+      const closeLimit = lostIt && fired && match.clock - match.lastChange.t < 2.5 ? 3 : 2;
       const projected = opp.players.filter((p) => p.group !== 'GK').map((p) => {
         const target = ov.get(p) || { x: p.x, y: p.y };
         return { p, target, d: Math.hypot(target.x - c.player.x, target.y - c.player.y) };
@@ -614,6 +612,14 @@
   function offBall(match, ov) {
     if (FM.NO_OFFBALL || match.restart || match.phase !== 'play' || match.forcePass) return;
     const c = match.carrier, f = match.flight;
+    if (f && f.kind === 'shot' && f.shooter) {
+      const Ts = f.team, dirS = Ts.attackDir, gx = dirS === 1 ? L : 0, taken = new Set();
+      [{ x: gx - dirS * 8, y: clamp(f.ey, W / 2 - 6, W / 2 + 6) }, { x: gx - dirS * 11, y: W / 2 - 5 }, { x: gx - dirS * 11, y: W / 2 + 5 }].forEach((pt) => {
+        let who = null, bd = 26; Ts.players.forEach((q) => { if (q === f.shooter || q.group === 'GK' || taken.has(q) || ov.has(q)) return; const d = dist(q, pt); if (d < bd) { bd = d; who = q; } });
+        if (who) { taken.add(who); JOB = 'follows in for the rebound'; ov.set(who, pt); }
+      });
+      return;
+    }
     if (f && f.kind !== 'pass' && f.kind !== 'cross') return;
     const T = c ? c.team : f && f.team;
     if (!T) { match.oba = null; return; }
@@ -643,7 +649,14 @@
       if (now > st.ovl && wide > 13 && depth > 0.42 && depth < 0.9 && ['WF', 'FB', 'AM', 'CM'].indexOf(cp.group) >= 0) {
         let who = null, bd = 22;
         T.players.forEach((q) => { if (!open(q) || ['FB', 'CM', 'WF', 'DM'].indexOf(q.group) < 0 || (q.x - cp.x) * dir > 2 || (q.y >= W / 2 ? 1 : -1) !== side) return; const d = dist(q, cp); if (d < bd) { bd = d; who = q; } });
-        if (who && rng() < (FM.OVERLAP_P == null ? 0.55 : FM.OVERLAP_P)) { const inside = rng() < 0.25; give(who, cp.x + dir * 12, cp.y + (inside ? -side * 6 : side * (wide > 26 ? 1 : 5)), 2.8, 'ovl'); st.ovl = now + 6; }
+        if (who) {
+          // he goes if the winger is being squeezed (a man within 6 m, or his way forward is shut) and there is room on the outside, or failing that on the inside, and he can get there
+          const outPt = { x: cp.x + dir * 12, y: cp.y + side * (wide > 26 ? 1 : 5) }, inPt = { x: cp.x + dir * 12, y: cp.y - side * 6 };
+          const room = (pt) => O.players.every((o) => Math.hypot(o.x - pt.x, o.y - pt.y) > 6.5), reach = (pt) => dist(who, pt) / Math.max(4, who.maxSpeed || 7) < 3.2;
+          const squeezed = nearestOpponent(match, T, cp).d < 6 || O.players.some((o) => o.group !== 'GK' && (o.x - cp.x) * dir > 0 && (o.x - cp.x) * dir < 9 && Math.abs(o.y - cp.y) < 5);
+          if (squeezed && room(outPt) && reach(outPt)) { give(who, outPt.x, outPt.y, 2.8, 'ovl'); st.ovl = now + 5; }
+          else if (squeezed && room(inPt) && reach(inPt)) { give(who, inPt.x, inPt.y, 2.8, 'ovl'); st.ovl = now + 5; }
+        }
       }
       // 3. the ball is wide and deep: the box fills (near post, penalty spot, far post, and the edge of the area to recycle a cut-back)
       if (wide > 15 && depth > 0.72 && now > st.box) {
@@ -718,16 +731,24 @@
     // an off-ball run
     const rs = match.runs || (match.runs = { until: 0, cool: 0, q: null, pt: null, team: null });
     if (rs.q && (now > rs.until || rs.team !== T || rs.q === cp)) { rs.q = null; rs.cool = now + 2.5; }
-    if (!FM.NO_RUNS && !rs.q && depth > 0.38 && depth < 0.88 && now > rs.cool && match.rng() < 0.1 * (0.4 + T.tactics.directness + 0.5 * T.tactics.risk)) {
-      const cands = T.players.filter((q) => q !== cp && ['ST', 'WF', 'AM', 'CM'].indexOf(q.group) >= 0 && !ov.has(q) && FM.toTeamSpace(dir, q.x, q.y).d > 0.35 && FM.instrMods(q, true).runs >= 0);
-      if (cands.length) {
-        const wts = cands.map((q) => (q.group === 'ST' ? 3 : q.group === 'WF' ? 2.5 : q.group === 'AM' ? 2 : 1)), tot = wts.reduce((a, b) => a + b, 0); let r = match.rng() * tot, q = cands[0]; for (let i = 0; i < cands.length; i++) { r -= wts[i]; if (r <= 0) { q = cands[i]; break; } }
-        const last = O.players.filter((o) => o.group !== 'GK').map((o) => o.x * dir).sort((a, b) => b - a)[1], limit = (last == null ? L : last) - 1.0, tx = dir === 1 ? Math.min(q.x + 16, limit) : Math.max(q.x - 16, -limit);
-        if ((tx - q.x) * dir > 5) {
-          let ty = q.y, bd = -1; for (let off = -15; off <= 15; off += 3) { const y = clamp(q.y + off, 3, W - 3), d = O.players.reduce((m, o) => (Math.abs(o.x - tx) < 12 ? Math.min(m, Math.hypot(o.x - tx, o.y - y)) : m), 30); if (d > bd) { bd = d; ty = y; } }
-          rs.q = q; rs.pt = { x: tx, y: ty }; rs.until = now + 2.4; rs.team = T;
+    // A run in behind is made when the man on the ball can find it: he has time (nobody close), the runner can get to a gap beyond the last defender before it closes, and there is an open
+    // line to it. Whoever has the best of those goes, never past the offside line. The manager's runs instruction decides who will not.
+    if (!FM.NO_RUNS && !rs.q && depth > 0.3 && depth < 0.9 && now > rs.cool && perceivedPressure(match, T, cp) < 0.55) {
+      const last = O.players.filter((o) => o.group !== 'GK').map((o) => o.x * dir).sort((a, b) => b - a)[1], limit = (last == null ? L : last) - 1.0, range = FM.passRange(cp).ground + 8;
+      let best = null, bv = 0.45;
+      T.players.filter((q) => q !== cp && ['ST', 'WF', 'AM', 'CM', 'FB'].indexOf(q.group) >= 0 && !ov.has(q) && FM.instrMods(q, true).runs >= 0 && FM.toTeamSpace(dir, q.x, q.y).d > 0.3).forEach((q) => {
+        const tx = dir === 1 ? Math.min(q.x + 16, limit) : Math.max(q.x - 16, -limit);
+        if ((tx - q.x) * dir < 5 || dist(cp, { x: tx, y: q.y }) > range) return;
+        for (let off = -15; off <= 15; off += 5) {
+          const ty = clamp(q.y + off, 3, W - 3), pt = { x: tx, y: ty };
+          const gap = O.players.reduce((m, o) => (o.group !== 'GK' && Math.abs(o.x - tx) < 14 ? Math.min(m, Math.hypot(o.x - tx, o.y - ty)) : m), 30);   // room at the end of the run
+          const lane = O.players.some((o) => segInfo(o.x, o.y, cp.x, cp.y, tx, ty).d < 2.4) ? 0 : 1;
+          const arrive = Math.hypot(tx - q.x, ty - q.y) / Math.max(4, q.maxSpeed || 7), defArrive = O.players.reduce((m, o) => (o.group !== 'GK' ? Math.min(m, Math.hypot(o.x - tx, o.y - ty) / Math.max(4, o.maxSpeed || 7)) : m), 9);
+          const v = lane * clamp((gap - 3) / 8, 0, 1) * clamp((defArrive - arrive + 0.6) / 1.6, 0, 1) * (0.7 + 0.6 * FM.threat(dir, tx, ty) / 0.2);
+          if (v > bv) { bv = v; best = { q, pt }; }
         }
-      }
+      });
+      if (best) { rs.q = best.q; rs.pt = best.pt; rs.until = now + 2.4; rs.team = T; }
     }
     JOB = 'runs in behind';
     if (rs.q && !ov.has(rs.q)) ov.set(rs.q, rs.pt);
@@ -792,19 +813,13 @@
     // still jump much earlier.
     // The press starts higher up the pitch: when the ball is in the attacking half for the pressing side (their build-up, their goal kick) the trigger distance grows, so the first man goes for it from further away.
     const hiBall = match ? clamp((FM.toTeamSpace(team.attackDir, match.ball.x, match.ball.y).d - 0.45) / 0.35, 0, 1) : 0;
-    return (FM.PRESS_BASE == null ? 8 : FM.PRESS_BASE) + 8 * press + bonus + (FM.PRESS_HIGH == null ? 7 : FM.PRESS_HIGH) * hiBall * (0.4 + press) + FM.dialM(team, 'press') + 5 * (FM.instrMods(player, false).closeDown + (match ? FM.rulesDelta(team, player, 'closeDown', match.ball, false) : 0));
+    return (FM.PRESS_BASE == null ? 8 : FM.PRESS_BASE) + 8 * press + bonus + (FM.PRESS_HIGH == null ? 7 : FM.PRESS_HIGH) * hiBall * (0.4 + press) + 5 * (FM.instrMods(player, false).closeDown + (match ? FM.rulesDelta(team, player, 'closeDown', match.ball, false) : 0));
   }
   // Pressing as the manager set it, adjusted for the seconds just after losing the ball:
   // a high counter-press instruction hunts it back at once, a low one drops into shape first.
   const PRESS_WINDOW = 6, COUNTER_WINDOW = 8;
   function pressingNow(match, team) {
-    const ch = match.lastChange;
-    let p = team.tactics.pressing;
-    if (ch && ch.team !== team) {
-      const since = match.clock - ch.t;
-      if (since < PRESS_WINDOW) p += (team.tactics.counterPress - 0.5) * (FM.CPRESS_K == null ? 2.4 : FM.CPRESS_K) * (1 - since / PRESS_WINDOW);
-    }
-    return clamp(p, 0, 1);
+    return FM.pressTriggersOf(team).loss && match.lastChange && match.lastChange.team !== team && match.clock - match.lastChange.t < PRESS_WINDOW ? 0.8 : 0.4;
   }
   // For a few seconds after winning the ball a team is drawn toward its transition-to-attack positions, and after losing it
   // toward its transition-to-defence positions. How strongly depends on the counter-attack and counter-press settings.
@@ -815,7 +830,7 @@
       if (ch) {
         const since = match.clock - ch.t;
         if (ch.team === team && since < COUNTER_WINDOW) ta = (1 - since / COUNTER_WINDOW) * (0.25 + 0.45 * team.tactics.counterAttack);
-        if (ch.team !== team && since < PRESS_WINDOW) td = (1 - since / PRESS_WINDOW) * (0.08 + 0.9 * team.tactics.counterPress);
+        if (ch.team !== team && since < PRESS_WINDOW) td = (1 - since / PRESS_WINDOW) * (FM.pressTriggersOf(team).loss ? 0.8 : 0.15);
       }
       let taProg = 0, tdProg = 0;
       if (ch) { const since = match.clock - ch.t; if (ch.team === team) taProg = since / COUNTER_WINDOW; else tdProg = since / PRESS_WINDOW; }
@@ -828,7 +843,7 @@
       if (keys.length) {
         const oo = other(match, team), ot = oo.tactics;
         const info = {
-          oppPress: 0.6 * (ot.pressBuildUp == null ? 0.4 : ot.pressBuildUp) + 0.4 * pressingNow(match, oo),
+          oppPress: (() => { const tg = FM.pressTriggersOf(oo); return tg.gk ? 0.9 : tg.cb ? 0.6 : tg.fb ? 0.45 : 0.25; })(),
           oppDirect: 0.5 * (ot.buildDirect == null ? 0.35 : ot.buildDirect) + 0.5 * (ot.directness == null ? 0.5 : ot.directness),
           diff: (match.score[team.id] || 0) - (match.score[oo.id] || 0), minute: match.clock / 60,
         };
@@ -1182,6 +1197,17 @@
     // unpressured possession and prevents every decision clock becoming an action.
     if (nearNow > 4 && !through && !drive) options.push({ kind: 'hold', score: .48 + .55 * live.patience - .4 * live.urgency - .2 * directness });
 
+    {
+      // Is a shot better than a pass? What a shot is worth is the chance it goes in, and a little more for the follow-up when team-mates are in the box; what a pass is worth is its chance
+      // of arriving times what the ball is worth there, less the cost of giving it away here. If the shot is worth more he is the likelier to take it, and the other way round.
+      const so = options.find((o) => o.kind === 'shoot');
+      if (so) {
+        const goal = team.attackDir === 1 ? L : 0, mates = team.players.filter((q) => q !== carrier && q.group !== 'GK' && Math.hypot(q.x - goal, q.y - W / 2) < 16).length;
+        const lossCost = 0.3 * FM.threat(other(match, team).attackDir, carrier.x, carrier.y);
+        let evPass = 0; options.forEach((o) => { if (o.kind === 'pass') evPass = Math.max(evPass, o.p * FM.threat(team.attackDir, o.tx, o.ty) - (1 - o.p) * lossCost); });
+        so.score += clamp(6 * (so.xg * (1 + 0.12 * Math.min(3, mates)) - evPass), -1.5, 1.5);
+      }
+    }
     if (coast > 0) options.forEach((o) => { if (o.kind === 'shoot' && o.score > 0) o.score *= 1 - 0.45 * coast; });
     options.forEach((o) => { if (o.kind === 'shoot' && o.score > 0) o.score *= (FM.SHOT_K == null ? 1.45 : FM.SHOT_K); });
     if (RE && RE.shoot) options.forEach((o) => { if (o.kind === 'shoot' && o.score > 0) o.score *= clamp(1 + 0.9 * RE.shoot, 0.1, 2); });
@@ -1526,7 +1552,7 @@
       from: lead ? lead.from : 0, leadDist: lead ? lead.dist : 0, leadAir: lead && lead.aerial ? 1 : 0, movePasses: cur && cur.team === team.id ? cur.passes : 0, moveSecs: cur && cur.team === team.id ? match.clock - cur.t : 0,
       gkDist: gk ? Math.hypot(gk.x - carrier.x, gk.y - carrier.y) : 0, crowd: crowd(match, team, carrier) });
     match.carrier = null; match.carry = null;
-    match.flight = { kind: 'shot', team, shooter: carrier, speed: 28, target: null, ex, ey: clamp(ey, 0.5, W - 0.5), outcome, gk, blocker };
+    match.flight = { kind: 'shot', team, shooter: carrier, speed: 28, target: null, ex, ey: clamp(ey, 0.5, W - 0.5), outcome, gk, blocker, xg: shotXg };
     match.ball.state = 'flight';
   }
 
@@ -2799,8 +2825,13 @@
       else beginCelebration(match, team, f.shooter, opp, goalSpec);
     } else if (f.outcome === 'saved') {
       after(() => {
-        if (match.rng() < (FM.SHOT_CORNER == null ? 0.34 : FM.SHOT_CORNER)) startRestart(match, 'corner', team, team.attackDir === 1 ? L - 0.5 : 0.5, f.ey < W / 2 ? 0.5 : W - 0.5);
-        else giveBall(match, opp, f.gk, 1.6);
+        const r = match.rng(), pParry = clamp(0.08 + 0.55 * (f.xg || 0.1), 0.08, 0.4);   // the harder the chance, the less likely he holds it
+        if (r < (FM.SHOT_CORNER == null ? 0.34 : FM.SHOT_CORNER)) startRestart(match, 'corner', team, team.attackDir === 1 ? L - 0.5 : 0.5, f.ey < W / 2 ? 0.5 : W - 0.5);
+        else if (r < (FM.SHOT_CORNER == null ? 0.34 : FM.SHOT_CORNER) + pParry && !f.penalty) {
+          const gx = team.attackDir === 1 ? L : 0, b = match.ball;
+          b.x = gx - team.attackDir * (1.2 + 1.6 * match.rng()); b.y = clamp(f.ey + (match.rng() - 0.5) * 5, W / 2 - 9, W / 2 + 9); b.z = 0;
+          b.vx = -team.attackDir * (3 + 3 * match.rng()); b.vy = (match.rng() - 0.5) * 6; b.state = 'loose'; match.lastTeam = opp;   // parried out in front: a rebound for whoever gets there
+        } else giveBall(match, opp, f.gk, 1.6);
       });
     } else if (f.outcome === 'blocked') {
       if (match.rng() < (FM.SHOT_CORNER == null ? 0.34 : FM.SHOT_CORNER)) startRestart(match, 'corner', team, team.attackDir === 1 ? L - 0.5 : 0.5, f.ey < W / 2 ? 0.5 : W - 0.5);

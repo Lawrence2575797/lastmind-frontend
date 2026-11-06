@@ -77,7 +77,7 @@
     ],
     transDef: [
       T('react', 'The moment we lose it', 'Winning it straight back is dangerous when it works and costly when it does not.', [
-        o('counterpress', 'Counter-press at once', { r: [['team', [E.close(0.8), E.tackle(0.3)]]] }), STD('Mixed'), o('regroup', 'Drop and regroup', { r: [['team', [E.close(-0.7)]]], pos: [['out', -4, 0]] })]),
+        o('counterpress', 'Counter-press at once', { tac: { trigLoss: 1 } }), STD('Mixed'), o('regroup', 'Drop and regroup', { tac: { trigLoss: 0 }, pos: [['out', -4, 0]] })]),
       T('recover', 'Forwards getting back', '', [STD('Normal'), o('track', 'Track back quickly', { pos: [['AM', -6, 0], ['WF', -7, 0], ['ST', -5, 0]] })]),
       T('foul', 'Stopping a break', '', [STD('Never foul'), o('foul', 'Foul to stop it if needed', { r: [['DM', [E.tackle(0.7)]], ['CM', [E.tackle(0.5)]]] })]),
     ],
@@ -91,13 +91,12 @@
       T('tackle', 'Tackling', '', [o('stay', 'Stay on feet', { r: [['team', [E.tackle(-0.5)]]] }), STD('Normal'), o('hard', 'Tackle hard', { r: [['team', [E.tackle(0.5)]]] })]),
     ],
     press: [
-      T('intensity', 'Intensity', 'A hard press wins it high up but tires the team and leaves space.', [
-        o('low', 'Light', { tac: { pressing: 0.25, pressBuildUp: 0.1 } }), o('std', 'Medium', { tac: { pressing: 0.5, pressBuildUp: 0.4 } }), o('high', 'Heavy', { tac: { pressing: 0.85, pressBuildUp: 0.85 } })]),
-      T('start', 'Where we start the press', '', [
-        o('keeper', 'On their goalkeeper', { tac: { pressBuildUp: 0.9 }, pos: [['ST', 4, 0]] }), o('std', 'On their centre-backs', {}), o('half', 'From halfway', { tac: { pressBuildUp: 0.3 }, pos: [['ST', -6, 0], ['out', -3, 0]] })]),
+      T('trigGK', 'Press when their goalkeeper has it', 'The whole side steps up to win it from the keeper.', [o('yes', 'Press', { tac: { trigGK: 1 } }), o('no', 'Hold shape', { tac: { trigGK: 0 } })]),
+      T('trigCB', 'Press when a centre-back has it', '', [o('yes', 'Press', { tac: { trigCB: 1 } }), o('no', 'Hold shape', { tac: { trigCB: 0 } })]),
+      T('trigFB', 'Press when a full-back has it', 'Usually near the touchline, where the way out is short.', [o('yes', 'Press', { tac: { trigFB: 1 } }), o('no', 'Hold shape', { tac: { trigFB: 0 } })]),
+      T('trigMid', 'Press in the middle third', '', [o('yes', 'Press', { tac: { trigMid: 1 } }), o('no', 'Hold shape', { tac: { trigMid: 0 } })]),
       T('who', 'Who joins in', '', [
         o('front', 'Forwards only', { r: [['mid', [E.close(-0.5)]], ['def', [E.close(-0.5)]], ['att', [E.close(0.5)]]] }), o('std', 'Forwards and midfield', { r: [['def', [E.close(-0.3)]], ['att', [E.close(0.3)]], ['mid', [E.close(0.3)]]] }), o('all', 'Everyone', { r: [['team', [E.close(0.6)]]] })]),
-      T('mode', 'When we press', 'Always, or only when one of your triggers on the pitch fires.', [o('always', 'Always', {}), o('triggers', 'Only on my triggers', { r: [['team', [E.close(-0.8)]]] })]),
     ],
     transAtt: [
       T('react', 'The moment we win it', '', [
@@ -309,7 +308,7 @@
     team.rules = (team.rules || []).filter((r) => r.source !== 'plan').concat(rules);
     team.planOut = { off, n: rules.length };
     team.tactics = team.tactics || {};
-    ['block', 'pressing', 'pressBuildUp'].forEach((k) => { if (tac[k] !== undefined) team.tactics[k] = tac[k]; });
+    ['block', 'pressing', 'pressBuildUp', 'trigGK', 'trigCB', 'trigFB', 'trigMid', 'trigLoss'].forEach((k) => { if (tac[k] !== undefined) team.tactics[k] = tac[k]; });
     if (FM.inferShapeTactics) FM.inferShapeTactics(team);
   };
 
