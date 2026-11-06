@@ -46,7 +46,8 @@
   const EXPECTED_DIVIDEND = 0.2;   // the share of profit the shareholders hope to see paid out
   // Prize money, paid at the end of the season by where the club finished: first place down to eighth, in the top division and the second.
   // Scaled to what good players cost: a star is £20m or more, so a title is worth about one top player, and finishing last still pays a squad player's fee.
-  const PRIZE = { 1: [8000000, 6000000, 4600000, 3600000, 2800000, 2100000, 1600000, 1200000], 2: [3200000, 2400000, 1900000, 1500000, 1150000, 850000, 650000, 500000] };
+  const PRIZE = { 1: [8000000, 6000000, 4600000, 3600000, 2800000, 2100000, 1600000, 1200000], 2: [3200000, 2400000, 1900000, 1500000, 1150000, 850000, 650000, 500000],
+    3: [1300000, 1000000, 800000, 620000, 480000, 360000, 280000, 200000], 4: [700000, 550000, 420000, 330000, 250000, 190000, 140000, 100000] };   // by division, for finishing first to eighth (every division has eight clubs)
 
   // ---------- formatting ----------
   const gbp = (n) => { const v = Math.round(n); return v < 0 ? '(£' + Math.abs(v).toLocaleString('en-GB') + ')' : '£' + v.toLocaleString('en-GB'); };
