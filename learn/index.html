@@ -4231,7 +4231,7 @@
        down the page, each the full width of the screen. (On a wide screen they keep the places they were put.) */
     .nb-home-btn { display: none; }
     .nb-copy-btn { flex: 0 0 auto; width: 30px; height: 30px; padding: 0; border-radius: 7px; border: 1px solid rgba(230, 215, 176, 0.35); background: rgba(230, 215, 176, 0.08); color: inherit; font-size: 16px; line-height: 1; cursor: pointer; } .nb-copy-btn:hover { background: rgba(230, 215, 176, 0.2); } .nb-copy-btn.done { color: #7FD49A; border-color: #7FD49A; }
-    @media (max-width: 768px) {
+    @media (max-width: 520px) {
         .nb-home-btn { display: inline-flex; align-items: center; gap: 6px; margin: 0 0 10px; padding: 8px 14px; font-size: 14px; font-weight: 700; border-radius: 999px; border: 1px solid rgba(230, 215, 176, 0.4); background: rgba(230, 215, 176, 0.12); color: inherit; cursor: pointer; }
         /* the margin line keeps to the left edge here (the script sets a wider one for the free canvas, which would run through the stacked text) */
         .nb-canvas { --nb-margin: 10px !important; display: flex !important; flex-direction: column; gap: 14px; height: auto !important; min-height: 0 !important; padding: 12px 12px 90px 26px; box-sizing: border-box; overflow-x: hidden; }
@@ -22225,6 +22225,27 @@ SQIDAQAB
         if (e) e.setAttribute('aria-pressed', String(notesWriting));
     }
 
+    // A page narrower than the one it was written on (half a screen, a panel open beside it) is the same page scaled down, not a different layout: the sheet keeps the width it was laid out at
+    // (doc.designW, the widest it has been opened at) and the whole of it is shrunk to fit, so everything stays where it was and the same size relative to everything else. The numbers kept
+    // for each box never change; pointer movements are divided by the scale (nbK) so dragging and resizing still follow the mouse exactly.
+    const nbK = (canvas) => 1 / ((canvas && canvas._nbScale) || 1);
+    function nbAutoScale(canvas) {
+        const page = canvas._nbPage, parent = canvas.parentElement; if (!page || !page.doc || !parent) return;
+        const stacked = window.matchMedia && window.matchMedia('(max-width: 520px)').matches;
+        const reset = () => { canvas._nbScale = 1; if (!canvas.classList.contains('nb-zoomed')) { canvas.style.width = ''; canvas.style.transform = ''; canvas.style.marginRight = ''; canvas.style.marginBottom = ''; } canvas.style.transformOrigin = ''; };
+        if (stacked) { reset(); return; }
+        const cs = getComputedStyle(parent), avail = parent.clientWidth - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0); if (avail < 200) return;
+        const blocks = Array.isArray(page.doc.blocks) ? page.doc.blocks : [];
+        let extent = 0; blocks.forEach((b) => { if (b.type !== 'arrow' && b.type !== 'darrow') extent = Math.max(extent, (b.x || 0) + (b.w || 460)); });
+        // the width the page has been written at: remembered when it is open at a width that fits it, and at least as wide as the furthest thing on it
+        if (canvas._nbScale === 1 || canvas._nbScale == null) { if (!canvas.style.width && avail >= 700 && (!page.doc.designW || avail > page.doc.designW)) page.doc.designW = Math.round(avail); }
+        const D = Math.max(page.doc.designW || 0, extent + 24, 700);
+        if (avail >= D - 1) { if (canvas._nbScale !== 1) { reset(); nbFitCanvas(canvas); } else canvas.style.width = ''; return; }
+        const f = Math.max(0.3, avail / D);
+        canvas._nbScale = f;
+        canvas.style.width = D + 'px'; canvas.style.transformOrigin = '0 0'; canvas.style.transform = 'scale(' + f + ')'; canvas.style.marginRight = '-' + Math.round(D * (1 - f)) + 'px';
+        nbFitCanvas(canvas);
+    }
     // How much the page's layout has to be squeezed to fit the width it has now: 1 when everything fits, less when the furthest edge of what was placed would run off.
     function nbSqueeze(canvas, lo, cw) {
         const pg = canvas._nbPage, blocks = pg && pg.doc && Array.isArray(pg.doc.blocks) ? pg.doc.blocks : null; if (!blocks) return 1;
@@ -22265,11 +22286,12 @@ SQIDAQAB
     function nbFitCanvas(canvas) {
         nbClampBlocksToCanvas(canvas);
         if (canvas.querySelector('.nb-arrow') && typeof notesNode === 'function' && notes && notes.activeId) { const pg = notesNode(notes.activeId); if (pg) nbRenderArrows(canvas, pg); }
-        const stacked = window.matchMedia && window.matchMedia('(max-width: 768px)').matches;
+        const stacked = window.matchMedia && window.matchMedia('(max-width: 520px)').matches;   // only a phone gets the stacked page; every other width shows the page scaled (nbAutoScale)
         canvas.querySelectorAll('.nb-block').forEach((b) => { b.style.order = stacked ? String(Math.round(parseFloat(b.style.top) || 0)) : ''; });
         let bottom = 0;
         canvas.querySelectorAll('.nb-block').forEach((b) => { bottom = Math.max(bottom, b.offsetTop + b.offsetHeight); });
         canvas.style.height = Math.max(Math.round(window.innerHeight * 0.68), 480, bottom + 160) + 'px';
+        if ((canvas._nbScale || 1) < 1 && !canvas.classList.contains('nb-zoomed')) canvas.style.marginBottom = '-' + Math.round(canvas.offsetHeight * (1 - canvas._nbScale)) + 'px';
     }
     // Text boxes are freely positioned, but typing must never disappear under a figure.
     // As the final line approaches the next horizontally-overlapping block, reserve one
@@ -22325,12 +22347,12 @@ SQIDAQAB
     }
     function nbDragStart(e, handle, el, block, canvas) {
         {
-            const sx = e.clientX, sy = e.clientY, ox = el.offsetLeft, oy = el.offsetTop;
+            const sx = e.clientX, sy = e.clientY, ox = el.offsetLeft, oy = el.offsetTop, k = nbK(canvas);
             el._nbShift = 0;   // where it is dropped is what is saved
             try { handle.setPointerCapture(e.pointerId); } catch (_) { /* older browser */ }
             const move = (ev) => {
-                block.x = nbClamp(ox + ev.clientX - sx, 0, Math.max(0, canvas.clientWidth - el.offsetWidth));
-                block.y = Math.max(0, oy + ev.clientY - sy);
+                block.x = nbClamp(ox + (ev.clientX - sx) * k, 0, Math.max(0, canvas.clientWidth - el.offsetWidth));
+                block.y = Math.max(0, oy + (ev.clientY - sy) * k);
                 el.style.left = block.x + 'px'; el.style.top = block.y + 'px';
                 nbFitCanvas(canvas);
             };
@@ -22357,8 +22379,8 @@ SQIDAQAB
         });
         surface.addEventListener('pointermove', (e) => {
             if (!moveState || touches.size !== 1 || e.pointerId !== moveState.id) return;
-            block.x = nbClamp(moveState.ox + e.clientX - moveState.sx, 0, Math.max(0, canvas.clientWidth - el.offsetWidth));
-            block.y = Math.max(0, moveState.oy + e.clientY - moveState.sy);
+            block.x = nbClamp(moveState.ox + (e.clientX - moveState.sx) * nbK(canvas), 0, Math.max(0, canvas.clientWidth - el.offsetWidth));
+            block.y = Math.max(0, moveState.oy + (e.clientY - moveState.sy) * nbK(canvas));
             el.style.left = block.x + 'px'; el.style.top = block.y + 'px';
             moved = true; nbFitCanvas(canvas);
         });
@@ -22379,7 +22401,7 @@ SQIDAQAB
             e.preventDefault(); e.stopPropagation();
             const sx = e.clientX, ow = el.offsetWidth, minW = block.type === 'table' ? 220 : (block.type === 'diagram' || block.type === 'graph') ? NB_MIN_FIGURE : 140;
             try { handle.setPointerCapture(e.pointerId); } catch (_) { /* older browser */ }
-            const move = (ev) => { block.w = nbClamp(ow + ev.clientX - sx, minW, Math.max(minW, canvas.clientWidth - el.offsetLeft)); el.style.width = block.w + 'px'; nbSyncTableScale(el, block); nbSyncCompact(el); nbFitCanvas(canvas); };
+            const move = (ev) => { block.w = nbClamp(ow + (ev.clientX - sx) * nbK(canvas), minW, Math.max(minW, canvas.clientWidth - el.offsetLeft)); el.style.width = block.w + 'px'; nbSyncTableScale(el, block); nbSyncCompact(el); nbFitCanvas(canvas); };
             const up = () => { handle.removeEventListener('pointermove', move); handle.removeEventListener('pointerup', up); handle.removeEventListener('pointercancel', up); notesScheduleSave(); };
             handle.addEventListener('pointermove', move); handle.addEventListener('pointerup', up); handle.addEventListener('pointercancel', up);
         });
@@ -22396,8 +22418,8 @@ SQIDAQAB
                 try { h.setPointerCapture(e.pointerId); } catch (_) { /* older browser */ }
                 const move = (ev) => {
                     const room = sx > 0 ? canvas.clientWidth - ox : ox + ow;
-                    block.w = Math.round(nbClamp(ow + (ev.clientX - px) * sx, 140, Math.max(140, room)));
-                    block.minH = Math.round(Math.max(60, oh + (ev.clientY - py) * sy));
+                    block.w = Math.round(nbClamp(ow + (ev.clientX - px) * sx * nbK(canvas), 140, Math.max(140, room)));
+                    block.minH = Math.round(Math.max(60, oh + (ev.clientY - py) * sy * nbK(canvas)));
                     el.style.width = block.w + 'px'; el.style.minHeight = block.minH + 'px'; if (edEl) edEl.style.minHeight = Math.max(40, block.minH - 28) + 'px';
                     if (sx < 0) { block.x = Math.max(0, ox + ow - block.w); el.style.left = block.x + 'px'; }
                     if (sy < 0) { block.y = Math.max(0, oy + oh - el.offsetHeight); el.style.top = block.y + 'px'; }
@@ -22428,7 +22450,7 @@ SQIDAQAB
                 const px = e.clientX, py = e.clientY, ox = el.offsetLeft, oy = el.offsetTop, ow = el.offsetWidth, oh = el.offsetHeight, ratio = ow / Math.max(1, oh);
                 try { h.setPointerCapture(e.pointerId); } catch (_) { /* older browser */ }
                 const move = (ev) => {
-                    const dx = (ev.clientX - px) * sx, dy = (ev.clientY - py) * sy * ratio;
+                    const dx = (ev.clientX - px) * sx * nbK(canvas), dy = (ev.clientY - py) * sy * ratio * nbK(canvas);
                     const room = sx > 0 ? canvas.clientWidth - ox : ox + ow;
                     const minW = block.type === 'table' ? 220 : NB_MIN_FIGURE;
                     const w = nbClamp(ow + (Math.abs(dx) >= Math.abs(dy) ? dx : dy), minW, Math.max(minW, room));
@@ -23510,7 +23532,7 @@ SQIDAQAB
             const sx = e.clientX, sy = e.clientY, orig = block.pts.map((q) => ({ x: q.x, y: q.y }));
             const minX = Math.min.apply(null, orig.map((q) => q.x)), maxX = Math.max.apply(null, orig.map((q) => q.x)), minY = Math.min.apply(null, orig.map((q) => q.y));
             const move = (ev) => {
-                const dx = nbClamp(ev.clientX - sx, -minX, Math.max(0, canvas.clientWidth - maxX)), dy = Math.max(-minY, ev.clientY - sy);
+                const dx = nbClamp((ev.clientX - sx) * nbK(canvas), -minX, Math.max(0, canvas.clientWidth - maxX)), dy = Math.max(-minY, (ev.clientY - sy) * nbK(canvas));
                 block.pts = orig.map((q) => ({ x: Math.round((q.x + dx) * 10) / 10, y: Math.round((q.y + dy) * 10) / 10 }));
                 nbRenderDrawArrow(el, block); nbFitCanvas(canvas);
             };
@@ -24603,6 +24625,8 @@ SQIDAQAB
         page.doc.blocks.forEach((b) => { if (b.type === 'diagram') nbMakeDiagramBlock(page, b, canvas); else if (b.type === 'graph') nbMakeGraphBlock(page, b, canvas); else if (b.type === 'table') nbMakeTableBlock(page, b, canvas, false); else if (b.type === 'mark') psMakeMarkBlock(page, b, canvas); else if (b.type === 'rule') psMakeRuleBlock(page, b, canvas); else if (b.type === 'total') psMakeTotalBlock(page, b, canvas); else if (b.type === 'image') nbMakeImageBlock(page, b, canvas); else if (b.type === 'arrow') nbMakeArrowBlock(page, b, canvas); else if (b.type === 'darrow') nbMakeDrawArrow(page, b, canvas); else nbMakeTextBlock(page, b, canvas, false); });
         nbRenderArrows(canvas, page);
         nbToggleHint(canvas, page); nbFitCanvas(canvas);
+        nbAutoScale(canvas);
+        if (canvas.parentElement) { if (window._nbScaleObs) window._nbScaleObs.disconnect(); if (typeof ResizeObserver === 'function') { window._nbScaleObs = new ResizeObserver(() => { if (!canvas.isConnected) { window._nbScaleObs.disconnect(); return; } nbAutoScale(canvas); }); window._nbScaleObs.observe(canvas.parentElement); } }
         // The sheet has a margin line. A click on or near it starts the text a fixed, comfortable distance to its right; a click anywhere
         // else starts the text exactly where you clicked.
         const nbMargin = () => nbMarginFor(canvas.clientWidth);
@@ -24622,11 +24646,11 @@ SQIDAQAB
                 return e.clientX >= bounds.left && e.clientX <= bounds.right && e.clientY >= bounds.top && e.clientY <= bounds.bottom;
             });
             if (insideExistingBlock) return;
-            const r = canvas.getBoundingClientRect(), cw = canvas.clientWidth, localX = e.clientX - r.left;
+            const r = canvas.getBoundingClientRect(), cw = canvas.clientWidth, localX = (e.clientX - r.left) * nbK(canvas);
             const nearMargin = localX < nbTextStart() + 56;
             const x = nearMargin ? nbTextStart() : localX - 6;
             const w = Math.min(nearMargin ? 640 : 460, Math.max(140, cw - x - 12));
-            const block = { id: notesNewId(), type: 'text', x: nbClamp(x, 0, Math.max(0, cw - w)), y: Math.max(0, e.clientY - r.top - 16), w, html: '' };
+            const block = { id: notesNewId(), type: 'text', x: nbClamp(x, 0, Math.max(0, cw - w)), y: Math.max(0, (e.clientY - r.top) * nbK(canvas) - 16), w, html: '' };
             page.doc.blocks.push(block);
             nbToggleHint(canvas, page);
             nbMakeTextBlock(page, block, canvas, true);
@@ -24742,7 +24766,7 @@ SQIDAQAB
         canvas.addEventListener('pointerdown', (e) => {
             if (!canvas.classList.contains('nb-drawing') || (e.pointerType === 'mouse' && e.button !== 0)) return;
             e.preventDefault(); e.stopPropagation();
-            const rect = canvas.getBoundingClientRect(), at = (ev) => ({ x: nbClamp(ev.clientX - rect.left, 0, canvas.clientWidth), y: Math.max(0, ev.clientY - rect.top) });
+            const rect = canvas.getBoundingClientRect(), at = (ev) => ({ x: nbClamp((ev.clientX - rect.left) * nbK(canvas), 0, canvas.clientWidth), y: Math.max(0, (ev.clientY - rect.top) * nbK(canvas)) });
             const pts = [at(e)], NS = 'http://www.w3.org/2000/svg', live = document.createElementNS(NS, 'svg'), line = document.createElementNS(NS, 'path');
             live.setAttribute('class', 'nb-draw-live'); live.setAttribute('width', canvas.clientWidth); live.setAttribute('height', canvas.clientHeight);
             line.setAttribute('fill', 'none'); line.setAttribute('stroke', NB_ARROW_COLOUR); line.setAttribute('stroke-width', '3'); line.setAttribute('stroke-linecap', 'round'); line.setAttribute('stroke-linejoin', 'round');
@@ -24777,9 +24801,7 @@ SQIDAQAB
         const applyZoom = (z) => {
             zoom = Math.round(Math.max(0.25, Math.min(1, z)) * 100) / 100;
             canvas.style.transformOrigin = '0 0';
-            canvas.style.transform = zoom < 1 ? 'scale(' + zoom + ')' : '';
-            canvas.style.marginBottom = '';
-            if (zoom < 1) canvas.style.marginBottom = '-' + Math.round(canvas.offsetHeight * (1 - zoom)) + 'px';
+            { const au = canvas._nbScale || 1, tz = zoom * au; canvas.style.transform = tz < 1 ? 'scale(' + tz + ')' : ''; canvas.style.marginBottom = ''; if (tz < 1) canvas.style.marginBottom = '-' + Math.round(canvas.offsetHeight * (1 - tz)) + 'px'; }
             canvas.classList.toggle('nb-zoomed', zoom < 1);
             zoomFit.textContent = zoom < 1 ? Math.round(zoom * 100) + '% · reset' : 'Fit page';
             if (zoom >= 1) tellParent(null);
