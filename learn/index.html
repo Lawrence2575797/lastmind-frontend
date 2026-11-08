@@ -22232,7 +22232,7 @@ SQIDAQAB
     function nbAutoScale(canvas) {
         const page = canvas._nbPage, parent = canvas.parentElement; if (!page || !page.doc || !parent) return;
         const stacked = window.matchMedia && window.matchMedia('(max-width: 520px)').matches;
-        const reset = () => { canvas._nbScale = 1; if (!canvas.classList.contains('nb-zoomed')) { canvas.style.width = ''; canvas.style.transform = ''; canvas.style.marginRight = ''; canvas.style.marginBottom = ''; } canvas.style.transformOrigin = ''; };
+        const reset = () => { canvas._nbScale = 1; canvas.style.width = ''; canvas.style.zoom = ''; };
         if (stacked) { reset(); return; }
         const cs = getComputedStyle(parent), avail = parent.clientWidth - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0); if (avail < 200) return;
         const blocks = Array.isArray(page.doc.blocks) ? page.doc.blocks : [];
@@ -22243,7 +22243,7 @@ SQIDAQAB
         if (avail >= D - 1) { if (canvas._nbScale !== 1) { reset(); nbFitCanvas(canvas); } else canvas.style.width = ''; return; }
         const f = Math.max(0.3, avail / D);
         canvas._nbScale = f;
-        canvas.style.width = D + 'px'; canvas.style.transformOrigin = '0 0'; canvas.style.transform = 'scale(' + f + ')'; canvas.style.marginRight = '-' + Math.round(D * (1 - f)) + 'px';
+        canvas.style.width = D + 'px'; canvas.style.zoom = String(f);   // CSS zoom, not a transform: the text is laid out at its real smaller size, so it stays sharp and keeps its look; offsets and widths stay in full-size units
         nbFitCanvas(canvas);
     }
     // How much the page's layout has to be squeezed to fit the width it has now: 1 when everything fits, less when the furthest edge of what was placed would run off.
@@ -22291,7 +22291,6 @@ SQIDAQAB
         let bottom = 0;
         canvas.querySelectorAll('.nb-block').forEach((b) => { bottom = Math.max(bottom, b.offsetTop + b.offsetHeight); });
         canvas.style.height = Math.max(Math.round(window.innerHeight * 0.68), 480, bottom + 160) + 'px';
-        if ((canvas._nbScale || 1) < 1 && !canvas.classList.contains('nb-zoomed')) canvas.style.marginBottom = '-' + Math.round(canvas.offsetHeight * (1 - canvas._nbScale)) + 'px';
     }
     // Text boxes are freely positioned, but typing must never disappear under a figure.
     // As the final line approaches the next horizontally-overlapping block, reserve one
@@ -24801,7 +24800,7 @@ SQIDAQAB
         const applyZoom = (z) => {
             zoom = Math.round(Math.max(0.25, Math.min(1, z)) * 100) / 100;
             canvas.style.transformOrigin = '0 0';
-            { const au = canvas._nbScale || 1, tz = zoom * au; canvas.style.transform = tz < 1 ? 'scale(' + tz + ')' : ''; canvas.style.marginBottom = ''; if (tz < 1) canvas.style.marginBottom = '-' + Math.round(canvas.offsetHeight * (1 - tz)) + 'px'; }
+            { const tz = zoom; canvas.style.transform = tz < 1 ? 'scale(' + tz + ')' : ''; canvas.style.marginBottom = ''; if (tz < 1) canvas.style.marginBottom = '-' + Math.round(canvas.offsetHeight * (1 - tz)) + 'px'; }
             canvas.classList.toggle('nb-zoomed', zoom < 1);
             zoomFit.textContent = zoom < 1 ? Math.round(zoom * 100) + '% · reset' : 'Fit page';
             if (zoom >= 1) tellParent(null);
