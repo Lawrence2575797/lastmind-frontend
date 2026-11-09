@@ -22,7 +22,7 @@
     const t = team.tactics;
     const intensity = 1 + 0.2 * (t.tempo - 0.5);   // how hard a side presses shows in how far its players run, not in a multiplier
     const stam = 1.7 - FM.stamina(p) / 100;
-    return dt * (0.000041 + 0.00007 * vr) * intensity * stam;   // a full match takes about 40% off an average player (more for low stamina), so by the last twenty minutes a tired man is worth replacing
+    return dt * (0.00003 + 0.00005 * vr) * intensity * stam;   // a full match takes about 40% off an average player (more for low stamina), so by the last twenty minutes a tired man is worth replacing
   };
   // Ratings of a tired player: every technical rating and his top speed fall as energy falls.
   // A man playing out of his natural position is worse: how much worse depends on how close the two jobs are (a centre-back at full-back loses little, a centre-back
@@ -59,7 +59,7 @@
         // What he can get back to depends on what he has just done: the more he ran (the longer he played and the harder), the further short of full the body stays for a few days, and a man
         // with little stamina stays further short. It lifts a little each day (see FM.recoverDay).
         const drop = Math.max(0, 1 - p.condition);
-        p.restCap = clamp(1 - 0.1 * drop * (1.4 - FM.stamina(p) / 100), 0.92, 1);
+        p.restCap = clamp(1 - 0.06 * drop * (1.4 - FM.stamina(p) / 100), 0.95, 1);
       }
       delete p.energy;
     });
@@ -75,7 +75,7 @@
         if (p.restCap != null) { p.restCap = Math.min(1, p.restCap + 0.04); if (p.restCap >= 1) delete p.restCap; }
         const cap = p.restCap == null ? 1 : p.restCap;
         if (p.condition >= cap) return;
-        const rate = clamp((0.5 + 0.2 * (FM.stamina(p) / 100 - 0.5)) * k, 0.1, 0.8);
+        const rate = clamp((0.65 + 0.2 * (FM.stamina(p) / 100 - 0.5)) * k, 0.15, 0.9);
         p.condition = Math.min(cap, p.condition + (cap - p.condition) * rate + 0.01);
       });
     });
