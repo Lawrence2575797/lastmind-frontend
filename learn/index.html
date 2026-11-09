@@ -22239,9 +22239,9 @@ SQIDAQAB
         let extent = 0; blocks.forEach((b) => { if (b.type !== 'arrow' && b.type !== 'darrow') extent = Math.max(extent, (b.x || 0) + (b.w || 460)); });
         // the width the page has been written at: remembered when it is open at a width that fits it, and at least as wide as the furthest thing on it
         if (canvas._nbScale === 1 || canvas._nbScale == null) { if (!canvas.style.width && avail >= 700 && (!page.doc.designW || avail > page.doc.designW)) page.doc.designW = Math.round(avail); }
-        const D = Math.max(page.doc.designW || 0, extent + 24, 700);
+        const D = Math.max(extent + 24, 760);   // the page is scaled only as far as what is on it needs: an empty or narrow page keeps normal-size text at any width, a wide one shrinks as a whole
         if (avail >= D - 1) { if (canvas._nbScale !== 1) { reset(); nbFitCanvas(canvas); } else canvas.style.width = ''; return; }
-        const f = Math.max(0.3, avail / D);
+        const f = Math.max(0.5, avail / D);
         canvas._nbScale = f;
         canvas.style.width = D + 'px'; canvas.style.zoom = String(f);   // CSS zoom, not a transform: the text is laid out at its real smaller size, so it stays sharp and keeps its look; offsets and widths stay in full-size units
         nbFitCanvas(canvas);
