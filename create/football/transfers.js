@@ -36,13 +36,15 @@
   const userRounds = (league) => league.fixtures.filter((f) => f.played && (f.homeId === league.userId || f.awayId === league.userId)).length;
 
   // ---------- the transfer windows ----------
-  // Players can only be bought and sold in two windows: the summer one (before the season and for the first three league matches) and a winter one (after the sixth league
-  // match until the ninth). Shortlisting, scouting and declaring interest go on all year; the approach, the wage talks and the signing, and the answers to offers, wait for a window.
+  // Players can only be bought and sold in two windows: the summer one (before the season, closing once the first League Cup match has been played) and a winter one (opening after the sixth league
+  // match and closing after the eighth). Shortlisting, scouting and declaring interest go on all year; the approach, the wage talks and the signing, and the answers to offers, wait for a window.
   FM.transferWindow = function (league) {
     if (league.mp) return { open: true, label: 'Open', left: 99, text: '' };
     const r = userRounds(league), plural = (n) => n + ' league match' + (n === 1 ? '' : 'es'), more = (n) => n + ' more league match' + (n === 1 ? '' : 'es');
-    if (r <= 2) return { open: true, label: 'Summer window', left: 3 - r, text: 'The summer window is open and closes after ' + more(3 - r) + '.' };
-    if (r >= 6 && r <= 8) return { open: true, label: 'Winter window', left: 9 - r, text: 'The winter window is open and closes after ' + more(9 - r) + '.' };
+    // the summer window closes after the club's first cup match (a save that has no cup keeps the old rule: the first three league matches)
+    const cup = league.cup, cupPlayed = cup && Array.isArray(cup.fixtures) ? cup.fixtures.filter((f) => f.played && (f.homeId === league.userId || f.awayId === league.userId)).length : 0;
+    if (cup ? cupPlayed === 0 : r <= 2) return { open: true, label: 'Summer window', left: cup ? 1 : 3 - r, text: cup ? 'The summer window is open and closes after your first cup match.' : 'The summer window is open and closes after ' + more(3 - r) + '.' };
+    if (r >= 6 && r <= 7) return { open: true, label: 'Winter window', left: 8 - r, text: 'The winter window is open and closes after ' + more(8 - r) + '.' };
     if (r < 6) return { open: false, label: 'Window closed', left: 0, text: 'The window is closed. The winter window opens after ' + plural(6 - r) + '.' };
     return { open: false, label: 'Window closed', left: 0, text: 'The window is closed until next summer.' };
   };
