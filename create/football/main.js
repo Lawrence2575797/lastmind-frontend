@@ -2393,6 +2393,14 @@
     const cells = sc.shape.phases[OPP_PHASE[FM.baseKey(key)]];
     if (!cells) return null;
     const base = FM.baseKey(key);
+    // A club that has been seen playing is drawn where it actually stood in this phase: its average positions over its recent matches (newer matches count for more). Nothing is
+    // pushed into a standard block or the engine's default set-up, so every club looks like the club it is. Only what cannot happen is corrected (nobody in the penalty area at a
+    // goal kick, and inside the pitch). A club nobody has seen play still falls back to the set-ups below.
+    if (sc.shape && !sc.shape.unseen && sc.shape.matches > 0 && !FM.NO_SCOUTPOS) {
+      const out = {}, kickPhase = base === 'buildEnd' || base === 'build', cap = 0.78;
+      Object.keys(cells).forEach((k) => { const c = cells[k]; out[k] = Object.assign({}, c, { d: Math.max(0.02, Math.min(kickPhase && !/^GK/.test(k) ? cap : 0.97, c.d)), w: Math.max(0.03, Math.min(0.97, c.w)) }); });
+      return out;
+    }
     // A page that applies when they press high shows them pressed up the pitch, a mid block shows them around the halfway line and a low block
     // shows them compact in their own half. A page for "otherwise" shows the mid block.
     let cond = pageCondOf(key);
@@ -2503,7 +2511,7 @@
       opp = '<g>' + Object.keys(cells).map((slot) => {
         const c = moved[slot] || cells[slot], pt = bpt({ d: 1 - c.d, w: 1 - c.w });
         const player = sc.opp.players.find((p) => p.slotKey === slot), name = player ? boardName(player) : slot;
-        return `<g class="odot" data-slot="${slot}" transform="translate(${pt.x.toFixed(1)},${pt.y.toFixed(1)})"><circle r="34" fill="transparent"/>${FM.planGfx ? `<g transform="scale(1.6)" style="pointer-events:none">${FM.planGfx.shirt(kit, player ? player.number : slot, { ghost: true, dash: true, stroke: kit.number })}</g>` : `<circle r="19" fill="${kit.shirt}" fill-opacity="0.9" stroke="${kit.number}" stroke-width="2.5" stroke-dasharray="4 3"/><text y="4.5" text-anchor="middle" font-size="12.5" font-weight="700" fill="${kit.number}" style="pointer-events:none">${player ? player.number : slot}</text>`}<text y="39" text-anchor="middle" font-size="14" font-weight="700" fill="#fff" stroke="#000" stroke-width="3.5" style="paint-order:stroke">${esc(name)}</text>${moved[slot] ? '<circle cx="14" cy="-14" r="5" fill="#F2C14E" stroke="#1A232D" stroke-width="1.5"/>' : ''}</g>`;
+        return `<g class="odot" data-slot="${slot}" style="pointer-events:none" transform="translate(${pt.x.toFixed(1)},${pt.y.toFixed(1)})"><circle r="34" fill="transparent"/>${FM.planGfx ? `<g transform="scale(1.6)" style="pointer-events:none">${FM.planGfx.shirt(kit, player ? player.number : slot, { ghost: true, dash: true, stroke: kit.number })}</g>` : `<circle r="19" fill="${kit.shirt}" fill-opacity="0.9" stroke="${kit.number}" stroke-width="2.5" stroke-dasharray="4 3"/><text y="4.5" text-anchor="middle" font-size="12.5" font-weight="700" fill="${kit.number}" style="pointer-events:none">${player ? player.number : slot}</text>`}<text y="39" text-anchor="middle" font-size="14" font-weight="700" fill="#fff" stroke="#000" stroke-width="3.5" style="paint-order:stroke">${esc(name)}</text>${moved[slot] ? '<circle cx="14" cy="-14" r="5" fill="#F2C14E" stroke="#1A232D" stroke-width="1.5"/>' : ''}</g>`;
       }).join('') + '</g>';
     }
     // With the ball, nobody can stand beyond the opposition's second-last defender: show that line, which moves with their defensive line.
