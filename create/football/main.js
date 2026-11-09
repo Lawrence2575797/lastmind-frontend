@@ -2641,9 +2641,16 @@
   function liveSnapshot(team, opp, key) {
     const AV = world.match && world.match.avgPos && world.match.avgPos[key], haveAvg = !!(AV && AV.t >= 4);
     const avgOf = (side, id) => { const r = AV && AV[side][id]; return r && AV.t > 0 ? { d: r.d / AV.t, w: r.w / AV.t } : null; };
+    // what was on the page last: while there is no average to show (a phase that has not been played since a change), the page stays exactly as it was left, for both sides
+    world.liveSnaps = world.liveSnaps && world.liveSnaps.match === world.match ? world.liveSnaps : { match: world.match };
+    const prev = world.liveSnaps[key], moved = (world.liveMoved && world.liveMoved[key]) || {};
     const snap = { haveAvg, t: haveAvg ? AV.t : 0, ours: {}, theirs: {} };
-    team.players.forEach((p) => { const a = (haveAvg && avgOf('ours', p.index)) || FM.phasePos(team, p, key); snap.ours[p.index] = { d: a.d, w: a.w }; });
-    if (opp) opp.players.forEach((q) => { const a = (haveAvg && avgOf('theirs', q.number)) || FM.toTeamSpace(team.attackDir, q.x, q.y); snap.theirs[q.number] = { d: a.d, w: a.w }; });
+    team.players.forEach((p) => {
+      const a = (haveAvg && avgOf('ours', p.index)) || (moved[p.index] ? FM.phasePos(team, p, key) : (prev && prev.ours[p.index])) || FM.phasePos(team, p, key);
+      snap.ours[p.index] = { d: a.d, w: a.w };
+    });
+    if (opp) opp.players.forEach((q) => { const a = (haveAvg && avgOf('theirs', q.number)) || (prev && prev.theirs[q.number]) || FM.toTeamSpace(team.attackDir, q.x, q.y); snap.theirs[q.number] = { d: a.d, w: a.w }; });
+    world.liveSnaps[key] = snap;
     return snap;
   }
   function liveBoardSvg(team, opp, key, snap) {
@@ -2686,16 +2693,16 @@
       const pos = toPos(lh.querySelector('svg'), ev);
       FM.setPhasePos(team, p, key, pos); world.liveMoved[key][p.index] = true; snap.ours[p.index] = { d: pos.d, w: pos.w }; draw();
     });
-    lh.addEventListener('pointerup', () => { if (drag) { drag = null; draw(); } });
+    lh.addEventListener('pointerup', () => { if (drag) { drag = null; if (m && m.avgPos) delete m.avgPos[key]; if (world.liveSnaps) world.liveSnaps[key] = snap; draw(); } });   // the averages of this phase start again from the change: what was before it is ignored
     host.querySelectorAll('[data-msub]').forEach((b) => b.addEventListener('click', () => { world.defSubM = b.dataset.msub; renderTactics(); }));
     host.querySelector('#liveReset').addEventListener('click', () => {
       // put the shirts of this page back to how the plan had them for this game, and let them follow play again
       const snap = world.matchSnap;
       if (snap && snap.phasePos && snap.phasePos[key]) team.phasePos[key] = JSON.parse(JSON.stringify(snap.phasePos[key])); else if (team.phasePos) delete team.phasePos[key];
-      world.liveMoved[key] = {}; renderTactics();
+      world.liveMoved[key] = {}; if (world.liveSnaps) delete world.liveSnaps[key]; if (m && m.avgPos) delete m.avgPos[key]; renderTactics();
     });
     // The averages follow the match while it plays; paused, or while a shirt is being dragged, nothing moves. A player the manager has placed stays where he put him.
-    const refresh = () => { snap = liveSnapshot(team, opp, key); Object.keys(world.liveMoved[key] || {}).forEach((i) => { const p = team.players.find((q) => q.index === +i); if (p) { const a = FM.phasePos(team, p, key); snap.ours[p.index] = { d: a.d, w: a.w }; } }); draw(); };
+    const refresh = () => { snap = liveSnapshot(team, opp, key); draw(); };
     clearInterval(world.liveTimer);
     world.liveTimer = setInterval(() => {
       if (!lh.isConnected || world.view !== 'match' || world.tab !== tab) { clearInterval(world.liveTimer); return; }
