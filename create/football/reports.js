@@ -97,6 +97,17 @@
     return { formation, matches: list.length, friendlies: list.filter((m) => m.friendly).length, phases };
   };
 
+  // The opposition's back line in the manager's own space (0 his goal, 1 theirs): where their deepest outfield player stands when they defend, as scouted over their recent matches, or by
+  // their own plan for a club nobody has seen. It is what the manager's forwards are placed against.
+  FM.oppBackLine = function (league, oppId) {
+    try {
+      const sh = FM.scoutedShape(league, oppId), cells = sh && sh.phases && sh.phases.without; let low = null;
+      if (cells) Object.keys(cells).forEach((k) => { if (/^GK/.test(k)) return; low = low == null ? cells[k].d : Math.min(low, cells[k].d); });
+      if (low == null) { const t = FM.teamById(league, oppId); (t.players || []).forEach((p) => { if (p.group === 'GK') return; const q = FM.phasePos(t, p, 'without'); low = low == null ? q.d : Math.min(low, q.d); }); }
+      return low == null ? null : 1 - low;
+    } catch (e) { return null; }
+  };
+
   const label3 = (v, lo, hi) => (v < 0.4 ? 'low (' + lo + ')' : v > 0.6 ? 'high (' + hi + ')' : 'middling');
   function bar(v, league, lo, hi) {
     const l = Math.max(0, Math.min(1, ((league != null ? league : 0.5) - (lo)) / (hi - lo))), p = Math.max(0, Math.min(1, (v - lo) / (hi - lo)));

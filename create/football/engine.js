@@ -353,7 +353,9 @@
     if (sc && sc[p.index] && !(team.phasePos && team.phasePos[phase] && team.phasePos[phase][p.index])) return { d: sc[p.index].d, w: sc[p.index].w };
     if (FM.baseKey(phase) === 'buildEnd') return FM.buildEndPos(team, p, phase);
     const man = team.phasePos && team.phasePos[phase] && team.phasePos[phase][p.index];
-    if (man) return man;
+    // A forward the manager placed by hand in these phases was placed against the other side's back line (man.rel is how far in front of it, or behind it), so against the next
+    // opponent he stands the same way to their line, wherever it is: the manager does not have to move him because they play higher or deeper than the last side did.
+    if (man) { if (man.rel != null && team.oppLine != null && (FM.baseKey(phase) === 'midfield' || FM.baseKey(phase) === 'final')) return { d: Math.max(0.05, Math.min(0.96, team.oppLine + man.rel)), w: man.w }; return man; }
     const base = FM.baseKey(phase);
     if (base !== phase) {
       // A page that follows a version of the stage before starts out as that version's shape (just as the default end starts from the default

@@ -2492,6 +2492,7 @@
   }
   function drawBoard(host, team, key, opts) {
     const locked = !!(opts && opts.locked);
+    { const o0 = world.view !== 'match' ? nextOpponent() : null; if (o0 && FM.oppBackLine) team.oppLine = FM.oppBackLine(world.league, o0.id); }   // forwards placed by hand stand against the next opponent's back line
     BW = opts && opts.fit ? fitBoardWidth(host, opts.big) : 68 * BS; SX = BW / 68;
     const selected = world.selSlot && team.players.includes(world.selSlot) ? world.selSlot : null;
     const posOf = (p) => (key === 'shape' ? FM.slotBase(team, p) : FM.phasePos(team, p, key));
@@ -2517,6 +2518,7 @@
     // With the ball, nobody can stand beyond the opposition's second-last defender: show that line, which moves with their defensive line.
     let offLine = '';
     const opp0 = nextOpponent();
+    if (opp0 && world.view !== 'match' && FM.oppBackLine) team.oppLine = FM.oppBackLine(world.league, opp0.id);   // the line the forwards on these pages are placed against
     if (key !== 'shape' && opp0 && FM.OFFSIDE_PHASES.indexOf(FM.baseKey(key)) >= 0) {
       const y = (1 - FM.offsideLimit(opp0, null, oppLine(key))) * BH;
       offLine = `<g class="offline" style="pointer-events:none"><line x1="0" y1="${y.toFixed(1)}" x2="${BW}" y2="${y.toFixed(1)}" stroke="#FF6B5A" stroke-width="2.5" stroke-dasharray="3 7" stroke-opacity="0.9"/><text x="6" y="${(y - 6).toFixed(1)}" font-size="14" fill="#fff" stroke="#000" stroke-width="3" style="paint-order:stroke">Offside line (${esc(opp0.name)}'s deepest defender)</text></g>`;
@@ -2623,7 +2625,11 @@
           const other = team.players.find((x) => { if (x === d.p) return false; const o = bpt(FM.slotBase(team, x)); return Math.hypot(o.x - q.x, o.y - q.y) < 30; });
           if (other) { FM.swapSlots(team, d.p, other); FM.fixSlot(team, d.p); FM.fixSlot(team, other); }
           else FM.setSlotBase(team, d.p, d.pos);
-        } else FM.setPhasePos(team, d.p, key, d.pos);
+        } else {
+          FM.setPhasePos(team, d.p, key, d.pos);
+          // placed against their back line: the offset is kept with the shirt
+          if ((FM.baseKey(key) === 'midfield' || FM.baseKey(key) === 'final') && ['ST', 'WF', 'AM'].indexOf(d.p.group) >= 0 && team.oppLine != null && world.view !== 'match') team.phasePos[key][d.p.index].rel = d.pos.d - team.oppLine;
+        }
         saveSoon();
       }
       afterBoardChange(team);

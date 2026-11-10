@@ -605,6 +605,7 @@
     const home = FM.teamById(league, fx.homeId), away = FM.teamById(league, fx.awayId);
     FM.today = league.day; FM.curLeague = league;
     FM.chooseKits(home, away);
+    [home, away].forEach((t) => { const o = t === home ? away : home; t.oppLine = FM.isHuman(league, t.id) && FM.oppBackLine ? FM.oppBackLine(league, o.id) : null; });   // a forward the manager placed against the last side's back line stands against this one's
     // AI clubs prepare for this opponent; the user's tactics are never touched.
     // In a friendly a computer-run club experiments a little with its settings instead of preparing for this opponent.
     const friendly = !!fx.friendly;
