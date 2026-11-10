@@ -628,6 +628,14 @@
   // ---------- what a side does without the ball that reads as a plan ----------
   // The man who has just passed moves on (a one-two, or on to the next place), a full-back overlaps the winger, the box fills when the ball is wide and deep, and the winger on
   // the far side stays wide and high. Each is a small job with an end time, and it carries on while the ball is in the air instead of being dropped the moment it is struck.
+  // A cross is in the air: the men near where it will come down go to it, so they are there when it arrives (a header is met, not a man moved to the ball in an instant). The nearest few
+  // of the attacking side and of the defending side each go to a spot of their own beside the landing point so they do not stand on each other; the rest of the box stays as it was set.
+  function meetCross(match, f, ov) {
+    if (FM.NO_CROSS_RUN || !f) return;
+    const near = (team, n) => team.players.filter((q) => q.group !== 'GK' && Math.hypot(q.x - f.ex, q.y - f.ey) <= 10).sort((x, y) => Math.hypot(x.x - f.ex, x.y - f.ey) - Math.hypot(y.x - f.ex, y.y - f.ey)).slice(0, n);
+    JOB = 'goes to meet the cross';
+    near(f.team, 3).concat(near(other(match, f.team), 3)).forEach((q, i) => { const k = i % 3; ov.set(q, { x: clamp(f.ex + (k - 1) * 0.9, 0.5, L - 0.5), y: clamp(f.ey + ((i < 3 ? 1 : -1) * (k - 1)) * 0.9, 0.5, W - 0.5) }); });
+  }
   function offBall(match, ov) {
     if (FM.NO_OFFBALL || match.restart || match.phase !== 'play' || match.forcePass) return;
     const c = match.carrier, f = match.flight;
@@ -2008,7 +2016,11 @@
     for (const c of cands) { r -= c.w; if (r <= 0) { win = c; break; } }
     const p = win.p;
     if (win.team === team) {
-      p.x = f.ex; p.y = f.ey;
+      // The man meets the ball where he is (he is not carried to where it came down): a ball that was a little off is the one that is moved, and a man who was further than a stride from it
+      // is brought the rest of the way.
+      { const dx = f.ex - p.x, dy = f.ey - p.y, dd = Math.hypot(dx, dy), reach = 3.2;
+        if (dd > reach) { p.x += dx / dd * (dd - reach); p.y += dy / dd * (dd - reach); }
+        match.ball.x = p.x; match.ball.y = p.y; }
       const nearD = nearestOpponent(match, team, p).d;
       const xg = sig(FM.xgLogit({ ratings: { finishing: p.ratings.heading - 10 } }, p.x, p.y, team.attackDir, nearD) - 0.55 * crowd(match, team, p));
       if (xg < 0.04 && rng() < 0.5) { giveBall(match, team, p, 0.8); return; }
@@ -2635,7 +2647,7 @@
     setPhaseContext(match);
     const ov = buildOverrides(match);
     if (match.crossHold) {
-      if (match.flight && match.flight.kind === 'cross') restartOverrides(match, match.crossHold).forEach((v, p) => ov.set(p, v));
+      if (match.flight && match.flight.kind === 'cross') { restartOverrides(match, match.crossHold).forEach((v, p) => ov.set(p, v)); meetCross(match, match.flight, ov); }
       else match.crossHold = null;
     }
     if (match.extraOv) match.extraOv.forEach((v, p) => { if (!ov.has(p)) ov.set(p, v); });   // the lab: opponents following a player who has moved
