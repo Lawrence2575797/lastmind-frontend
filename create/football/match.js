@@ -311,8 +311,9 @@
     if (!key) return;
     const av = match.avgPos = match.avgPos || {}, k = av[key] = av[key] || { ours: {}, theirs: {}, t: 0 };
     k.t += dt;
-    team.players.forEach((p) => { const q = FM.toTeamSpace(team.attackDir, p.x, p.y), r = k.ours[p.index] = k.ours[p.index] || { d: 0, w: 0 }; r.d += q.d * dt; r.w += q.w * dt; });
-    opp.players.forEach((p) => { const q = FM.toTeamSpace(team.attackDir, p.x, p.y), r = k.theirs[p.number] = k.theirs[p.number] || { d: 0, w: 0 }; r.d += q.d * dt; r.w += q.w * dt; });
+    // each man's own time on the pitch in this phase is counted with him, so one who came on (or was sent off) part-way through is averaged over the time he was there, not over the whole phase
+    team.players.forEach((p) => { const q = FM.toTeamSpace(team.attackDir, p.x, p.y), r = k.ours[p.index] = k.ours[p.index] || { d: 0, w: 0, t: 0 }; r.d += q.d * dt; r.w += q.w * dt; r.t = (r.t || 0) + dt; });
+    opp.players.forEach((p) => { const q = FM.toTeamSpace(team.attackDir, p.x, p.y), r = k.theirs[p.number] = k.theirs[p.number] || { d: 0, w: 0, t: 0 }; r.d += q.d * dt; r.w += q.w * dt; r.t = (r.t || 0) + dt; });
   };
   FM.startBuildUpTrial = function (match, team, kind) {
     const opp = other(match, team), dir = team.attackDir;

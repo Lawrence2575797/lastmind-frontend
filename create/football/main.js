@@ -2640,7 +2640,7 @@
   // long, where the plan has him / where he stands). Nothing on it moves by itself; only the shirt being dragged changes.
   function liveSnapshot(team, opp, key) {
     const AV = world.match && world.match.avgPos && world.match.avgPos[key], haveAvg = !!(AV && AV.t >= 4);
-    const avgOf = (side, id) => { const r = AV && AV[side][id]; return r && AV.t > 0 ? { d: r.d / AV.t, w: r.w / AV.t } : null; };
+    const avgOf = (side, id) => { const r = AV && AV[side][id]; return r && r.t >= 3 ? { d: r.d / r.t, w: r.w / r.t } : null; };   // over the time he was actually on the pitch in this phase
     // what was on the page last: while there is no average to show (a phase that has not been played since a change), the page stays exactly as it was left, for both sides
     world.liveSnaps = world.liveSnaps && world.liveSnaps.match === world.match ? world.liveSnaps : { match: world.match };
     const prev = world.liveSnaps[key], moved = (world.liveMoved && world.liveMoved[key]) || {};
