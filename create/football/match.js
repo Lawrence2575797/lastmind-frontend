@@ -1245,14 +1245,19 @@
     if (dribbleOption && zone === 'build' && nearD < 3.5) dribbleOption.score -= 0.5 * (1 - nearD / 3.5) * (1 + (1 - risk)) * (['GK', 'CB', 'FB'].indexOf(carrier.group) >= 0 ? 2.4 : ['DM', 'CM'].indexOf(carrier.group) >= 0 ? 1.5 : 1) * (FM.DRIBBLE_BUILD_PEN == null ? 1 : FM.DRIBBLE_BUILD_PEN);
     const attackingThird = FM.toTeamSpace(team.attackDir, carrier.x, carrier.y).d > 0.6;
     if (((dGoal < FM.dialM(team, 'shootRange') && attackingThird) || (through && dGoal < FM.dialM(team, 'shootRange') + 6)) && carrier.group !== 'GK') {
-      const xg = shotChance(match, team, carrier, carrier, W / 2).xg;   // what he can see the shot is really worth, block and keeper included
+      const sc = shotChance(match, team, carrier, carrier, W / 2), xg = sc.xg;   // what the shot is really worth, block and keeper included
+      // How much of the goal he can see: a man on top of him or a body in the line takes it away, open grass does not. This is what decides whether a shot is in his mind, not how far out it is.
+      const view = (1 - sc.pBlock) * (1 - 0.8 * Math.exp(-sc.nearD / 2.5));
+      // And from a distance with room to hit it, a player reads more of a chance than the model does (he sees the whole goal and nobody in the way): the further out, the more he over-reads it, so
+      // shots from range are in play for the men who have the room, as they are in a real match. (How it ends is unchanged: a shot from there is still a long one.)
+      const optimism = 1 + 0.9 * view * clamp((dGoal - 13) / 10, 0, 1), xgSeen = Math.min(0.2, xg * optimism);
       // A shot is worth the goal it might be (on the same scale as everything else: a pass is worth its chance of arriving times what the ball is worth where it lands) and it costs what losing
       // the ball costs, because it nearly always ends the move; a corner or a rebound gives some of that back. So a shot from where it has no chance is never the best of the lot, however
       // few good passes there are, and one from a good position is. His manager's freedom to shoot is how much he weighs the goal; nothing else is added to it.
-      options.push({ kind: 'shoot', xg, score: GOAL_VALUE * xg * (0.5 + risk * 0.8) * (0.45 + tac.shootFreedom) * mods.shoot - (1 - xg) * 0.6 * (1 - risk) * lossFactor * (1 - SHOT_KEEPS) });
-      // What he sees decides whether the shot is even in his mind. With a man on top of him, a body in the lane or the goal a long way off he sees little of it, and the less he sees the less likely he is to
-      // go for it: how much of the goal he reads is his judgement (it varies with his composure), and the chance that the shot comes to mind at all rises smoothly with what he reads.
-      { const so = options[options.length - 1], read = xg * Math.exp((rng() - 0.5) * 2 * (0.2 + 0.5 * (1 - carrier.ratings.composure / 100))), seen = clamp(read / 0.06, 0.02, 1); so.score += (0.22 + 0.25 * (1 - carrier.ratings.composure / 100)) * Math.log(seen * seen); so.seen = seen; }
+      options.push({ kind: 'shoot', xg, score: GOAL_VALUE * xgSeen * (0.5 + risk * 0.8) * (0.45 + tac.shootFreedom) * mods.shoot - (1 - xgSeen) * 0.6 * (1 - risk) * lossFactor * (1 - SHOT_KEEPS) });
+      // What he sees decides whether the shot is even in his mind: the less of the goal he can see (a man on him, a body in the lane) the less likely he is to go for it. How much he reads is his
+      // judgement (it varies with his composure), and the chance that the shot comes to mind at all rises smoothly with what he reads.
+      { const so = options[options.length - 1], read = view * Math.exp((rng() - 0.5) * 2 * (0.2 + 0.5 * (1 - carrier.ratings.composure / 100))), seen = clamp(read / 0.7, 0.02, 1); so.score += (0.22 + 0.25 * (1 - carrier.ratings.composure / 100)) * Math.log(seen * seen); so.seen = seen; }
     }
 
     // Under severe pressure near their own goal, defenders can deliberately
