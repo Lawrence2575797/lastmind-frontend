@@ -808,6 +808,14 @@
         pos = { d: pos.d + (ts.d - pos.d) * k, w: pos.w + (ts.w - pos.w) * k };
       }
     }
+    // A striker reads the opposition's back line, not the middle of the pitch: with the ball in play in midfield or beyond he stands on the shoulder of their last outfield defender (just
+    // onside), as the manager's board has him when it puts him next to their centre-backs. The place he is held to moves with the line, so a team that sits deep is not stretched out by a
+    // striker left on the halfway line, and a high line is not left behind. It only applies to a man the plan has up there (within about twenty metres of their line).
+    if (hasBall && player.group === 'ST' && team.oppRef && b.d > 0.3 && b.d < 0.92) {
+      let line = 0; team.oppRef.players.forEach((o) => { if (o.group !== 'GK') line = Math.max(line, toTeamSpace(team.attackDir, o.x, o.y).d); });
+      const anchor = line - 0.012;
+      if (line > 0.5 && boardPos.d > anchor - 0.2 && pos.d < anchor) { const k = clamp((b.d - 0.3) / 0.25, 0, 1); pos = { d: pos.d + (anchor - pos.d) * k, w: pos.w }; boardPos.d = pos.d; }
+    }
     player._bp = { d: boardPos.d, w: boardPos.w };
     let d = pos.d, w = pos.w;
     const phase = hasBall ? role.inPoss : role.outPoss;
