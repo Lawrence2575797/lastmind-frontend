@@ -1143,7 +1143,10 @@
     mem.set(key, text);
     writes = writes.then(async () => {
       let ok = await idbPut(key, text);
-      if (!ok) { try { localStorage.setItem(key, text); ok = true; } catch (e) { ok = false; } }   // no database in this browser: the small storage, if it has room
+      // the browser's storage is full (the saved seasons it keeps as archives take room): the oldest archives go, and the save is tried again
+      if (!ok && key.indexOf(':archive:') < 0) { try { const all = (await idbKeys()).map(String).filter((k) => k.indexOf(':archive:') >= 0).sort(); for (const k of all) { await idbPut(k, null); ok = await idbPut(key, text); if (ok) break; } } catch (e) { /* the small storage is tried next */ } }
+      if (!ok) { try { localStorage.setItem(key, text); ok = true; } catch (e) { ok = false; } }
+      if (!ok) FM.lastSaveError = 'This browser could not store the game: its storage may be full.';   // no database in this browser: the small storage, if it has room
       else { try { localStorage.removeItem(key); } catch (e) { /* fine */ } }   // anything an older version left there is no longer needed
       lastWriteOk = ok; return ok;
     });
@@ -1397,7 +1400,7 @@
   FM.saveLeagueRaw = function (league) {
     // Paid saves are account-scoped. If identity has not been established,
     // refuse to write into a device-wide slot that another account could see.
-    if (!DEMO_MODE && !accountUid) return false;
+    if (!DEMO_MODE && !accountUid) { FM.lastSaveError = 'You are not signed in, so the game cannot be saved. Sign in to LastMind again.'; return false; }
     try {
       setMode(league.mp ? 'mp' : 'solo');   // a game is saved to its own slot, whichever was open before
       const now = progressOfLeague(league);
@@ -1405,7 +1408,7 @@
       if (knownProgress > now && !DEMO_MODE) archiveCurrent();   // a season further on is about to be replaced: it is kept first
       knownProgress = now;
       return storeSet(currentSaveKey(), FM.serializeLeague(league));
-    } catch (e) { return false; }
+    } catch (e) { FM.lastSaveError = 'The game could not be written out: ' + (e && e.message ? e.message : 'unknown error'); try { console.error('Saving the game:', e); } catch (e2) { /* fine */ } return false; }
   };
   // A game saved before pre-season friendlies existed has none: if no match has been played yet, add them so the reports have data.
   // Pre-season friendlies that name a club which is not in this division (it was relegated, or promoted away) cannot be shown or played: they go.

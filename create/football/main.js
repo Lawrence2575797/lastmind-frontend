@@ -515,6 +515,8 @@
     if (done && !needShootout) el('finishText').textContent = 'Full time: ' + home.name + ' ' + m.score[home.id] + '-' + m.score[away.id] + ' ' + away.name + '.' + (fxC && fxC.shootout ? ' ' + (FM.teamById(world.league, fxC.shootout.winnerId) || {}).name + ' won ' + Math.max(fxC.shootout.home, fxC.shootout.away) + '–' + Math.min(fxC.shootout.home, fxC.shootout.away) + ' on penalties.' : '');
   }
 
+  // the game also saves itself: once a minute, whenever it is not in the middle of a match
+  setInterval(() => { try { if (world.league && !DEMO_MODE && !(world.match && world.match.phase !== 'fulltime') && !document.hidden) FM.saveLeague(world.league); } catch (e) { /* the next one tries again */ } }, 60000);
   // the Save button: saves the game now (this device and the account) and says so
   el('saveBtn').addEventListener('click', async () => {
     const b = el('saveBtn'); if (!world.league || b.disabled) return;
@@ -522,6 +524,8 @@
     let res = 'failed';
     try { res = await FM.saveNow(world.league); } catch (e) { res = 'failed'; }
     b.textContent = res === 'saved' ? 'Saved \u2713' : res === 'account' ? 'Saved to your account \u2713' : res === 'device' ? 'Saved on this device only' : 'Could not save';
+    if (res === 'failed' && FM.lastSaveError) b.title = FM.lastSaveError; else b.title = '';
+    if (res === 'failed' && FM.lastSaveError) { try { const n = document.createElement('div'); n.className = 'banner warn'; n.setAttribute('role', 'alert'); n.style.cssText = 'position:fixed;left:50%;top:14px;transform:translateX(-50%);z-index:100002;max-width:min(520px,92vw);padding:10px 16px;background:#3a1f1c;color:#ffd9d2;border:1px solid #a8473b'; n.textContent = FM.lastSaveError; document.body.appendChild(n); setTimeout(() => n.remove(), 9000); } catch (e) { /* the button says it */ } }
     b.classList.add(res === 'saved' || res === 'account' ? 'ok' : 'warn');
     b.setAttribute('role', 'status');
     setTimeout(() => { b.disabled = false; b.classList.remove('ok', 'warn'); b.textContent = 'Save'; }, res === 'saved' ? 2500 : 5000);
