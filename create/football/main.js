@@ -1383,8 +1383,10 @@
     const dayOf = (f) => 5 + 7 * f.round, nf = FM.nextUserFixture ? FM.nextUserFixture(lg) : null, cupNext = !!(nf && nf.stage && !nf.played && !nf.preseason);   // a cup tie that is next is played before the next league match
     const out = mine.filter((f) => dayOf(f) < p.injury.until), back = mine.find((f) => dayOf(f) >= p.injury.until), n = out.length + (cupNext ? 1 : 0);
     if (!mine.length && !cupNext) return p.injury.name + ', out for the rest of the season';
-    if (!n) return p.injury.name + ', fit again for the next match';
-    return p.injury.name + ', out for ' + (n === 1 ? 'the next match' : 'the next ' + n + ' matches') + (cupNext ? ' (the cup tie included)' : '') + (back ? ', back for round ' + (back.round + 1) : ', back next season');
+    // said by round, so there is no doubt which match he is back for: he is marked injured until the day he recovers, which can be a few days before that match
+    const days = Math.max(1, p.injury.until - FM.today), when = back ? 'back for round ' + (back.round + 1) : 'back next season';
+    if (!n) return p.injury.name + ', ' + when + ' (' + days + (days === 1 ? ' day' : ' days') + ' to go, so he is available for it)';
+    return p.injury.name + ', out for the next ' + (n === 1 ? 'match' : n + ' matches') + (cupNext ? ' (the cup tie included)' : '') + ', ' + when;
   };
   const condClass = (p) => (FM.isInjured(p) ? 'out' : FM.conditionOf(p) < 0.6 ? 'low' : '');
 
