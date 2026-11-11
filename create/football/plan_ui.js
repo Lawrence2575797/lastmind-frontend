@@ -175,13 +175,23 @@
   }
 
   // ---------- team approach ----------
+  // The press triggers are one row of chips, not a row of two-way switches each: a chip lit is a moment the side goes to win the ball, an unlit one is a moment it holds its shape. What each moment is
+  // sits underneath, so the page stays short.
+  const TRIG_SHORT = { trigGK: 'Their keeper', trigCB: 'A centre-back', trigFB: 'A full-back', trigMid: 'Middle third', trigBack: 'A pass back', trigTouch: 'Near the touchline', trigTurn: 'Back to play', trigLoose: 'A heavy touch' };
   function teamPanel(team, ph) {
-    const pl = FM.planGet(team);
-    return (FM.PLAN_TEAM[ph] || []).map((t) => {
-      const cur = (pl.team[ph] || {})[t.key], def = t.opts.some((x) => x.v === 'std') ? 'std' : t.opts[Math.floor(t.opts.length / 2)].v;
+    const pl = FM.planGet(team), all = FM.PLAN_TEAM[ph] || [];
+    const val = (t) => { const cur = (pl.team[ph] || {})[t.key], def = t.opts.some((x) => x.v === 'std') ? 'std' : t.opts[Math.floor(t.opts.length / 2)].v; return cur == null ? def : cur; };
+    const trigs = all.filter((t) => /^trig/.test(t.key) && t.opts.length === 2 && t.opts[0].v === 'yes'), rest = all.filter((t) => trigs.indexOf(t) < 0);
+    const normal = (list) => list.map((t) => {
+      const cur = val(t);
       return `<div class="pl-tog"><div class="pl-tog-h"><b>${esc(t.label)}</b>${t.help ? `<span class="pl-help">${esc(t.help)}</span>` : ''}</div>
-        <div class="pl-seg" role="group">${t.opts.map((op) => `<button type="button" class="${(cur == null ? def : cur) === op.v ? 'on' : ''}" data-team-tog="${esc(t.key)}" data-v="${esc(op.v)}">${esc(op.label)}</button>`).join('')}</div></div>`;
+        <div class="pl-seg" role="group">${t.opts.map((op) => `<button type="button" class="${cur === op.v ? 'on' : ''}" data-team-tog="${esc(t.key)}" data-v="${esc(op.v)}">${esc(op.label)}</button>`).join('')}</div></div>`;
     }).join('');
+    const chips = trigs.length ? `<div class="pl-tog"><div class="pl-tog-h"><b>Go to win the ball when</b><span class="pl-help">Lit moments are the ones the side presses on; the rest it holds its shape.</span></div>
+        <div class="pl-chips" role="group">${trigs.map((t) => { const on = val(t) === 'yes'; return `<button type="button" class="pl-chip${on ? ' on' : ''}" aria-pressed="${on}" title="${esc(t.label + (t.help ? ': ' + t.help : ''))}" data-team-tog="${esc(t.key)}" data-v="${on ? 'no' : 'yes'}">${esc(TRIG_SHORT[t.key] || t.label)}</button>`; }).join('')}</div>
+        <details class="pl-trig-more"><summary>What each one means</summary><ul>${trigs.map((t) => `<li><b>${esc(TRIG_SHORT[t.key] || t.label)}</b>${t.help ? ': ' + esc(t.help) : ': ' + esc(t.label.replace(/^Press when /, 'the side presses when ')) + '.'}</li>`).join('')}</ul></details></div>
+        <style>.pl-chips{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 4px}.pl-chip{padding:8px 14px;border:1px solid rgba(255,255,255,.25);background:transparent;color:inherit;font:inherit;font-weight:600;cursor:pointer}.pl-chip.on{background:#f1ead6;color:#1a232d;border-color:#f1ead6}.pl-trig-more{margin-top:6px;font-size:.9rem}.pl-trig-more ul{margin:6px 0 0;padding-left:18px;display:grid;gap:4px}</style>` : '';
+    return chips + normal(rest);
   }
 
   // ---------- zones and triggers ----------
