@@ -2650,7 +2650,7 @@
       const p = team.players.find((x) => x.index === +g.dataset.idx);
       const prev = world.selSlot;
       world.selSlot = p;
-      drag = { p, prev, g, sx: e.clientX, sy: e.clientY, moved: false, pos: null };
+      drag = { p, prev, g, sx: e.clientX, sy: e.clientY, moved: false, pos: null, fixed: key === 'shape' && p && p.group === 'GK' };   // the goalkeeper stays in goal: on the formation page he is picked (to be replaced) but not moved
       svg.setPointerCapture(e.pointerId);
       e.preventDefault();
     });
@@ -2659,6 +2659,7 @@
     svg.addEventListener('pointermove', (e) => {
       if (dragBall) { const pos = toPos(e); dragBall.pos = pos; const pt = bpt(pos); dragBall.g.setAttribute('transform', `translate(${pt.x.toFixed(1)},${pt.y.toFixed(1)})`); return; }
       if (!drag) return;
+      if (drag.fixed) return;   // the goalkeeper does not move
       if (!drag.moved && Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) < 5) return;
       drag.moved = true;
       let pos = toPos(e);
@@ -2688,7 +2689,7 @@
         // redraws the formation, and that new position is used by the engine.
         if (d.moved) {
           const q = toPos(e);
-          const other = team.players.find((x) => { if (x === d.p) return false; const o = bpt(FM.slotBase(team, x)); return Math.hypot(o.x - q.x, o.y - q.y) < 34; });
+          const other = team.players.find((x) => { if (x === d.p || x.group === 'GK') return false; const o = bpt(FM.slotBase(team, x)); return Math.hypot(o.x - q.x, o.y - q.y) < 34; });
           if (other) { FM.swapSlots(team, d.p, other); FM.fixSlot(team, d.p); FM.fixSlot(team, other); world.selSlot = null; saveSoon(); }
           else { FM.setSlotBase(team, d.p, d.pos || q); world.selSlot = null; saveSoon(); }
         } else if (d.prev === d.p) world.selSlot = null;
@@ -2699,7 +2700,7 @@
         if (key === 'shape') {
           // dropped on another shirt: swap the two players
           const q = toPos(e);
-          const other = team.players.find((x) => { if (x === d.p) return false; const o = bpt(FM.slotBase(team, x)); return Math.hypot(o.x - q.x, o.y - q.y) < 30; });
+          const other = team.players.find((x) => { if (x === d.p || x.group === 'GK') return false; const o = bpt(FM.slotBase(team, x)); return Math.hypot(o.x - q.x, o.y - q.y) < 30; });
           if (other) { FM.swapSlots(team, d.p, other); FM.fixSlot(team, d.p); FM.fixSlot(team, other); }
           else FM.setSlotBase(team, d.p, d.pos);
         } else {
