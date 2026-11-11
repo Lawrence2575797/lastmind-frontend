@@ -2492,7 +2492,7 @@
   }
   function drawBoard(host, team, key, opts) {
     const locked = !!(opts && opts.locked);
-    { const o0 = world.view !== 'match' ? nextOpponent() : null; if (o0 && FM.oppBackLine) team.oppLine = FM.oppBackLine(world.league, o0.id); }   // forwards placed by hand stand against the next opponent's back line
+    { const o0 = world.view !== 'match' ? nextOpponent() : null; if (o0 && FM.oppBackLine) { const ln0 = oppLine(key); team.oppLine = ln0 != null ? ln0 : FM.oppBackLine(world.league, o0.id); } }   // the line of the page being drawn   // forwards placed by hand stand against the next opponent's back line
     BW = opts && opts.fit ? fitBoardWidth(host, opts.big) : 68 * BS; SX = BW / 68;
     const selected = world.selSlot && team.players.includes(world.selSlot) ? world.selSlot : null;
     // With the ball nobody can stand beyond the other side's last outfield defender, so the pages where that applies show every outfield player no further forward than their line as it is drawn

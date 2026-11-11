@@ -364,8 +364,24 @@
       if (pg && pg.from && FM.PREV_END && FM.PREV_END[base]) return FM.phasePos(team, p, FM.PREV_END[base] + (pg.from === 'default' ? '' : '#' + pg.from));
       return FM.phasePos(team, p, base);
     }
-    return FM.defaultPhasePos(team, p, phase);
+    return lineShape(team, p, phase, FM.defaultPhasePos(team, p, phase));
   };
+  // The team's shape follows the other side's back line. Against a side that plays higher or deeper than the one the shape was drawn for, the back men keep their places and the rest are
+  // shifted in proportion up to (or back from) the line, so the forwards stand next to the other side's centre-backs, just onside, and the midfield moves with them: it is a stretch of the
+  // shape between its back line and the other side's, not the same shift for everyone, so it comes out differently for every formation. Only players who have not been placed by hand.
+  const SHAPE_PH = ['build', 'buildEnd', 'midfield', 'final'], shapeAnchors = {};
+  function lineShape(team, p, phase, d0) {
+    if (team.oppLine == null || p.group === 'GK' || SHAPE_PH.indexOf(FM.baseKey(phase)) < 0 || FM.NO_LINESHAPE) return d0;
+    const key = team.id + '|' + phase + '|' + team.formationKey + '|' + team.players.length;
+    let an = shapeAnchors[key];
+    if (!an || an.sig !== (team.shape ? Object.keys(team.shape).length : 0)) {
+      const ds = team.players.filter((q) => q.group !== 'GK').map((q) => FM.defaultPhasePos(team, q, phase).d);
+      an = shapeAnchors[key] = { sig: team.shape ? Object.keys(team.shape).length : 0, lo: Math.min.apply(null, ds), hi: Math.max.apply(null, ds) };
+    }
+    const T = Math.min(0.9, team.oppLine - 0.012);
+    if (an.hi - an.lo < 0.15 || T < an.lo + 0.15 || Math.abs(T - an.hi) < 0.01 || d0.d <= an.lo) return d0;
+    return { d: an.lo + (d0.d - an.lo) * (T - an.lo) / (an.hi - an.lo), w: d0.w };
+  }
   // Every key positions are kept under: the phases, and the pages the manager has added.
   FM.allPhaseKeys = (team) => FM.PHASES.concat(Object.keys(team.phasePos || {}).filter((k) => k.indexOf('#') > 0));
   FM.isManual = (team, p, phase) => ['transAtt', 'transAttEnd', 'transDef', 'transDefEnd'].indexOf(FM.baseKey(phase)) < 0 && !!(team.phasePos && team.phasePos[phase] && team.phasePos[phase][p.index]);
