@@ -1637,7 +1637,7 @@
       from: lead ? lead.from : 0, leadDist: lead ? lead.dist : 0, leadAir: lead && lead.aerial ? 1 : 0, movePasses: cur && cur.team === team.id ? cur.passes : 0, moveSecs: cur && cur.team === team.id ? match.clock - cur.t : 0,
       gkDist: gk ? Math.hypot(gk.x - carrier.x, gk.y - carrier.y) : 0, crowd: crowd(match, team, carrier) });
     match.carrier = null; match.carry = null;
-    match.flight = { kind: 'shot', team, shooter: carrier, speed: 28, target: null, ex, ey: clamp(ey, 0.5, W - 0.5), outcome, gk, blocker, xg: shotXg, x0: carrier.x, y0: carrier.y };
+    match.flight = { kind: 'shot', team, shooter: carrier, speed: 28, target: null, ex, ey: clamp(ey, 0.5, W - 0.5), outcome, gk, blocker, xg: shotXg, x0: (opt.fromBall && match.ball.x != null) ? match.ball.x : carrier.x, y0: (opt.fromBall && match.ball.y != null) ? match.ball.y : carrier.y };
     match.ball.state = 'flight';
   }
 
@@ -2009,11 +2009,11 @@
     if (rng() < (FM.CROSS_OUT == null ? 0.18 : FM.CROSS_OUT)) { match.ball.vx = match.ball.vy = 0; handleOut(match, team, team.attackDir === 1 ? L + 0.2 : -0.2, clamp(f.ey, 1, W - 1)); return; }   // overhit: behind for a goal kick
     const cands = [];
     const at = (p) => Math.hypot(p.x - f.ex, p.y - f.ey);
-    team.players.forEach((p) => { if (p.group === 'GK') return; const d = at(p); if (d <= 4.5) cands.push({ p, team, w: Math.exp((p.ratings.heading + 14 * f.quality - 4 * d) / 14) }); });
+    team.players.forEach((p) => { if (p.group === 'GK') return; const d = at(p); if (d <= 2.2) cands.push({ p, team, w: Math.exp((p.ratings.heading + 14 * f.quality - 4 * d) / 14) }); });
     opp.players.forEach((p) => {
       const d = at(p);
       if (p.group === 'GK') { if (d <= 7) cands.push({ p, team: opp, w: 0.9 * Math.exp((p.ratings.gk + 6 - 3 * d) / 14) }); }
-      else if (d <= 4.5) cands.push({ p, team: opp, w: 1.1 * Math.exp((p.ratings.heading + 4 - 4 * d) / 14) });
+      else if (d <= 2.2) cands.push({ p, team: opp, w: 1.1 * Math.exp((p.ratings.heading + 4 - 4 * d) / 14) });
     });
     if (!cands.length) { match.ball.state = 'loose'; match.lastTeam = team; return; }
     const total = cands.reduce((a, c) => a + c.w, 0);
@@ -2021,15 +2021,11 @@
     for (const c of cands) { r -= c.w; if (r <= 0) { win = c; break; } }
     const p = win.p;
     if (win.team === team) {
-      // The man meets the ball where he is (he is not carried to where it came down): a ball that was a little off is the one that is moved, and a man who was further than a stride from it
-      // is brought the rest of the way.
-      { const dx = f.ex - p.x, dy = f.ey - p.y, dd = Math.hypot(dx, dy), reach = 3.2;
-        if (dd > reach) { p.x += dx / dd * (dd - reach); p.y += dy / dd * (dd - reach); }
-        match.ball.x = p.x; match.ball.y = p.y; }
+      // Whoever wins it has run to where it comes down (see meetCross) and is within a stride of it: nobody is moved and neither is the ball, and the header goes from where the ball is.
       const nearD = nearestOpponent(match, team, p).d;
       const xg = sig(FM.xgLogit({ ratings: { finishing: p.ratings.heading - 10 } }, p.x, p.y, team.attackDir, nearD) - 0.55 * crowd(match, team, p));
       if (xg < 0.04 && rng() < 0.5) { giveBall(match, team, p, 0.8); return; }
-      doShot(match, team, p, { xg, rating: p.ratings.heading - 10, header: true });
+      doShot(match, team, p, { xg, rating: p.ratings.heading - 10, header: true, fromBall: true });
     } else if (p.group === 'GK') {
       giveBall(match, opp, p, 1.6);
     } else if (rng() < 0.35) {
