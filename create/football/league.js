@@ -333,6 +333,18 @@
     const r = FM.mulberry32((league.seed || 1) + (league.runSeed || 0) + league.season * 977 + 61)();
     if (r < 0.2) { exp -= 1; reason += ' They are in an ambitious mood this year.'; } else if (r > 0.8) { exp += 1; reason += ' They are feeling cautious this year.'; }
     exp = Math.max(1, Math.min(n, exp));
+    // a manager arriving part-way through a season is asked for what can still be done: the board's view of the squad is blended with where the club stands, more the further on the season is,
+    // and never asks for a place the points left to play for could not get the club to
+    if (force && me) {
+      const mine = league.fixtures.filter((f) => f.homeId === me.id || f.awayId === me.id), played = mine.filter((f) => f.played).length, left = mine.length - played;
+      if (played >= 3 && left > 0) {
+        const rows = FM.tableRows(league), row = rows.find((x) => x.id === me.id), pos = rows.findIndex((x) => x.id === me.id) + 1, prog = played / mine.length;
+        exp = Math.round(exp * (1 - prog) + pos * prog);
+        const best = 1 + rows.filter((x) => x.id !== me.id && x.pts > row.pts + 3 * left).length;
+        exp = Math.max(best, Math.min(n, Math.max(1, exp)));
+        reason = 'With ' + left + ' match' + (left === 1 ? '' : 'es') + ' left and the club ' + ordinal(pos) + ', the board ask for ' + ordinal(exp) + ' or better.';
+      }
+    }
     b.expectedPosition = exp; b.expectation = words(exp); b.division = league.divisionName; b.expectSeason = league.season; b.expectDivision = league.divisionName; b.expectReason = reason;
   };
 
