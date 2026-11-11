@@ -1380,10 +1380,11 @@
   const injuryText = (p) => {
     if (!p.injury) return '';
     const lg = world.league, mine = lg.fixtures.filter((f) => !f.played && (f.homeId === lg.userId || f.awayId === lg.userId)).sort((x, y) => x.round - y.round);
-    const dayOf = (f) => 5 + 7 * f.round, out = mine.filter((f) => dayOf(f) < p.injury.until), back = mine.find((f) => dayOf(f) >= p.injury.until);
-    if (!mine.length) return p.injury.name + ', out for the rest of the season';
-    if (!out.length) return p.injury.name + ', fit again for the next match';
-    return p.injury.name + ', out for ' + (out.length === 1 ? 'the next match' : 'the next ' + out.length + ' matches') + (back ? ', back for round ' + (back.round + 1) : ', back next season');
+    const dayOf = (f) => 5 + 7 * f.round, nf = FM.nextUserFixture ? FM.nextUserFixture(lg) : null, cupNext = !!(nf && nf.stage && !nf.played && !nf.preseason);   // a cup tie that is next is played before the next league match
+    const out = mine.filter((f) => dayOf(f) < p.injury.until), back = mine.find((f) => dayOf(f) >= p.injury.until), n = out.length + (cupNext ? 1 : 0);
+    if (!mine.length && !cupNext) return p.injury.name + ', out for the rest of the season';
+    if (!n) return p.injury.name + ', fit again for the next match';
+    return p.injury.name + ', out for ' + (n === 1 ? 'the next match' : 'the next ' + n + ' matches') + (cupNext ? ' (the cup tie included)' : '') + (back ? ', back for round ' + (back.round + 1) : ', back next season');
   };
   const condClass = (p) => (FM.isInjured(p) ? 'out' : FM.conditionOf(p) < 0.6 ? 'low' : '');
 
