@@ -1376,7 +1376,15 @@
   }
   const outWhy = (p) => (p && p.injury && p.injury.suspended ? 'suspended' : 'injured');
   const outList = (ps, tail) => { const g = { injured: [], suspended: [] }; ps.forEach((p) => g[outWhy(p)].push(p)); return Object.keys(g).filter((k) => g[k].length).map((k) => g[k].map((p) => esc(p.name)).join(', ') + (g[k].length > 1 ? ' are ' : ' is ') + k + (tail || '')).join('; '); };
-  const injuryText = (p) => (p.injury ? p.injury.name + ', misses ' + (missesCount(p.injury.until) === 1 ? 'the next match' : 'the next ' + missesCount(p.injury.until) + ' matches') : '');
+  // How long a player is out, counted from the club's own fixtures: the league matches still to play before his injury (or ban) runs out, and the round he is back for.
+  const injuryText = (p) => {
+    if (!p.injury) return '';
+    const lg = world.league, mine = lg.fixtures.filter((f) => !f.played && (f.homeId === lg.userId || f.awayId === lg.userId)).sort((x, y) => x.round - y.round);
+    const dayOf = (f) => 5 + 7 * f.round, out = mine.filter((f) => dayOf(f) < p.injury.until), back = mine.find((f) => dayOf(f) >= p.injury.until);
+    if (!mine.length) return p.injury.name + ', out for the rest of the season';
+    if (!out.length) return p.injury.name + ', fit again for the next match';
+    return p.injury.name + ', out for ' + (out.length === 1 ? 'the next match' : 'the next ' + out.length + ' matches') + (back ? ', back for round ' + (back.round + 1) : ', back next season');
+  };
   const condClass = (p) => (FM.isInjured(p) ? 'out' : FM.conditionOf(p) < 0.6 ? 'low' : '');
 
   // ---------- league and squad ----------
