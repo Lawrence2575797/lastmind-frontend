@@ -454,6 +454,8 @@
     boardLine(lg, c);
     // a manager who has just arrived at the club starts clean: nothing that happened before he came counts against him, and a warning that was worked out from those matches goes
     const sp = lg.career && lg.career.spells ? lg.career.spells[lg.career.spells.length - 1] : null, arrived = sp && sp.from && sp.from.season === lg.season ? sp.from.round : 0;
+    // a manager who arrived part-way through the season has the board's brief set for what can still be done (a game saved before that was done keeps the old one until now)
+    if (arrived > 0 && lg.board && lg.board.expectArrived !== lg.season + ':' + arrived && FM.setBoardExpectation) { FM.setBoardExpectation(lg, true); lg.board.expectArrived = lg.season + ':' + arrived; c.footU = 0; c.finU = 0; c.ult = null; c.cuSeason = lg.season; c.footFloor = null; boardLine(lg, c); }
     if (arrived > 0 && c.ult && c.ult.issued < arrived) { c.ult = null; c.footU = 0; c.finU = 0; c.cuSeason = lg.season; c.low = 0; }
     if (c.cuSeason === lg.season) return;
     c.cuSeason = lg.season;
