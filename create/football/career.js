@@ -122,7 +122,7 @@
     // the new club: the league he manages becomes its league, with the fixtures it has already played
     const before = FM.leagueProgress ? FM.leagueProgress(lg) : 0;
     FM.chooseClub(lg, team.name);
-    if (FM.leagueProgress) lg.careerOffset = (lg.careerOffset || 0) + (before - FM.leagueProgress(lg));   // the save does not count the move as a step back
+    if (FM.leagueProgress) lg.careerOffset = (lg.careerOffset || 0) + (before - FM.leagueProgress(lg)) + 1;   // the move counts as one step on, so the saved game is the newer one and the account's older copy (with him still sacked) does not replace it
     const d = FM.allDivisions(lg).find((x) => x.teams.indexOf(team) >= 0) || { level: lg.divisionLevel, name: lg.divisionName };
     c.spells.push(newSpell(lg, team, d.level, d.name));
     const sp = cur(lg); lg.fixtures.filter((f) => f.played && (f.homeId === team.id || f.awayId === team.id)).forEach(() => {});   // (the record starts from the day he arrives)
