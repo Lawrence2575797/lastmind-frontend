@@ -874,6 +874,9 @@
     // The keeper without the ball stands on the line from the ball to the middle of his goal, closer to the near post the nearer the ball is, and comes off his line as a sweeper when it is far away.
     if (player.group === 'GK' && !hasBall && !FM.NO_GKT) { const near = clamp((0.4 - b.d) / 0.4, 0, 1); w = 0.5 + (b.w - 0.5) * (0.18 + 0.5 * near); d = 0.02 + 0.11 * clamp((b.d - 0.3) / 0.35, 0, 1) * (1 - near); }
     if (player.group === 'GK' && !hasBall && !FM.NO_GKT) w = clamp(w, 0.5 - 2.9 / W, 0.5 + 2.9 / W);   // a keeper shades toward the ball but stays inside his posts (the goal is 7.3 m wide), whatever corner the ball is in
+    // His team have the ball and it is out of his own third: the keeper stands in the middle of his goal, a few metres off the line. The advanced place the build-up board gives him is for the
+    // goal kick and for the ball played back to him; it does not leave him on the edge of the box while the play is at the other end.
+    if (player.group === 'GK' && hasBall && !FM.NO_GKT && b.d > 0.3) { w = 0.5; d = 0.035 + 0.05 * clamp((0.5 - b.d) / 0.2, 0, 1); }
     if (player.group === 'GK') d = clamp(d, 0.02, 0.2);
     d = clamp(d, 0.02, 0.97);
     w = clamp(w, 0.04, 0.96);
