@@ -2283,7 +2283,7 @@
   // When something worth studying happens (a goal either way, a big chance, a build-up from the back that reaches the final
   // third) the last few seconds are cut out as a clip, with the passes and shots in it, for the Analysis Centre to replay.
   // Coordinates are stored as whole decimetres to keep a season's worth small.
-  const CLIP_DT = 1 / 3, BUFFER_SECONDS = 32;
+  const CLIP_DT = 0.1, CLIP_STORE_EVERY = 3, BUFFER_SECONDS = 32;   // the recording keeps every step of the match (ten a second) so a highlight replays smoothly; the clips kept for the Analysis Centre keep one in three, as before
   function recordFrame(match) {
     const r = match.rec;
     if (!r || match.clock < r.next) return;
@@ -2295,7 +2295,7 @@
   }
   function extractClip(match, spec) {
     const r = match.rec, d1 = (v) => Math.round(v * 10);
-    const frames = r.buf.filter((f) => f.t >= spec.from && f.t <= spec.to + 1e-6).concat(spec.tail || []);
+    const frames = r.buf.filter((f) => f.t >= spec.from && f.t <= spec.to + 1e-6).filter((f, i, all) => i % CLIP_STORE_EVERY === 0 || i === all.length - 1).concat(spec.tail || []);
     if (frames.length < 4) return;
     const roster = [[], []];
     frames.forEach((f) => { f.h.forEach((q) => { if (roster[0].indexOf(q[0]) < 0) roster[0].push(q[0]); }); f.a.forEach((q) => { if (roster[1].indexOf(q[0]) < 0) roster[1].push(q[0]); }); });
