@@ -389,40 +389,59 @@
   }
   FM.bizApprovals = (lg) => { const b = FM.biz(lg); return { financial: b.approvalFin, football: Number.isFinite(lg.boardApproval) ? lg.boardApproval : 50, share: b.shares.price, prevShare: b.lastShare }; };
 
-  // ---------- a vote of no confidence ----------
-  // There is no approval figure at which a manager is sacked. Every matchday the shareholders weigh up how unhappy they are (how the football is going, how the finances are, how far the
-  // club is below the place they were promised, and whether the results are turning) against how patient they are this season, and the unease builds up while they are unhappy and
-  // fades while they are not. How much they will put up with differs from one season to the next, and when it runs out they call a vote; the vote itself is a close thing or not
-  // depending on how much support the manager has, and he can survive it however it looks.
+  // ---------- the board's patience, and the final warning ----------
+  // The football and the finances are judged on their own: good finances do not make up for bad football, nor the other way round. Each is held against what THIS board expects of
+  // the club this season (an ambitious board expecting a title challenge wants a high approval and loses patience at 40%; a board expecting a fight against relegation puts up
+  // with 15%), and each builds up unease while it is below that and fades while it is not. How much unease a board will stand differs from one season to the next. When one of
+  // them is nearly spent the board does not simply sack the manager: it sends him a final warning, an ultimatum for the next match (or, for the money, the next few). Meet it
+  // and the pressure comes off; fail it and he is dismissed.
+  function boardLine(lg, c) {
+    if (c.pSeason === lg.season && c.footFloor != null) return;
+    const r = FM.mulberry32(lg.seed + (lg.runSeed || 0) + lg.season * 977);
+    let n = 8; try { n = Math.max(2, FM.tableRows(lg).length); } catch (e) { /* the usual eight */ }
+    const exp = (lg.board && lg.board.expectedPosition) || Math.ceil(n / 2), ambition = 1 - (exp - 1) / (n - 1);
+    c.pSeason = lg.season;
+    c.footFloor = Math.round(clamp(12 + 34 * ambition + (r() - 0.5) * 10, 12, 46));   // the approval this board expects the football to keep at
+    c.finFloor = Math.round(clamp(14 + 26 * r(), 14, 40));
+    c.footLimit = 1.0 + 1.1 * r(); c.finLimit = 1.0 + 1.1 * r(); c.footU = 0; c.finU = 0; c.ult = null; c.expPos = exp;
+  }
   function confidenceCheck(lg, b, fx) {
     const ap = FM.bizApprovals(lg), c = b.conf;
     if (c.dismissed) return;
-    const rng = FM.mulberry32(lg.seed + (lg.runSeed || 0) + lg.season * 4421 + fx.round * 61);
-    // this season's patience, drawn once: how unhappy they have to be before the unease starts to build, and how much of it they will stand
-    if (c.pSeason !== lg.season || c.tol == null) { const r2 = FM.mulberry32(lg.seed + (lg.runSeed || 0) + lg.season * 977); c.pSeason = lg.season; c.tol = 0.42 + 0.14 * r2(); c.limit = 1.0 + 1.1 * r2(); c.unease = 0; }
+    boardLine(lg, c);
     let rows = []; try { rows = FM.tableRows(lg); } catch (e) { rows = []; }
-    const me = rows.find((r) => r.id === lg.userId), n = Math.max(1, rows.length), pos = rows.findIndex((r) => r.id === lg.userId) + 1, exp = (lg.board && lg.board.expectedPosition) || Math.ceil(n / 2), played = me ? me.p : 0;
-    const below = played >= 3 ? Math.max(0, pos - exp) / n : 0;                              // how far under the place they were promised
-    const form = (() => { try { const last = lg.fixtures.filter((f) => f.played && (f.homeId === lg.userId || f.awayId === lg.userId)).sort((x, y) => x.round - y.round).slice(-4); return last.length ? last.filter((f) => (f.homeId === lg.userId ? f.hg < f.ag : f.ag < f.hg)).length / last.length : 0; } catch (e) { return 0; } })();   // share of the last few that were lost
-    const unhappy = 0.38 * (1 - ap.football / 100) + 0.27 * (1 - ap.financial / 100) + 0.9 * below + 0.2 * form;
-    c.unease = Math.max(0, c.unease * (unhappy < c.tol ? 0.8 : 1) + (unhappy - c.tol) * 0.55);
-    const share = c.unease / c.limit;
-    c.low = share > 0.75 ? 3 : share > 0.45 ? 2 : share > 0.15 ? 1 : 0;   // (what the pages say: how far the shareholders have lost faith)
+    const me = rows.find((r) => r.id === lg.userId), n = Math.max(1, rows.length), pos = rows.findIndex((r) => r.id === lg.userId) + 1, played = me ? me.p : 0;
+    const home = fx && fx.homeId === lg.userId, gf = fx ? (home ? fx.hg : fx.ag) : 0, ga = fx ? (home ? fx.ag : fx.hg) : 0, userFx = !!(fx && (fx.homeId === lg.userId || fx.awayId === lg.userId) && fx.hg != null);
     const push = (headline, body) => FM.pushNews(lg, { round: fx.round, day: lg.day, kind: 'Board', headline, body, club: lg.userId, mine: true });
-    if (share > 0.3 && !c.told1) { c.told1 = true; push('Shareholders voice concern', 'The shareholders have written to the manager about the state of the club. Another bad run and they will call a vote.'); }
-    if (share > 0.65 && !c.told2) { c.told2 = true; push('Shareholders threaten a vote of no confidence', 'The board has told the press it is considering a vote of no confidence in the manager if things do not improve at once.'); }
-    if (share < 0.1) { c.told1 = false; c.told2 = false; }
-    if (share >= 1) {
-      const overall = (ap.financial + ap.football) / 2, support = clamp(Math.round(overall + (rng() - 0.5) * 18 + 8 - 60 * below), 0, 100);
-      const survived = rng() < clamp((support - 15) / 55, 0.05, 0.95);   // no fixed percentage decides it: the more support the likelier he stays
-      c.vote = { round: fx.round + 1, season: lg.season, support, against: 100 - support, survived, seen: false };
-      c.unease = c.limit * 0.35; c.told1 = false; c.told2 = false;
-      if (survived) {
-        b.approvalFin = Math.max(b.approvalFin, 38); lg.boardApproval = Math.max(Number.isFinite(lg.boardApproval) ? lg.boardApproval : 50, 38);
-        push('The manager survives a vote of no confidence', `The shareholders voted ${support}% in support and ${100 - support}% against. The manager stays, on notice.`);
+    // an ultimatum already given is settled first
+    const u = c.ult;
+    if (u && fx.round > u.issued) {
+      if (u.kind === 'football' && userFx) {
+        const met = u.demand === 'win' ? gf > ga : gf >= ga;
+        if (met) { c.ult = null; c.footU = c.footLimit * 0.45; c.cleared = { kind: 'football', round: fx.round, seen: false }; push('The board backs off', 'The result answered the final warning. The board has told the manager the matter is closed for now, but they will be watching.'); }
+        else { c.dismissed = true; c.sack = { kind: 'football', round: fx.round, approval: ap.football, floor: c.footFloor, demand: u.demand, seen: false }; push('The manager is sacked', 'The board had given the manager a final warning and the result did not answer it. He has been dismissed.'); return; }
+      } else if (u.kind === 'finance' && fx.round >= u.deadline) {
+        if (ap.financial >= c.finFloor + 5) { c.ult = null; c.finU = c.finLimit * 0.45; c.cleared = { kind: 'finance', round: fx.round, seen: false }; push('The board backs off', 'The finances have been put back in order and the board has told the manager the matter is closed for now.'); }
+        else { c.dismissed = true; c.sack = { kind: 'finance', round: fx.round, approval: ap.financial, floor: c.finFloor, seen: false }; push('The manager is sacked', 'The board had given the manager a final warning about the finances and they were not put right. He has been dismissed.'); return; }
+      }
+    }
+    // pressure from each: how far under what the board expects (and, for the football, how far under the promised place and how the last few results went)
+    const below = played >= 3 ? Math.max(0, pos - c.expPos) / n : 0;
+    const lost = (() => { try { const last = lg.fixtures.filter((f) => f.played && (f.homeId === lg.userId || f.awayId === lg.userId)).sort((x, y) => x.round - y.round).slice(-4); return last.length ? last.filter((f) => (f.homeId === lg.userId ? f.hg < f.ag : f.ag < f.hg)).length / last.length : 0; } catch (e) { return 0; } })();
+    const pFoot = clamp((c.footFloor + 12 - ap.football) / 30, 0, 1.4) + 0.8 * below + 0.2 * lost, pFin = clamp((c.finFloor + 12 - ap.financial) / 30, 0, 1.4);
+    const step = (u0, p) => Math.max(0, u0 * (p < 0.05 ? 0.8 : 1) + (p - 0.12) * 0.6);
+    c.footU = step(c.footU, pFoot); c.finU = step(c.finU, pFin);
+    const sf = c.footU / c.footLimit, sn = c.finU / c.finLimit, share = Math.max(sf, sn);
+    c.low = share > 0.75 ? 3 : share > 0.45 ? 2 : share > 0.15 ? 1 : 0;   // (what the pages say: how far the board has lost faith)
+    if (!c.ult && (sf >= 0.8 || sn >= 0.8) && userFx) {
+      const kind = sf >= sn ? 'football' : 'finance', rows2 = n;
+      if (kind === 'football') {
+        const demand = c.expPos <= Math.ceil(rows2 / 3) ? 'win' : 'avoid defeat';
+        c.ult = { kind, demand, issued: fx.round, approval: ap.football, floor: c.footFloor, expPos: c.expPos, pos, seen: false };
+        push('Final warning from the board', 'The board has told the manager that the football is not good enough: ' + (demand === 'win' ? 'win the next match or he is gone.' : 'he cannot lose the next match.'));
       } else {
-        c.dismissed = true;
-        push('The manager is sacked after a vote of no confidence', `The shareholders voted ${support}% in support and ${100 - support}% against. The board has dismissed the manager.`);
+        c.ult = { kind, issued: fx.round, deadline: fx.round + 3, approval: ap.financial, floor: c.finFloor, seen: false };
+        push('Final warning from the board', 'The board has told the manager that the finances must be put right within three matchdays or he is gone.');
       }
     }
   }

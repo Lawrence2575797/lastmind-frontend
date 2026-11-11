@@ -979,21 +979,40 @@
     }, 40);
   });
 
-  // A vote of no confidence: the result is shown, and a manager who lost it is dismissed and has to start again.
+  // The board's two big moments are played as a scene in the middle of the screen: the final warning (an ultimatum for the next match, brought by the assistant manager, with the board's
+  // approval and what this board expects) and the dismissal. Each has a picture behind it (assets/board_warning.jpg, assets/board_sacked.jpg); without one the scene is plain.
   function boardVerdict(lg, done) {
-    const b = lg.biz, v = b && b.conf && b.conf.vote;
-    if (!b || !b.conf || ((!v || v.seen) && !b.conf.dismissed)) { done(); return; }
-    if (v) v.seen = true;
-    const gone = !!b.conf.dismissed, shade = document.createElement('div');
-    shade.className = 'verdict'; shade.setAttribute('role', 'dialog'); shade.setAttribute('aria-modal', 'true');
-    const sup = v ? v.support : 0, against = v ? v.against : 100;
-    shade.innerHTML = `<div class="card"><div class="eyebrow">The shareholders' meeting</div><h2>${gone ? 'You have been dismissed' : 'You survive the vote'}</h2>
-      <p class="desc">${v ? `The shareholders voted on a motion of no confidence in the manager: <b>${sup}% in support</b>, <b>${against}% against</b>. ` : ''}${gone ? 'The board has dismissed you as manager of ' + userTeam().name + '. The accounts and the results were not good enough.' : 'The manager stays, but on notice: the board has been told things have to improve.'}</p>
-      <div class="row"><button class="primary" id="vdGo">${gone ? 'Start a new game' : 'Carry on'}</button></div></div>`;
+    const b = lg.biz, c = b && b.conf; if (!c) { done(); return; }
+    const team = userTeam(), ordinalS = (n) => n + (['th', 'st', 'nd', 'rd'][(n % 100 > 10 && n % 100 < 14) ? 0 : (n % 10 < 4 ? n % 10 : 0)]);
+    let kind = null;
+    if (c.dismissed) kind = 'sack';   // a dismissed manager always meets this scene again until he starts over
+    else if (c.ult && !c.ult.seen) kind = 'warn';
+    else if (c.cleared && !c.cleared.seen) kind = 'clear';
+    if (!kind) { done(); return; }
+    const u = c.ult || {}, k = c.sack || c.cleared || u, foot = (k.kind || u.kind) === 'football';
+    let tag, title, text, img, btn;
+    if (kind === 'warn') {
+      tag = 'A word from the board'; title = 'Final warning'; img = 'board_warning.jpg'; btn = 'I understand';
+      text = u.kind === 'football'
+        ? `Francesco has come to see you with a message from the chairman. The board's approval of the football stands at <b>${Math.round(u.approval)}%</b>, and this season they expect it to stay above <b>${u.floor}%</b>, with the club ${u.expPos <= 3 ? 'in the top ' + u.expPos : 'finishing ' + ordinalS(u.expPos)}. You are ${ordinalS(u.pos)}. <b>${u.demand === 'win' ? 'If we do not win the next match, you are gone.' : 'If we lose the next match, you are gone.'}</b>`
+        : `Francesco has come to see you with a message from the chairman. The board's approval of the finances stands at <b>${Math.round(u.approval)}%</b>, and this season they expect it to stay above <b>${u.floor}%</b>. <b>If the finances are not put right within the next three matchdays, you are gone.</b>`;
+    } else if (kind === 'clear') {
+      tag = 'A word from the board'; title = 'The board backs off'; img = 'board_warning.jpg'; btn = 'Carry on';
+      text = k.kind === 'football' ? 'The result answered the final warning. The chairman has told Francesco the matter is closed for now. They will be watching.' : 'The finances are back in order and the chairman has told Francesco the matter is closed for now. They will be watching.';
+    } else {
+      tag = 'The boardroom'; title = 'You have been dismissed'; img = 'board_sacked.jpg'; btn = 'Start a new game';
+      const s0 = c.sack || {};
+      text = s0.kind === 'finance' ? `The finances were not put right in the time the board gave you, and the chairman has asked you to clear your desk at ${team.name}.` : `The result did not answer the board's final warning. The chairman has asked you to clear your desk at ${team.name}.`;
+    }
+    if (kind === 'warn') u.seen = true; else if (kind === 'clear') c.cleared.seen = true; else if (c.sack) c.sack.seen = true;
+    const shade = document.createElement('div');
+    shade.className = 'verdict cutscene'; shade.setAttribute('role', 'dialog'); shade.setAttribute('aria-modal', 'true');
+    shade.innerHTML = `<div class="vd-scene" style="background-image:url('/create/football/assets/${img}')"><div class="vd-shade"></div><div class="vd-body"><div class="eyebrow">${tag}</div><h2>${title}</h2><p class="desc">${text}</p><div class="row"><button class="primary" id="vdGo">${btn}</button></div></div></div>`;
     document.body.appendChild(shade);
+    if (!document.getElementById('vdCss')) { const st = document.createElement('style'); st.id = 'vdCss'; st.textContent = '.verdict.cutscene{background:rgba(0,0,0,.82)}.vd-scene{position:relative;width:min(760px,100%);min-height:420px;display:grid;align-items:end;background:#13201a center/cover no-repeat;border:1px solid rgba(255,255,255,.18);box-shadow:0 30px 80px rgba(0,0,0,.6);overflow:hidden}.vd-shade{position:absolute;inset:0;background:linear-gradient(to top,rgba(5,10,8,.96) 8%,rgba(5,10,8,.55) 55%,rgba(5,10,8,.2))}.vd-body{position:relative;padding:28px 30px 26px;display:grid;gap:10px}.vd-body h2{font-size:clamp(1.8rem,4vw,2.6rem);margin:0;color:#fff;line-height:1.05}.vd-body .desc{color:#e8e2d2;font-size:1.02rem;line-height:1.55;max-width:60ch}.vd-body .eyebrow{color:#e6c66a}'; document.head.appendChild(st); }
     shade.querySelector('#vdGo').addEventListener('click', () => {
       shade.remove();
-      if (gone) { try { FM.clearSave(); } catch (e) { /* fine */ } location.href = cleanUrl() + (DEMO_MODE ? '&new=1' : '?new=1'); return; }
+      if (kind === 'sack') { try { FM.clearSave(); } catch (e) { /* fine */ } location.href = cleanUrl() + (DEMO_MODE ? '&new=1' : '?new=1'); return; }
       FM.saveLeague(lg); done();
     });
   }
