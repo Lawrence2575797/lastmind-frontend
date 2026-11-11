@@ -237,7 +237,7 @@
           <div class="rc-chat">${hist}</div>
           <label>Weekly wage (£k)<input id="rcRnWage" type="number" step="0.5" min="0" value="${r1(rn.wageCur)}"></label>
           <label>Contract<select id="rcRnYears">${[1, 2, 3, 4, 5].map((y) => `<option value="${y}"${y === (rn.years || 3) ? ' selected' : ''}>${y} year${y === 1 ? '' : 's'}</option>`).join('')}</select></label>
-          <div><button type="button" id="rcRnAccept" class="primary">Accept ${r1(rn.wageCur)}k a week</button> <button type="button" id="rcRnGo">Offer the figure above</button> <button type="button" id="rcRnWalk">End the talks</button></div></div>`;
+          ${(() => { const g = wageGuard(league, p, r1(rn.wageCur * 1), msg); return `<div><button type="button" id="rcRnAccept" class="primary"${g.need > 1e-9 ? ' disabled title="You cannot afford this wage"' : ''}>Accept ${r1(rn.wageCur)}k a week</button> <button type="button" id="rcRnGo">Offer the figure above</button> <button type="button" id="rcRnWalk">End the talks</button></div>${g.html}`; })()}</div>`;
       } else action += `<div class="rc-actions"><button type="button" id="rcRnStart" class="primary">Negotiate a new contract</button></div>${msg ? `<p class="rc-msg">${esc(msg)}</p>` : ''}`;
     }
     else if (club && club.isPool) {
@@ -250,7 +250,7 @@
           <div class="rc-chat">${hist}</div>
           <label>Weekly wage (£k)<input id="rcWage" type="number" step="0.5" min="0" value="${r1(deal.wageCur)}"></label>
           <label>Contract<select id="rcYears">${[1, 2, 3, 4, 5].map((y) => `<option value="${y}"${y === (deal.years || 3) ? ' selected' : ''}>${y} year${y === 1 ? '' : 's'}</option>`).join('')}</select></label>
-          <div><button type="button" id="rcWageAccept" class="primary">Accept ${r1(deal.wageCur)}k a week</button> <button type="button" id="rcWageGo">Offer the figure above</button> <button type="button" id="rcWalk">Walk away</button></div></div>`;
+          ${(() => { const g = wageGuard(league, p, r1(deal.wageCur), msg); return `<div><button type="button" id="rcWageAccept" class="primary"${g.need > 1e-9 ? ' disabled title="You cannot afford this wage"' : ''}>Accept ${r1(deal.wageCur)}k a week</button> <button type="button" id="rcWageGo">Offer the figure above</button> <button type="button" id="rcWalk">Walk away</button></div>${g.html}`; })()}</div>`;
       }
       if (stage === 'collapsed') action += '<p class="note">That deal has fallen through. You can open talks again.</p>';
     } else {
@@ -276,7 +276,7 @@
           <div class="rc-chat">${hist}</div>
           <label>Weekly wage (£k)<input id="rcWage" type="number" step="0.5" min="0" value="${r1(deal.wageCur)}"></label>
           <label>Contract<select id="rcYears">${[1, 2, 3, 4, 5].map((y) => `<option value="${y}"${y === (deal.years || 3) ? ' selected' : ''}>${y} year${y === 1 ? '' : 's'}</option>`).join('')}</select></label>
-          <div><button type="button" id="rcWageAccept" class="primary">Accept ${r1(deal.wageCur)}k a week</button> <button type="button" id="rcWageGo">Offer the figure above</button> <button type="button" id="rcWalk">Reject and walk away</button></div></div>`;
+          ${(() => { const g = wageGuard(league, p, r1(deal.wageCur), msg); return `<div><button type="button" id="rcWageAccept" class="primary"${g.need > 1e-9 ? ' disabled title="You cannot afford this wage"' : ''}>Accept ${r1(deal.wageCur)}k a week</button> <button type="button" id="rcWageGo">Offer the figure above</button> <button type="button" id="rcWalk">Reject and walk away</button></div>${g.html}`; })()}</div>`;
       }
       if (stage === 'collapsed') action += '<p class="note">That deal has fallen through. You can declare interest or approach again.</p>';
     }
@@ -340,9 +340,22 @@
     on('#rcRnStart', () => { const out = FM.startRenewal(league, p.id); say(out.ok ? '' : out.text); });
     on('#rcRnGo', () => { const out = FM.offerRenewal(league, p.id, side.querySelector('#rcRnWage').value, side.querySelector('#rcRnYears').value); say(out.status === 'signed' ? out.text : (out.text || '')); });
     on('#rcRnAccept', () => { const rn = FM.renewalFor(league, p.id), years = side.querySelector('#rcRnYears').value, out = FM.offerRenewal(league, p.id, rn ? FM.renewalAsk(rn, Number(years)) : 0, years); say(out.status === 'signed' ? out.text : (out.text || '')); });
+    { const sl = side.querySelector('#rcShift'), rd = side.querySelector('#rcShiftRead');
+      if (sl && rd) sl.addEventListener('input', () => { const k = +sl.value, tb = +rd.dataset.tb, wr = +rd.dataset.wr; rd.textContent = k === 0 ? 'No change: transfer budget ' + FM.money(tb) + ', wage room ' + wr + 'k a week.' : 'Transfer budget ' + FM.money(tb) + ' to ' + FM.money(Math.max(0, tb - k * FM.SHIFT_RATE)) + ', wage room ' + wr + 'k to ' + (wr + k) + 'k a week.'; });
+      on('#rcShiftApply', () => { const out = FM.shiftBudget(league, sl ? sl.value : 0); say(out.text); }); }
     on('#rcRnWalk', () => { FM.endRenewal(league, p.id); say('You ended the talks.'); });
   }
   const r1 = (v) => Math.round(v * 10) / 10;
+  // A wage you cannot afford: said plainly, with the way to afford it, and the answer is never silent. The slider moves money between the transfer budget and the wage budget.
+  function wageGuard(league, p, wage, msg) {
+    const me = FM.teamById(league, league.userId), room = FM.wageRoom(league, me.id), need = r1(wage - FM.wageOf(p) - room), L = FM.budgetShiftLimits(league), t = FM.transfer(league);
+    const warn = need > 1e-9 ? `<p class="rc-msg rc-warn">You cannot afford ${r1(wage)}k a week: it needs ${need}k a week more wage room than you have${L.max >= Math.ceil(need) ? ', which you can move across from the transfer budget below' : ', and the transfer budget cannot cover it'}.</p>` : '';
+    const shift = `<details class="rc-shift"${need > 1e-9 ? ' open' : ''}><summary>Move money between the transfer and wage budgets</summary>
+      <div class="rc-shift-body"><input id="rcShift" type="range" min="${L.min}" max="${L.max}" step="1" value="0" aria-label="Wage room to move, in thousands a week"><div class="rc-shift-read" id="rcShiftRead" data-tb="${t.budget[me.id] || 0}" data-wr="${room}">No change: transfer budget ${FM.money(t.budget[me.id] || 0)}, wage room ${room}k a week.</div>
+      <p class="note">Each £1k a week of wage room costs £${FM.SHIFT_RATE}m of transfer budget. Slide right for more wages, left for more to spend on fees.</p><button type="button" id="rcShiftApply">Move it</button></div></details>`;
+    const css = '<style>.rc-warn{color:#ffb3a8;font-weight:600}.rc-shift{margin-top:10px;border-top:1px solid rgba(255,255,255,.15);padding-top:8px}.rc-shift summary{cursor:pointer;font-weight:700}.rc-shift-body{display:grid;gap:8px;margin-top:8px}.rc-shift input[type=range]{width:100%}.rc-shift-read{font-variant-numeric:tabular-nums}</style>';
+    return { need, html: css + warn + shift + (msg ? `<p class="rc-msg">${esc(msg)}</p>` : '') };
+  }
 
   // ---------- the news ----------
   const ns = { mine: false, open: null };

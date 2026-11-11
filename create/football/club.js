@@ -426,7 +426,7 @@
     // everything is released, as it always was).
     const pool = Math.max(0, b.cash - (bd.reserve || 0)), pct = bd.pct != null ? bd.pct : 100;
     const pf = Math.min(Math.max(0, b.prizeFund || 0), pool);   // cup prize money is released in full, not at the board's usual share
-    t.budget[lg.userId] = Math.round(((pool - pf) * pct / 100 + pf) / 1e5) / 10;   // £m, to one decimal
+    t.budget[lg.userId] = Math.max(0, Math.round(((pool - pf) * pct / 100 + pf) / 1e5) / 10 - (t.wageShift || 0) * (FM.SHIFT_RATE || 0.1));   // £m, to one decimal, less what has been moved into the wage budget
   };
   // Called by the transfer code when a player moves between clubs.
   // A payment plan: the fee is paid in parts (the first now), and the whole plan costs a little more than paying at once. parts is [[share, matchdays from now], ...].

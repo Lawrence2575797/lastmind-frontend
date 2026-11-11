@@ -49,6 +49,18 @@
     if (r < 6) return { open: false, label: 'Window closed', left: 0, text: 'The window is closed. The winter window opens after ' + plural(6 - r) + '.' };
     return { open: false, label: 'Window closed', left: 0, text: 'The window is closed until next summer.' };
   };
+  // Money can be moved between the transfer budget (spent once) and the wage budget (spent every week): each £1k a week of wage room costs £0.1m of the transfer budget, and the other way round.
+  // The amount moved is kept (t.wageShift) so the board's regular recalculation of the transfer budget keeps it.
+  FM.SHIFT_RATE = 0.1;
+  FM.budgetShiftLimits = (league) => { const t = FM.transfer(league), me = league.userId; return { min: -Math.floor(Math.max(0, FM.wageRoom(league, me))), max: Math.floor(Math.max(0, t.budget[me] || 0) / FM.SHIFT_RATE) }; };
+  FM.shiftBudget = function (league, kWeek) {
+    const t = FM.transfer(league), me = league.userId, L = FM.budgetShiftLimits(league); kWeek = Math.round(Number(kWeek) || 0);
+    if (!kWeek) return { ok: false, text: 'Nothing to move.' };
+    if (kWeek < L.min || kWeek > L.max) return { ok: false, text: kWeek > 0 ? 'The transfer budget cannot pay for that much wage room.' : 'That would take the wage budget below what the squad is already paid.' };
+    t.wageBudget[me] = r1((t.wageBudget[me] || 0) + kWeek); t.wageShift = (t.wageShift || 0) + kWeek;
+    t.budget[me] = Math.max(0, r1((t.budget[me] || 0) - kWeek * FM.SHIFT_RATE));
+    return { ok: true, text: kWeek > 0 ? 'Moved ' + FM.money(kWeek * FM.SHIFT_RATE) + ' of the transfer budget into ' + kWeek + 'k a week of wage room.' : 'Moved ' + (-kWeek) + 'k a week of wage room into ' + FM.money(-kWeek * FM.SHIFT_RATE) + ' of transfer budget.' };
+  };
   // A transfer ban (one of the situations the board can be in at the start of a game): the club cannot buy or sign anyone until it is over, but it can still sell.
   FM.transferBan = function (league) {
     if (league.mp || !league.biz || !league.biz.board) return null;
@@ -84,6 +96,7 @@
     const prev = Number.isFinite(t.budget[team.id]) ? Math.max(0, t.budget[team.id]) : 0;
     t.budget[team.id] = r1(bk.money + Math.min(prev, bk.money * 0.5) * 0.3);
     t.wageBudget[team.id] = r1(team.squad.reduce((a, p) => a + FM.wageOf(p), 0) + bk.wageRoom);
+    if (team.id === league.userId) t.wageShift = 0;   // a new season's money starts from the new figures
     return bk;
   };
   const backingStory = (league, team, bk) => {
