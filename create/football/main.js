@@ -245,6 +245,7 @@
   }
   let last = performance.now();
   function frame(now) {
+    { const ld = document.getElementById('fmLoading'); if (ld) ld.remove(); }   // the page has loaded: the spinner goes
     const dt = Math.min(0.1, (now - last) / 1000);
     world.frameDt = dt; world.simDt = 0;
     last = now;
