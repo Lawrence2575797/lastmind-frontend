@@ -452,9 +452,12 @@
   FM.bizBoardCatchUp = function (lg) {
     const b = FM.biz(lg), c = b && b.conf; if (!c || c.dismissed || lg.mp) return;
     boardLine(lg, c);
+    // a manager who has just arrived at the club starts clean: nothing that happened before he came counts against him, and a warning that was worked out from those matches goes
+    const sp = lg.career && lg.career.spells ? lg.career.spells[lg.career.spells.length - 1] : null, arrived = sp && sp.from && sp.from.season === lg.season ? sp.from.round : 0;
+    if (arrived > 0 && c.ult && c.ult.issued < arrived) { c.ult = null; c.footU = 0; c.finU = 0; c.cuSeason = lg.season; c.low = 0; }
     if (c.cuSeason === lg.season) return;
     c.cuSeason = lg.season;
-    const ap = FM.bizApprovals(lg), mine = lg.fixtures.filter((f) => f.played && (f.homeId === lg.userId || f.awayId === lg.userId)).sort((x, y) => x.round - y.round);
+    const ap = FM.bizApprovals(lg), mine = lg.fixtures.filter((f) => f.played && (f.homeId === lg.userId || f.awayId === lg.userId)).sort((x, y) => x.round - y.round).slice(arrived);   // only his own matches
     if (!mine.length) return;
     const ids = lg.teams.map((t) => t.id), n = Math.max(2, ids.length), step = (u0, p) => Math.max(0, u0 * (p < 0.05 ? 0.8 : 1) + (p - 0.12) * 0.6);
     const results = [];

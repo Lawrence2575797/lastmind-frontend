@@ -129,7 +129,7 @@
     const t = FM.transfer(lg); t.shortlist = []; t.deals = {}; t.offers = []; t.wageShift = 0; t.renewals = {};
     lg._newClub = true; lg._forceKind = t.backing && t.backing[team.id] ? t.backing[team.id].kind : null; lg.biz = null; FM.biz(lg); delete lg._newClub; delete lg._forceKind;
     lg.boardApproval = 50; lg.publicOpinion = 50; if (FM.setBoardExpectation) FM.setBoardExpectation(lg, true);
-    if (lg.biz && lg.biz.conf) { lg.biz.conf.dismissed = false; }
+    if (lg.biz && lg.biz.conf) { lg.biz.conf.dismissed = false; lg.biz.conf.cuSeason = lg.season; lg.biz.conf.ult = null; lg.biz.conf.sack = null; lg.biz.conf.cleared = null; }   // a clean start: the board's tally begins with his first match
     if (team.tacticalFamiliarity) team.tacticalFamiliarity = { score: 55, delta: 0 };
     if (FM.bizSyncBudget) FM.bizSyncBudget(lg);
     c.offers.forEach((o) => { if (o.status === 'open') o.status = o.id === offer.id ? 'taken' : 'closed'; }); c.sackOffers = [];
