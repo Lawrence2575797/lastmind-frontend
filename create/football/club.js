@@ -390,22 +390,33 @@
   FM.bizApprovals = (lg) => { const b = FM.biz(lg); return { financial: b.approvalFin, football: Number.isFinite(lg.boardApproval) ? lg.boardApproval : 50, share: b.shares.price, prevShare: b.lastShare }; };
 
   // ---------- a vote of no confidence ----------
-  // When the shareholders have little faith in the club for three matchdays running, they call a vote. The result depends on how much support
-  // the manager still has.
+  // There is no approval figure at which a manager is sacked. Every matchday the shareholders weigh up how unhappy they are (how the football is going, how the finances are, how far the
+  // club is below the place they were promised, and whether the results are turning) against how patient they are this season, and the unease builds up while they are unhappy and
+  // fades while they are not. How much they will put up with differs from one season to the next, and when it runs out they call a vote; the vote itself is a close thing or not
+  // depending on how much support the manager has, and he can survive it however it looks.
   function confidenceCheck(lg, b, fx) {
-    const ap = FM.bizApprovals(lg), overall = (ap.financial + ap.football) / 2, c = b.conf;
+    const ap = FM.bizApprovals(lg), c = b.conf;
     if (c.dismissed) return;
-    const low = overall < 30 || ap.financial < 18;
-    c.low = low ? c.low + 1 : 0;
+    const rng = FM.mulberry32(lg.seed + (lg.runSeed || 0) + lg.season * 4421 + fx.round * 61);
+    // this season's patience, drawn once: how unhappy they have to be before the unease starts to build, and how much of it they will stand
+    if (c.pSeason !== lg.season || c.tol == null) { const r2 = FM.mulberry32(lg.seed + (lg.runSeed || 0) + lg.season * 977); c.pSeason = lg.season; c.tol = 0.42 + 0.14 * r2(); c.limit = 1.0 + 1.1 * r2(); c.unease = 0; }
+    let rows = []; try { rows = FM.tableRows(lg); } catch (e) { rows = []; }
+    const me = rows.find((r) => r.id === lg.userId), n = Math.max(1, rows.length), pos = rows.findIndex((r) => r.id === lg.userId) + 1, exp = (lg.board && lg.board.expectedPosition) || Math.ceil(n / 2), played = me ? me.p : 0;
+    const below = played >= 3 ? Math.max(0, pos - exp) / n : 0;                              // how far under the place they were promised
+    const form = (() => { try { const last = lg.fixtures.filter((f) => f.played && (f.homeId === lg.userId || f.awayId === lg.userId)).sort((x, y) => x.round - y.round).slice(-4); return last.length ? last.filter((f) => (f.homeId === lg.userId ? f.hg < f.ag : f.ag < f.hg)).length / last.length : 0; } catch (e) { return 0; } })();   // share of the last few that were lost
+    const unhappy = 0.38 * (1 - ap.football / 100) + 0.27 * (1 - ap.financial / 100) + 0.9 * below + 0.2 * form;
+    c.unease = Math.max(0, c.unease * (unhappy < c.tol ? 0.8 : 1) + (unhappy - c.tol) * 0.55);
+    const share = c.unease / c.limit;
+    c.low = share > 0.75 ? 3 : share > 0.45 ? 2 : share > 0.15 ? 1 : 0;   // (what the pages say: how far the shareholders have lost faith)
     const push = (headline, body) => FM.pushNews(lg, { round: fx.round, day: lg.day, kind: 'Board', headline, body, club: lg.userId, mine: true });
-    if (c.low === 1) push('Shareholders voice concern', 'The shareholders have written to the manager about the state of the club. Another bad run and they will call a vote.');
-    if (c.low === 2) push('Shareholders threaten a vote of no confidence', 'The board has told the press it is considering a vote of no confidence in the manager if things do not improve at once.');
-    if (c.low >= 3) {
-      const rng = FM.mulberry32(lg.seed + (lg.runSeed || 0) + lg.season * 4421 + fx.round * 61);
-      const support = clamp(Math.round(overall + (rng() - 0.5) * 14 + 6), 0, 100);
-      const survived = support >= 40;
+    if (share > 0.3 && !c.told1) { c.told1 = true; push('Shareholders voice concern', 'The shareholders have written to the manager about the state of the club. Another bad run and they will call a vote.'); }
+    if (share > 0.65 && !c.told2) { c.told2 = true; push('Shareholders threaten a vote of no confidence', 'The board has told the press it is considering a vote of no confidence in the manager if things do not improve at once.'); }
+    if (share < 0.1) { c.told1 = false; c.told2 = false; }
+    if (share >= 1) {
+      const overall = (ap.financial + ap.football) / 2, support = clamp(Math.round(overall + (rng() - 0.5) * 18 + 8 - 60 * below), 0, 100);
+      const survived = rng() < clamp((support - 15) / 55, 0.05, 0.95);   // no fixed percentage decides it: the more support the likelier he stays
       c.vote = { round: fx.round + 1, season: lg.season, support, against: 100 - support, survived, seen: false };
-      c.low = 0;
+      c.unease = c.limit * 0.35; c.told1 = false; c.told2 = false;
       if (survived) {
         b.approvalFin = Math.max(b.approvalFin, 38); lg.boardApproval = Math.max(Number.isFinite(lg.boardApproval) ? lg.boardApproval : 50, 38);
         push('The manager survives a vote of no confidence', `The shareholders voted ${support}% in support and ${100 - support}% against. The manager stays, on notice.`);
