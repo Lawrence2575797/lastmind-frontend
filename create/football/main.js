@@ -956,7 +956,7 @@
       { const lg = world.league, plan = (lg.tacticalPlans || []).find((p) => p.id === lg.activePlanId), tm = FM.teamById(lg, lg.userId); const changed = tm && world.startSig != null && shapeSig(tm) !== world.startSig; world.startSig = null;
         // positions the manager changed during the match are the shape that was played: the next preparation starts from them, for every phase. Only if nothing was changed does the picked plan go back in.
         // what was dragged during the match belonged to that match only: the team goes back to the plan it kicked off with
-        if (tm && world.matchSnap) { const sn = world.matchSnap; tm.phasePos = JSON.parse(JSON.stringify(sn.phasePos)); tm.shape = JSON.parse(JSON.stringify(sn.shape)); tm.phaseBall = JSON.parse(JSON.stringify(sn.phaseBall)); tm.tactics = Object.assign(FM.defaultTactics(), JSON.parse(JSON.stringify(sn.tactics))); world.matchSnap = null; if (FM.inferShapeTactics) FM.inferShapeTactics(tm); }
+        if (tm && world.matchSnap) { const sn = world.matchSnap; tm.phasePos = JSON.parse(JSON.stringify(sn.phasePos)); tm.shape = JSON.parse(JSON.stringify(sn.shape)); tm.phaseBall = JSON.parse(JSON.stringify(sn.phaseBall)); tm.tactics = Object.assign(FM.defaultTactics(), JSON.parse(JSON.stringify(sn.tactics))); if (sn.plan !== undefined) { tm.plan = sn.plan ? JSON.parse(JSON.stringify(sn.plan)) : tm.plan; tm.rules = JSON.parse(JSON.stringify(sn.rules || [])); } world.matchSnap = null; if (FM.inferShapeTactics) FM.inferShapeTactics(tm); }
         else if (plan && tm && !changed) restorePlan(tm, plan);
         world.scn = {}; }
       // The instructions stay for the next game, to be changed in the same preparation as everything else. One that was written for a single game
@@ -1084,7 +1084,7 @@
     if (world.bg) world.bg.stop(); world.bg = null;
     if (!world.league.mp && !fx.friendly && !fx.cup && FM.roundBackground) { const mref = world.match; world.bg = FM.roundBackground(world.league, fx); world.bg.start(() => ({ alive: world.match === mref, paused: !world.running, over: mref.phase === 'fulltime' })); }
     world.startSig = shapeSig(FM.teamById(world.league, world.league.userId));
-    { const t0 = FM.teamById(world.league, world.league.userId); world.matchSnap = JSON.parse(JSON.stringify({ phasePos: t0.phasePos || {}, shape: t0.shape || {}, phaseBall: t0.phaseBall || {}, tactics: t0.tactics })); world.liveMoved = {}; }
+    { const t0 = FM.teamById(world.league, world.league.userId); world.matchSnap = JSON.parse(JSON.stringify({ phasePos: t0.phasePos || {}, shape: t0.shape || {}, phaseBall: t0.phaseBall || {}, tactics: t0.tactics, plan: t0.plan || null, rules: t0.rules || [] })); world.liveMoved = {}; }   // (what is changed in the match, positions or instructions, is for that match only)
     world.renderPos.clear(); world.renderBall = null;
     world.hl = null; world.hlScanned = null; world.hlWait = null; world.running = true; world.speed = 1; world.highlightsOnly = false; world.highlightUntil = 0; world.highlightSearching = false; world.highlightRevealFrom = 0; world.shownEvents = 0; world.lastStats = ''; world.trails = []; world.impacts = []; world.vt = 0; world.commentaryUntil = 0; world.commentaryTurns = {};
     say('The teams are ready. The match is about to begin.', '', 2.5);
@@ -2774,7 +2774,12 @@
         <div class="row"><button type="button" id="liveReset">Put this page back to the plan</button></div>
       </aside><div class="tb-left">
         ${def ? '<div class="def-sub" role="tablist"><button data-msub="press" class="' + (key === 'press' ? 'on' : '') + '">Pressing their build-up</button><button data-msub="organised" class="' + (key === 'without' ? 'on' : '') + '">Defending your third</button></div>' : ''}
-        <h2>${title}</h2><p class="note" id="liveNote"></p><div id="liveHost"></div></div></div>`;
+        <h2>${title}</h2><p class="note" id="liveNote"></p><div class="live-wrap"><div id="liveHost"></div><section class="card pl-right live-panel" id="livePanel"></section></div></div></div>`;
+    { const ph = tab === 'organised' ? (key === 'press' ? 'press' : 'defence') : tab, pan = host.querySelector('#livePanel');
+      if (pan && FM.planTeamPanelFor && FM.PLAN_TEAM && FM.PLAN_TEAM[ph]) {
+        const paint = () => { pan.innerHTML = '<h4>Team approach: ' + esc(title.toLowerCase()) + '</h4>' + FM.planTeamPanelFor(team, ph); FM.planBindTeamPanel(pan, team, ph, () => { if (FM.inferShapeTactics && false) FM.inferShapeTactics(team); paint(); }); };
+        paint();
+      } else if (pan) pan.remove(); }
     const lh = host.querySelector('#liveHost'); let drag = null, snap = liveSnapshot(team, opp, key);
     const draw = () => { lh.innerHTML = liveBoardSvg(team, opp, key, snap); const ln = host.querySelector('#liveNote'); if (ln) ln.textContent = snap.haveAvg ? 'Where every player on both sides has stood on average in this phase so far (' + Math.round(snap.t / 60 * 10) / 10 + ' minutes of it). It updates as the match plays and holds still when you pause. Drag one of your players to set where he stands in this phase for the rest of the match; nobody else changes.' : 'This phase has not been played for long yet, so your players are shown where your plan has them and theirs where they stand now. It updates as the match plays and holds still when you pause. Drag one of your players to set where he stands in this phase for the rest of the match; nobody else changes.'; };
     draw();

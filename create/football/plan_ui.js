@@ -195,6 +195,12 @@
     return chips + normal(rest);
   }
 
+  // The same team approach buttons for a page, for use beside the live positions board in a match: the instructions set before the match are shown as they stand and can be changed.
+  FM.planTeamPanelFor = (team, ph) => teamPanel(team, ph);
+  FM.planBindTeamPanel = function (root, team, ph, after) {
+    root.querySelectorAll('[data-team-tog]').forEach((b) => b.addEventListener('click', () => { FM.planSetTeam(team, ph, b.dataset.teamTog, b.dataset.v); if (after) after(); }));
+  };
+
   // ---------- zones and triggers ----------
   function planItems(team, ph) {
     const pl = FM.planGet(team), side = SIDE_OF[ph];
