@@ -988,17 +988,26 @@
     const lg = world.league; if (!lg || !o) return;
     if (!sacked && !window.confirm('Take the ' + o.club + ' job? You will leave ' + userTeam().name + '.')) return;
     const res = FM.careerTakeJob(lg, o); if (!res.ok) { window.alert(res.text); return; }
-    try { sessionStorage.setItem('lm-fb-welcome', JSON.stringify({ club: res.club, division: res.division, need: o.need || [], why: o.why || [] })); } catch (e) { /* the welcome is a nicety */ }
+    const payload = { club: res.club, division: res.division, need: o.need || [], why: o.why || [] };
     try { FM.saveLeague(lg); } catch (e) { /* the page reloads from what was saved */ }
     const veil = document.createElement('div'); veil.className = 'verdict cutscene'; veil.innerHTML = '<div class="vd-scene" style="background-image:url(\'/create/football/assets/board_table.jpg?v=2\')"><div class="vd-shade"></div><div class="vd-body vd-wait"><div class="eyebrow">A new job</div><h2>Moving to ' + o.club + '</h2><div class="vd-bar"><i style="width:100%;transition:width 1.4s linear"></i></div></div></div>'; document.body.appendChild(veil);
-    setTimeout(() => location.reload(), 1500);
+    // no reload: the same game goes on, with the new club, from the home page
+    setTimeout(() => {
+      veil.remove();
+      world.match = null; world.fixture = null; world.selSlot = null; world.selBench = null; world.tab = 'squad'; world.testing = false; world.oppMoved = {}; world.liveMoved = {}; world.homeBoard = 'table'; world.running = false;
+      try { saveSoon(); } catch (e) { /* saved with the next change */ }
+      setView('home');
+      showWelcomeData(lg, payload);
+    }, 1200);
   }
   function showWelcome(lg) {
     let w = null; try { w = JSON.parse(sessionStorage.getItem('lm-fb-welcome') || 'null'); sessionStorage.removeItem('lm-fb-welcome'); } catch (e) { w = null; }
-    if (!w) return;
+    if (w) showWelcomeData(lg, w);
+  }
+  function showWelcomeData(lg, w) {
     const shade = document.createElement('div'); shade.className = 'verdict cutscene'; shade.setAttribute('role', 'dialog'); shade.setAttribute('aria-modal', 'true');
     const bd = lg.board || {};
-    shade.innerHTML = '<div class="vd-scene" style="background-image:url(\'/create/football/assets/board_table.jpg?v=2\')"><div class="vd-shade"></div><div class="vd-body"><div class="eyebrow">A new appointment</div><h2>Welcome to ' + esc(w.club) + '</h2><p class="desc">The board has appointed you manager of ' + esc(w.club) + ' in the ' + esc(w.division) + '. ' + esc((w.need && w.need[0]) || '') + (bd.expectedPosition ? ' They expect a finish of ' + bd.expectedPosition + (['th', 'st', 'nd', 'rd'][bd.expectedPosition % 10 < 4 && (bd.expectedPosition % 100 < 11 || bd.expectedPosition % 100 > 13) ? bd.expectedPosition % 10 : 0]) + ' this season.' : '') + '</p><div class="row"><button class="primary" id="vdGo">Take charge</button></div></div></div>';
+    shade.innerHTML = '<div class="vd-scene" style="background-image:url(\'/create/football/assets/board_table.jpg?v=2\')"><div class="vd-shade"></div><div class="vd-body"><div class="eyebrow">A new appointment</div><h2>Welcome to ' + esc(w.club) + '</h2><p class="desc"><b>Francesco:</b> “Welcome to ' + esc(w.club) + ', boss. The board has appointed you to manage the club in the ' + esc(w.division) + '. ' + esc((w.need && w.need[0]) || '') + (bd.expectedPosition ? ' They expect a finish of ' + bd.expectedPosition + (['th', 'st', 'nd', 'rd'][bd.expectedPosition % 10 < 4 && (bd.expectedPosition % 100 < 11 || bd.expectedPosition % 100 > 13) ? bd.expectedPosition % 10 : 0]) + ' this season.' : '') + ' I will be with you every step.”</p><div class="row"><button class="primary" id="vdGo">Take charge</button></div></div></div>';
     document.body.appendChild(shade); shade.querySelector('#vdGo').addEventListener('click', () => shade.remove());
   }
   const nextClubPref = () => { try { return localStorage.getItem('lm-fb-next-club') || null; } catch (e) { return null; } };
