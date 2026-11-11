@@ -94,11 +94,20 @@
   }
 
   // ---------- wages ----------
+  // The transfer budget (spent once) and the wage budget (paid every week) can be traded against each other: a slider for how much wage room to move, with what it does to both shown as it is dragged.
+  function moveBudgetHtml(lg) {
+    const t = FM.transfer(lg), me = lg.userId, L = FM.budgetShiftLimits(lg), tb = t.budget[me] || 0, wr = FM.wageRoom(lg, me);
+    return `<div class="bk-ctl bk-move"><label class="bk-in bk-slide"><span>Move money between the transfer and wage budgets</span><input type="range" data-k="kWeek" data-slide="mv" min="${L.min}" max="${L.max}" step="1" value="0" aria-label="Wage room to move, in thousands a week"></label>
+      <div class="bk-move-read" id="bkMoveRead" data-tb="${tb}" data-wr="${wr}" data-rate="${FM.SHIFT_RATE}">No change: transfer budget ${FM.money(tb)}, wage room ${wr}k a week.</div>
+      <p class="note">Each £1k a week of wage room costs £${FM.SHIFT_RATE}m of the transfer budget. Slide right for more wages, left for more to spend on fees.</p>
+      <button type="button" class="ctl-go" data-live="moveBudget" data-card-key="wage">Move it</button></div>
+      <style>.bk-slide{display:grid;gap:6px;width:100%}.bk-slide input[type=range]{width:100%}.bk-move{display:grid;gap:8px;margin:10px 0}.bk-move-read{font-variant-numeric:tabular-nums}</style>`;
+  }
   function wWages(lg) {
     const f = facts(lg), I = f.I, wk = I.wageBill(lg), season = wk * f.K.ROUNDS, rows = f.b.ledger.filter((e) => e.season === lg.season), rev = rows.length ? rows.reduce((a, e) => a + e.pl.revenue, 0) / rows.length * f.K.ROUNDS : 0, ratio = rev ? 100 * season / rev : 0;
     const top = FM.teamById(lg, lg.userId).squad.slice().sort((a, b) => FM.wageOf(b) - FM.wageOf(a)).slice(0, 5);
     return card('wage', 'Pay and motivation: the wage bill', `The squad costs ${gbp(wk)} a week, ${gbp(season)} a season${rev ? `, which is ${ratio.toFixed(0)}% of this season's projected revenue (the board's guide is 65%)` : ''}.`,
-      table(['Highest paid', 'Wage a week'], top.map((p) => [esc(p.name), gbp(FM.wageOf(p) * 1000)])) + `<div class="bk-ctl"><button type="button" class="ctl-go" data-golive="squad">Open the Squad</button><button type="button" class="ctl-go" data-golive="recruit">Open Recruitment</button></div>`,
+      table(['Highest paid', 'Wage a week'], top.map((p) => [esc(p.name), gbp(FM.wageOf(p) * 1000)])) + moveBudgetHtml(lg) + `<div class="bk-ctl"><button type="button" class="ctl-go" data-golive="squad">Open the Squad</button><button type="button" class="ctl-go" data-golive="recruit">Open Recruitment</button></div>`,
       `Pay is a ${t('Financial motivators')} and, in ${t('Herzberg')}'s terms, a hygiene factor: it stops dissatisfaction but does not on its own motivate. Wages are the club's biggest ${t('Fixed costs')}, so the wage-to-revenue ratio is the first thing to check in ${t('Labour costs')}.`);
   }
 
@@ -153,6 +162,10 @@
         const r = FM.controls.run(lg, id, params, 'manual');
         MSG = { key: btn.dataset.cardKey || (cardEl && cardEl.dataset.card), ok: !!r.ok, text: r.text };
         save && save(); redo();
+      }));
+      host.querySelectorAll('[data-slide="mv"]').forEach((sl) => sl.addEventListener('input', () => {
+        const rd = host.querySelector('#bkMoveRead'); if (!rd) return; const k = +sl.value, tb = +rd.dataset.tb, wr = +rd.dataset.wr, rate = +rd.dataset.rate;
+        rd.textContent = k === 0 ? 'No change: transfer budget ' + FM.money(tb) + ', wage room ' + wr + 'k a week.' : 'Transfer budget ' + FM.money(tb) + ' to ' + FM.money(Math.max(0, tb - k * rate)) + ', wage room ' + wr + 'k to ' + (wr + k) + 'k a week.';
       }));
       const fin = host.querySelector('[data-card="fin"]');
       if (fin) fin.querySelectorAll('[data-k]').forEach((x) => x.addEventListener('input', () => {
