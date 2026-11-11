@@ -2495,7 +2495,10 @@
     { const o0 = world.view !== 'match' ? nextOpponent() : null; if (o0 && FM.oppBackLine) team.oppLine = FM.oppBackLine(world.league, o0.id); }   // forwards placed by hand stand against the next opponent's back line
     BW = opts && opts.fit ? fitBoardWidth(host, opts.big) : 68 * BS; SX = BW / 68;
     const selected = world.selSlot && team.players.includes(world.selSlot) ? world.selSlot : null;
-    const posOf = (p) => (key === 'shape' ? FM.slotBase(team, p) : FM.phasePos(team, p, key));
+    // With the ball nobody can stand beyond the other side's last outfield defender, so the pages where that applies show every outfield player no further forward than their line as it is drawn
+    // on this page: a side that presses high or plays a high line does not leave the manager's forwards offside, and the shirts follow the line to the next opponent without being moved by hand.
+    const offLimitFor = (p) => { if (key === 'shape' || world.view === 'match' || p.group === 'GK' || FM.OFFSIDE_PHASES.indexOf(FM.baseKey(key)) < 0) return null; const o = nextOpponent(), ln = o ? oppLine(key) : null; return ln == null ? null : FM.offsideLimit(o, p, ln); };
+    const posOf = (p) => { if (key === 'shape') return FM.slotBase(team, p); const q = FM.phasePos(team, p, key), lim = offLimitFor(p); return lim != null && q.d > lim ? { d: lim, w: q.w } : q; };
     let ghosts = '';
     if (selected && key !== 'shape') {
       // The sideways limit still applies when dragging (see FM.clampToReach); nothing is drawn for it.
