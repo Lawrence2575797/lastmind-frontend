@@ -134,14 +134,15 @@
     const theyAttack = ['without', 'withoutEnd', 'transDef', 'transDefEnd'].indexOf(eng) >= 0, weAttack = ['build', 'buildEnd', 'midfield', 'final', 'transAtt', 'transAttEnd'].indexOf(eng) >= 0;
     let ourLine = null, theirLine = null;
     if (od) {
-      const ours = team.players.map((p) => FM.phasePos(team, p, eng).d).sort((a, b) => a - b); ourLine = ours.length > 1 ? ours[1] : null;           // second-last of ours (our goalkeeper is the last)
       const theirs = Object.keys(od.cells).map((k) => 1 - od.cells[k].d).sort((a, b) => b - a); theirLine = theirs.length > 1 ? theirs[1] : null;  // second-last of theirs, in our space
+      UI.theirLine = theirLine; if (theirLine != null) team.oppLine = theirLine;   // the shape and the forwards placed by hand are set against this line
+      const ours = team.players.map((p) => FM.phasePos(team, p, eng).d).sort((a, b) => a - b); ourLine = ours.length > 1 ? ours[1] : null;           // second-last of ours (our goalkeeper is the last)
     }
     if (od) {
       Object.keys(od.cells).forEach((slot) => {
         let c = od.cells[slot];
         const op = od.opp.players.find((q) => q.slotKey === slot);
-        if (theyAttack && ourLine != null && op && op.group !== 'GK' && 1 - c.d < ourLine) c = { d: 1 - Math.min(0.97, ourLine + 0.012), w: c.w };
+        if (ourLine != null && op && op.group !== 'GK' && (theyAttack || ['ST', 'WF', 'AM'].indexOf(op.group) >= 0) && 1 - c.d < ourLine) c = { d: 1 - Math.min(0.97, ourLine + 0.012), w: c.w };   // their forwards stand level with our last defender at the furthest, whatever the phase
         // a shirt of theirs is never drawn on top of one of ours: it stands just clear of it (the way a marker stands beside the man he marks)
         if (op && op.group !== 'GK') { let px = (1 - c.d) * 105, py = (1 - c.w) * 68; for (let it = 0; it < 2; it++) team.players.forEach((p) => { const q = FM.phasePos(team, p, eng), qx = q.d * 105, qy = q.w * 68; let dx = px - qx, dy = py - qy, dd = Math.hypot(dx, dy); if (dd < 5.2) { if (dd < 0.3) { dx = 1; dy = 0; dd = 1; } px += dx / dd * (5.2 - dd); py += dy / dd * (5.2 - dd); } }); c = { d: Math.max(0.02, Math.min(0.98, 1 - px / 105)), w: Math.max(0.03, Math.min(0.97, 1 - py / 68)) }; }
         const x = (1 - c.w) * PW, y = c.d * PH;
@@ -157,7 +158,7 @@
     // the players: a shirt with his number, his name and rating beneath
     const cards = team.players.map((p) => {
       let q = FM.phasePos(team, p, eng);
-      if (od && weAttack && theirLine != null && p.group !== 'GK' && !(FM.isManual && FM.isManual(team, p, eng)) && q.d > theirLine) q = { d: Math.max(0.02, theirLine - 0.012), w: q.w };
+      if (od && weAttack && theirLine != null && p.group !== 'GK' && q.d > theirLine) q = { d: Math.max(0.02, theirLine - 0.012), w: q.w };
       return { p, q, k: p.slotKey, x: q.w * PW, y: (1 - q.d) * PH, name: sname(p) };
     });
     const spots = labelSpots(cards);
@@ -290,7 +291,10 @@
           g.removeEventListener('pointermove', mv); g.removeEventListener('pointerup', up); g.removeEventListener('pointercancel', up);
           if (!moved || !at || !p) { if (!moved) { UI.sel = UI.sel === g.dataset.slot ? null : g.dataset.slot; draw(); } return; }
           team.phasePos = team.phasePos || {};
-          info.eng.forEach((k) => FM.setPhasePos(team, p, k, { d: at.d, w: at.w }));
+          info.eng.forEach((k) => {
+            FM.setPhasePos(team, p, k, { d: at.d, w: at.w });
+            if ((FM.baseKey(k) === 'midfield' || FM.baseKey(k) === 'final') && ['ST', 'WF', 'AM'].indexOf(p.group) >= 0 && UI.theirLine != null) team.phasePos[k][p.index].rel = at.d - UI.theirLine;   // stands the same way to the next side's back line
+          });
           if (FM.inferShapeTactics) FM.inferShapeTactics(team);
           again();
         };
