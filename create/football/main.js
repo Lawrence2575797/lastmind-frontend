@@ -992,24 +992,32 @@
     const u = c.ult || {}, k = c.sack || c.cleared || u, foot = (k.kind || u.kind) === 'football';
     let tag, title, text, img, btn;
     if (kind === 'warn') {
-      tag = 'A word from the board'; title = 'Final warning'; img = 'board_warning.jpg'; btn = 'I understand';
+      tag = 'A word from the board'; title = 'Final warning'; img = 'board_table.jpg'; btn = 'I understand';
       text = u.kind === 'football'
         ? `Francesco has come to see you with a message from the chairman. The board's approval of the football stands at <b>${Math.round(u.approval)}%</b>, and this season they expect it to stay above <b>${u.floor}%</b>, with the club ${u.expPos <= 3 ? 'in the top ' + u.expPos : 'finishing ' + ordinalS(u.expPos)}. You are ${ordinalS(u.pos)}. <b>${u.demand === 'win' ? 'If we do not win the next match, you are gone.' : 'If we lose the next match, you are gone.'}</b>`
         : `Francesco has come to see you with a message from the chairman. The board's approval of the finances stands at <b>${Math.round(u.approval)}%</b>, and this season they expect it to stay above <b>${u.floor}%</b>. <b>If the finances are not put right within the next three matchdays, you are gone.</b>`;
     } else if (kind === 'clear') {
-      tag = 'A word from the board'; title = 'The board backs off'; img = 'board_warning.jpg'; btn = 'Carry on';
+      tag = 'A word from the board'; title = 'The board backs off'; img = 'board_table.jpg'; btn = 'Carry on';
       text = k.kind === 'football' ? 'The result answered the final warning. The chairman has told Francesco the matter is closed for now. They will be watching.' : 'The finances are back in order and the chairman has told Francesco the matter is closed for now. They will be watching.';
     } else {
-      tag = 'The boardroom'; title = 'You have been dismissed'; img = 'board_sacked.jpg'; btn = 'Start a new game';
+      tag = 'The boardroom'; title = 'You have been dismissed'; img = 'board_table.jpg'; btn = 'Start a new game';
       const s0 = c.sack || {};
       text = s0.kind === 'finance' ? `The finances were not put right in the time the board gave you, and the chairman has asked you to clear your desk at ${team.name}.` : `The result did not answer the board's final warning. The chairman has asked you to clear your desk at ${team.name}.`;
     }
     if (kind === 'warn') u.seen = true; else if (kind === 'clear') c.cleared.seen = true; else if (c.sack) c.sack.seen = true;
     const shade = document.createElement('div');
     shade.className = 'verdict cutscene'; shade.setAttribute('role', 'dialog'); shade.setAttribute('aria-modal', 'true');
-    shade.innerHTML = `<div class="vd-scene" style="background-image:url('/create/football/assets/${img}')"><div class="vd-shade"></div><div class="vd-body"><div class="eyebrow">${tag}</div><h2>${title}</h2><p class="desc">${text}</p><div class="row"><button class="primary" id="vdGo">${btn}</button></div></div></div>`;
+    // the board sits first, and the decision comes once they have reached it
+    const WAIT = ['The board has gone into session', 'The directors are going through the results and the accounts', 'A decision is being reached'];
+    shade.innerHTML = `<div class="vd-scene" style="background-image:url('/create/football/assets/${img}')"><div class="vd-shade"></div>
+      <div class="vd-body vd-wait" id="vdWait"><div class="eyebrow">The boardroom</div><h2 id="vdWaitMsg">${WAIT[0]}</h2><div class="vd-bar"><i id="vdBar"></i></div></div>
+      <div class="vd-body" id="vdDecision" hidden><div class="eyebrow">${tag}</div><h2>${title}</h2><p class="desc">${text}</p><div class="row"><button class="primary" id="vdGo">${btn}</button></div></div></div>`;
     document.body.appendChild(shade);
-    if (!document.getElementById('vdCss')) { const st = document.createElement('style'); st.id = 'vdCss'; st.textContent = '.verdict.cutscene{background:rgba(0,0,0,.82)}.vd-scene{position:relative;width:min(760px,100%);min-height:420px;display:grid;align-items:end;background:#13201a center/cover no-repeat;border:1px solid rgba(255,255,255,.18);box-shadow:0 30px 80px rgba(0,0,0,.6);overflow:hidden}.vd-shade{position:absolute;inset:0;background:linear-gradient(to top,rgba(5,10,8,.96) 8%,rgba(5,10,8,.55) 55%,rgba(5,10,8,.2))}.vd-body{position:relative;padding:28px 30px 26px;display:grid;gap:10px}.vd-body h2{font-size:clamp(1.8rem,4vw,2.6rem);margin:0;color:#fff;line-height:1.05}.vd-body .desc{color:#e8e2d2;font-size:1.02rem;line-height:1.55;max-width:60ch}.vd-body .eyebrow{color:#e6c66a}'; document.head.appendChild(st); }
+    if (!document.getElementById('vdCss')) { const st = document.createElement('style'); st.id = 'vdCss'; st.textContent = '.verdict.cutscene{background:rgba(0,0,0,.82)}.vd-scene{position:relative;width:min(760px,100%);min-height:420px;display:grid;align-items:end;background:#13201a center/cover no-repeat;border:1px solid rgba(255,255,255,.18);box-shadow:0 30px 80px rgba(0,0,0,.6);overflow:hidden}.vd-shade{position:absolute;inset:0;background:linear-gradient(to top,rgba(5,10,8,.96) 8%,rgba(5,10,8,.55) 55%,rgba(5,10,8,.2))}.vd-body{position:relative;padding:28px 30px 26px;display:grid;gap:10px}.vd-body h2{font-size:clamp(1.8rem,4vw,2.6rem);margin:0;color:#fff;line-height:1.05}.vd-body .desc{color:#e8e2d2;font-size:1.02rem;line-height:1.55;max-width:60ch}.vd-body .eyebrow{color:#e6c66a}.vd-bar{height:4px;background:rgba(255,255,255,.18);overflow:hidden;max-width:420px}.vd-bar i{display:block;height:100%;width:0;background:#e6c66a;transition:width 4s linear}.vd-body[hidden]{display:none}.vd-wait h2{font-size:1.4rem;font-weight:600}'; document.head.appendChild(st); }
+    { const bar = shade.querySelector('#vdBar'), msg = shade.querySelector('#vdWaitMsg'); let i = 0;
+      requestAnimationFrame(() => requestAnimationFrame(() => { if (bar) bar.style.width = '100%'; }));
+      const tick = setInterval(() => { i++; if (msg && WAIT[i]) msg.textContent = WAIT[i]; }, 1400);
+      setTimeout(() => { clearInterval(tick); const w = shade.querySelector('#vdWait'), d = shade.querySelector('#vdDecision'); if (w) w.hidden = true; if (d) d.hidden = false; }, 4200); }
     shade.querySelector('#vdGo').addEventListener('click', () => {
       shade.remove();
       if (kind === 'sack') { try { FM.clearSave(); } catch (e) { /* fine */ } location.href = cleanUrl() + (DEMO_MODE ? '&new=1' : '?new=1'); return; }
