@@ -31,7 +31,8 @@
   const poolOf = (league) => (league.transfer && league.transfer.pool) || null;
   FM.clubOf = (league, p) => FM.allTeams(league).find((t) => t.squad.indexOf(p) >= 0) || ((poolOf(league) && poolOf(league).squad.indexOf(p) >= 0) ? poolOf(league) : null);
   FM.findPlayer = (league, id) => { for (const t of FM.allTeams(league)) { const p = t.squad.find((x) => x.id === id); if (p) return p; } const pool = poolOf(league); if (pool) { const q = pool.squad.find((x) => x.id === id); if (q) return q; } return null; };
-  const money = (m) => '£' + (m >= 10 ? Math.round(m) : r1(m).toFixed(1)) + 'm';
+  // under a million it is shown in thousands (a £0.08m prize and a £0.14m one are not both '£0.1m')
+  const money = (m) => (m > 0 && m < 1 ? '£' + (Math.round(m * 1000 / (m < 0.1 ? 1 : 5)) * (m < 0.1 ? 1 : 5)) + 'k' : '£' + (m >= 10 ? Math.round(m) : r1(m).toFixed(1)) + 'm');
   FM.money = money;
   const userRounds = (league) => league.fixtures.filter((f) => f.played && (f.homeId === league.userId || f.awayId === league.userId)).length;
 
