@@ -214,7 +214,15 @@
 
   // ---------- the plan ----------
   FM.planGet = function (team) {
-    if (!team.plan || team.plan.v !== 1) team.plan = { v: 1, team: {}, player: {}, zones: [], triggers: [] };
+    if (!team.plan || team.plan.v !== 1) {
+      team.plan = { v: 1, team: {}, player: {}, zones: [], triggers: [] };
+      // a saved game from before the choices on the phase pages were kept: the team choices are read back from the rules they made, so the buttons show what is in force
+      (team.rules || []).filter((r) => r.source === 'plan' && /^pl:/.test(r.id || '')).forEach((r) => {
+        const [, ph, key] = String(r.id).split(':'); const list = FM.PLAN_TEAM && FM.PLAN_TEAM[ph]; if (!list) return;
+        const t = list.find((x) => x.key === key); if (!t) return; const op = t.opts.find((x) => t.label + ': ' + x.label === r.text); if (!op) return;
+        (team.plan.team[ph] = team.plan.team[ph] || {})[key] = op.v;
+      });
+    }
     const pl = team.plan; pl.team = pl.team || {}; pl.player = pl.player || {}; pl.zones = pl.zones || []; pl.triggers = pl.triggers || [];
     return pl;
   };
