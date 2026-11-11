@@ -446,6 +446,69 @@
     }
   }
 
+  // A game saved before the board kept this tally has it worked out as if it had been kept from the first matchday of the season: the matches already played are gone through in order,
+  // against the board's approval as it stands now, so the unease (and a final warning, if it has been earned) is what it would have been.
+  FM.bizBoardCatchUp = function (lg) {
+    const b = FM.biz(lg), c = b && b.conf; if (!c || c.dismissed || lg.mp) return;
+    boardLine(lg, c);
+    if (c.cuSeason === lg.season) return;
+    c.cuSeason = lg.season;
+    const ap = FM.bizApprovals(lg), mine = lg.fixtures.filter((f) => f.played && (f.homeId === lg.userId || f.awayId === lg.userId)).sort((x, y) => x.round - y.round);
+    if (!mine.length) return;
+    const ids = lg.teams.map((t) => t.id), n = Math.max(2, ids.length), step = (u0, p) => Math.max(0, u0 * (p < 0.05 ? 0.8 : 1) + (p - 0.12) * 0.6);
+    const results = [];
+    mine.forEach((f, k) => {
+      const home = f.homeId === lg.userId, gf = home ? f.hg : f.ag, ga = home ? f.ag : f.hg; results.push(gf < ga ? 1 : 0);
+      const pts = {}, gd = {}; ids.forEach((id) => { pts[id] = 0; gd[id] = 0; });
+      lg.fixtures.filter((x) => x.played && x.round <= f.round && pts[x.homeId] != null && pts[x.awayId] != null).forEach((x) => { const d = x.hg - x.ag; gd[x.homeId] += d; gd[x.awayId] -= d; if (d > 0) pts[x.homeId] += 3; else if (d < 0) pts[x.awayId] += 3; else { pts[x.homeId]++; pts[x.awayId]++; } });
+      const pos = ids.slice().sort((x, y) => pts[y] - pts[x] || gd[y] - gd[x]).indexOf(lg.userId) + 1, below = k + 1 >= 3 ? Math.max(0, pos - c.expPos) / n : 0, last = results.slice(-4), lost = last.reduce((a2, v) => a2 + v, 0) / last.length;
+      c.footU = step(c.footU, clamp((c.footFloor + 12 - ap.football) / 30, 0, 1.4) + 0.8 * below + 0.2 * lost);
+      c.finU = step(c.finU, clamp((c.finFloor + 12 - ap.financial) / 30, 0, 1.4));
+    });
+    const sf = c.footU / c.footLimit, sn = c.finU / c.finLimit, share = Math.max(sf, sn), lastF = mine[mine.length - 1];
+    c.low = share > 0.75 ? 3 : share > 0.45 ? 2 : share > 0.15 ? 1 : 0;
+    if (!c.ult && (sf >= 0.8 || sn >= 0.8)) {
+      const rows = FM.tableRows(lg), pos2 = rows.findIndex((r) => r.id === lg.userId) + 1;
+      if (sf >= sn) { const demand = c.expPos <= Math.ceil(n / 3) ? 'win' : 'avoid defeat'; c.ult = { kind: 'football', demand, issued: lastF.round, approval: ap.football, floor: c.footFloor, expPos: c.expPos, pos: pos2, seen: false }; }
+      else c.ult = { kind: 'finance', issued: lastF.round, deadline: lastF.round + 3, approval: ap.financial, floor: c.finFloor, seen: false };
+      FM.pushNews(lg, { round: lastF.round, day: lg.day, kind: 'Board', headline: 'Final warning from the board', body: c.ult.kind === 'football' ? 'The board has told the manager that the football is not good enough: ' + (c.ult.demand === 'win' ? 'win the next match or he is gone.' : 'he cannot lose the next match.') : 'The board has told the manager that the finances must be put right within three matchdays or he is gone.', club: lg.userId, mine: true });
+    }
+  };
+
+  // ---------- the manager's style, as the football he has had his sides play shows it ----------
+  // Read from the way his club has set up and what it has done in its matches: how hard it presses, how high the line is, how directly it builds, how much of the ball it keeps.
+  FM.managerStyle = function (lg) {
+    const me = FM.teamById(lg, lg.userId), t = me.tactics || {}, played = lg.fixtures.filter((f) => f.played && f.stats && f.stats[lg.userId] && (f.homeId === lg.userId || f.awayId === lg.userId));
+    let mine = 0, theirs = 0, passes = 0;
+    played.forEach((f) => { const o = f.homeId === lg.userId ? f.awayId : f.homeId, a = f.stats[lg.userId], d = f.stats[o] || {}; mine += a.possession || 0; theirs += d.possession || 0; passes += a.passes || 0; });
+    const poss = mine + theirs > 0 ? mine / (mine + theirs) : 0.5, ppm = played.length ? passes / played.length : 450;
+    const press = t.pressing == null ? 0.5 : t.pressing, line = t.lineHeight == null ? 0.5 : t.lineHeight, direct = t.directness == null ? 0.5 : t.directness, counter = t.counterAttack == null ? 0.5 : t.counterAttack, tempo = t.tempo == null ? 0.5 : t.tempo;
+    let label, text, tags;
+    if (press >= 0.55 && line >= 0.5 && direct <= 0.5 && poss >= 0.5) { label = 'modern, progressive'; tags = ['press', 'possession']; text = 'a modern, progressive style: a high line, a side that presses to win the ball back early, and builds from the back with patience'; }
+    else if (poss >= 0.55 && direct <= 0.45) { label = 'possession-based'; tags = ['possession']; text = 'a possession game: short passing, patience and a lot of the ball'; }
+    else if (press >= 0.65) { label = 'high-pressing'; tags = ['press']; text = 'a high-intensity pressing game that wins the ball high and turns it quickly into chances'; }
+    else if (counter >= 0.55 || (poss <= 0.45 && direct >= 0.5)) { label = 'counter-attacking'; tags = ['counter']; text = 'a compact, counter-attacking approach: a solid shape out of the ball and quick, direct moves when it is won'; }
+    else if (direct >= 0.62) { label = 'direct'; tags = ['direct']; text = 'a direct style: the ball forward early, long passes and second balls'; }
+    else { label = 'pragmatic'; tags = ['balanced']; text = 'a pragmatic, balanced approach that adapts to the opponent'; }
+    return { label, text, tags, poss, ppm: Math.round(ppm), press, line, direct, tempo };
+  };
+  // Two offers after a dismissal: one from a club the style appeals to (often a better side, whatever the results were), one from a club around the level he has been working at.
+  FM.jobOffers = function (lg) {
+    const st = FM.managerStyle(lg), me = FM.teamById(lg, lg.userId), mine = (FM.allDivisions(lg).find((d) => d.teams.indexOf(me) >= 0) || {}).level || lg.divisionLevel || 1;
+    const rng = FM.mulberry32(lg.seed + (lg.runSeed || 0) + lg.season * 31337 + 7), pick = (arr) => arr[Math.floor(rng() * arr.length)];
+    const all = []; FM.allDivisions(lg).forEach((d) => d.teams.forEach((t) => { if (t.id !== me.id) all.push({ t, level: d.level, name: d.name }); }));
+    const fits = (x) => st.tags.indexOf(x.t.style || 'balanced') >= 0;
+    const out = [];
+    const better = all.filter((x) => (x.level < mine || (x.level === mine && (x.t.strength || 0) > (me.strength || 0))) && fits(x));
+    const o1 = better.length ? pick(better.sort((a, b) => (b.t.strength || 0) - (a.t.strength || 0)).slice(0, 4)) : null;
+    if (o1) out.push({ club: o1.t.name, division: o1.name, up: o1.level < mine, reason: o1.t.name + ' liked what they saw: ' + st.text + '. They play that way themselves and want a manager who already does, and they are willing to look past the results at ' + me.name + '.' });
+    const level = all.filter((x) => x.level === mine && Math.abs((x.t.strength || 0) - (me.strength || 0)) <= 1.2 && (!o1 || x.t.id !== o1.t.id));
+    const o2 = level.length ? pick(level) : null;
+    if (o2) out.push({ club: o2.t.name, division: o2.name, up: false, reason: fits(o2) ? o2.t.name + ' are at about the level you were working at, and ' + st.text + ' is what they want to play.' : o2.t.name + ' are at about the level you were working at. They need a manager and think a spell at ' + me.name + ' has taught you what this division asks of a side.' });
+    if (!out.length) { const pool = all.filter((x) => x.level === mine), any = pool.length ? pick(pool) : pick(all); if (any) out.push({ club: any.t.name, division: any.name, up: false, reason: any.t.name + ' are looking for a manager and have been told you can be one.' }); }
+    return out;
+  };
+
   // ---------- the money behind the squad ----------
   // The transfer budget the recruitment pages use is the cash the club has: a signing is paid for out of it.
   FM.bizSyncBudget = function (lg) {

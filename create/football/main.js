@@ -981,6 +981,7 @@
 
   // The board's two big moments are played as a scene in the middle of the screen: the final warning (an ultimatum for the next match, brought by the assistant manager, with the board's
   // approval and what this board expects) and the dismissal. Each has a picture behind it (assets/board_warning.jpg, assets/board_sacked.jpg); without one the scene is plain.
+  const nextClubPref = () => { try { return localStorage.getItem('lm-fb-next-club') || null; } catch (e) { return null; } };
   function boardVerdict(lg, done) {
     const b = lg.biz, c = b && b.conf; if (!c) { done(); return; }
     const team = userTeam(), ordinalS = (n) => n + (['th', 'st', 'nd', 'rd'][(n % 100 > 10 && n % 100 < 14) ? 0 : (n % 10 < 4 ? n % 10 : 0)]);
@@ -1000,24 +1001,31 @@
       tag = 'A word from the board'; title = 'The board backs off'; img = 'board_table.jpg'; btn = 'Carry on';
       text = k.kind === 'football' ? 'The result answered the final warning. The chairman has told Francesco the matter is closed for now. They will be watching.' : 'The finances are back in order and the chairman has told Francesco the matter is closed for now. They will be watching.';
     } else {
-      tag = 'The boardroom'; title = 'You have been dismissed'; img = 'board_table.jpg'; btn = 'Start a new game';
+      tag = 'The boardroom'; title = 'You have been dismissed'; img = 'board_table.jpg'; btn = 'No thanks: start a new game';
       const s0 = c.sack || {};
       text = s0.kind === 'finance' ? `The finances were not put right in the time the board gave you, and the chairman has asked you to clear your desk at ${team.name}.` : `The result did not answer the board's final warning. The chairman has asked you to clear your desk at ${team.name}.`;
     }
     if (kind === 'warn') u.seen = true; else if (kind === 'clear') c.cleared.seen = true; else if (c.sack) c.sack.seen = true;
+    // after a dismissal: the clubs that would take him on, and why (from the football he has had his sides play)
+    const offers = kind === 'sack' && FM.jobOffers ? (() => { try { return FM.jobOffers(lg); } catch (e) { return []; } })() : [];
+    const offersHtml = offers.length ? '<div class="vd-offers"><div class="eyebrow">Job offers</div>' + offers.map((o, i) => '<div class="vd-offer"><div><b>' + o.club + '</b> <small>' + o.division + (o.up ? ' · a step up' : '') + '</small><p>' + o.reason + '</p></div><button class="primary" data-take="' + i + '">Take the job</button></div>').join('') + '</div>' : '';
     const shade = document.createElement('div');
     shade.className = 'verdict cutscene'; shade.setAttribute('role', 'dialog'); shade.setAttribute('aria-modal', 'true');
     // the board sits first, and the decision comes once they have reached it
     const WAIT = ['The board has gone into session', 'The directors are going through the results and the accounts', 'A decision is being reached'];
     shade.innerHTML = `<div class="vd-scene" style="background-image:url('/create/football/assets/${img}?v=2')"><div class="vd-shade"></div>
       <div class="vd-body vd-wait" id="vdWait"><div class="eyebrow">The boardroom</div><h2 id="vdWaitMsg">${WAIT[0]}</h2><div class="vd-bar"><i id="vdBar"></i></div></div>
-      <div class="vd-body" id="vdDecision" hidden><div class="eyebrow">${tag}</div><h2>${title}</h2><p class="desc">${text}</p><div class="row"><button class="primary" id="vdGo">${btn}</button></div></div></div>`;
+      <div class="vd-body" id="vdDecision" hidden><div class="eyebrow">${tag}</div><h2>${title}</h2><p class="desc">${text}</p>${offersHtml}<div class="row"><button class="${offers.length ? '' : 'primary'}" id="vdGo">${btn}</button></div></div></div>`;
     document.body.appendChild(shade);
-    if (!document.getElementById('vdCss')) { const st = document.createElement('style'); st.id = 'vdCss'; st.textContent = '.verdict.cutscene{background:rgba(0,0,0,.82)}.vd-scene{position:relative;width:min(760px,100%);min-height:420px;display:grid;align-items:end;background:#13201a center/cover no-repeat;border:1px solid rgba(255,255,255,.18);box-shadow:0 30px 80px rgba(0,0,0,.6);overflow:hidden}.vd-shade{position:absolute;inset:0;background:linear-gradient(to top,rgba(5,10,8,.96) 8%,rgba(5,10,8,.55) 55%,rgba(5,10,8,.2))}.vd-body{position:relative;padding:28px 30px 26px;display:grid;gap:10px}.vd-body h2{font-size:clamp(1.8rem,4vw,2.6rem);margin:0;color:#fff;line-height:1.05}.vd-body .desc{color:#e8e2d2;font-size:1.02rem;line-height:1.55;max-width:60ch}.vd-body .eyebrow{color:#e6c66a}.vd-bar{height:4px;background:rgba(255,255,255,.18);overflow:hidden;max-width:420px}.vd-bar i{display:block;height:100%;width:0;background:#e6c66a;transition:width 4s linear}.vd-body[hidden]{display:none}.vd-wait h2{font-size:1.4rem;font-weight:600}'; document.head.appendChild(st); }
+    if (!document.getElementById('vdCss')) { const st = document.createElement('style'); st.id = 'vdCss'; st.textContent = '.verdict.cutscene{background:rgba(0,0,0,.82)}.vd-scene{position:relative;width:min(760px,100%);min-height:420px;display:grid;align-items:end;background:#13201a center/cover no-repeat;border:1px solid rgba(255,255,255,.18);box-shadow:0 30px 80px rgba(0,0,0,.6);overflow:hidden}.vd-shade{position:absolute;inset:0;background:linear-gradient(to top,rgba(5,10,8,.96) 8%,rgba(5,10,8,.55) 55%,rgba(5,10,8,.2))}.vd-body{position:relative;padding:28px 30px 26px;display:grid;gap:10px}.vd-body h2{font-size:clamp(1.8rem,4vw,2.6rem);margin:0;color:#fff;line-height:1.05}.vd-body .desc{color:#e8e2d2;font-size:1.02rem;line-height:1.55;max-width:60ch}.vd-body .eyebrow{color:#e6c66a}.vd-bar{height:4px;background:rgba(255,255,255,.18);overflow:hidden;max-width:420px}.vd-bar i{display:block;height:100%;width:0;background:#e6c66a;transition:width 4s linear}.vd-body[hidden]{display:none}.vd-wait h2{font-size:1.4rem;font-weight:600}.vd-offers{display:grid;gap:8px;margin-top:4px}.vd-offer{display:flex;justify-content:space-between;gap:14px;align-items:center;padding:10px 12px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.14)}.vd-offer p{margin:4px 0 0;font-size:.92rem;color:#d9d2c0;line-height:1.45}.vd-offer small{opacity:.75}'; document.head.appendChild(st); }
     { const bar = shade.querySelector('#vdBar'), msg = shade.querySelector('#vdWaitMsg'); let i = 0;
       requestAnimationFrame(() => requestAnimationFrame(() => { if (bar) bar.style.width = '100%'; }));
       const tick = setInterval(() => { i++; if (msg && WAIT[i]) msg.textContent = WAIT[i]; }, 1400);
       setTimeout(() => { clearInterval(tick); const w = shade.querySelector('#vdWait'), d = shade.querySelector('#vdDecision'); if (w) w.hidden = true; if (d) d.hidden = false; }, 4200); }
+    shade.querySelectorAll('[data-take]').forEach((bt) => bt.addEventListener('click', () => {
+      const o = offers[+bt.dataset.take]; try { localStorage.setItem('lm-fb-next-club', o.club); } catch (e) { /* the new game still starts */ }
+      shade.remove(); try { FM.clearSave(); } catch (e) { /* fine */ } location.href = cleanUrl() + (DEMO_MODE ? '&new=1' : '?new=1');
+    }));
     shade.querySelector('#vdGo').addEventListener('click', () => {
       shade.remove();
       if (kind === 'sack') { try { FM.clearSave(); } catch (e) { /* fine */ } location.href = cleanUrl() + (DEMO_MODE ? '&new=1' : '?new=1'); return; }
@@ -3013,7 +3021,7 @@
     const ord = (n) => n + (n % 100 >= 11 && n % 100 <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10 < 4 ? n % 10 : 0]);
     groups.forEach((g) => { const by = g.clubs.slice().sort((x, y) => (y.strength || 0) - (x.strength || 0)); g.clubs.forEach((c) => { c.exp = by.indexOf(c) + 1; }); });
     // a plain select cannot line text up at its right-hand edge, so the choice is a small list of its own; the select stays (hidden) as the value
-    sel.innerHTML = groups.map((g) => '<optgroup label="' + g.name + '">' + g.clubs.map((c) => '<option value="' + escapeHtmlNg(c.name) + '"' + (c.name === 'Ashford Rovers' ? ' selected' : '') + '>' + escapeHtmlNg(c.name) + '</option>').join('') + '</optgroup>').join('');
+    sel.innerHTML = groups.map((g) => '<optgroup label="' + g.name + '">' + g.clubs.map((c) => '<option value="' + escapeHtmlNg(c.name) + '"' + (c.name === (nextClubPref() || 'Ashford Rovers') ? ' selected' : '') + '>' + escapeHtmlNg(c.name) + '</option>').join('') + '</optgroup>').join('');
     sel.style.display = 'none';
     if (!document.getElementById('ngcCss')) { const st = document.createElement('style'); st.id = 'ngcCss'; st.textContent = '.ngc { position: relative; } .ngc-btn, .ngc-row { display: flex; justify-content: space-between; gap: 14px; align-items: center; width: 100%; text-align: left; } .ngc-btn { padding: 12px 14px; background: #3a403e; color: var(--cream, #f4edda); border: 1px solid rgba(255,255,255,.18); font: inherit; cursor: pointer; } .ngc-btn:focus-visible { outline: 2px solid var(--gold, #f2c14e); } .ngc-pos { opacity: .85; font-variant-numeric: tabular-nums; white-space: nowrap; } .ngc-list { position: absolute; z-index: 40; left: 0; right: 0; top: 100%; max-height: 340px; overflow: auto; background: #1b2e25; border: 1px solid rgba(255,255,255,.2); box-shadow: 0 14px 34px rgba(0,0,0,.45); } .ngc-list[hidden] { display: none; } .ngc-h, .ngc-g { display: flex; justify-content: space-between; padding: 8px 14px; font: 700 .72rem var(--sans, sans-serif); letter-spacing: .08em; text-transform: uppercase; opacity: .75; } .ngc-g { background: rgba(255,255,255,.05); opacity: 1; letter-spacing: .02em; text-transform: none; font-size: .95rem; } .ngc-row { padding: 9px 14px 9px 22px; background: transparent; border: 0; color: inherit; font: inherit; cursor: pointer; } .ngc-row:hover, .ngc-row.on { background: rgba(242,193,78,.16); }'; document.head.appendChild(st); }
     const box = document.createElement('div'); box.className = 'ngc'; sel.parentNode.insertBefore(box, sel.nextSibling);
@@ -3114,6 +3122,9 @@
   }
   if (world.league && wantsNew) { world.hadSave = { season: world.league.season || 1, played: world.league.fixtures.filter((f) => f.played && (f.homeId === world.league.userId || f.awayId === world.league.userId)).length, club: userTeam().name }; el('ngResume').hidden = false; world.league = null; showNewGame(); requestAnimationFrame(frame); return; }
   if (world.league && world.league.biz && world.league.biz.conf && world.league.biz.conf.dismissed) { boardVerdict(world.league, () => {}); requestAnimationFrame(frame); return; }
+  // a game that was saved before the board kept its tally: it is worked out as if it had been kept from the start of the season, and a final warning that has been earned shows now
+  if (world.league && FM.bizBoardCatchUp) { try { FM.bizBoardCatchUp(world.league); } catch (e) { console.error('The board catch-up:', e); } }
+  { const cc = world.league && world.league.biz && world.league.biz.conf; if (cc && cc.ult && !cc.ult.seen && !cc.dismissed) setTimeout(() => boardVerdict(world.league, () => { FM.saveLeague(world.league); }), 600); }
   if (world.league) {
     if (FM.transfer) FM.transfer(world.league);
     if (FM.ensurePreseasonNews) { FM.ensurePreseasonNews(world.league); }
