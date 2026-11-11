@@ -1009,7 +1009,7 @@
     shade.className = 'verdict cutscene'; shade.setAttribute('role', 'dialog'); shade.setAttribute('aria-modal', 'true');
     // the board sits first, and the decision comes once they have reached it
     const WAIT = ['The board has gone into session', 'The directors are going through the results and the accounts', 'A decision is being reached'];
-    shade.innerHTML = `<div class="vd-scene" style="background-image:url('/create/football/assets/${img}')"><div class="vd-shade"></div>
+    shade.innerHTML = `<div class="vd-scene" style="background-image:url('/create/football/assets/${img}?v=2')"><div class="vd-shade"></div>
       <div class="vd-body vd-wait" id="vdWait"><div class="eyebrow">The boardroom</div><h2 id="vdWaitMsg">${WAIT[0]}</h2><div class="vd-bar"><i id="vdBar"></i></div></div>
       <div class="vd-body" id="vdDecision" hidden><div class="eyebrow">${tag}</div><h2>${title}</h2><p class="desc">${text}</p><div class="row"><button class="primary" id="vdGo">${btn}</button></div></div></div>`;
     document.body.appendChild(shade);
