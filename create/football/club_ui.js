@@ -406,7 +406,11 @@
       return `<tr><td class="l">${esc(s.name)}</td><td class="n">${num(b.seats[s.id])}</td><td class="n">${proj ? '+' + num(proj.seats) + ' · ' + proj.left + ' left' : '–'}</td>${cell(cost)}<td class="n">${room >= e.seats && !proj ? `<button type="button" class="ctl-go" data-ctl="buildStand" data-fix='{"stand":"${s.id}"}'>Add ${num(e.seats)} seats</button>` : proj ? 'Building' : 'Full'}</td></tr>`; }).join('');
     const facs = FM.FACILITIES.map((f) => { const have = b.facilities.indexOf(f.id) >= 0; return `<tr><td class="l">${esc(f.name)}</td>${cell(f.cost)}${cell(f.upkeep)}<td class="n">${have ? 'Built' : `<button type="button" class="ctl-go" data-ctl="buyFacility" data-fix='{"id":"${f.id}"}'>Buy</button>`}</td></tr>`; }).join('');
     const loans = b.loans.length ? `<div class="books-wrap"><table class="books-table"><thead><tr><th class="l">Loan</th><th>Owed</th><th>Each matchday</th><th></th></tr></thead><tbody>${b.loans.map((l) => `<tr><td class="l">${l.id} · season ${l.season}</td>${cell(l.balance)}${cell(l.perRound)}<td class="n"><button type="button" class="ctl-go" data-ctl="repayLoan" data-fix='{"id":"${l.id}"}'>Repay</button></td></tr>`).join('')}</tbody></table></div>` : '';
+    // the transfer and wage budgets are traded against each other with one slider, at the top: right for more wage room, left for more to spend on fees
+    const tr = FM.transfer(lg), mb = lg.userId, SL = FM.budgetShiftLimits(lg), tbNow = tr.budget[mb] || 0, wrNow = FM.wageRoom(lg, mb);
+    const moveRow = `<div class="ctl-row ctl-move"><div class="ctl-l"><b>Transfer and wage budgets</b><span id="ctlMoveRead" data-tb="${tbNow}" data-wr="${wrNow}" data-rate="${FM.SHIFT_RATE}">Transfer budget ${FM.money(tbNow)}, wage room ${wrNow}k a week. Each £1k a week of wage room costs £${FM.SHIFT_RATE}m of the transfer budget.</span></div><div class="ctl-in"><input type="range" data-k="kWeek" data-slide="mv" min="${SL.min}" max="${SL.max}" step="1" value="0" aria-label="Wage room to move, in thousands a week" style="width:100%;min-width:220px">${go('moveBudget', 'Move')}</div></div>`;
     return `<div class="card ctl-card"><div class="eyebrow">Money</div>
+        ${moveRow}
         ${row('Ticket price', prices, `<select data-k="stand">${opts('setTicketPrice', 'stand')}</select>${inp('price', 25, 1, 3)}`, go('setTicketPrice', 'Set'))}
         ${row('Marketing a matchday', gbp(b.marketing || 0), inp('perRound', b.marketing || 0, 500, 0), go('setMarketing', 'Set'))}
         ${row('Dividend', Math.round((b.dividend.policy || 0) * 100) + '% of profit', inp('percent', Math.round((b.dividend.policy || 0) * 100), 5, 0), go('setDividend', 'Set'))}
@@ -416,6 +420,10 @@
         <div class="books-wrap"><table class="books-table"><thead><tr><th class="l">Facility</th><th>Cost</th><th>Upkeep</th><th></th></tr></thead><tbody>${facs}</tbody></table></div></div>`;
   }
   FM.bizBindControls = function (host, lg, after) {
+    host.querySelectorAll('[data-slide="mv"]').forEach((sl) => sl.addEventListener('input', () => {
+      const rd = host.querySelector('#ctlMoveRead'); if (!rd) return; const k = +sl.value, tb = +rd.dataset.tb, wr = +rd.dataset.wr, rate = +rd.dataset.rate;
+      rd.textContent = k === 0 ? 'Transfer budget ' + FM.money(tb) + ', wage room ' + wr + 'k a week. Each £1k a week of wage room costs £' + rate + 'm of the transfer budget.' : 'Transfer budget ' + FM.money(tb) + ' to ' + FM.money(Math.max(0, tb - k * rate)) + ', wage room ' + wr + 'k to ' + (wr + k) + 'k a week.';
+    }));
     host.querySelectorAll('[data-ctl]').forEach((btn) => btn.addEventListener('click', () => {
       const id = btn.dataset.ctl, scope = btn.closest('.ctl-row') || btn, params = {};
       if (btn.dataset.fix) Object.assign(params, JSON.parse(btn.dataset.fix));
