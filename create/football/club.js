@@ -73,7 +73,7 @@
   FM.boardPlan = function (lg) {
     const rng = FM.mulberry32((lg.seed || 1) + (lg.runSeed || 0) * 911 + 31), r = rng(), owner = OWNERS[Math.floor(rng() * OWNERS.length)];
     // the extremes are rare: a huge takeover 4%, an ordinary one 14%, steady 34%, short of money 18%, deep in debt 10%, bank balance frozen 8%, a transfer ban 12%
-    const kind = r < 0.04 ? 'mega' : r < 0.18 ? 'takeover' : r < 0.52 ? 'steady' : r < 0.70 ? 'tight' : r < 0.80 ? 'debt' : r < 0.88 ? 'loans' : 'ban', base = LVL_BASE[lg.divisionLevel || 1] || LVL_BASE[1], K = FM.BOARD_KINDS[kind];
+    const kind = lg._forceKind || (r < 0.04 ? 'mega' : r < 0.18 ? 'takeover' : r < 0.52 ? 'steady' : r < 0.70 ? 'tight' : r < 0.80 ? 'debt' : r < 0.88 ? 'loans' : 'ban'), base = LVL_BASE[lg.divisionLevel || 1] || LVL_BASE[1], K = FM.BOARD_KINDS[kind];
     const round = (v) => Math.round(v / 1e5) * 1e5;
     const injection = kind === 'mega' ? round(base * 5) : kind === 'takeover' ? round(base * 0.9) : 0;
     const debt = kind === 'tight' ? round(base * 0.2) : kind === 'debt' ? round(base * 1.8) : kind === 'loans' ? round(base * 0.5) : 0;
@@ -88,7 +88,7 @@
   // ---------- the company's state ----------
   function init(lg) {
     const me = lg.userId, t = FM.transfer ? FM.transfer(lg) : null;
-    const started = !!(t && Number.isFinite(t.budget[me]) && lg.fixtures.some((f) => f.played));
+    const started = !lg._newClub && !!(t && Number.isFinite(t.budget[me]) && lg.fixtures.some((f) => f.played));   // (a manager arriving at a new club gets that club's board, not the old rule)
     // a game already under way (saved before the board plan existed) keeps its money and the old rule; a new one draws a situation
     const plan = started || lg.mp ? null : FM.boardPlan(lg);
     const opening = plan ? plan.cash : started ? Math.max(2000000, Math.round(t.budget[me] * 1e6)) : 8000000;
@@ -336,6 +336,7 @@
     FM.bizSyncBudget(lg);
     financeNews(lg, b, entry, dividend);
     confidenceCheck(lg, b, fx);
+    if (FM.careerTick) { try { FM.careerTick(lg, fx); } catch (e) { console.error('The career:', e); } }
     if (FM.controls && FM.controls.afterRound) FM.controls.afterRound(lg, fx);   // new injuries are logged and the manager's rules run
     if (FM.bizOnChange) FM.bizOnChange(lg);
   };
@@ -419,10 +420,10 @@
       if (u.kind === 'football' && userFx) {
         const met = u.demand === 'win' ? gf > ga : gf >= ga;
         if (met) { c.ult = null; c.footU = c.footLimit * 0.45; c.cleared = { kind: 'football', round: fx.round, seen: false }; push('The board backs off', 'The result answered the final warning. The board has told the manager the matter is closed for now, but they will be watching.'); }
-        else { c.dismissed = true; c.sack = { kind: 'football', round: fx.round, approval: ap.football, floor: c.footFloor, demand: u.demand, seen: false }; push('The manager is sacked', 'The board had given the manager a final warning and the result did not answer it. He has been dismissed.'); return; }
+        else { c.dismissed = true; c.sack = { kind: 'football', round: fx.round, approval: ap.football, floor: c.footFloor, demand: u.demand, seen: false }; if (FM.careerSacked) { try { FM.careerSacked(lg); } catch (e) { /* no offers */ } } push('The manager is sacked', 'The board had given the manager a final warning and the result did not answer it. He has been dismissed.'); return; }
       } else if (u.kind === 'finance' && fx.round >= u.deadline) {
         if (ap.financial >= c.finFloor + 5) { c.ult = null; c.finU = c.finLimit * 0.45; c.cleared = { kind: 'finance', round: fx.round, seen: false }; push('The board backs off', 'The finances have been put back in order and the board has told the manager the matter is closed for now.'); }
-        else { c.dismissed = true; c.sack = { kind: 'finance', round: fx.round, approval: ap.financial, floor: c.finFloor, seen: false }; push('The manager is sacked', 'The board had given the manager a final warning about the finances and they were not put right. He has been dismissed.'); return; }
+        else { c.dismissed = true; c.sack = { kind: 'finance', round: fx.round, approval: ap.financial, floor: c.finFloor, seen: false }; if (FM.careerSacked) { try { FM.careerSacked(lg); } catch (e) { /* no offers */ } } push('The manager is sacked', 'The board had given the manager a final warning about the finances and they were not put right. He has been dismissed.'); return; }
       }
     }
     // pressure from each: how far under what the board expects (and, for the football, how far under the promised place and how the last few results went)

@@ -442,6 +442,7 @@
     else {
       cup.completed = true;
       const winner = FM.teamById(league, cupWinner(fx));
+      if (winner && winner.id === league.userId && FM.careerAccolade) FM.careerAccolade(league, { kind: 'cup', text: 'League Cup winners ' + (25 + league.season) + '/' + (26 + league.season) });
       if (FM.pushNews) FM.pushNews(league, { round: fx.round, day: league.day, kind: 'League Cup', headline: (winner ? winner.name : 'The winners') + ' lift the League Cup', body: 'The League Cup final is complete. Open this article to see the completed tournament tree.', cupTree: true, cupWinner: winner && winner.name, mine: cupWinner(fx) === league.userId });
     }
   };
@@ -673,6 +674,7 @@
       }
     });
     [home, away].forEach((t) => t.squad.forEach((p) => { if (played.has(p.id)) p.stats.apps++; }));
+    if (FM.careerRecord) FM.careerRecord(league, fx);   // the manager's record at this club
     if (FM.recordPlayerStats) FM.recordPlayerStats(league, fx, match, home, away, played);   // assists, passes, tackles, clean sheets and his rating for the season boards
     if (FM.updateMomentum) FM.updateMomentum(league, fx, match, played);   // form and momentum follow the result and how each player did
     // minutes on the pitch, which is what a player's development follows
@@ -954,6 +956,7 @@
     const oldPos = divisions.find((d) => d.level === league.divisionLevel).rows.findIndex((r) => r.id === league.userId) + 1;
     const userLevel = nextDivisions.find((d) => d.teams.some((t) => t.id === league.userId)).level;
     league.seasonHistory = league.seasonHistory || [];
+    if (FM.careerSeasonEnd) { try { FM.careerSeasonEnd(league, { pos: oldPos, level: league.divisionLevel, divName: league.divisionName, rows: divisions.find((d) => d.level === league.divisionLevel).rows, promoted: promoted.indexOf(league.userId) >= 0 }); } catch (e) { console.error('The career record:', e); } }
     league.seasonHistory.push({ season: league.season, champion: divisions[0].rows[0].name, promoted: promoted.map((id) => divisions.flatMap((d) => d.rows).find((r) => r.id === id).name), relegated: relegated.map((id) => divisions.flatMap((d) => d.rows).find((r) => r.id === id).name), movements: movement, divisions: divisions.map((d) => ({ level: d.level, name: d.name, rows: d.rows })) });
     league.season += 1; league.day = 0; FM.today = 0; league.divisionLevel = userLevel; league.divisionName = DIVISION_NAMES[userLevel];
     nextDivisions.forEach((d) => { d.fixtures = makeFixtures(d.teams.map((t) => t.id), FM.mulberry32(league.seed + league.season * 1709 + d.level), league.seed + league.season * 97003 + d.level); });
