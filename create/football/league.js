@@ -379,7 +379,24 @@
     if (cup) return cup;
     return league.fixtures.find((f) => !f.played && (f.homeId === league.userId || f.awayId === league.userId)) || null;
   };
-  FM.seasonOver = (league) => league.fixtures.every((f) => f.played) && (!league.cup || league.cup.completed);
+  // The league is finished but the cup is not and the manager has no tie in it (he is out, or came to the club after it was out): the rest of the cup is played out so the season can end.
+  FM.cupFinishQuick = function (league) {
+    const cup = league.cup; if (!cup || cup.completed) return;
+    for (let guard = 0; guard < 8 && !cup.completed; guard++) {
+      if (cup.drawPending && !cup.activeKey && !FM.cupDraw(league, cup.drawPending)) break;
+      if (!cup.activeKey) break;
+      if (FM.cupUserFixture(league)) return;   // he has a tie: he plays it
+      const key = cup.activeKey, stageIndex = cup.stages.findIndex((x) => x.key === key), next = cup.stages[stageIndex + 1];
+      cup.fixtures.filter((f) => f.stage === key && !f.played).forEach((f) => cupQuickResult(league, f));
+      cup.activeKey = null;
+      if (next) cup.drawPending = next.key;
+      else { cup.completed = true; const fin = cup.fixtures.filter((f) => f.stage === key)[0], w = fin ? cupWinner(fin) : null; if (w === league.userId && FM.careerAccolade) FM.careerAccolade(league, { kind: 'cup', text: 'League Cup winners ' + (25 + league.season) + '/' + (26 + league.season) }); }
+    }
+  };
+  FM.seasonOver = (league) => {
+    if (league.cup && !league.cup.completed && league.fixtures.every((f) => f.played) && !(FM.cupUserFixture && FM.cupUserFixture(league))) { try { FM.cupFinishQuick(league); } catch (e) { /* the season waits for the cup */ } }
+    return league.fixtures.every((f) => f.played) && (!league.cup || league.cup.completed);
+  };
   FM.daysUntilMatch = function (league) {
     const f = FM.nextUserFixture(league);
     if (!f) return null;
