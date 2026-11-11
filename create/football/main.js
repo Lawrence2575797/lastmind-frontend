@@ -971,15 +971,29 @@
         if (due) {
           const entrants = due.key === 'r32' ? world.league.cup.entrants : world.league.cup.fixtures.filter((f) => f.stage === world.league.cup.stages[world.league.cup.stages.findIndex((s) => s.key === due.key) - 1].key && f.played).map((f) => f.shootout ? f.shootout.winnerId : f.hg > f.ag ? f.homeId : f.awayId);
           // Once eliminated, the competition carries on silently in the background; active managers see every draw.
-          if (entrants.indexOf(world.league.userId) >= 0) return showCupDraw(due, () => setView('home'));
+          if (entrants.indexOf(world.league.userId) >= 0) return showCupDraw(due, () => { setView('home'); francescoSays(fx); });
           FM.cupDraw(world.league, due.key); FM.saveLeague(world.league);
         }
         setView('home');
+        francescoSays(fx);
       };
       boardVerdict(world.league, () => { if (DEMO_MODE) showDemoComplete(); else runInterview('post', fx, result, afterMatch); });
     }, 40);
   });
 
+  // After a match Francesco, the assistant manager, has a word: a small card in the bottom-right corner that stays until it is closed (or the next one replaces it).
+  function francescoSays(fx) {
+    if (DEMO_MODE || !world.league || world.league.mp) return;
+    let text = null; try { text = FM.francescoNote ? FM.francescoNote(world.league, fx) : null; } catch (e) { text = null; }
+    if (!text) return;
+    const old = document.getElementById('fcNote'); if (old) old.remove();
+    const box = document.createElement('div'); box.id = 'fcNote'; box.setAttribute('role', 'status');
+    box.innerHTML = '<div class="fc-av" aria-hidden="true">F</div><div class="fc-body"><b>Francesco</b><p></p></div><button type="button" class="fc-x" aria-label="Close">×</button>';
+    box.querySelector('p').textContent = text;
+    if (!document.getElementById('fcCss')) { const st = document.createElement('style'); st.id = 'fcCss'; st.textContent = '#fcNote{position:fixed;right:18px;bottom:18px;z-index:9500;width:min(360px,calc(100vw - 36px));display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:start;padding:14px 14px 14px 16px;background:#16241e;color:#f4ede0;border:1px solid rgba(230,198,106,.55);box-shadow:0 14px 34px rgba(0,0,0,.5);animation:fcIn .35s ease-out}#fcNote .fc-av{width:38px;height:38px;border-radius:50%;background:#e6c66a;color:#1a232d;display:grid;place-items:center;font-weight:800;font-size:1.1rem}#fcNote b{display:block;font-size:.8rem;letter-spacing:.08em;text-transform:uppercase;color:#e6c66a;margin-bottom:3px}#fcNote p{margin:0;line-height:1.45;font-size:.95rem;color:#f4ede0}#fcNote .fc-x{background:transparent;border:0;color:#d9d2c4;font-size:1.3rem;line-height:1;cursor:pointer;padding:0 4px}@keyframes fcIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}@media (prefers-reduced-motion:reduce){#fcNote{animation:none}}'; document.head.appendChild(st); }
+    document.body.appendChild(box);
+    box.querySelector('.fc-x').addEventListener('click', () => box.remove());
+  }
   // The board's two big moments are played as a scene in the middle of the screen: the final warning (an ultimatum for the next match, brought by the assistant manager, with the board's
   // approval and what this board expects) and the dismissal. Each has a picture behind it (assets/board_warning.jpg, assets/board_sacked.jpg); without one the scene is plain.
   // Taking a job: the club is changed in this same game (the league, the fixtures, the squad and the books become the new club's), and the page is loaded again on the new club so
