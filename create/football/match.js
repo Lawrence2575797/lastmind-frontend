@@ -2009,11 +2009,13 @@
     if (rng() < (FM.CROSS_OUT == null ? 0.18 : FM.CROSS_OUT)) { match.ball.vx = match.ball.vy = 0; handleOut(match, team, team.attackDir === 1 ? L + 0.2 : -0.2, clamp(f.ey, 1, W - 1)); return; }   // overhit: behind for a goal kick
     const cands = [];
     const at = (p) => Math.hypot(p.x - f.ex, p.y - f.ey);
-    team.players.forEach((p) => { if (p.group === 'GK') return; const d = at(p); if (d <= 2.2) cands.push({ p, team, w: Math.exp((p.ratings.heading + 14 * f.quality - 4 * d) / 14) }); });
+    // who gets to it is a matter of who can get there in time, as they see it: the time it takes a man to reach the spot, not a distance he must be within
+    const reachK = (p) => Math.exp(-FM.timeTo(p, f.ex, f.ey) / 0.6);
+    team.players.forEach((p) => { if (p.group === 'GK') return; const d = at(p); if (d <= 12) cands.push({ p, team, w: Math.exp((p.ratings.heading + 14 * f.quality - 4 * d) / 14) * reachK(p) }); });
     opp.players.forEach((p) => {
       const d = at(p);
       if (p.group === 'GK') { if (d <= 7) cands.push({ p, team: opp, w: 0.9 * Math.exp((p.ratings.gk + 6 - 3 * d) / 14) }); }
-      else if (d <= 2.2) cands.push({ p, team: opp, w: 1.1 * Math.exp((p.ratings.heading + 4 - 4 * d) / 14) });
+      else if (d <= 12) cands.push({ p, team: opp, w: 1.1 * Math.exp((p.ratings.heading + 4 - 4 * d) / 14) * reachK(p) });
     });
     if (!cands.length) { match.ball.state = 'loose'; match.lastTeam = team; return; }
     const total = cands.reduce((a, c) => a + c.w, 0);
