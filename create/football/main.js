@@ -516,7 +516,7 @@
   }
 
   // the game also saves itself: once a minute, whenever it is not in the middle of a match
-  setInterval(() => { try { if (world.league && !DEMO_MODE && !(world.match && world.match.phase !== 'fulltime') && !document.hidden) FM.saveLeague(world.league); } catch (e) { /* the next one tries again */ } }, 60000);
+  setInterval(() => { try { if (world.league && !DEMO_MODE && !(world.match && world.match.phase !== 'fulltime') && !document.hidden) FM.saveLeagueRaw(world.league); } catch (e) { /* the next one tries again */ } }, 60000);   // this device only: the account copy is sent less often (see FM.cloudSaveSoon)
   // the Save button: saves the game now (this device and the account) and says so
   el('saveBtn').addEventListener('click', async () => {
     const b = el('saveBtn'); if (!world.league || b.disabled) return;

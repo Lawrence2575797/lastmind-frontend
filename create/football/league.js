@@ -1183,6 +1183,8 @@
   // A new game is a save of its own: it gets its own row on the account the first time it is written, and the seasons already saved stay where they are (Your projects lists
   // every one, each can be resumed or deleted). Each game carries the id of its row (league.cid), so any device that opens it writes to the same row.
   FM.markReplaceNext = (lg) => { if (lg) { replaceLeague = lg; delete lg.cid; } else replaceNext = true; lsSet(accountKey(SAVE_KEY + '_prefer'), null); lsSet(cloudIdKey('solo'), null); lsSet(atKey('solo'), null); };
+  let lastSentSig = '', lastSentAt = 0;
+  const hashText = (t) => { let h = 5381; for (let i = 0; i < t.length; i += 7) h = ((h << 5) + h + t.charCodeAt(i)) | 0; return (h >>> 0).toString(36); };
   async function cloudWrite() {
     const league = cloudLeague; if (!league || DEMO_MODE || !accountUid) return false;
     if (cloudBusy) { cloudAgain = true; return false; }
@@ -1198,12 +1200,15 @@
           for (const i of order) { league.fixtures[i].clips = []; text = FM.serializeLeague(league); if (JSON.stringify(text).length <= 4700000) break; }
         } finally { league.fixtures.forEach((f, i) => { f.clips = kept[i]; }); }
       }
+      // nothing has changed since the last copy sent to the account: nothing is sent (every send is a megabyte or so of bandwidth)
+      const sig = text.length + ':' + hashText(text);
+      if (league.cid && sig === lastSentSig && !FM.forceCloud) { cloudBusy = false; cloudDirty = false; return true; }
       const user = FM.teamById(league, league.userId), m = league.mp ? 'mp' : 'solo';
       const body = { id: league.cid || (league.mp ? lsGet(cloudIdKey(m)) : (replaceLeague === league ? undefined : lsGet(cloudIdKey(m)))) || undefined, title: league.saveName || (m === 'mp' ? 'Multiplayer: ' : 'Be the manager: ') + (user ? user.name : 'My club'), kind: m === 'mp' ? 'football-mp' : 'football-manager', data: { href: m === 'mp' ? '/create/football/?game=mp' : '/create/football/?game=solo', meta: (m === 'mp' ? 'Multiplayer · season ' : 'Season ') + league.season, football: { save: text, savedAt: new Date().toISOString(), progress: progressOfLeague(league) } } };
       const replacing = m === 'mp' && (replaceNext || (replaceLeague && replaceLeague === league));
       if (replacing) body.replace = true;
       const r = await FM.apiCall('POST', '/create/projects', body);
-      if (r && r.ok && r.json && r.json.id && r.uid === accountUid) { ok = true; league.cid = r.json.id; if (m === 'mp' || cloudLeague === league) lsSet(cloudIdKey(m), r.json.id); lsSet(atKey(m), r.json.updatedAt || new Date().toISOString()); replaceNext = false; if (replaceLeague === league) replaceLeague = null; }
+      if (r && r.ok && r.json && r.json.id && r.uid === accountUid) { ok = true; lastSentSig = sig; lastSentAt = Date.now(); league.cid = r.json.id; if (m === 'mp' || cloudLeague === league) lsSet(cloudIdKey(m), r.json.id); lsSet(atKey(m), r.json.updatedAt || new Date().toISOString()); replaceNext = false; if (replaceLeague === league) replaceLeague = null; }
       else if (r && r.status === 409) { replaceNext = false; if (replaceLeague === league) replaceLeague = null; refused = true; FM.cloudRefused = true; }   // the account holds a season further on than this one: the next page open offers it
     } catch (e) { /* the browser copy is still saved; the next change tries again */ }
     cloudBusy = false;
@@ -1225,7 +1230,8 @@
   };
   FM.cloudSaveSoon = function (league) {
     if (DEMO_MODE) return;
-    cloudLeague = league; cloudDirty = true; clearTimeout(cloudTimer); cloudTimer = setTimeout(cloudWrite, 1200);
+    cloudLeague = league; cloudDirty = true; clearTimeout(cloudTimer);
+    cloudTimer = setTimeout(cloudWrite, Math.max(1500, 150000 - (Date.now() - lastSentAt)));   // at most one upload every two and a half minutes; hiding the page, the Save button and Finish still send at once
   };
   // A phone often suspends a page without ever sending pagehide, so the moment the page is hidden anything not yet on the account is sent. When the page
   // comes back after a while (another device may have moved the game on), the account is asked whether it holds a newer save, and if it does and this
