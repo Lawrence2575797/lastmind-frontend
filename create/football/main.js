@@ -1183,6 +1183,7 @@
   });
   FM.goWorkbench = (arg) => { wbStarter = typeof arg === 'string' ? { starter: arg } : (arg || null); setView('workbench'); wbStarter = null; };
   function setView(v) {
+    if (world.league) FM.curLeague = world.league; FM.today = world.league ? world.league.day : FM.today;   // (the fitness shown is worked out for the day it is)
     if (v === 'develop') v = 'squad';   // the Development page is gone: potential and growth are on the Squad page
     if (v !== 'tactics' && backBtn) dropBackBtn();
     world.view = v;

@@ -13,7 +13,19 @@
 
   FM.isInjured = (p) => !!(p.injury && p.injury.until > FM.today);
   FM.stamina = (p) => (p.ratings && p.ratings.stamina) || (p.baseRatings && p.baseRatings.stamina) || 65;
-  FM.conditionOf = (p) => (p.energy != null ? p.energy : p.condition != null ? p.condition : 1);
+  // What a player's fitness is shown as. In a match it is his energy. Before one it is what he will have at kick-off: the days of recovery between now and the match are counted in,
+  // so the figure on the tactics page is the one the match starts with (it used to show today's, and the match then started higher).
+  const dayStep = (p, cond, cap, k) => { if (cond >= cap) return cond; const rate = clamp((0.65 + 0.2 * (FM.stamina(p) / 100 - 0.5)) * k, 0.15, 0.9); return Math.min(cap, cond + (cap - cond) * rate + 0.01); };
+  FM.conditionOf = (p) => {
+    if (p.energy != null) return p.energy;
+    const c0 = p.condition != null ? p.condition : 1;
+    const lg = FM.curLeague; let days = 0; try { days = lg && FM.daysUntilMatch ? Math.max(0, FM.daysUntilMatch(lg) || 0) : 0; } catch (e) { days = 0; }
+    if (!days || c0 >= 1) return c0;
+    const k = lg && FM.userMod && p.__mine ? FM.userMod('recovery') : 1;
+    let c = c0, cap = p.restCap == null ? 1 : p.restCap;
+    for (let i = 0; i < days && i < 14; i++) { cap = Math.min(1, cap + 0.04); c = dayStep(p, c, cap, k); }
+    return c;
+  };
 
   // ---------- energy ----------
   // Seconds of running at full pace and at rest cost differently; intensity and stamina scale the cost.
@@ -71,6 +83,7 @@
     league.teams.forEach((t) => {
       const k = t.id === league.userId && FM.userMod ? FM.userMod('recovery') : 1;
       t.squad.forEach((p) => {
+        p.__mine = t.id === league.userId;
         if (p.condition == null) return;
         if (p.restCap != null) { p.restCap = Math.min(1, p.restCap + 0.04); if (p.restCap >= 1) delete p.restCap; }
         const cap = p.restCap == null ? 1 : p.restCap;
