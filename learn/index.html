@@ -26025,13 +26025,7 @@ SQIDAQAB
     function showLoadingWithColdStartHint(el, initialMessage) {
         el.innerHTML = `<div class="km-inline-detail-item km-inline-detail-none km-loading-hint">${escapeHtml(initialMessage || 'Loading…')}</div>`;
         const marker = el.querySelector('.km-loading-hint');
-        setTimeout(() => {
-            // Only overwrite if this exact marker is still there - a
-            // no-op once the real content has already replaced it.
-            if (el.querySelector('.km-loading-hint') === marker) {
-                marker.textContent = "Still loading — this is taking longer than usual, but hasn't failed. Hang tight.";
-            }
-        }, 4000);
+        marker.innerHTML = '<style>@keyframes lmSpin{to{transform:rotate(360deg)}}</style><span role="status" aria-label="Loading" style="display:inline-block;width:20px;height:20px;border:2px solid currentColor;border-top-color:transparent;border-radius:50%;animation:lmSpin .8s linear infinite;opacity:.6"></span>';
     }
 
     let lessonInProgress = false;
@@ -37249,26 +37243,7 @@ SQIDAQAB
         // "Finding your next lesson..." was stale wording from before Cortex
         // became the default landing view - this boot screen isn't finding
         // a lesson at all any more.
-        const messages = ['Getting things ready…', 'Checking what\'s due…', 'Loading your account…', 'Almost there…'];
-        // Hardcoded colours, deliberately not any --variable - previous
-        // attempts (inherited --ink, explicit --panel/--text, then a
-        // plain dark grey/white pair) were all still reported as
-        // invisible. Explicit birch background + burgundy text per direct
-        // instruction, using the same literal hex values as this app's
-        // own default palette (birch #D9C398, burgundy #4E1B26).
-        contentInner.innerHTML = `<div class="dashboard-view dashboard-locked"><p id="sfLoadingMessage" style="font-style:italic; text-align:center; max-width:420px; margin:0 auto; line-height:1.7; font-size:0.95rem; background:#D9C398; color:#1A1A1C; padding:14px 20px; border-radius:8px;">${escapeHtml(messages[0])}</p></div>`;
-        let i = 0;
-        const intervalId = setInterval(() => {
-            const el = document.getElementById('sfLoadingMessage');
-            if (!el) { clearInterval(intervalId); return; }
-            i = (i + 1) % messages.length;
-            el.textContent = messages[i];
-        }, 2500);
-        setTimeout(() => {
-            clearInterval(intervalId);
-            const el = document.getElementById('sfLoadingMessage');
-            if (el) el.textContent = "Still loading — this is taking longer than usual, but hasn't failed. Hang tight.";
-        }, 4000);
+        contentInner.innerHTML = `<style>@keyframes lmSpin{to{transform:rotate(360deg)}}</style><div class="dashboard-view dashboard-locked" style="display:flex;justify-content:center;padding-top:80px"><div id="sfLoadingMessage" role="status" aria-label="Loading" style="width:38px;height:38px;border:3px solid rgba(217,195,152,.25);border-top-color:#D9C398;border-radius:50%;animation:lmSpin .8s linear infinite"></div></div>`;
     }
 
     // The paid-only parts of the chrome. Split out so a student who was let
