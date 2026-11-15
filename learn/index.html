@@ -1861,7 +1861,9 @@
 
     /* ─── Diagram-drawing question widget ─── */
     .diagram-widget { display: flex; flex-direction: column; gap: 10px; margin-top: 6px; }
-    .diagram-palette { display: flex; flex-wrap: wrap; gap: 6px; }
+    .diagram-palette { display: grid; gap: 6px; }
+    .dg-group { border: 1px solid rgba(230, 215, 176, 0.22); border-radius: 8px; padding: 0; } .dg-group > summary { cursor: pointer; padding: 7px 12px; font-weight: 700; font-size: 13px; letter-spacing: .02em; list-style: none; display: flex; justify-content: space-between; } .dg-group > summary::-webkit-details-marker { display: none; } .dg-group > summary::after { content: '▸'; opacity: .7; } .dg-group[open] > summary::after { content: '▾'; }
+    .dg-items { display: flex; flex-wrap: wrap; gap: 6px; padding: 4px 10px 10px; }
     .diagram-palette-btn {
         display: flex; flex-direction: column; align-items: center; gap: 3px;
         background: var(--panel); border: 1px solid rgba(230, 215, 176, 0.18); border-radius: 3px;
@@ -22229,7 +22231,7 @@ SQIDAQAB
     // (doc.designW, the widest it has been opened at) and the whole of it is shrunk to fit, so everything stays where it was and the same size relative to everything else. The numbers kept
     // for each box never change; pointer movements are divided by the scale (nbK) so dragging and resizing still follow the mouse exactly.
     const nbK = (canvas) => 1 / ((canvas && canvas._nbScale) || 1);
-    function nbAutoScale(canvas) {
+    function nbAutoScale(canvas, fromFit) {
         const page = canvas._nbPage, parent = canvas.parentElement; if (!page || !page.doc || !parent) return;
         const stacked = window.matchMedia && window.matchMedia('(max-width: 520px)').matches;
         const reset = () => { canvas._nbScale = 1; canvas.style.width = ''; canvas.style.zoom = ''; };
@@ -22240,11 +22242,11 @@ SQIDAQAB
         // the width the page has been written at: remembered when it is open at a width that fits it, and at least as wide as the furthest thing on it
         if (canvas._nbScale === 1 || canvas._nbScale == null) { if (!canvas.style.width && avail >= 700 && (!page.doc.designW || avail > page.doc.designW)) page.doc.designW = Math.round(avail); }
         const D = Math.max(extent + 24, 760);   // the page is scaled only as far as what is on it needs: an empty or narrow page keeps normal-size text at any width, a wide one shrinks as a whole
-        if (avail >= D - 1) { if (canvas._nbScale !== 1) { reset(); nbFitCanvas(canvas); } else canvas.style.width = ''; return; }
+        if (avail >= D - 1) { if (canvas._nbScale !== 1) { reset(); if (!fromFit) nbFitCanvas(canvas); } else canvas.style.width = ''; return; }
         const f = Math.max(0.5, avail / D);
-        canvas._nbScale = f;
-        canvas.style.width = D + 'px'; canvas.style.zoom = String(f);   // CSS zoom, not a transform: the text is laid out at its real smaller size, so it stays sharp and keeps its look; offsets and widths stay in full-size units
-        nbFitCanvas(canvas);
+        const changed = canvas._nbScale !== f || canvas.style.width !== D + 'px';
+        canvas._nbScale = f; canvas.style.width = D + 'px'; canvas.style.zoom = String(f);   // CSS zoom, not a transform: the text is laid out at its real smaller size, so it stays sharp and keeps its look; offsets and widths stay in full-size units
+        if (!fromFit && changed) nbFitCanvas(canvas);
     }
     // How much the page's layout has to be squeezed to fit the width it has now: 1 when everything fits, less when the furthest edge of what was placed would run off.
     function nbSqueeze(canvas, lo, cw) {
@@ -22291,6 +22293,7 @@ SQIDAQAB
         let bottom = 0;
         canvas.querySelectorAll('.nb-block').forEach((b) => { bottom = Math.max(bottom, b.offsetTop + b.offsetHeight); });
         canvas.style.height = Math.max(Math.round(window.innerHeight * 0.68), 480, bottom + 160) + 'px';
+        if (!canvas._nbFitting) { canvas._nbFitting = true; try { nbAutoScale(canvas, true); } finally { canvas._nbFitting = false; } }   // what is on the page may now be wider (or narrower) than the page: the scale follows
     }
     // Text boxes are freely positioned, but typing must never disappear under a figure.
     // As the final line approaches the next horizontally-overlapping block, reserve one
@@ -24830,7 +24833,7 @@ SQIDAQAB
         toolToggle.addEventListener('click', () => setTools(toolRow.classList.contains('closed'), true));
         document.getElementById('nbAddDiagram').addEventListener('click', () => {
             let bottom = 0; canvas.querySelectorAll('.nb-block').forEach((b) => { bottom = Math.max(bottom, b.offsetTop + b.offsetHeight); });
-            const block = { id: notesNewId(), type: 'diagram', x: (canvas.clientWidth < 520 ? 44 : 72), y: bottom ? bottom + 24 : 24, w: Math.min(620, Math.max(300, canvas.clientWidth - 48)), state: {}, linesOpen: true };
+            const block = { id: notesNewId(), type: 'diagram', x: (canvas.clientWidth < 520 ? 44 : 72), y: bottom ? bottom + 24 : 24, w: Math.min(620, Math.max(300, canvas.clientWidth - 48)), state: {}, linesOpen: false };
             page.doc.blocks.push(block);
             nbToggleHint(canvas, page);
             const el = nbMakeDiagramBlock(page, block, canvas);
@@ -32666,21 +32669,37 @@ SQIDAQAB
             }
         });
 
-        Object.keys(DIAGRAM_CURVE_SHAPES).forEach((type) => {
-            const btn = document.createElement('button');
-            btn.type = 'button';
-            btn.className = 'diagram-palette-btn';
-            const preview = svgElement('svg', { viewBox: '0 0 260 220', class: 'diagram-palette-preview' });
-            preview.appendChild(svgElement('polyline', { points: diagramPolylinePoints(DIAGRAM_CURVE_SHAPES[type]), class: 'diagram-curve' }));
-            btn.appendChild(preview);
-            const labelSpan = document.createElement('span');
-            labelSpan.textContent = DIAGRAM_PALETTE_TEXT[type] || DIAGRAM_PALETTE_LABELS[type] || type;
-            btn.appendChild(labelSpan);
-            btn.addEventListener('click', () => {
-                state.placed.push({ instanceId: `c${Math.random().toString(36).slice(2)}`, curveTypeId: type, x: 220, y: 160, scaleX: 1, scaleY: 1 });
-                render();
+        // The curves, in groups that open and close, so there is a short list to choose from and not every curve at once.
+        const CURVE_GROUPS = [
+            ['Supply and demand', ['demand', 'supply', 'demand_relatively_elastic', 'demand_relatively_inelastic', 'supply_relatively_elastic', 'supply_relatively_inelastic', 'world_supply', 'generic_price_line', 'generic_quantity_line']],
+            ['Costs and revenue', ['marginal_cost', 'average_cost', 'average_revenue', 'marginal_revenue', 'total_fixed_cost', 'total_variable_cost', 'total_cost', 'average_fixed_cost', 'average_variable_cost']],
+            ['The whole economy', ['ad', 'as_curve', 'lras_classical', 'lras_keynesian', 'phillips', 'laffer', 'ppf']],
+            ['Inequality', ['lorenz_curve', 'line_of_equality']],
+        ];
+        const grouped = new Set(); CURVE_GROUPS.forEach((g) => g[1].forEach((t) => grouped.add(t)));
+        const otherTypes = Object.keys(DIAGRAM_CURVE_SHAPES).filter((t) => !grouped.has(t));
+        const groupList = CURVE_GROUPS.map((g) => [g[0], g[1].filter((t) => DIAGRAM_CURVE_SHAPES[t])]).concat(otherTypes.length ? [['Other', otherTypes]] : []).filter((g) => g[1].length);
+        groupList.forEach(([name, types], gi) => {
+            const det = document.createElement('details'); det.className = 'dg-group'; if (gi === 0) det.open = true;
+            const sum = document.createElement('summary'); sum.textContent = name; det.appendChild(sum);
+            const items = document.createElement('div'); items.className = 'dg-items'; det.appendChild(items);
+            types.forEach((type) => {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'diagram-palette-btn';
+                const preview = svgElement('svg', { viewBox: '0 0 260 220', class: 'diagram-palette-preview' });
+                preview.appendChild(svgElement('polyline', { points: diagramPolylinePoints(DIAGRAM_CURVE_SHAPES[type]), class: 'diagram-curve' }));
+                btn.appendChild(preview);
+                const labelSpan = document.createElement('span');
+                labelSpan.textContent = DIAGRAM_PALETTE_TEXT[type] || DIAGRAM_PALETTE_LABELS[type] || type;
+                btn.appendChild(labelSpan);
+                btn.addEventListener('click', () => {
+                    state.placed.push({ instanceId: `c${Math.random().toString(36).slice(2)}`, curveTypeId: type, x: 220, y: 160, scaleX: 1, scaleY: 1 });
+                    render();
+                });
+                items.appendChild(btn);
             });
-            paletteEl.appendChild(btn);
+            paletteEl.appendChild(det);
         });
 
         const shadeInput = container.querySelector(`#${uid}-shade-input`);
