@@ -4438,6 +4438,11 @@
     .nb-table-wrap { overflow: hidden; padding: 0 8px 8px; }
     .nb-table table { width: 100%; border-collapse: collapse; table-layout: fixed; }
     .nb-table td { min-width: 0; height: 30px; padding: 7px 9px; border: 1px solid rgba(230,215,176,.55); vertical-align: top; white-space: pre-wrap; overflow-wrap: normal; word-break: normal; hyphens: none; line-height: 1.4; outline: none; background: rgba(230,215,176,.035); }
+    .nb-table td.nb-filled { background: #E6D7B0; color: #12121E; }
+    .nb-table td.nb-sel { box-shadow: inset 0 0 0 2px #E6D7B0; background: rgba(230,215,176,.35); }
+    .nb-table.nb-filling td { cursor: crosshair; user-select: none; -webkit-user-select: none; }
+    .nb-table-fillbtn { padding: 3px 9px; border: 1px solid rgba(230,215,176,.45); border-radius: 6px; background: transparent; color: #E6D7B0; font: 700 11px Arial,sans-serif; cursor: pointer; }
+    .nb-table-fillbtn[aria-pressed="true"] { background: #E6D7B0; color: #12121E; }
     .nb-table td:focus { background: rgba(230,215,176,.12); box-shadow: inset 0 0 0 2px #E6D7B0; }
     .nb-table:hover > .nb-resize, .nb-table:focus-within > .nb-resize { opacity: 1; }
     .nb-table-dims { display: flex; align-items: center; gap: 6px; font: 700 11px Arial,sans-serif; }
@@ -23395,6 +23400,8 @@ SQIDAQAB
         block.cols = nbClamp(Math.round(Number(block.cols) || 2), 1, 12);
         block.cells = Array.from({ length: block.rows }, (_, r) => Array.from({ length: block.cols }, (_, c) => String(block.cells && block.cells[r] && block.cells[r][c] || '')));
 
+        block.fills = Array.from({ length: block.rows }, (_, r) => Array.from({ length: block.cols }, (_, c) => !!(block.fills && block.fills[r] && block.fills[r][c])));
+
         // The logical width stays large enough for every column. Corner
         // resizing changes only the displayed scale, so shrinking preserves
         // the full grid instead of crushing its right-hand columns together.
@@ -23402,7 +23409,7 @@ SQIDAQAB
 
         const el = document.createElement('div');
         el.className = 'nb-block nb-table'; el.dataset.id = block.id;
-        el.innerHTML = `<div class="nb-table-scale"><div class="nb-dbar"><span class="nb-grip nb-table-grip" title="Drag to move" role="button" aria-label="Drag to move this table">⠿ Table</span><span class="nb-table-dims"><label>Rows <input type="number" min="1" max="12" value="${block.rows}" aria-label="Table rows"></label><label>Columns <input type="number" min="1" max="12" value="${block.cols}" aria-label="Table columns"></label></span><button type="button" class="nb-del nb-del-inline" aria-label="Delete this table" title="Delete">×</button></div><div class="nb-table-wrap"><table><tbody></tbody></table></div></div><div class="nb-resize" title="Drag to resize"></div>`;
+        el.innerHTML = `<div class="nb-table-scale"><div class="nb-dbar"><span class="nb-grip nb-table-grip" title="Drag to move" role="button" aria-label="Drag to move this table">⠿ Table</span><span class="nb-table-dims"><label>Rows <input type="number" min="1" max="12" value="${block.rows}" aria-label="Table rows"></label><label>Columns <input type="number" min="1" max="12" value="${block.cols}" aria-label="Table columns"></label><button type="button" class="nb-table-fillbtn" aria-pressed="false" title="Drag across cells to fill a rectangle in cream; drag over filled cells to clear it">Fill</button></span><button type="button" class="nb-del nb-del-inline" aria-label="Delete this table" title="Delete">×</button></div><div class="nb-table-wrap"><table><tbody></tbody></table></div></div><div class="nb-resize" title="Drag to resize"></div>`;
         canvas.appendChild(el); nbPlace(el, block, canvas); nbSyncTableScale(el, block);
         const body = el.querySelector('tbody');
         const rowInput = el.querySelector('[aria-label="Table rows"]');
@@ -23412,6 +23419,22 @@ SQIDAQAB
             td.focus(); const selection = window.getSelection(), caret = document.createRange();
             caret.selectNodeContents(td); caret.collapse(false); selection.removeAllRanges(); selection.addRange(caret);
         };
+        let fillStart = null, fillEnd = null;
+        const paintSel = () => {
+            const r0 = fillStart ? Math.min(fillStart[0], fillEnd[0]) : 0, r1 = fillStart ? Math.max(fillStart[0], fillEnd[0]) : -1, c0 = fillStart ? Math.min(fillStart[1], fillEnd[1]) : 0, c1 = fillStart ? Math.max(fillStart[1], fillEnd[1]) : -1;
+            Array.from(body.rows).forEach((tr, r) => Array.from(tr.cells).forEach((td, c) => td.classList.toggle('nb-sel', r >= r0 && r <= r1 && c >= c0 && c <= c1)));
+        };
+        const endFill = () => {
+            if (!fillStart) return;
+            const r0 = Math.min(fillStart[0], fillEnd[0]), r1 = Math.max(fillStart[0], fillEnd[0]), c0 = Math.min(fillStart[1], fillEnd[1]), c1 = Math.max(fillStart[1], fillEnd[1]);
+            let all = true; for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) if (!block.fills[r][c]) all = false;
+            for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) { block.fills[r][c] = !all; body.rows[r].cells[c].classList.toggle('nb-filled', !all); }
+            fillStart = fillEnd = null; paintSel(); notesScheduleSave();
+        };
+        document.addEventListener('mouseup', () => { if (!el.isConnected) return; endFill(); });
+        const fillBtn = el.querySelector('.nb-table-fillbtn');
+        fillBtn.addEventListener('mousedown', (e) => e.preventDefault());
+        fillBtn.addEventListener('click', () => { const on = !el.classList.contains('nb-filling'); el.classList.toggle('nb-filling', on); fillBtn.setAttribute('aria-pressed', String(on)); });
         const renderCells = () => {
             body.innerHTML = '';
             for (let r = 0; r < block.rows; r += 1) {
@@ -23421,6 +23444,9 @@ SQIDAQAB
                     td.contentEditable = 'true'; td.spellcheck = true;
                     td.setAttribute('aria-label', `Row ${r + 1}, column ${c + 1}`);
                     td.textContent = block.cells[r][c];
+                    if (block.fills[r][c]) td.classList.add('nb-filled');
+                    td.addEventListener('mousedown', (e) => { if (!el.classList.contains('nb-filling') || e.button !== 0) return; e.preventDefault(); fillStart = [r, c]; fillEnd = [r, c]; paintSel(); });
+                    td.addEventListener('mouseenter', () => { if (fillStart) { fillEnd = [r, c]; paintSel(); } });
                     td.addEventListener('input', () => {
                         block.cells[r][c] = td.innerText.replace(/\n$/, '');
                         notesScheduleSave(); requestAnimationFrame(() => nbFitCanvas(canvas));
@@ -23446,6 +23472,7 @@ SQIDAQAB
             const nextCols = nbClamp(Math.round(Number(colInput.value) || block.cols), 1, 12);
             const old = block.cells;
             block.cells = Array.from({ length: nextRows }, (_, r) => Array.from({ length: nextCols }, (_, c) => String(old[r] && old[r][c] || '')));
+            const oldFills = block.fills; block.fills = Array.from({ length: nextRows }, (_, r) => Array.from({ length: nextCols }, (_, c) => !!(oldFills[r] && oldFills[r][c])));
             block.rows = nextRows; block.cols = nextCols; rowInput.value = nextRows; colInput.value = nextCols;
             block.tableBaseW = Math.max(Number(block.tableBaseW) || 0, nextCols * 140, 420);
             renderCells(); nbSyncTableScale(el, block); notesScheduleSave(); requestAnimationFrame(() => nbFitCanvas(canvas));
@@ -37730,7 +37757,7 @@ SQIDAQAB
             let out = '';
             for (const b of blocks) {
                 if (b.type === 'text' || !b.type) out += '<div>' + String(b.html || '').replace(/\u200b/g, '') + '</div>';
-                else if (b.type === 'table') out += '<table border="1" cellspacing="0" cellpadding="4">' + (b.cells || []).map((row) => '<tr>' + row.map((c) => '<td>' + String(c || '') + '</td>').join('') + '</tr>').join('') + '</table>';
+                else if (b.type === 'table') out += '<table border="1" cellspacing="0" cellpadding="4">' + (b.cells || []).map((row, ri) => '<tr>' + row.map((c, ci) => '<td' + ((b.fills && b.fills[ri] && b.fills[ri][ci]) ? ' style="background:#E6D7B0"' : '') + '>' + String(c || '') + '</td>').join('') + '</tr>').join('') + '</table>';
                 else if (b.type === 'image') { let url = null; try { url = await nbImgLoad(b.img, b.src); } catch (_) { url = null; } out += url ? '<p><img src="' + url + '" style="max-width:100%"></p>' : '<p>[picture]</p>'; }
                 else if (b.type === 'graph') out += '<p>[graph]</p>';
                 else if (b.type === 'diagram') out += '<p>[diagram]</p>';
