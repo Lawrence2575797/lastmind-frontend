@@ -24594,6 +24594,7 @@ SQIDAQAB
                     <button type="button" class="nb-tool" id="nbAddBubble" title="Add a speech-bubble text box">+ Speech bubble</button>
                     <button type="button" class="nb-tool" id="nbAutocorrect" aria-pressed="true" title="Corrects common typing mistakes as you write. Press Backspace straight after a correction to put back what you typed.">Autocorrect: on</button>
                     <button type="button" class="nb-tool" id="nbShortcuts">Shortcuts</button>
+                    <button type="button" class="nb-tool" id="nbHomework" title="Download this page as an editable Word homework sheet with answer boxes under each question">Homework sheet</button>
                 </div>
                 </div>
                 <div class="nb-head">
@@ -37784,6 +37785,44 @@ SQIDAQAB
             setTimeout(() => { btn.textContent = old; btn.classList.remove('done'); btn.title = 'Copy this folder and the pages in it'; }, 1600);
         }
         document.addEventListener('click', (e) => { const b = e.target.closest && e.target.closest('.nt-copy'); if (b) { e.stopPropagation(); copyFolder(b); } }, true);
+
+        // ----- a homework sheet: this page as an editable Word file, with an answer box under every question. The boxes are set in blue, so what the student types shows in a
+        // different colour from the questions. A question is a bullet or arrow line with nothing nested under it, or any line ending in "?"; a line containing "[answer]" or "____" also gets a box.
+        async function homeworkHtml(n) {
+            const blocks = ((n.doc && n.doc.blocks) || []).filter((b) => b && b.type !== 'arrow').slice().sort((a, b) => ((a.y || 0) - (b.y || 0)) || ((a.x || 0) - (b.x || 0)));
+            const box = () => '<table class="ans" width="100%" cellspacing="0" cellpadding="6" style="border-collapse:collapse;margin:4px 0 12px 0"><tr><td style="border:1.5pt solid #1F4FBF;height:70pt;vertical-align:top;color:#1F4FBF;font-family:Calibri,Arial,sans-serif;font-size:12pt">&nbsp;</td></tr></table>';
+            let out = '<h1>' + escH(n.name || 'Homework') + '</h1><p class="meta">Name: ____________________ &nbsp;&nbsp; Date: ____________</p><p class="meta"><i>Type your answers in the blue boxes.</i></p>';
+            for (const b of blocks) {
+                if (b.type === 'text' || !b.type) {
+                    const d = document.createElement('div'); d.innerHTML = String(b.html || '').replace(/\u200b/g, '');
+                    const lineOf = (el) => (el.textContent || '').replace(/\s+/g, ' ').trim();
+                    const isQ = (el) => { const t = lineOf(el); if (!t) return false; if (/\[answer\]|_{3,}/i.test(t)) return true; if (el.matches('li, .nb-arrow-step')) return !el.querySelector('li, .nb-arrow-step'); return /\?$/.test(t) && !el.querySelector('li, .nb-arrow-step, p, div'); };
+                    const marks = []; d.querySelectorAll('li, .nb-arrow-step, p, div').forEach((el) => { if (isQ(el)) marks.push(el); });
+                    // boxes go straight after each question (inside a list they go after the item)
+                    marks.forEach((el) => { const holder = document.createElement('div'); holder.className = 'ansmark'; if (el.matches('li')) { const li = document.createElement('li'); li.style.listStyle = 'none'; li.className = 'ansmark'; el.after(li); } else el.after(holder); });
+                    let html = d.innerHTML.replace(/<li class="ansmark"[^>]*><\/li>/g, '@@BOX@@').replace(/<div class="ansmark"><\/div>/g, '@@BOX@@');
+                    out += '<div>' + html + '</div>';
+                } else if (b.type === 'table') out += '<table border="1" cellspacing="0" cellpadding="4" style="border-collapse:collapse">' + (b.cells || []).map((row, ri) => '<tr>' + row.map((c, ci) => '<td' + ((b.fills && b.fills[ri] && b.fills[ri][ci]) ? ' style="background:#E6D7B0"' : '') + '>' + escH(c || '') + '</td>').join('') + '</tr>').join('') + '</table>';
+                else if (b.type === 'image') { let url = null; try { url = await nbImgLoad(b.img, b.src); } catch (_) { url = null; } if (url) out += '<p><img src="' + url + '" style="max-width:100%"></p>'; }
+                else if (b.type === 'graph' || b.type === 'diagram') out += '<p><i>[' + b.type + ' not included]</i></p>';
+            }
+            // a list cannot hold a table directly in Word, so a box inside a list is closed out of it and the list carries on after
+            out = out.replace(/@@BOX@@/g, box());
+            return out;
+        }
+        async function exportHomework(btn) {
+            const n = notes.activeId && notesNode(notes.activeId); if (!n || n.type !== 'page') return;
+            const old = btn.textContent; btn.textContent = 'Preparing…';
+            try {
+                const body = await homeworkHtml(n);
+                const doc = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"><title>' + escH(n.name || 'Homework') + '</title><style>body{font-family:Calibri,Arial,sans-serif;font-size:12pt;color:#000}h1{font-size:20pt}.meta{color:#444}li{margin:3pt 0}</style></head><body>' + body + '</body></html>';
+                const blob = new Blob(['\ufeff', doc], { type: 'application/msword' }), a = document.createElement('a');
+                a.href = URL.createObjectURL(blob); a.download = ((n.name || 'Homework').replace(/[\/:*?"<>|]+/g, ' ').trim() || 'Homework') + ' - homework.doc';
+                document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
+            } catch (e) { window.alert('Could not make the sheet: ' + (e && e.message)); }
+            btn.textContent = old;
+        }
+        document.addEventListener('click', (e) => { const b = e.target.closest && e.target.closest('#nbHomework'); if (b) exportHomework(b); });
     })();
     </script>
     <script src="/create/law-career/career-base.js?v=20261006a"></script>
