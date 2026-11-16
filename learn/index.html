@@ -21696,7 +21696,7 @@ SQIDAQAB
         try {
             const pg = notes.activeId && notesNode(notes.activeId);
             if (pg && pg.type === 'page' && pg.doc && Array.isArray(pg.doc.blocks)) {
-                const j = JSON.stringify(pg.doc.blocks);
+                const j = JSON.stringify(pg.doc.blocks) + '|kp:' + (pg.doc.keyPoints || '');
                 if (nbStamp[pg.id] !== undefined && nbStamp[pg.id] !== j) pg.updatedAt = new Date().toISOString();
                 nbStamp[pg.id] = j;
             }
@@ -21778,7 +21778,7 @@ SQIDAQAB
                 if (!snaps.length) return;
                 const best = snaps[0], changedAt = Date.parse(pg.updatedAt || '') || 0;
                 if (best.t <= changedAt) return;
-                pg.doc.blocks = JSON.parse(JSON.stringify(best.blocks)); pg.updatedAt = new Date().toISOString(); nbStamp[pg.id] = JSON.stringify(pg.doc.blocks); n++;
+                pg.doc.blocks = JSON.parse(JSON.stringify(best.blocks)); pg.updatedAt = new Date().toISOString(); nbStamp[pg.id] = JSON.stringify(pg.doc.blocks) + '|kp:' + (pg.doc.keyPoints || ''); n++;
             });
             if (n) { notesPersist(); try { renderMyNotesTree(); } catch (_) { /* drawn later */ } try { notesStatus(n === 1 ? 'A page that had lost its text was put back from its history' : n + ' pages that had lost their text were put back from their history'); } catch (_) { /* no status line yet */ } }
         } catch (_) { /* recovery never stops the notes opening */ }
@@ -21875,7 +21875,7 @@ SQIDAQAB
                 const d = Object.assign({}, row.data); const ord = d._ord; delete d._ord;
                 if (!d.id || !(d.type === 'folder' || d.type === 'page')) return;
                 // the page open on the screen, with the cursor in it: it is picked up on a later sync, never replaced while it is being written
-                const typingNow = document.activeElement && document.activeElement.closest && document.activeElement.closest('#nbCanvas');
+                const typingNow = document.activeElement && document.activeElement.closest && document.activeElement.closest('#nbCanvas, .km-keypoints-widget');
                 if (d.id === notes.activeId && typingNow && document.getElementById('nbCanvas')) return;
                 const i = notes.nodes.findIndex((x) => x.id === d.id);
                 if (i >= 0 && d.type === 'page' && notes.nodes[i].type === 'page') {
@@ -21883,6 +21883,8 @@ SQIDAQAB
                     // and whatever the account's copy does replace is put in History first, so a page can always be got back.
                     const old = notes.nodes[i], oc = nbDocChars((old.doc && old.doc.blocks) || []), nc = nbDocChars((d.doc && d.doc.blocks) || []);
                     try {
+                        const okp = ((old.doc && old.doc.keyPoints) || '').replace(/<[^>]*>/g, '').trim().length, nkp = ((d.doc && d.doc.keyPoints) || '').replace(/<[^>]*>/g, '').trim().length;
+                        if (okp > 0 && nkp < okp) { if (d.doc && d.doc.keyPoints) d.doc.keyPoints = old.doc.keyPoints; else { d.doc = d.doc || {}; d.doc.keyPoints = old.doc.keyPoints; } if (old.doc.keyPointsWriting !== undefined) d.doc.keyPointsWriting = old.doc.keyPointsWriting; toPush.push(d); }
                         if (oc > 0 && (nc === 0 || (oc > 200 && nc < oc * 0.25))) {
                             if (d.doc && d.doc.blocks && d.doc.blocks.length) nbHistPush({ id: d.id }, d.doc.blocks, nc, 'Account copy (it had less), set aside');
                             toPush.push(old); return;
@@ -21951,7 +21953,7 @@ SQIDAQAB
             if (changed && uid === notesSyncUid) {
                 notesAutoRecover();
                 renderMyNotesTree();
-                const typing = document.activeElement && document.activeElement.closest && document.activeElement.closest('#nbCanvas');
+                const typing = document.activeElement && document.activeElement.closest && document.activeElement.closest('#nbCanvas, .km-keypoints-widget');
                 if (activeChanged && !typing) {
                     const pg = notes.activeId && notesNode(notes.activeId);
                     if (pg && pg.type === 'page') notesRenderPage(pg); else if (!pg && typeof notesRenderLanding === 'function' && document.getElementById('nbCanvas')) notesRenderLanding();
@@ -31296,6 +31298,7 @@ SQIDAQAB
         const editable = ed.container.querySelector('.math-shortcut-editor');
         editable.style.fontSize = '17px';
         ed.onChange(() => { page.doc.keyPoints = ed.getHtml(); stateEl.textContent = 'Saving…'; notesScheduleSave(); setTimeout(() => { stateEl.textContent = 'Saved'; setTimeout(() => { if (stateEl.textContent === 'Saved') stateEl.textContent = ''; }, 1400); }, 400); });
+        editable.addEventListener('blur', () => { if (page.doc.keyPoints !== undefined) { try { notesFlush(); } catch (_) { /* the next edit saves again */ } } });
         const activate = () => { notesActive = { ed, editable, block }; };
         editable.addEventListener('focus', () => { activate(); notesWriting = ed.isWritingMode(); nbSyncKeyboardButtons(); });
         editable.addEventListener('pointerdown', activate); editable.addEventListener('keydown', activate);
