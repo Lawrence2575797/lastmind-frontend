@@ -37791,17 +37791,43 @@ SQIDAQAB
         async function homeworkHtml(n) {
             const blocks = ((n.doc && n.doc.blocks) || []).filter((b) => b && b.type !== 'arrow').slice().sort((a, b) => ((a.y || 0) - (b.y || 0)) || ((a.x || 0) - (b.x || 0)));
             const box = () => '<table class="ans" width="100%" cellspacing="0" cellpadding="6" style="border-collapse:collapse;margin:4px 0 12px 0"><tr><td style="border:1.5pt solid #1F4FBF;height:70pt;vertical-align:top;color:#1F4FBF;font-family:Calibri,Arial,sans-serif;font-size:12pt">&nbsp;</td></tr></table>';
-            let out = '<h1>' + escH(n.name || 'Homework') + '</h1><p class="meta">Name: ____________________ &nbsp;&nbsp; Date: ____________</p><p class="meta"><i>Type your answers in the blue boxes.</i></p>';
+            let out = '<h1>' + escH(n.name || 'Homework') + '</h1><p class="meta"><i>Type your answers in the blue boxes.</i></p>';
             for (const b of blocks) {
                 if (b.type === 'text' || !b.type) {
+                    // the text is flattened into plain lines (a bullet or an arrow step becomes an indented line) so Word lays it out the same way and a box can sit directly under any line
                     const d = document.createElement('div'); d.innerHTML = String(b.html || '').replace(/\u200b/g, '');
-                    const lineOf = (el) => (el.textContent || '').replace(/\s+/g, ' ').trim();
-                    const isQ = (el) => { const t = lineOf(el); if (!t) return false; if (/\[answer\]|_{3,}/i.test(t)) return true; if (el.matches('li, .nb-arrow-step')) return !el.querySelector('li, .nb-arrow-step'); return /\?$/.test(t) && !el.querySelector('li, .nb-arrow-step, p, div'); };
-                    const marks = []; d.querySelectorAll('li, .nb-arrow-step, p, div').forEach((el) => { if (isQ(el)) marks.push(el); });
-                    // boxes go straight after each question (inside a list they go after the item)
-                    marks.forEach((el) => { const holder = document.createElement('div'); holder.className = 'ansmark'; if (el.matches('li')) { const li = document.createElement('li'); li.style.listStyle = 'none'; li.className = 'ansmark'; el.after(li); } else el.after(holder); });
-                    let html = d.innerHTML.replace(/<li class="ansmark"[^>]*><\/li>/g, '@@BOX@@').replace(/<div class="ansmark"><\/div>/g, '@@BOX@@');
-                    out += '<div>' + html + '</div>';
+                    const isBlock = (x) => x.nodeType === 1 && (/^(UL|OL|LI|DIV|P|H[1-6]|TABLE)$/.test(x.tagName) || x.classList.contains('nb-arrow-step'));
+                    const lines = [];
+                    const walk = (parent, depth) => {
+                        let buf = '';
+                        const flush = (kind) => { if (buf.replace(/<[^>]*>|&nbsp;|\s/g, '')) lines.push({ html: buf, depth, kind: kind || 'p', leaf: true }); buf = ''; };
+                        parent.childNodes.forEach((x) => {
+                            if (!isBlock(x)) { buf += x.nodeType === 1 ? x.outerHTML : escH(x.textContent); return; }
+                            flush();
+                            if (x.tagName === 'UL' || x.tagName === 'OL') { walk(x, depth + 1); return; }
+                            if (x.tagName === 'LI' || x.classList.contains('nb-arrow-step')) {
+                                const kind = x.tagName === 'LI' ? 'li' : 'step', before = lines.length;
+                                const own = document.createElement('div'); const nested = [];
+                                x.childNodes.forEach((y) => { if (y.nodeType === 1 && (y.tagName === 'UL' || y.tagName === 'OL' || y.classList.contains('nb-arrow-step'))) nested.push(y); else own.appendChild(y.cloneNode(true)); });
+                                const html = own.innerHTML; if (html.replace(/<[^>]*>|&nbsp;|\s/g, '')) lines.push({ html, depth, kind, leaf: !nested.length });
+                                if (nested.length) { const wrap = document.createElement('div'); nested.forEach((y) => wrap.appendChild(y.cloneNode(true))); walk(wrap, depth + 1); }
+                                return;
+                            }
+                            if (x.tagName === 'TABLE') return;
+                            // a heading or paragraph: kept as it is when it holds only text
+                            if (!x.querySelector('ul, ol, li, div, p, .nb-arrow-step')) { const html = x.outerHTML; if (x.textContent.trim()) lines.push({ html, depth, kind: 'raw', leaf: true, text: x.textContent }); } else walk(x, depth);
+                        });
+                        flush();
+                    };
+                    walk(d, 0);
+                    const plain = (h) => { const t = document.createElement('div'); t.innerHTML = h; return (t.textContent || '').replace(/\s+/g, ' ').trim(); };
+                    lines.forEach((ln) => {
+                        const t = ln.text ? ln.text.replace(/\s+/g, ' ').trim() : plain(ln.html);
+                        const q = /\[answer\]|_{3,}/i.test(t) || (!/fill in|fill the|complete the/i.test(t) && ((ln.kind === 'li' || ln.kind === 'step') ? ln.leaf : /\?$/.test(t)));
+                        if (ln.kind === 'raw') out += ln.html;
+                        else out += '<p style="margin:3pt 0 3pt ' + (ln.kind === 'p' ? 0 : 14 + ln.depth * 20) + 'pt">' + (ln.kind === 'li' ? '&bull;&nbsp; ' : ln.kind === 'step' ? '&rarr;&nbsp; ' : '') + ln.html + '</p>';
+                        if (q) out += '@@BOX@@';
+                    });
                 } else if (b.type === 'table') out += '<table border="1" cellspacing="0" cellpadding="4" style="border-collapse:collapse">' + (b.cells || []).map((row, ri) => '<tr>' + row.map((c, ci) => '<td' + ((b.fills && b.fills[ri] && b.fills[ri][ci]) ? ' style="background:#E6D7B0"' : '') + '>' + escH(c || '') + '</td>').join('') + '</tr>').join('') + '</table>';
                 else if (b.type === 'image') { let url = null; try { url = await nbImgLoad(b.img, b.src); } catch (_) { url = null; } if (url) out += '<p><img src="' + url + '" style="max-width:100%"></p>'; }
                 else if (b.type === 'graph' || b.type === 'diagram') out += '<p><i>[' + b.type + ' not included]</i></p>';
