@@ -21767,7 +21767,7 @@ SQIDAQAB
         if (!notesListening) {
             notesListening = true;
             window.addEventListener('beforeunload', notesFlush); window.addEventListener('pagehide', notesFlush);
-            document.addEventListener('visibilitychange', () => { if (document.hidden) notesFlush(); else if (notesSyncUid) notesSyncNow(); });
+            document.addEventListener('visibilitychange', () => { if (document.hidden) { notesFlush(); if (notesSyncUid) notesSyncNow({ pushOnly: true }); } else if (notesSyncUid) notesSyncNow({ minAge: 300000 }); });
         }
     }
 
@@ -21825,7 +21825,7 @@ SQIDAQAB
     function notesSyncSchedule() {
         if (!notesSyncUid) return;
         if (notesSyncTimer) clearTimeout(notesSyncTimer);
-        notesSyncTimer = setTimeout(() => { notesSyncTimer = null; notesSyncNow(); }, 1800);
+        notesSyncTimer = setTimeout(() => { notesSyncTimer = null; notesSyncNow({ pushOnly: true }); }, 20000);   // an edit sends just the changed pages, 20 s after the last keystroke; the whole library is only fetched when the page opens or the tab comes back
     }
     // Sends what changed here. Items go in batches so one request stays small.
     async function notesSyncPush(meta, items, deletedIds) {
@@ -21862,15 +21862,26 @@ SQIDAQAB
         }
     }
     // The whole exchange: bring in what other devices changed, send what this one did.
-    async function notesSyncNow() {
+    let notesLastPull = 0;   // when the whole library was last fetched from the account
+    async function notesSyncNow(opts) {
+        opts = opts || {};
         if (!notesSyncUid || !notesLoaded) return;
+        if (opts.minAge && Date.now() - notesLastPull < opts.minAge) return;
         if (notesSyncBusy) { notesSyncAgain = true; return; }
         notesSyncBusy = true;
         const uid = notesSyncUid;
         try {
             // an edit still waiting to be saved locally goes into the local copy first
             if (notesSaveTimer) notesFlush();
+            if (opts.pushOnly && notesLastPull && Date.now() - notesLastPull < 900000) {
+                // pages edited here go up on their own, without downloading everything else again
+                const m0 = notesSyncMeta();
+                const mine = notes.nodes.filter((n) => { const m = m0.nodes[n.id]; return !m || m.gone || m.sig !== notesSyncSig(n); });
+                if (mine.length) await notesSyncPush(m0, mine, []);
+                return;
+            }
             const server = await notesSyncFetch('/notes-sync');
+            notesLastPull = Date.now();
             if (uid !== notesSyncUid) return;
             const meta = notesSyncMeta();
             const rows = new Map((server.nodes || []).map((r) => [r.id, r]));
