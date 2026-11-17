@@ -24605,7 +24605,7 @@ SQIDAQAB
                     <button type="button" class="nb-tool" id="nbAddBubble" title="Add a speech-bubble text box">+ Speech bubble</button>
                     <button type="button" class="nb-tool" id="nbAutocorrect" aria-pressed="true" title="Corrects common typing mistakes as you write. Press Backspace straight after a correction to put back what you typed.">Autocorrect: on</button>
                     <button type="button" class="nb-tool" id="nbShortcuts">Shortcuts</button>
-                    <button type="button" class="nb-tool" id="nbHomework" title="Download this page as an editable Word homework sheet with answer boxes under each question">Homework sheet</button>
+                    <button type="button" class="nb-tool" id="nbHomework" title="Download this page as an editable Word (.docx) homework sheet with answer boxes under each question">Homework sheet</button>
                 </div>
                 </div>
                 <div class="nb-head">
@@ -37797,64 +37797,103 @@ SQIDAQAB
         }
         document.addEventListener('click', (e) => { const b = e.target.closest && e.target.closest('.nt-copy'); if (b) { e.stopPropagation(); copyFolder(b); } }, true);
 
-        // ----- a homework sheet: this page as an editable Word file, with an answer box under every question. The boxes are set in blue, so what the student types shows in a
-        // different colour from the questions. A question is a bullet or arrow line with nothing nested under it, or any line ending in "?"; a line containing "[answer]" or "____" also gets a box.
-        async function homeworkHtml(n) {
+        // ----- a homework sheet: this page as a real Word document (.docx), editable in Word, Google Docs, Pages or a phone, with an answer box under every question. The boxes are
+        // set in blue, so what the student types shows in a different colour from the questions. A question is a bullet or arrow line with nothing nested under it, or any line
+        // ending in "?"; a line containing "[answer]" or "____" also gets a box, and a line asking to fill in boxes never does.
+        const hwX = (t) => String(t == null ? '' : t).replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+        function hwRuns(html, base) {
+            const d = document.createElement('div'); d.innerHTML = html; const out = [];
+            const go = (node, st) => {
+                if (node.nodeType === 3) { if (node.textContent) out.push(Object.assign({ t: node.textContent }, st)); return; }
+                if (node.nodeType !== 1) return;
+                const tg = node.tagName, ns = Object.assign({}, st);
+                if (tg === 'BR') { out.push({ br: 1 }); return; }
+                if (/^(B|STRONG)$/.test(tg) || /bold|^[6-9]00$/.test(node.style.fontWeight || '')) ns.b = 1;
+                if (/^(I|EM)$/.test(tg) || node.style.fontStyle === 'italic') ns.i = 1;
+                if (tg === 'U') ns.u = 1;
+                if (tg === 'SUP') ns.sup = 1;
+                if (tg === 'SUB') ns.sub = 1;
+                node.childNodes.forEach((c) => go(c, ns));
+            };
+            d.childNodes.forEach((c) => go(c, base || {}));
+            return out;
+        }
+        const hwRunXml = (r, size) => r.br ? '<w:r><w:br/></w:r>' : '<w:r><w:rPr>' + (r.b ? '<w:b/>' : '') + (r.i ? '<w:i/>' : '') + '<w:sz w:val="' + (r.sz || size || 24) + '"/>' + (r.u ? '<w:u w:val="single"/>' : '') + (r.sup ? '<w:vertAlign w:val="superscript"/>' : r.sub ? '<w:vertAlign w:val="subscript"/>' : '') + '</w:rPr><w:t xml:space="preserve">' + hwX(r.t) + '</w:t></w:r>';
+        const hwPara = (runs, left, size) => '<w:p><w:pPr><w:spacing w:before="40" w:after="60"/>' + (left ? '<w:ind w:left="' + left + '"/>' : '') + '</w:pPr>' + runs.map((r) => hwRunXml(r, size)).join('') + '</w:p>';
+        const hwBox = () => '<w:tbl><w:tblPr><w:tblW w:w="5000" w:type="pct"/><w:tblBorders>' + ['top', 'left', 'bottom', 'right'].map((k) => '<w:' + k + ' w:val="single" w:sz="12" w:space="0" w:color="1F4FBF"/>').join('') + '</w:tblBorders><w:tblCellMar><w:top w:w="80" w:type="dxa"/><w:left w:w="120" w:type="dxa"/><w:bottom w:w="80" w:type="dxa"/><w:right w:w="120" w:type="dxa"/></w:tblCellMar></w:tblPr><w:tblGrid><w:gridCol w:w="9000"/></w:tblGrid><w:tr><w:trPr><w:trHeight w:val="1500" w:hRule="atLeast"/></w:trPr><w:tc><w:tcPr><w:tcW w:w="5000" w:type="pct"/></w:tcPr><w:p><w:pPr><w:rPr><w:color w:val="1F4FBF"/><w:sz w:val="24"/></w:rPr></w:pPr></w:p></w:tc></w:tr></w:tbl><w:p><w:pPr><w:spacing w:before="0" w:after="120"/></w:pPr></w:p>';
+        const hwLoadImg = (url) => new Promise((res) => { const im = new Image(); im.onload = () => res({ w: im.naturalWidth || 400, h: im.naturalHeight || 300 }); im.onerror = () => res(null); im.src = url; });
+        async function homeworkDocx(n) {
+            const JZ = window.JSZip || await new Promise((res, rej) => { const sc = document.createElement('script'); sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js'; sc.onload = () => res(window.JSZip); sc.onerror = () => rej(new Error('could not load the file maker')); document.head.appendChild(sc); });
             const blocks = ((n.doc && n.doc.blocks) || []).filter((b) => b && b.type !== 'arrow').slice().sort((a, b) => ((a.y || 0) - (b.y || 0)) || ((a.x || 0) - (b.x || 0)));
-            const box = () => '<table class="ans" width="100%" cellspacing="0" cellpadding="6" style="border-collapse:collapse;margin:4px 0 12px 0"><tr><td style="border:1.5pt solid #1F4FBF;height:70pt;vertical-align:top;color:#1F4FBF;font-family:Calibri,Arial,sans-serif;font-size:12pt">&nbsp;</td></tr></table>';
-            let out = '<h1>' + escH(n.name || 'Homework') + '</h1><p class="meta"><i>Type your answers in the blue boxes.</i></p>';
+            const zip = new JZ(), media = []; let body = '';
+            body += hwPara([{ t: n.name || 'Homework', b: 1, sz: 40 }], 0);
+            body += hwPara([{ t: 'Type your answers in the blue boxes.', i: 1, sz: 22 }], 0);
             for (const b of blocks) {
                 if (b.type === 'text' || !b.type) {
-                    // the text is flattened into plain lines (a bullet or an arrow step becomes an indented line) so Word lays it out the same way and a box can sit directly under any line
-                    const d = document.createElement('div'); d.innerHTML = String(b.html || '').replace(/\u200b/g, '');
+                    const d = document.createElement('div'); d.innerHTML = String(b.html || '').replace(/​/g, '');
                     const isBlock = (x) => x.nodeType === 1 && (/^(UL|OL|LI|DIV|P|H[1-6]|TABLE)$/.test(x.tagName) || x.classList.contains('nb-arrow-step'));
+                    const empty = (h) => !h.replace(/<[^>]*>|&nbsp;|\s/g, '');
                     const lines = [];
                     const walk = (parent, depth) => {
                         let buf = '';
-                        const flush = (kind) => { if (buf.replace(/<[^>]*>|&nbsp;|\s/g, '')) lines.push({ html: buf, depth, kind: kind || 'p', leaf: true }); buf = ''; };
+                        const flush = () => { if (!empty(buf)) lines.push({ html: buf, depth, kind: 'p', leaf: true }); buf = ''; };
                         parent.childNodes.forEach((x) => {
-                            if (!isBlock(x)) { buf += x.nodeType === 1 ? x.outerHTML : escH(x.textContent); return; }
+                            if (!isBlock(x)) { buf += x.nodeType === 1 ? x.outerHTML : hwX(x.textContent); return; }
                             flush();
                             if (x.tagName === 'UL' || x.tagName === 'OL') { walk(x, depth + 1); return; }
                             if (x.tagName === 'LI' || x.classList.contains('nb-arrow-step')) {
-                                const kind = x.tagName === 'LI' ? 'li' : 'step', before = lines.length;
-                                const own = document.createElement('div'); const nested = [];
+                                const kind = x.tagName === 'LI' ? 'li' : 'step', own = document.createElement('div'), nested = [];
                                 x.childNodes.forEach((y) => { if (y.nodeType === 1 && (y.tagName === 'UL' || y.tagName === 'OL' || y.classList.contains('nb-arrow-step'))) nested.push(y); else own.appendChild(y.cloneNode(true)); });
-                                const html = own.innerHTML; if (html.replace(/<[^>]*>|&nbsp;|\s/g, '')) lines.push({ html, depth, kind, leaf: !nested.length });
+                                if (!empty(own.innerHTML)) lines.push({ html: own.innerHTML, depth, kind, leaf: !nested.length });
                                 if (nested.length) { const wrap = document.createElement('div'); nested.forEach((y) => wrap.appendChild(y.cloneNode(true))); walk(wrap, depth + 1); }
                                 return;
                             }
                             if (x.tagName === 'TABLE') return;
-                            // a heading or paragraph: kept as it is when it holds only text
-                            if (!x.querySelector('ul, ol, li, div, p, .nb-arrow-step')) { const html = x.outerHTML; if (x.textContent.trim()) lines.push({ html, depth, kind: 'raw', leaf: true, text: x.textContent }); } else walk(x, depth);
+                            if (!x.querySelector('ul, ol, li, div, p, .nb-arrow-step')) { if (x.textContent.trim()) lines.push({ html: x.innerHTML, depth, kind: 'raw', leaf: true, text: x.textContent, heading: /^H[1-6]$/.test(x.tagName) }); } else walk(x, depth);
                         });
                         flush();
                     };
                     walk(d, 0);
-                    const plain = (h) => { const t = document.createElement('div'); t.innerHTML = h; return (t.textContent || '').replace(/\s+/g, ' ').trim(); };
                     lines.forEach((ln) => {
-                        const t = ln.text ? ln.text.replace(/\s+/g, ' ').trim() : plain(ln.html);
+                        const t = (ln.text != null ? ln.text : (() => { const q0 = document.createElement('div'); q0.innerHTML = ln.html; return q0.textContent; })()).replace(/\s+/g, ' ').trim();
                         const q = /\[answer\]|_{3,}/i.test(t) || (!/fill in|fill the|complete the/i.test(t) && ((ln.kind === 'li' || ln.kind === 'step') ? ln.leaf : /\?$/.test(t)));
-                        if (ln.kind === 'raw') out += ln.html;
-                        else out += '<p style="margin:3pt 0 3pt ' + (ln.kind === 'p' ? 0 : 14 + ln.depth * 20) + 'pt">' + (ln.kind === 'li' ? '&bull;&nbsp; ' : ln.kind === 'step' ? '&rarr;&nbsp; ' : '') + ln.html + '</p>';
-                        if (q) out += '@@BOX@@';
+                        const runs = hwRuns(ln.html), allBold = runs.length && runs.every((r) => r.b || r.br);
+                        const left = ln.kind === 'p' || ln.kind === 'raw' ? 0 : 280 + ln.depth * 400;
+                        if (ln.kind === 'li' || ln.kind === 'step') runs.unshift({ t: ln.kind === 'li' ? '•  ' : '→  ' });
+                        const head = ln.heading || (ln.kind === 'raw' && allBold && /^\d+[.)]\s/.test(t));
+                        if (head) runs.forEach((r) => { r.b = 1; r.sz = 28; });
+                        body += hwPara(runs, left) + (q ? hwBox() : '');
                     });
-                } else if (b.type === 'table') out += '<table border="1" cellspacing="0" cellpadding="4" style="border-collapse:collapse">' + (b.cells || []).map((row, ri) => '<tr>' + row.map((c, ci) => '<td' + ((b.fills && b.fills[ri] && b.fills[ri][ci]) ? ' style="background:#E6D7B0"' : '') + '>' + escH(c || '') + '</td>').join('') + '</tr>').join('') + '</table>';
-                else if (b.type === 'image') { let url = null; try { url = await nbImgLoad(b.img, b.src); } catch (_) { url = null; } if (url) out += '<p><img src="' + url + '" style="max-width:100%"></p>'; }
-                else if (b.type === 'graph' || b.type === 'diagram') out += '<p><i>[' + b.type + ' not included]</i></p>';
+                } else if (b.type === 'table') {
+                    const cols = Math.max(1, (b.cells[0] || []).length), w = Math.floor(9000 / cols);
+                    body += '<w:tbl><w:tblPr><w:tblW w:w="5000" w:type="pct"/><w:tblBorders>' + ['top', 'left', 'bottom', 'right', 'insideH', 'insideV'].map((k) => '<w:' + k + ' w:val="single" w:sz="4" w:space="0" w:color="000000"/>').join('') + '</w:tblBorders></w:tblPr><w:tblGrid>' + ('<w:gridCol w:w="' + w + '"/>').repeat(cols) + '</w:tblGrid>' +
+                        (b.cells || []).map((row, ri) => '<w:tr>' + row.map((c, ci) => '<w:tc><w:tcPr><w:tcW w:w="' + w + '" w:type="dxa"/>' + ((b.fills && b.fills[ri] && b.fills[ri][ci]) ? '<w:shd w:val="clear" w:color="auto" w:fill="E6D7B0"/>' : '') + '</w:tcPr><w:p><w:pPr><w:spacing w:before="30" w:after="30"/></w:pPr>' + (c ? hwRunXml({ t: String(c) }, 22) : '') + '</w:p></w:tc>').join('') + '</w:tr>').join('') + '</w:tbl><w:p/>';
+                } else if (b.type === 'image') {
+                    let url = null; try { url = await nbImgLoad(b.img, b.src); } catch (_) { url = null; }
+                    const m = url && /^data:image\/(png|jpeg|jpg|gif);base64,(.+)$/.exec(url), dim = m && await hwLoadImg(url);
+                    if (m && dim) {
+                        const idn = media.length + 1, ext = m[1] === 'jpeg' ? 'jpg' : m[1], wpx = Math.min(560, dim.w), hpx = Math.round(wpx * dim.h / dim.w);
+                        media.push({ name: 'image' + idn + '.' + ext, b64: m[2] });
+                        body += '<w:p><w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="' + wpx * 9525 + '" cy="' + hpx * 9525 + '"/><wp:docPr id="' + idn + '" name="Picture ' + idn + '"/><a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:nvPicPr><pic:cNvPr id="' + idn + '" name="image' + idn + '.' + ext + '"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="rIdImg' + idn + '"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="' + wpx * 9525 + '" cy="' + hpx * 9525 + '"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>';
+                    }
+                } else if (b.type === 'graph' || b.type === 'diagram') body += hwPara([{ t: '[' + b.type + ' not included]', i: 1 }], 0);
             }
-            // a list cannot hold a table directly in Word, so a box inside a list is closed out of it and the list carries on after
-            out = out.replace(/@@BOX@@/g, box());
-            return out;
+            const NS = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"';
+            const HEAD = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
+            zip.file('[Content_Types].xml', HEAD + '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="png" ContentType="image/png"/><Default Extension="jpg" ContentType="image/jpeg"/><Default Extension="gif" ContentType="image/gif"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/></Types>');
+            zip.file('_rels/.rels', HEAD + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>');
+            zip.file('word/_rels/document.xml.rels', HEAD + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rIdSt" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>' + media.map((m, i) => '<Relationship Id="rIdImg' + (i + 1) + '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/' + m.name + '"/>').join('') + '</Relationships>');
+            zip.file('word/styles.xml', HEAD + '<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri" w:cs="Calibri"/><w:sz w:val="24"/></w:rPr></w:rPrDefault></w:docDefaults></w:styles>');
+            media.forEach((m) => zip.file('word/media/' + m.name, m.b64, { base64: true }));
+            zip.file('word/document.xml', HEAD + '<w:document ' + NS + '><w:body>' + body + '<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1134" w:header="708" w:footer="708" w:gutter="0"/></w:sectPr></w:body></w:document>');
+            return zip.generateAsync({ type: 'blob', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
         }
         async function exportHomework(btn) {
             const n = notes.activeId && notesNode(notes.activeId); if (!n || n.type !== 'page') return;
             const old = btn.textContent; btn.textContent = 'Preparing…';
             try {
-                const body = await homeworkHtml(n);
-                const doc = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"><title>' + escH(n.name || 'Homework') + '</title><style>body{font-family:Calibri,Arial,sans-serif;font-size:12pt;color:#000}h1{font-size:20pt}.meta{color:#444}li{margin:3pt 0}</style></head><body>' + body + '</body></html>';
-                const blob = new Blob(['\ufeff', doc], { type: 'application/msword' }), a = document.createElement('a');
-                a.href = URL.createObjectURL(blob); a.download = ((n.name || 'Homework').replace(/[\/:*?"<>|]+/g, ' ').trim() || 'Homework') + ' - homework.doc';
+                const blob = await homeworkDocx(n), a = document.createElement('a');
+                a.href = URL.createObjectURL(blob); a.download = ((n.name || 'Homework').replace(/[\\/:*?"<>|]+/g, ' ').trim() || 'Homework') + ' - homework.docx';
                 document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
             } catch (e) { window.alert('Could not make the sheet: ' + (e && e.message)); }
             btn.textContent = old;
