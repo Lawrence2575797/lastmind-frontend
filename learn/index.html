@@ -20022,6 +20022,12 @@ SQIDAQAB
                 method: 'POST',
                 headers: { Authorization: `Bearer ${session.access_token}` }
             });
+            if (resp.status === 404) {
+                alert('There is no subscription on this account to manage. Subscriptions are for individual projects, such as Be the manager.');
+                btn.disabled = false;
+                btn.textContent = 'Manage Subscription';
+                return;
+            }
             if (!resp.ok) throw new Error(`Portal endpoint returned ${resp.status}`);
             const { url } = await resp.json();
             window.location.href = url;
