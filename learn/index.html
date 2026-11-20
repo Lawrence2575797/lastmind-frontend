@@ -22324,10 +22324,11 @@ SQIDAQAB
             list.push({ el, y: Math.max(0, b.y || 0), x: el.offsetLeft, w: el.offsetWidth, h: el.offsetHeight });
         });
         list.sort((p, q) => p.y - q.y || p.x - q.x);
-        const GAP = 14, placed = [];
+        const GAP = 14, MAXGAP = 160, placed = [];   // a box sits at least GAP below what is above it, and never further than MAXGAP (a gap left by something that has since shrunk or moved is closed up)
         list.forEach((it) => {
-            let top = it.y;
-            placed.forEach((q) => { if (it.x < q.x + q.w - 6 && q.x < it.x + it.w - 6) top = Math.max(top, q.top + q.h + GAP); });
+            let top = it.y, base = -1;
+            placed.forEach((q) => { if (it.x < q.x + q.w - 6 && q.x < it.x + it.w - 6) base = Math.max(base, q.top + q.h); });
+            if (base >= 0) top = Math.min(Math.max(it.y, base + GAP), base + MAXGAP);
             it.top = top;
             const shift = top - it.y;
             if (Math.abs((it.el._nbShift || 0) - shift) > 0.5 || Math.abs(it.el.offsetTop - top) > 0.5) { it.el._nbShift = shift; it.el.style.top = top + 'px'; }
@@ -24690,7 +24691,7 @@ SQIDAQAB
                     if (height !== previousHeight) nbShiftBlocksBelow(canvas, el, previousHeight, height - previousHeight);
                     return;
                 }
-                if (height > previousHeight) flowed = nbFlowBlocksBelow(page, canvas, el, previousHeight, height - previousHeight) || flowed;
+                if (height > previousHeight && el.contains(document.activeElement)) flowed = nbFlowBlocksBelow(page, canvas, el, previousHeight, height - previousHeight) || flowed;   // only when typing in it: a box that is merely laid out taller (fonts, width) must never rewrite what is saved
             });
             canvas.querySelectorAll('.nb-graph, .nb-diagram').forEach(nbSyncCompact);
             nbFitCanvas(canvas);
