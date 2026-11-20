@@ -22309,8 +22309,34 @@ SQIDAQAB
         const cw = canvas.clientWidth; if (!cw) return;
         canvas.querySelectorAll('.nb-text').forEach((el) => { el.style.maxWidth = Math.max(160, cw - el.offsetLeft - 16) + 'px'; });
     }
+    // The page's one layout rule: nothing is ever drawn over anything else. Text, tables, graphs, diagrams and pictures that share any width are kept in the order they were saved
+    // (top to bottom), each starting below whatever above it overlaps it, with a small gap. It only changes where a box is SHOWN (el._nbShift): the saved positions are never touched,
+    // so the page goes back to exactly how it was written when there is room again. Boxes side by side (no shared width) are left alone, and so are arrows.
+    function nbResolveOverlaps(canvas) {
+        const page = canvas._nbPage;
+        if (!page || page.kind === 'problemset' || !page.doc || !Array.isArray(page.doc.blocks)) return;
+        if (window.matchMedia && window.matchMedia('(max-width: 520px)').matches) return;   // a phone stacks the boxes in order already
+        const byId = new Map(page.doc.blocks.map((b) => [b.id, b]));
+        const list = [];
+        canvas.querySelectorAll('.nb-block').forEach((el) => {
+            if (el.classList.contains('nb-arrow') || el.classList.contains('nb-darrow')) return;
+            const b = byId.get(el.dataset.id); if (!b || !/^(text|table|graph|diagram|image)$/.test(b.type || 'text')) return;
+            list.push({ el, y: Math.max(0, b.y || 0), x: el.offsetLeft, w: el.offsetWidth, h: el.offsetHeight });
+        });
+        list.sort((p, q) => p.y - q.y || p.x - q.x);
+        const GAP = 14, placed = [];
+        list.forEach((it) => {
+            let top = it.y;
+            placed.forEach((q) => { if (it.x < q.x + q.w - 6 && q.x < it.x + it.w - 6) top = Math.max(top, q.top + q.h + GAP); });
+            it.top = top;
+            const shift = top - it.y;
+            if (Math.abs((it.el._nbShift || 0) - shift) > 0.5 || Math.abs(it.el.offsetTop - top) > 0.5) { it.el._nbShift = shift; it.el.style.top = top + 'px'; }
+            placed.push(it);
+        });
+    }
     function nbFitCanvas(canvas) {
         nbClampBlocksToCanvas(canvas);
+        nbResolveOverlaps(canvas);
         if (canvas.querySelector('.nb-arrow') && typeof notesNode === 'function' && notes && notes.activeId) { const pg = notesNode(notes.activeId); if (pg) nbRenderArrows(canvas, pg); }
         const stacked = window.matchMedia && window.matchMedia('(max-width: 520px)').matches;   // only a phone gets the stacked page; every other width shows the page scaled (nbAutoScale)
         canvas.querySelectorAll('.nb-block').forEach((b) => { b.style.order = stacked ? String(Math.round(parseFloat(b.style.top) || 0)) : ''; });
