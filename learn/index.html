@@ -22357,7 +22357,7 @@ SQIDAQAB
         list.forEach((it) => {
             let top = it.y, base = -1;
             placed.forEach((q) => { if (it.x < q.x + q.w - 6 && q.x < it.x + it.w - 6) base = Math.max(base, q.top + q.h); });
-            if (base >= 0) top = Math.min(Math.max(it.y, base + GAP), base + MAXGAP);
+            if (base >= 0 && it.el !== canvas._nbDrag) top = Math.min(Math.max(it.y, base + GAP), base + MAXGAP);   // the box being dragged goes exactly where the pointer takes it; the rule applies when it is dropped
             it.top = top;
             const shift = top - it.y;
             if (Math.abs((it.el._nbShift || 0) - shift) > 0.5 || Math.abs(it.el.offsetTop - top) > 0.5) { it.el._nbShift = shift; it.el.style.top = top + 'px'; }
@@ -22431,6 +22431,7 @@ SQIDAQAB
         {
             const sx = e.clientX, sy = e.clientY, ox = el.offsetLeft, oy = el.offsetTop, k = nbK(canvas);
             el._nbShift = 0;   // where it is dropped is what is saved
+            canvas._nbDrag = el;
             try { handle.setPointerCapture(e.pointerId); } catch (_) { /* older browser */ }
             const move = (ev) => {
                 block.x = nbClamp(ox + (ev.clientX - sx) * k, 0, Math.max(0, canvas.clientWidth - el.offsetWidth));
@@ -22438,7 +22439,7 @@ SQIDAQAB
                 el.style.left = block.x + 'px'; el.style.top = block.y + 'px';
                 nbFitCanvas(canvas);
             };
-            const up = () => { handle.removeEventListener('pointermove', move); handle.removeEventListener('pointerup', up); handle.removeEventListener('pointercancel', up); notesScheduleSave(); };
+            const up = () => { handle.removeEventListener('pointermove', move); handle.removeEventListener('pointerup', up); handle.removeEventListener('pointercancel', up); canvas._nbDrag = null; nbFitCanvas(canvas); notesScheduleSave(); };
             handle.addEventListener('pointermove', move); handle.addEventListener('pointerup', up); handle.addEventListener('pointercancel', up);
         }
     }
