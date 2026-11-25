@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Reactor 3: GCSE Enzymes Game | LastMind</title>
-<meta name="description" content="A free GCSE Biology game about enzymes. Match each substrate to its active site, keep the temperature and pH right, and fill every order before time runs out. No log in needed.">
+<meta name="description" content="A free GCSE Biology game about enzymes. Match each substrate to its active site, keep the temperature and pH right, then food-test your batch: iodine, Benedict's, biuret and emulsion. No log in needed.">
 <meta name="theme-color" content="#080f11">
 <link rel="icon" href="/icons/lastmind-logo.png" type="image/png">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -151,7 +151,7 @@ button.go:hover:not(:disabled){background:linear-gradient(#ffd070,#ffa91c)}
 </div>
 <div id="nogl"><p>This game needs 3D graphics, which this browser could not start. Try an up-to-date Chrome, Edge, Safari or Firefox.<br><a href="/learn/" style="color:#ffb02e">Back to LastMind</a></p></div>
 <script src="/create/enzyme-lab/vendor/three.min.js?v=r128"></script>
-<script src="/create/enzyme-lab/game.js?v=1"></script>
+<script src="/create/enzyme-lab/game.js?v=2"></script>
 <script>
   // if the 3D scene never started, say so instead of leaving a black page
   addEventListener('load', function () { var c = document.getElementById('gl'), ok = false; try { ok = !!window.THREE && !!(c.getContext('webgl2') || c.getContext('webgl')); } catch (e) { ok = false; } if (!ok) document.getElementById('nogl').style.display = 'flex'; });

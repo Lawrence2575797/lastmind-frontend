@@ -1,8 +1,8 @@
 /* Reactor 3: a GCSE enzymes game. */
 (function () {
 'use strict';
-const LINES = {"g-win": "Yes! Every order filled! You matched each substrate to its own active site, and you kept the temperature and pH right. Brilliant work!", "g-cold": "Not good enough! It was too cold. Cold molecules have less kinetic energy, so they move slowly and collide less often. Warm it up and go again!", "g-hot": "Not good enough! You overheated it and the enzymes denatured. Their active sites changed shape, so the substrates no longer fit, and cooling won't fix that. Go again, a bit cooler!", "g-ph": "Not good enough! The pH drifted too far. Away from the best pH, the active site changes shape and the substrate can't fit. Correct it faster next time!", "g-close": "So close! Remember, every active site is a different shape, so each enzyme only works on its own substrate. Keep your enzymes busy and go again, a bit quicker!"};
-const CLIPS = {"g-win": "/create/enzyme-lab/voice/g-win.mp3?v=1", "g-cold": "/create/enzyme-lab/voice/g-cold.mp3?v=1", "g-hot": "/create/enzyme-lab/voice/g-hot.mp3?v=1", "g-ph": "/create/enzyme-lab/voice/g-ph.mp3?v=1", "g-close": "/create/enzyme-lab/voice/g-close.mp3?v=1"};
+const LINES = {"g-win": "Yes! All four tests came out right! You matched each substrate to its own active site, and you kept the temperature and pH right. Brilliant work!", "g-cold": "Not good enough! It was too cold. Cold molecules have less kinetic energy, so they move slowly and collide less often. Warm it up and go again!", "g-hot": "Not good enough! You overheated it and the enzymes denatured. Their active sites changed shape, so the substrates no longer fit, and cooling won't fix that. Go again, a bit cooler!", "g-ph": "Not good enough! The pH drifted too far. Away from the best pH, the active site changes shape and the substrate can't fit. Correct it faster next time!", "g-close": "So close! Your tests show not enough was broken down. Remember, every active site is a different shape, so each enzyme only works on its own substrate. Keep your enzymes busy and go again, a bit quicker!"};
+const CLIPS = {"g-win": "/create/enzyme-lab/voice/g-win.mp3?v=2", "g-cold": "/create/enzyme-lab/voice/g-cold.mp3?v=2", "g-hot": "/create/enzyme-lab/voice/g-hot.mp3?v=2", "g-ph": "/create/enzyme-lab/voice/g-ph.mp3?v=2", "g-close": "/create/enzyme-lab/voice/g-close.mp3?v=2"};
 /* ============================================================
    CORE: helpers, the process model, the manager's voice, sound
    ============================================================ */
@@ -845,9 +845,9 @@ const Nav = (function () {
 
 /* ============================================================
    THE GAME: one batch, three enzymes. Each active site has its own shape, so each enzyme only works on
-   its own substrate. Fill all three orders before time runs out; a filled order takes its enzyme away, keeping temperature and pH right.
+   its own substrate. Break down as much food as you can before time runs out, then food-test the batch.
    ============================================================ */
-const RULES = { time: 110, need: 9, spares: 2, phOpt: 7 };
+const RULES = { time: 110, enough: 7, spares: 2, phOpt: 7 };
 
 /* ---------- the three substrate shapes. +y is the end that goes into the active site. ---------- */
 const arcPts = (cx, cy, r, a0, a1, n) => Array.from({ length: n + 1 }, (_, i) => { const a = (a0 + (a1 - a0) * i / n) * Math.PI / 180; return [cx + r * Math.cos(a), cy + r * Math.sin(a)]; });
@@ -857,6 +857,19 @@ const TYPES = [
   { key: 'starch', enzyme: 'AMYLASE', kind: 'a carbohydrase', substrate: 'STARCH', product: 'SUGARS', col: ['#b4bcff', '#5560e8', '#272c92'], fill: ['#ffe29a', '#f2ad2e', '#a96a0c'], poly: wavy(36, 14) },
   { key: 'protein', enzyme: 'PROTEASE', kind: 'breaks down protein', substrate: 'PROTEIN', product: 'AMINO ACIDS', col: ['#f6bfde', '#c0569a', '#68224f'], fill: ['#f29a7c', '#c14c33', '#742414'], poly: [[-5, -14], [-4, -24], [-11, -30], [-12, -37], [-6, -40], [0, -36], [6, -40], [12, -37], [11, -30], [4, -24], [5, -14]].concat(arcPts(0, 8, 25, -68, 248, 26)) },
   { key: 'fat', enzyme: 'LIPASE', kind: 'breaks down fat', substrate: 'FAT', product: 'FATTY ACIDS + GLYCEROL', col: ['#b2f3da', '#2fae86', '#11604a'], fill: ['#fffcd0', '#e7dc5a', '#9a8f14'], poly: arcPts(0, -9, 23, 150, 390, 22).concat([[0, 36]]) }
+];
+
+/* ---------- the food tests run on the finished batch. Enough broken down means: no starch, protein or fat left to detect, and plenty of sugar. ---------- */
+const CLEAR = [214, 232, 230, 0.4], BLUE = [66, 160, 232, 0.92];
+const TESTS = [
+  { of: 0, name: 'IODINE TEST', looks: 'looks for starch', add: 'ADD IODINE', reagent: [181, 101, 29, 1], dur: 2.2,
+    result: (n, ok) => ok ? { col: [186, 108, 30, 0.95], seen: 'Stays orange-brown', means: 'no starch left. The amylase broke it down.' } : { col: [16, 14, 52, 1], seen: 'Turns blue-black', means: 'starch is still there. Not enough was broken down.' } },
+  { of: 0, name: "BENEDICT'S TEST", looks: 'looks for sugar', add: "ADD BENEDICT'S", reagent: BLUE, dur: 4.2, heat: true,
+    result: (n, ok) => ok ? { col: [178, 58, 30, 1], seen: 'Turns brick-red', means: 'lots of sugar. Your amylase made plenty.' } : !n ? { col: BLUE, seen: 'Stays blue', means: 'no sugar was made.' } : n < RULES.enough * 0.4 ? { col: [74, 168, 90, 0.95], seen: 'Turns green', means: 'only a trace of sugar. Not enough.' } : n < RULES.enough * 0.7 ? { col: [226, 200, 48, 0.95], seen: 'Turns yellow', means: 'a little sugar. Not enough.' } : { col: [232, 134, 32, 0.97], seen: 'Turns orange', means: 'some sugar, but not quite enough.' } },
+  { of: 1, name: 'BIURET TEST', looks: 'looks for protein', add: 'ADD BIURET', reagent: BLUE, dur: 2.4,
+    result: (n, ok) => ok ? { col: BLUE, seen: 'Stays blue', means: 'no protein left. The protease broke it down.' } : { col: [150, 84, 196, 0.97], seen: 'Turns lilac-purple', means: 'protein is still there. Not enough was broken down.' } },
+  { of: 2, name: 'EMULSION TEST', looks: 'looks for fat (lipid)', add: 'ADD ETHANOL', reagent: [225, 240, 245, 0.45], dur: 3, shake: true, note: 'then water, and shake',
+    result: (n, ok) => ok ? { col: CLEAR, seen: 'Stays clear', means: 'no fat left. The lipase broke it down.' } : { col: [244, 244, 236, 0.97], seen: 'Turns cloudy white', means: 'fat is still there. Not enough was broken down.', cloudy: true } }
 ];
 
 const Game = (function () {
@@ -889,7 +902,7 @@ const Game = (function () {
 
   function enzyme(type, slot) {
     const x = [290, 880, 585][slot], y = [225, 225, 540][slot];
-    const e = { type, x, y, hx: x, hy: y, base: [0.45, 2.69, -1.5708][slot], ang: 0, u: 0, heat: 0, perm: 0, sus: rnd(0.75, 1.35), wait: rnd(20, 70), state: 'IDLE', timer: 0, dur: 1, sub: null, glow: 0, ring: 0, ph: rnd(0, 6), p: [rnd(0, 6), rnd(0, 6), rnd(0, 6), rnd(0, 6), rnd(0, 6)], gen: 0, leaving: 0, gone: false };
+    const e = { type, x, y, hx: x, hy: y, base: [0.45, 2.69, -1.5708][slot], ang: 0, u: 0, heat: 0, perm: 0, sus: rnd(0.75, 1.35), wait: rnd(20, 70), state: 'IDLE', timer: 0, dur: 1, sub: null, glow: 0, ring: 0, ph: rnd(0, 6), p: [rnd(0, 6), rnd(0, 6), rnd(0, 6), rnd(0, 6), rnd(0, 6)], gen: 0 };
     e.ang = e.base; e.shape = outline(e, 0); return e;
   }
   function substrate(type, edge) {
@@ -900,14 +913,14 @@ const Game = (function () {
   const shuffle = (a) => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
   function reset() {
     const order = Math.random() < 0.5 ? ['acid', 'alkali', 'heat'] : ['alkali', 'acid', 'heat'];
-    S = { phase: 'ready', t: 0, T: 25, Tset: 25, ph: 7, phShift: 0, made: [0, 0, 0], mine: 0, auto: 0, wrong: 0, sumT: 0, phBad: 0, lost: new Set(), spares: RULES.spares,
+    S = { phase: 'ready', t: 0, T: 25, Tset: 25, ph: 7, phShift: 0, made: [0, 0, 0], tests: TESTS.map(() => ({ t: -1, done: false })), last: -1, endT: 0, mine: 0, auto: 0, wrong: 0, sumT: 0, phBad: 0, lost: new Set(), spares: RULES.spares,
       enz: shuffle([0, 1, 2]).map(enzyme), subs: [], prods: [], pops: [], held: null, banner: null, bannerT: 0, shocks: [{ at: 24, kind: order[0] }, { at: 53, kind: order[1] }, { at: 80, kind: order[2] }], verdict: null, flash: 0 };
     for (let k = 0; k < PER * 3; k++) S.subs.push(substrate(k % 3, false));
   }
   reset();
   const damage = (e) => { const d = Math.abs(S.ph - RULES.phOpt), temp = clamp((d - 0.9) / 2.1, 0, 1) * 0.85; return clamp(Math.max(e.heat + e.perm, temp), 0, 1); };
   const fits = (e) => e.u < 0.35;
-  const here = () => S.enz.filter((e) => !e.gone && !e.leaving);   // enzymes still in the tank
+  const here = () => S.enz;
   function pop(x, y, text, col, big) { S.pops.push({ x: clamp(x, 160, PW - 160), y, text, col, t: 0, big }); }
   function banner(text, col) { S.banner = { text, col }; S.bannerT = 6; }
   function start() { reset(); delete $('#app').dataset.v; S.phase = 'play'; banner('Each active site is a different shape. Find the substrate that matches.', '#ffb02e'); }
@@ -925,7 +938,6 @@ const Game = (function () {
         S.prods.push({ type: e.type, x: sp.x, y: sp.y, vx: ox * 150, vy: oy * 150, age: 0, alpha: 1, spread: 0, ang: s.ang });
         s.state = 'GONE'; e.sub = null; e.state = 'RELEASE'; e.timer = 0; e.ring = 1; e.glow = 1; S.made[e.type]++; if (e.mine) S.mine++; else S.auto++;
         const T_ = TYPES[e.type]; pop(sp.x, sp.y - 40, '+1 ' + T_.product, '#5dffae', true); Snd.blip(e.mine ? 880 : 620, 0.1, 'sine', e.mine ? 0.05 : 0.02);
-        if (S.made[e.type] === RULES.need) { e.leaving = 0.001; banner(T_.product + ' done: ' + T_.enzyme.toLowerCase() + ' removed. ' + T_.substrate.charAt(0) + T_.substrate.slice(1).toLowerCase() + ' now has nowhere to fit.', '#4fe0a0'); pop(e.x, e.y + 62, T_.enzyme + ' REMOVED', '#4fe0a0', true); Snd.done(); }
       }
     } else if (e.state === 'RELEASE') { e.glow *= Math.pow(0.02, dt); if (e.timer > 0.4) { e.state = 'IDLE'; e.timer = 0; e.wait = Math.max(e.wait, 6); } }
   }
@@ -945,9 +957,7 @@ const Game = (function () {
     }
     S.bannerT -= dt; S.flash = Math.max(0, S.flash - dt * 1.4);
     S.enz.forEach((e) => {
-      if (e.gone) return;
-      if (e.leaving) { e.leaving += dt; if (e.leaving > 0.9) { e.gone = true; return; } }
-      if (live && !e.leaving) {
+      if (live) {
         if (S.T > 52) e.heat = Math.min(1, e.heat + (S.T - 52) * 0.009 * e.sus * dt);
         const d = Math.abs(S.ph - RULES.phOpt); if (d > 3.2) e.perm = Math.min(1, e.perm + (d - 3.2) * 0.07 * e.sus * dt);
         const key = e.type + ':' + e.gen; if (e.heat >= 0.35 && !S.lost.has(key)) { S.lost.add(key); pop(e.x, e.y - 100, TYPES[e.type].enzyme + ' denatured!', '#ff7a55', true); }
@@ -959,7 +969,6 @@ const Game = (function () {
       e.ring = Math.max(0, e.ring - dt * 1.6); if (e.state === 'IDLE') e.glow *= Math.pow(0.01, dt);
       if (live) {
         step(e, dt);
-        if (e.leaving) return;
         // now and then the matching substrate collides the right way round by chance
         if (e.state === 'IDLE' && fits(e)) {
           e.wait -= dt;
@@ -980,14 +989,19 @@ const Game = (function () {
     S.prods = S.prods.filter((p) => p.alpha > 0); S.subs = S.subs.filter((s) => s.state !== 'GONE');
     for (let k = 0; k < 3; k++) while (S.subs.filter((s) => s.type === k && s.state === 'FREE').length < PER) S.subs.push(substrate(k, true));
     S.pops.forEach((p) => { p.t += dt; p.y -= 30 * dt; }); S.pops = S.pops.filter((p) => p.t < 1.4);
-    if (live) { if (S.made.every((n) => n >= RULES.need)) finish(true); else if (S.t >= RULES.time) finish(false); }
+    if (live && S.t >= RULES.time) finish();
+    if (S.phase === 'test') {
+      S.tests.forEach((k, i) => { if (k.t < 0 || k.done) return; k.t += dt; if (k.t >= TESTS[i].dur) { k.done = true; S.last = i; if (passed(i)) Snd.done(); else Snd.blip(170, 0.25, 'square', 0.04); } });
+      if (S.tests.every((k) => k.done)) { S.endT += dt; if (!S.verdict && S.endT > 4) judge(); }
+    }
   }
-  function finish(win) {
-    S.phase = 'over'; S.held = null;
-    const avg = S.sumT / Math.max(1, S.t), heatLost = S.lost.size;
+  function finish() { S.phase = 'test'; S.held = null; $('#app').dataset.v = '1'; Snd.done(); Mgr.stop(); }
+  const passed = (i) => S.made[TESTS[i].of] >= RULES.enough;
+  function runTest(i) { const k = S.tests[i]; if (S.phase !== 'test' || k.t >= 0) return; k.t = 0; Snd.blip(520, 0.12, 'triangle', 0.05); }
+  function judge() {
+    const avg = S.sumT / Math.max(1, S.t), heatLost = S.lost.size, score = TESTS.filter((_, i) => passed(i)).length, win = score === TESTS.length;
     const key = win ? 'g-win' : heatLost >= 2 ? 'g-hot' : avg < 36 ? 'g-cold' : S.phBad > 25 ? 'g-ph' : 'g-close';
-    S.verdict = { win, key, avg, heatLost }; $('#app').dataset.v = '1';
-    Snd.done(); Mgr.stop(); say(key, null, { pri: 6, once: false });
+    S.verdict = { win, key, score }; say(key, null, { pri: 6, once: false });
   }
   /* ---------- your hands ---------- */
   function grab(x, y) { if (S.phase !== 'play') return false; let best = null, bd = 70; S.subs.forEach((s) => { if (s.state === 'FREE') { const d = Math.hypot(s.x - x, s.y - y); if (d < bd) { bd = d; best = s; } } }); if (!best) return false; S.held = best; best.x = x; best.y = y; Snd.blip(420, 0.05, 'triangle', 0.04); return true; }
@@ -1062,14 +1076,14 @@ const Game = (function () {
     g.addColorStop(1, `rgb(${Math.round(11 + hot * 60 + Math.max(0, -phd) * 34)},${Math.round(44 - hot * 14)},${Math.round(54 - hot * 20 + Math.max(0, phd) * 44)})`);
     c.fillStyle = g; c.fillRect(0, 0, PW, PH);
     for (let i = 0; i < 50; i++) { const x = (i * 197 + t * (8 + S.T)) % PW, y = (i * 131 + Math.sin(t * 0.7 + i) * 18 + 20) % PH; c.fillStyle = 'rgba(160,225,235,.09)'; c.beginPath(); c.arc(x, y, 1.5 + i % 3, 0, 7); c.fill(); }
-    S.enz.forEach((e) => { if (e.gone) return; if (!e.leaving) { drawEnzyme(c, e, t); return; } const k = clamp(e.leaving / 0.9, 0, 1); c.save(); c.globalAlpha = 1 - k; c.translate(e.x, e.y); c.scale(1 - k * 0.5, 1 - k * 0.5); c.translate(-e.x, -e.y); drawEnzyme(c, e, t); c.restore(); });
+    S.enz.forEach((e) => drawEnzyme(c, e, t));
     S.prods.forEach((p) => drawProduct(c, p.type, p.x, p.y, p.spread, SK, clamp(p.alpha, 0, 1)));
     S.subs.forEach((s) => { if (s.state === 'GONE' || s === S.held) return; drawSub(c, s.type, s.x, s.y, s.ang, SK, s.alpha, s.state === 'FREE'); });
     if (S.held) { c.shadowColor = '#fff'; c.shadowBlur = 24; drawSub(c, S.held.type, S.held.x, S.held.y, S.held.ang, SK, 1, false); c.shadowBlur = 0; drawSub(c, S.held.type, S.held.x, S.held.y, S.held.ang, SK, 1, true); }
     S.pops.forEach((p) => { c.globalAlpha = clamp(1.4 - p.t, 0, 1); c.font = '700 ' + (p.big ? 36 : 28) + "px 'Barlow Condensed',Arial Narrow"; c.textAlign = 'center'; c.lineWidth = 6; c.strokeStyle = 'rgba(0,0,0,.8)'; c.strokeText(p.text, p.x, p.y); c.fillStyle = p.col; c.fillText(p.text, p.x, p.y); c.globalAlpha = 1; });
     if (S.flash > 0) { c.fillStyle = `rgba(255,80,50,${S.flash * 0.3})`; c.fillRect(0, 0, PW, PH); }
   }
-  return { start, update, draw, drawSub, drawProduct, grab, drag, drop, setT, dose, buy, reset, fits, sitePos, here, PW, PH, get s() { return S; } };
+  return { start, update, draw, drawSub, drawProduct, grab, drag, drop, setT, dose, buy, reset, fits, sitePos, here, runTest, passed, PW, PH, get s() { return S; } };
 })();
 
 /* ---------- the screen you play on ---------- */
@@ -1092,11 +1106,10 @@ const Ctl = (function () {
   function hud(s) {
     c.fillStyle = '#0a1f25'; c.fillRect(0, 0, W, 112); c.fillStyle = C.amber; c.fillRect(0, 112, W, 4);
     TYPES.forEach((T_, i) => {
-      const x = 20 + i * 404, n = s.made[i], done = n >= RULES.need; box(x, 12, 392, 90, done ? 'rgba(79,224,160,.16)' : C.panel, done ? C.ok : C.line);
+      const x = 20 + i * 404; box(x, 12, 392, 90, C.panel, C.line);
       Game.drawProduct(c, i, x + 44, 57, 0.25, 0.72, 1);
-      text(short(T_.product), x + 92, 46, 28, C.dim, { f: disp });
-      text(done ? 'DONE' : n + '/' + RULES.need, x + 378, 88, 30, done ? C.ok : C.ink, { f: mono, a: 'right' });
-      box(x + 92, 64, 196, 24, '#0b252b', null, 6); if (n > 0) box(x + 92, 64, 196 * clamp(n / RULES.need, 0, 1), 24, done ? C.ok : T_.fill[1], null, 6);
+      text(short(T_.product), x + 92, 68, 30, C.dim, { f: disp });
+      text(String(s.made[i]), x + 372, 80, 62, C.ink, { f: mono, a: 'right' });
     });
     const left = Math.max(0, RULES.time - s.t), m = Math.floor(left / 60), sec = Math.floor(left % 60);
     text('TIME LEFT', 1236, 42, 26, C.dim, { f: disp }); text(m + ':' + String(sec).padStart(2, '0'), 1236, 94, 52, left < 25 ? C.bad : C.ink, { f: mono });
@@ -1128,28 +1141,80 @@ const Ctl = (function () {
   function ready() {
     text('PILOT PRODUCTION SUITE', W / 2, 96, 34, C.dim, { a: 'center', f: disp });
     text('REACTOR 3', W / 2, 220, 130, C.ink, { a: 'center', w: 700, f: disp });
-    text('Three enzymes, three orders. Make ' + RULES.need + ' of each in ' + RULES.time + ' seconds.', W / 2, 300, 44, C.amber, { a: 'center' });
+    text('Break down as much as you can in ' + RULES.time + ' seconds. Then food-test your batch.', W / 2, 300, 44, C.amber, { a: 'center' });
     TYPES.forEach((T_, i) => { const x = 232 + i * 384; box(x, 340, 368, 200, C.panel, C.line); Game.drawSub(c, i, x + 70, 440, 0, 1.15, 1, false); text('→', x + 158, 454, 44, C.dim, { a: 'center' }); Game.drawProduct(c, i, x + 270, 440, 0.8, 1.05, 1); text(T_.substrate, x + 70, 516, 28, C.ink, { a: 'center', f: disp }); text(short(T_.product), x + 270, 516, 28, C.ink, { a: 'center', f: disp }); });
     const rows = [['1', 'Drag each substrate into the active site that matches its shape.'], ['2', 'Change the temperature. Warmer is faster, but too hot ruins enzymes.'], ['3', 'Watch the pH. Add acid or alkali when something goes wrong.']];
     rows.forEach((r, i) => { const y = 610 + i * 68; c.beginPath(); c.arc(300, y - 12, 24, 0, 7); c.fillStyle = C.amber; c.fill(); text(r[0], 300, y, 34, '#1c1100', { a: 'center', w: 700, f: disp }); text(r[1], 346, y, 34, C.ink, { w: 500 }); });
     const p = 1 + Math.sin(performance.now() / 260) * 0.02;
     button('start', W / 2 - 330 * p, 832 - 66 * (p - 1), 660 * p, 132 * p, 'START THE BATCH', { style: 'go', size: 60 });
   }
-  function over(s) {
+  const rgba = (a) => 'rgba(' + Math.round(a[0]) + ',' + Math.round(a[1]) + ',' + Math.round(a[2]) + ',' + a[3].toFixed(3) + ')';
+  const mixA = (a, b, k) => a.map((v, i) => lerp(v, b[i], k));
+  function tube(i, cx, k, res) {
+    const T_ = TESTS[i], p = k.t < 0 ? 0 : clamp(k.t / T_.dur, 0, 1), now = performance.now() / 1000;
+    const added = clamp(p / 0.3, 0, 1), change = k.done ? 1 : clamp((p - (T_.heat ? 0.32 : T_.shake ? 0.5 : 0.28)) / (T_.heat ? 0.62 : 0.45), 0, 1);
+    const top = 318, bot = 590, hw = 54;
+    // water bath for the test that needs heating
+    if (T_.heat) {
+      box(cx - 120, 452, 240, 154, 'rgba(120,200,235,.13)', 'rgba(200,235,245,.55)', 14); c.fillStyle = '#4a5a60'; c.fillRect(cx - 132, 606, 264, 12);
+      text('hot water bath', cx, 292, 24, C.dim, { a: 'center', f: disp });
+    }
+    c.save();
+    if (T_.shake && p > 0.32 && p < 0.72) { c.translate(cx, 450); c.rotate(Math.sin(now * 38) * 0.13); c.translate(-cx, -450); }
+    const path = () => { c.beginPath(); c.moveTo(cx - hw, top); c.lineTo(cx - hw, bot - hw); c.arc(cx, bot - hw, hw, Math.PI, 0, true); c.lineTo(cx + hw, top); };
+    // liquid: the sample, then the reagent mixing in, then whatever it turns
+    const level = lerp(470, 420, added);
+    let col = mixA(CLEAR, T_.reagent, added);
+    if (change > 0 && res) {
+      if (T_.heat) { const stops = [BLUE, [74, 168, 90, 0.95], [226, 200, 48, 0.95], [232, 134, 32, 0.97], [178, 58, 30, 1]], end = res.col; let last = stops.findIndex((q) => q[0] === end[0] && q[1] === end[1]); if (last < 0) last = 0; const f = change * last, a = Math.floor(f); col = last ? mixA(stops[a], stops[Math.min(last, a + 1)], f - a) : BLUE; }
+      else col = mixA(T_.reagent, res.col, change);
+    }
+    c.save(); path(); c.closePath(); c.clip(); c.fillStyle = rgba(col); c.fillRect(cx - hw, level, hw * 2, bot - level);
+    c.fillStyle = 'rgba(255,255,255,.22)'; c.fillRect(cx - hw, level, hw * 2, 4);
+    if (res && res.cloudy && change > 0) for (let q = 0; q < 70; q++) { const x = cx - hw + 8 + (q * 47 % (hw * 2 - 16)), y = level + 10 + ((q * 61) % (bot - level - 24)) + Math.sin(now * 1.4 + q) * 3; c.fillStyle = 'rgba(255,255,255,' + 0.8 * change + ')'; c.beginPath(); c.arc(x, y, 2 + q % 4, 0, 7); c.fill(); }
+    c.restore();
+    path(); c.strokeStyle = 'rgba(225,245,250,.85)'; c.lineWidth = 5; c.stroke();
+    c.beginPath(); c.moveTo(cx - hw - 9, top); c.lineTo(cx + hw + 9, top); c.stroke();
+    c.fillStyle = 'rgba(255,255,255,.2)'; c.fillRect(cx - hw + 12, top + 18, 9, bot - top - 80);
+    c.restore();
+    if (T_.heat && p > 0.25 && !k.done) for (let q = 0; q < 14; q++) { const x = cx - 110 + (q * 53 % 220), y = 604 - ((now * 90 + q * 37) % 140); if (Math.abs(x - cx) < hw + 8 && y < 596) continue; c.strokeStyle = 'rgba(220,245,255,.75)'; c.lineWidth = 2; c.beginPath(); c.arc(x, y, 3 + q % 4, 0, 7); c.stroke(); }
+    // the dropper
+    if (k.t >= 0 && p < 0.32) {
+      box(cx - 13, 236, 26, 50, rgba(T_.reagent), '#dff', 5); c.fillStyle = '#222c30'; c.fillRect(cx - 18, 220, 36, 18); c.fillStyle = '#dff'; c.fillRect(cx - 4, 286, 8, 18);
+      for (let q = 0; q < 3; q++) { const f = (now * 2.4 + q / 3) % 1; c.fillStyle = rgba(T_.reagent); c.beginPath(); c.arc(cx, 308 + f * (level - 314), 7, 0, 7); c.fill(); }
+    }
+  }
+  function testing(s) {
+    text('TIME UP! TEST YOUR BATCH', W / 2, 88, 72, C.ink, { a: 'center', w: 700, f: disp });
+    TESTS.forEach((T_, i) => {
+      const x = 22 + i * 392, w = 380, cx = x + w / 2, k = s.tests[i], ok = Game.passed(i), res = T_.result(s.made[T_.of], ok);
+      box(x, 118, w, 636, C.panel, k.done ? (ok ? C.ok : C.bad) : C.line);
+      text(T_.name, cx, 168, 40, C.ink, { a: 'center', w: 700, f: disp });
+      text(T_.looks, cx, 204, 28, C.dim, { a: 'center' });
+      tube(i, cx, k, res);
+      if (k.t < 0) button('test' + i, x + 20, 664, w - 40, 76, T_.add, { style: 'go', size: 38 });
+      else if (!k.done) text(T_.heat && k.t > T_.dur * 0.3 ? 'Heating…' : T_.shake && k.t > T_.dur * 0.3 ? 'Shaking…' : 'Adding…', cx, 714, 34, C.amber, { a: 'center' });
+      else { text(res.seen, cx, 650, 31, C.ink, { a: 'center' }); box(x + 20, 664, w - 40, 76, ok ? 'rgba(79,224,160,.18)' : 'rgba(255,106,61,.18)', null); text(ok ? '✓ SUCCESS' : '✗ NOT ENOUGH', cx, 716, 40, ok ? C.ok : C.bad, { a: 'center', w: 700, f: disp }); }
+    });
     const v = s.verdict;
-    text(v.win ? 'ALL ORDERS FILLED' : 'ORDERS NOT FILLED', W / 2, 130, 96, v.win ? C.ok : C.bad, { a: 'center', w: 700, f: disp });
-    TYPES.forEach((T_, i) => { const x = 40 + i * 513, ok = s.made[i] >= RULES.need; box(x, 172, 494, 150, C.panel, ok ? C.ok : C.bad); Game.drawProduct(c, i, x + 64, 247, 0.4, 0.9, 1); text(short(T_.product), x + 134, 220, 30, C.dim, { f: disp }); text(s.made[i] + ' / ' + RULES.need, x + 134, 290, 54, ok ? C.ok : C.bad, { f: mono }); });
-    [['YOU DOCKED', String(s.mine)], ['WRONG SHAPE', String(s.wrong)], ['AVERAGE TEMP', fmt(v.avg) + '°C'], ['DENATURED', String(v.heatLost)]].forEach((k, i) => { const x = 40 + i * 385; box(x, 340, 365, 100, C.panel, C.line); text(k[0], x + 20, 400, 30, C.dim, { f: disp }); text(k[1], x + 345, 406, 46, C.ink, { f: mono, a: 'right' }); });
-    box(40, 470, 1520, 340, 'rgba(255,176,46,.09)', null); c.fillStyle = C.amber; c.fillRect(40, 470, 12, 340);
-    text('HOLLIS', 90, 532, 36, C.amber, { w: 700, f: disp });
-    wrap(LINES[v.key], 90, 604, 1420, 62, 44, '#fff2d4');
-    button('start', W / 2 - 330, 842, 660, 118, 'PLAY AGAIN', { style: 'go', size: 58 });
+    box(22, 772, 1556, 208, v ? 'rgba(255,176,46,.09)' : C.panel, v ? C.amber : C.line);
+    if (v) {
+      text(v.score + ' OF ' + TESTS.length + ' TESTS SUCCESSFUL', 52, 822, 40, v.win ? C.ok : C.bad, { w: 700, f: disp });
+      wrap('Hollis: ' + LINES[v.key], 52, 870, 1150, 40, 29, '#fff2d4');
+      button('start', 1240, 826, 308, 100, 'PLAY AGAIN', { style: 'go', size: 46 });
+    } else if (s.last < 0) {
+      text('Each test looks for one substance. Press a button to run it.', W / 2, 888, 40, C.ink, { a: 'center' });
+    } else {
+      const T_ = TESTS[s.last], n = s.made[T_.of], ok = Game.passed(s.last), res = T_.result(n, ok);
+      text(res.seen + ': ' + res.means, W / 2, 866, 40, C.ink, { a: 'center' });
+      text('You broke down ' + n + ' ' + TYPES[T_.of].substrate.toLowerCase() + (T_.of === 2 ? ' droplets' : ' molecules') + '. A successful batch needs at least ' + RULES.enough + '.', W / 2, 932, 32, ok ? C.ok : C.bad, { a: 'center' });
+    }
   }
   function draw() {
     const sc = Lab.R.screens.kiosk, s = Game.s; c = sc.ctx; hits = [];
     c.setTransform(1, 0, 0, 1, 0, 0); c.fillStyle = C.bg; c.fillRect(0, 0, W, H);
     if (s.phase === 'ready') ready();
-    else if (s.phase === 'over') over(s);
+    else if (s.phase === 'test') testing(s);
     else { hud(s); c.save(); c.translate(PX, PY); c.beginPath(); c.rect(0, 0, Game.PW, Game.PH); c.clip(); Game.draw(c); c.restore(); c.strokeStyle = s.flash > 0.05 ? C.bad : C.line; c.lineWidth = 3; c.strokeRect(PX, PY, Game.PW, Game.PH); controls(s); }
     sc.tex.needsUpdate = true;
   }
@@ -1162,6 +1227,7 @@ const Ctl = (function () {
     if (id === 'start') { if (!G.started) { G.started = true; Snd.init(); Voice.init(); Voice.preload(); } Mgr.stop(); Game.start(); Nav.frame('play'); }
     else if (id === 'minus') Game.setT(Game.s.Tset - 2); else if (id === 'plus') Game.setT(Game.s.Tset + 2);
     else if (id === 'acid') Game.dose(-1); else if (id === 'alkali') Game.dose(1); else if (id === 'buy') Game.buy();
+    else if (id.startsWith('test')) Game.runTest(+id.slice(4));
     else if (id === 'sound') { const on = !(Snd.on && Voice.on); Snd.setOn(on); Voice.on = on; if (!on) Voice.stop(); }
     acc = 1;
   }
@@ -1184,7 +1250,7 @@ const Scr = (function () {
     update(dt) {
       acc += dt; if (acc < 0.4) return; acc = 0; const R = Lab.R.screens, g = Game.s, tot = g.made.reduce((a, b) => a + b, 0);
       simple(R.tank, [fmt(g.T, 1) + '°C', 'pH ' + g.ph.toFixed(1)]); simple(R.cons, ['SET ' + g.Tset + '°C', 'pH ' + g.ph.toFixed(1)]);
-      simple(R.mimic, [String(tot), 'PRODUCTS']); simple(R.dash, ['REACTOR 3', tot + ' of ' + RULES.need * 3 + ' made'], '#ffb02e');
+      simple(R.mimic, [String(tot), 'PRODUCTS']); simple(R.dash, ['REACTOR 3', tot + ' made'], '#ffb02e');
       simple(R.clock, [hhmm(Math.max(0, RULES.time - g.t)), 'BATCH'], '#ff5a3a'); simple(R.term, ['SAMPLE', fmt(g.T) + '°C']);
     }
   };
@@ -1198,7 +1264,7 @@ const Flow = (function () {
     const s = Game.s, play = s.phase === 'play';
     Nav.update(dt);
     const pw = play ? clamp((s.Tset - s.T) * 12 + Math.max(0, s.T - 20) * 0.9, -40, 60) : 0;
-    Lab.update(dt, { running: play, T: s.T, Tset: s.Tset, N: 1, conv: clamp(s.made.reduce((a, b) => a + Math.min(b, RULES.need), 0) / (RULES.need * 3), 0, 1), pw, charged: s.phase !== 'ready', level: 1, filling: false, draining: false, dose: 0 });
+    Lab.update(dt, { running: play, T: s.T, Tset: s.Tset, N: 1, conv: clamp(s.made.reduce((a, b) => a + Math.min(b, RULES.enough), 0) / (RULES.enough * 3), 0, 1), pw, charged: s.phase !== 'ready', level: 1, filling: false, draining: false, dose: 0 });
     Scr.update(dt); Ctl.frame(dt); Mgr.tick();
     snd += dt; if (snd > 0.25) { snd = 0; Snd.update(play, pw); }
   }
