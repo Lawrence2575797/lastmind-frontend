@@ -2,7 +2,7 @@
 (function () {
 'use strict';
 const LINES = {"g-win": "Yes! All four tests came out right! You matched each substrate to its own active site, and you kept the temperature and pH right. Brilliant work!", "g-cold": "Not good enough! It was too cold. Cold molecules have less kinetic energy, so they move slowly and collide less often. Warm it up and go again!", "g-hot": "Not good enough! You overheated it and the enzymes denatured. Their active sites changed shape, so the substrates no longer fit, and cooling won't fix that. Go again, a bit cooler!", "g-ph": "Not good enough! The pH drifted too far. Away from the best pH, the active site changes shape and the substrate can't fit. Correct it faster next time!", "g-close": "So close! Your tests show not enough was broken down. Remember, every active site is a different shape, so each enzyme only works on its own substrate. Keep your enzymes busy and go again, a bit quicker!"};
-const CLIPS = {"g-win": "/create/enzyme-lab/voice/g-win.mp3?v=2", "g-cold": "/create/enzyme-lab/voice/g-cold.mp3?v=2", "g-hot": "/create/enzyme-lab/voice/g-hot.mp3?v=2", "g-ph": "/create/enzyme-lab/voice/g-ph.mp3?v=2", "g-close": "/create/enzyme-lab/voice/g-close.mp3?v=2"};
+const CLIPS = {"g-win": "/create/enzyme-lab/voice/g-win.mp3?v=3", "g-cold": "/create/enzyme-lab/voice/g-cold.mp3?v=3", "g-hot": "/create/enzyme-lab/voice/g-hot.mp3?v=3", "g-ph": "/create/enzyme-lab/voice/g-ph.mp3?v=3", "g-close": "/create/enzyme-lab/voice/g-close.mp3?v=3"};
 /* ============================================================
    CORE: helpers, the process model, the manager's voice, sound
    ============================================================ */
@@ -85,7 +85,7 @@ function advance(dt) {   // dt in simulated minutes
 
 /* ---------- sound: room tone, a pump that follows the heater, intercom chime ---------- */
 const Snd = {
-  ctx: null, on: true, master: null, pump: null, hum: null,
+  ctx: null, on: true, master: null, pump: null, hum: null, gone: false,
   init() {
     if (this.ctx) return;
     const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
@@ -102,7 +102,16 @@ const Snd = {
       this.hum = c.createGain(); this.hum.gain.value = 0.02; o.connect(olp); olp.connect(this.hum); this.hum.connect(this.master); o.start();
       const p = c.createOscillator(); p.type = 'sine'; p.frequency.value = 97;
       this.pump = c.createGain(); this.pump.gain.value = 0; p.connect(this.pump); this.pump.connect(this.master); p.start();
+      this.watch();
     } catch (e) { this.ctx = null; }
+  },
+  // all sound stops when you leave the game (another tab, app or window, or away from the page) and comes back when you return
+  away(v) { this.gone = v; if (!this.ctx || this.ctx.state === 'closed') return; const p = v ? this.ctx.suspend() : this.ctx.resume(); if (p && p.catch) p.catch(() => { }); },
+  watch() {
+    document.addEventListener('visibilitychange', () => this.away(document.hidden));
+    addEventListener('pagehide', () => this.away(true)); addEventListener('pageshow', () => this.away(document.hidden));
+    addEventListener('blur', () => this.away(true)); addEventListener('focus', () => this.away(document.hidden));
+    addEventListener('pointerdown', () => { if (this.gone) this.away(false); }, true);
   },
   blip(f, dur, type, vol, when) {
     if (!this.ctx || !this.on) return;
@@ -152,7 +161,7 @@ const Voice = {
     const buf = this.buffers[key];
     if (!this.on || !buf || !Snd.ctx) { done && done(); return; }
     this.stop();
-    if (Snd.ctx.state === 'suspended') Snd.ctx.resume();
+    if (Snd.ctx.state === 'suspended' && !Snd.gone) Snd.ctx.resume();
     const s = Snd.ctx.createBufferSource(); s.buffer = buf; s.connect(Snd.master); s.onended = () => done && done(); s.start(); this.src = s;
   },
   stop() { try { if (this.src) this.src.stop(); } catch (e) { /* nothing playing */ } this.src = null; }

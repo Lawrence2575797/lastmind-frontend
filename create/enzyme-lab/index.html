@@ -151,7 +151,7 @@ button.go:hover:not(:disabled){background:linear-gradient(#ffd070,#ffa91c)}
 </div>
 <div id="nogl"><p>This game needs 3D graphics, which this browser could not start. Try an up-to-date Chrome, Edge, Safari or Firefox.<br><a href="/learn/" style="color:#ffb02e">Back to LastMind</a></p></div>
 <script src="/create/enzyme-lab/vendor/three.min.js?v=r128"></script>
-<script src="/create/enzyme-lab/game.js?v=2"></script>
+<script src="/create/enzyme-lab/game.js?v=3"></script>
 <script>
   // if the 3D scene never started, say so instead of leaving a black page
   addEventListener('load', function () { var c = document.getElementById('gl'), ok = false; try { ok = !!window.THREE && !!(c.getContext('webgl2') || c.getContext('webgl')); } catch (e) { ok = false; } if (!ok) document.getElementById('nogl').style.display = 'flex'; });
