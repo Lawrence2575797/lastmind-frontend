@@ -2,7 +2,7 @@
 (function () {
 'use strict';
 const LINES = {"g-win": "Yes! All four tests came out right! You matched each substrate to its own active site, and you kept the temperature and pH right. Brilliant work!", "g-cold": "Not good enough! It was too cold. Cold molecules have less kinetic energy, so they move slowly and collide less often. Warm it up and go again!", "g-hot": "Not good enough! You overheated it and the enzymes denatured. Their active sites changed shape, so the substrates no longer fit, and cooling won't fix that. Go again, a bit cooler!", "g-ph": "Not good enough! The pH drifted too far. Away from the best pH, the active site changes shape and the substrate can't fit. Correct it faster next time!", "g-close": "So close! Your tests show not enough was broken down. Remember, every active site is a different shape, so each enzyme only works on its own substrate. Keep your enzymes busy and go again, a bit quicker!"};
-const CLIPS = {"g-win": "/create/enzyme-lab/voice/g-win.mp3?v=3", "g-cold": "/create/enzyme-lab/voice/g-cold.mp3?v=3", "g-hot": "/create/enzyme-lab/voice/g-hot.mp3?v=3", "g-ph": "/create/enzyme-lab/voice/g-ph.mp3?v=3", "g-close": "/create/enzyme-lab/voice/g-close.mp3?v=3"};
+const CLIPS = {"g-win": "/create/enzyme-lab/voice/g-win.mp3?v=4", "g-cold": "/create/enzyme-lab/voice/g-cold.mp3?v=4", "g-hot": "/create/enzyme-lab/voice/g-hot.mp3?v=4", "g-ph": "/create/enzyme-lab/voice/g-ph.mp3?v=4", "g-close": "/create/enzyme-lab/voice/g-close.mp3?v=4"};
 /* ============================================================
    CORE: helpers, the process model, the manager's voice, sound
    ============================================================ */
@@ -112,6 +112,9 @@ const Snd = {
     addEventListener('pagehide', () => this.away(true)); addEventListener('pageshow', () => this.away(document.hidden));
     addEventListener('blur', () => this.away(true)); addEventListener('focus', () => this.away(document.hidden));
     addEventListener('pointerdown', () => { if (this.gone) this.away(false); }, true);
+    // phones only let sound start when a finger lifts, not when it touches down
+    const wake = () => { if (!this.gone && this.ctx && this.ctx.state === 'suspended') this.ctx.resume(); };
+    addEventListener('pointerup', wake, true); addEventListener('touchend', wake, true);
   },
   blip(f, dur, type, vol, when) {
     if (!this.ctx || !this.on) return;
@@ -216,7 +219,7 @@ const say = (k, t, o) => Mgr.say(k, t, o);
    ============================================================ */
 const Lab = (function () {
   const V3 = THREE.Vector3;
-  let renderer, scene, camera, envTex;
+  let renderer, scene, camera, envTex, covered = false;   // covered: the flat phone screen is over the lab, so don't draw it
   const R = { pick: [], screens: {}, anchors: {} };
   const M = {};
   const cache = {};
@@ -800,10 +803,10 @@ const Lab = (function () {
     if (R.dose.visible) for (let i = 0; i < dsd.length; i++) { const q = dsd[i], k = clamp(dv * 1.4 - q.off, 0, 1); dp.setXYZ(i, q.x + Math.sin(t * 3 + q.ph) * 0.03, lerp(2.25, ly + 0.05, easeOut(k)), q.z); }
     dp.needsUpdate = true;
     if (R.shadowFrames > 0) { R.shadowFrames--; renderer.shadowMap.needsUpdate = true; }
-    renderer.render(scene, camera);
+    if (!covered) renderer.render(scene, camera);
   }
 
-  return { init, resize, update, pickAt, project, setIntercom, screenAt, KIOSK, get camera() { return camera; }, get renderer() { return renderer; }, R };
+  return { cover: (v) => { covered = v; }, init, resize, update, pickAt, project, setIntercom, screenAt, KIOSK, get camera() { return camera; }, get renderer() { return renderer; }, R };
 })();
 
 /* ============================================================
@@ -817,7 +820,7 @@ const Nav = (function () {
   function frame(m) {
     if (m) mode = m;
     const aspect = Math.max(0.3, innerWidth / Math.max(1, innerHeight)), S = Lab.KIOSK;
-    if (mode === 'room' && aspect >= 1.4) Object.assign(home, { x: 0.9, y: 1.62, z: 2.35, yaw: -0.17, pitch: -0.02, fov: aspect < 1.6 ? 55 : 51 });
+    if (mode === 'room' && aspect >= 1.4 && innerHeight >= 560) Object.assign(home, { x: 0.9, y: 1.62, z: 2.35, yaw: -0.17, pitch: -0.02, fov: aspect < 1.6 ? 55 : 51 });
     else {   // face the screen square on and fill the view with it, leaving a strip at the top for subtitles
       const fov = 46, half = Math.tan(fov * Math.PI / 360), dist = Math.max((S.h / 2) / (half * 0.94), (S.w / 2) / (half * aspect * 0.97));
       const nx = Math.sin(S.ry), nz = Math.cos(S.ry);
@@ -825,8 +828,8 @@ const Nav = (function () {
     }
     off.yaw = off.pitch = 0;
   }
-  function init() {
-    const c = $('#gl');
+  const init = () => bind($('#gl'));
+  function bind(c) {
     c.addEventListener('pointerdown', (e) => {
       if (e.button > 0) return;
       try { c.setPointerCapture(e.pointerId); } catch (x) { /* ok */ }
@@ -849,7 +852,7 @@ const Nav = (function () {
     cam.fov += (home.fov - cam.fov) * k; camera.fov = cam.fov; camera.updateProjectionMatrix();
     camera.position.set(cam.x, cam.y, cam.z); camera.rotation.set(cam.pitch, cam.yaw, 0);
   }
-  return { init, frame, update };
+  return { init, bind, frame, update };
 })();
 
 /* ============================================================
@@ -882,8 +885,16 @@ const TESTS = [
 ];
 
 const Game = (function () {
-  const PW = 1170, PH = 740, SK = 1.38, ER = 96, VM = 1.09, PER = 5;
-  let S = null;
+  const SK = 1.38, ER = 96, VM = 1.09, PER = 5;
+  let PW = 1170, PH = 740, tall = false, S = null;
+  // where each enzyme sits and which way its active site faces
+  const slots = () => tall ? [[210, PH * 0.2, 0.45], [PW - 215, PH * 0.5, 2.9], [225, PH * 0.8, -0.55]] : [[290, 225, 0.45], [880, 225, 2.69], [585, 540, -1.5708]];
+  function setField(w, h, isTall) {
+    if (w === PW && h === PH && isTall === tall) return;
+    const kx = w / PW, ky = h / PH; PW = w; PH = h; tall = isTall; if (!S) return;
+    S.enz.forEach((e) => { const s = slots()[e.slot]; e.x = e.hx = s[0]; e.y = e.hy = s[1]; e.base = e.ang = s[2]; });
+    S.subs.forEach((s) => { s.x *= kx; s.y *= ky; }); S.prods.forEach((p) => { p.x *= kx; p.y *= ky; }); S.pops.forEach((p) => { p.x *= kx; p.y *= ky; });
+  }
   const reactTime = (T, u) => clamp(26 * Math.pow(0.42, (T - 25) / 10), 2, 45) * (1 + u * 1.5);   // about 26 s at 25 °C, 11 s at 35 °C, 4.6 s at 45 °C
   const autoWait = (T) => clamp(70 * Math.pow(2, -(T - 25) / 20), 22, 120);
   const speedOf = (T) => 36 + Math.max(0, T - 15) * 4;
@@ -910,8 +921,8 @@ const Game = (function () {
   function sitePos(e) { const cv = e.shape.cv, c = Math.cos(e.ang), s = Math.sin(e.ang); return { x: e.x + cv.cx * c - cv.cy * s, y: e.y + cv.cx * s + cv.cy * c }; }
 
   function enzyme(type, slot) {
-    const x = [290, 880, 585][slot], y = [225, 225, 540][slot];
-    const e = { type, x, y, hx: x, hy: y, base: [0.45, 2.69, -1.5708][slot], ang: 0, u: 0, heat: 0, perm: 0, sus: rnd(0.75, 1.35), wait: rnd(20, 70), state: 'IDLE', timer: 0, dur: 1, sub: null, glow: 0, ring: 0, ph: rnd(0, 6), p: [rnd(0, 6), rnd(0, 6), rnd(0, 6), rnd(0, 6), rnd(0, 6)], gen: 0 };
+    const [x, y, base] = slots()[slot];
+    const e = { type, slot, x, y, hx: x, hy: y, base, ang: 0, u: 0, heat: 0, perm: 0, sus: rnd(0.75, 1.35), wait: rnd(20, 70), state: 'IDLE', timer: 0, dur: 1, sub: null, glow: 0, ring: 0, ph: rnd(0, 6), p: [rnd(0, 6), rnd(0, 6), rnd(0, 6), rnd(0, 6), rnd(0, 6)], gen: 0 };
     e.ang = e.base; e.shape = outline(e, 0); return e;
   }
   function substrate(type, edge) {
@@ -1048,7 +1059,7 @@ const Game = (function () {
     else if (type === 2) { c.fillStyle = 'rgba(255,255,255,.65)'; c.beginPath(); c.ellipse(-9 * k, -16 * k, 6 * k, 10 * k, 0.6, 0, 7); c.fill(); }
     else { c.strokeStyle = 'rgba(255,255,255,.7)'; c.lineWidth = 2.5 * k; trace(c, regular(6, 18, 0), k); c.stroke(); }
     c.restore(); trace(c, T_.poly, k); c.strokeStyle = 'rgba(255,255,255,.85)'; c.lineWidth = 2.4; c.stroke(); c.restore();
-    if (label) { c.save(); c.globalAlpha = alpha; c.font = "700 19px 'Barlow Condensed',Arial Narrow"; c.textAlign = 'center'; c.lineWidth = 5; c.strokeStyle = 'rgba(0,0,0,.75)'; c.strokeText(T_.substrate, x, y + 6); c.fillStyle = '#fff'; c.fillText(T_.substrate, x, y + 6); c.restore(); }
+    if (label) { c.save(); c.globalAlpha = alpha; c.font = '700 ' + (tall ? 25 : 19) + "px 'Barlow Condensed',Arial Narrow"; c.textAlign = 'center'; c.lineWidth = 5; c.strokeStyle = 'rgba(0,0,0,.75)'; c.strokeText(T_.substrate, x, y + 6); c.fillStyle = '#fff'; c.fillText(T_.substrate, x, y + 6); c.restore(); }
   }
   function drawProduct(c, type, x, y, sp, k, alpha) {
     const T_ = TYPES[type]; c.save(); c.globalAlpha = alpha; c.translate(x, y); c.fillStyle = T_.fill[1]; c.strokeStyle = '#fff'; c.lineWidth = 2;
@@ -1074,7 +1085,7 @@ const Game = (function () {
     c.textAlign = 'center'; c.lineWidth = 6; c.strokeStyle = 'rgba(0,0,0,.65)';
     const lx = e.x - Math.cos(e.base) * 22;
     c.font = "700 30px 'Barlow Condensed',Arial Narrow"; c.strokeText(T_.enzyme, lx, e.y - 2); c.fillStyle = '#fff'; c.fillText(T_.enzyme, lx, e.y - 2);
-    c.font = "500 15px 'IBM Plex Sans',sans-serif"; c.strokeText(T_.kind, lx, e.y + 20); c.fillStyle = 'rgba(255,255,255,.85)'; c.fillText(T_.kind, lx, e.y + 20);
+    c.font = '500 ' + (tall ? 21 : 15) + "px 'IBM Plex Sans',sans-serif"; c.strokeText(T_.kind, lx, e.y + 20); c.fillStyle = 'rgba(255,255,255,.85)'; c.fillText(T_.kind, lx, e.y + 20);
     if (e.state === 'COMPLEX') { const p = clamp(e.timer / e.dur, 0, 1), left = Math.max(0, e.dur - e.timer); c.strokeStyle = '#ffe08a'; c.lineWidth = 8; c.beginPath(); c.arc(e.x, e.y, ER + 18, -Math.PI / 2, -Math.PI / 2 + p * Math.PI * 2); c.stroke(); c.font = "600 28px 'IBM Plex Mono',monospace"; c.lineWidth = 6; c.strokeStyle = 'rgba(0,0,0,.75)'; const s_ = left.toFixed(left < 10 ? 1 : 0) + ' s'; c.strokeText(s_, lx, e.y + 54); c.fillStyle = '#ffe08a'; c.fillText(s_, lx, e.y + 54); }
     if (!fits(e)) { c.fillStyle = 'rgba(60,10,6,.9)'; c.fillRect(lx - 82, e.y + 36, 164, 28); c.fillStyle = '#ffab90'; c.font = "700 19px 'Barlow Condensed',Arial Narrow"; c.fillText(e.heat + e.perm >= 0.35 ? 'DENATURED' : 'WRONG pH SHAPE', lx, e.y + 57); }
   }
@@ -1092,7 +1103,7 @@ const Game = (function () {
     S.pops.forEach((p) => { c.globalAlpha = clamp(1.4 - p.t, 0, 1); c.font = '700 ' + (p.big ? 36 : 28) + "px 'Barlow Condensed',Arial Narrow"; c.textAlign = 'center'; c.lineWidth = 6; c.strokeStyle = 'rgba(0,0,0,.8)'; c.strokeText(p.text, p.x, p.y); c.fillStyle = p.col; c.fillText(p.text, p.x, p.y); c.globalAlpha = 1; });
     if (S.flash > 0) { c.fillStyle = `rgba(255,80,50,${S.flash * 0.3})`; c.fillRect(0, 0, PW, PH); }
   }
-  return { start, update, draw, drawSub, drawProduct, grab, drag, drop, setT, dose, buy, reset, fits, sitePos, here, runTest, passed, PW, PH, get s() { return S; } };
+  return { start, update, draw, drawSub, drawProduct, grab, drag, drop, setT, dose, buy, reset, fits, sitePos, here, runTest, passed, setField, get PW() { return PW; }, get PH() { return PH; }, get s() { return S; } };
 })();
 
 /* ---------- the screen you play on ---------- */
@@ -1100,8 +1111,8 @@ const Ctl = (function () {
   const W = 1600, H = 1000, PX = 20, PY = 128;
   const C = { bg: '#06161a', panel: '#0c2329', line: 'rgba(150,215,205,.28)', ink: '#eef7f5', dim: '#93b0ac', amber: '#ffb02e', ok: '#4fe0a0', bad: '#ff6a3d', cyan: '#55c8ff', vio: '#b08cff' };
   const disp = "'Barlow Condensed','Arial Narrow',sans-serif", body = "'IBM Plex Sans','Segoe UI',sans-serif", mono = "'IBM Plex Mono',monospace";
-  const SL = { x: 1230, y: 262, w: 340 };
-  let c = null, hits = [], hoverId = null, dragging = null, acc = 1;
+  const SL = { x: 1230, y: 262, w: 340 }, FD = { x: PX, y: PY, k: 1 };   // temperature slider, and where the field is drawn
+  let c = null, hits = [], hoverId = null, dragging = null, acc = 1, pc = null, view = { k: 1, x: 0, y: 0 };
   function box(x, y, w, h, fill, stroke, r) { r = r == null ? 12 : r; c.beginPath(); c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r); c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath(); if (fill) { c.fillStyle = fill; c.fill(); } if (stroke) { c.strokeStyle = stroke; c.lineWidth = 2; c.stroke(); } }
   function text(t, x, y, size, col, o) { o = o || {}; c.font = (o.w || 600) + ' ' + size + 'px ' + (o.f || body); c.fillStyle = col || C.ink; c.textAlign = o.a || 'left'; c.textBaseline = 'alphabetic'; c.fillText(t, x, y); }
   function wrap(t, x, y, maxW, lh, size, col) { c.font = '500 ' + size + 'px ' + body; c.fillStyle = col; c.textAlign = 'left'; let line = ''; t.split(' ').forEach((wd) => { const q = line ? line + ' ' + wd : wd; if (c.measureText(q).width > maxW && line) { c.fillText(line, x, y); y += lh; line = wd; } else line = q; }); if (line) c.fillText(line, x, y); return y; }
@@ -1109,8 +1120,9 @@ const Ctl = (function () {
     o = o || {}; const hov = hoverId === id; let fill = o.fill || (hov ? '#1d454e' : '#133038'), col = o.col || C.ink, stroke = o.stroke || C.line;
     if (o.style === 'go') { const g = c.createLinearGradient(0, y, 0, y + h); g.addColorStop(0, hov ? '#ffd477' : '#ffc34d'); g.addColorStop(1, hov ? '#ffab22' : '#ef950c'); fill = g; col = '#1c1100'; stroke = '#ffe0a0'; }
     box(x, y, w, h, fill, stroke); c.font = '700 ' + (o.size || 34) + 'px ' + disp; c.fillStyle = col; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(label, x + w / 2, y + h / 2 + 2); c.textBaseline = 'alphabetic';
-    hits.push({ id, x, y, w, h });
+    hit(id, x, y, w, h);
   }
+  const hit = (id, x, y, w, h) => hits.push({ id, x: view.x + x * view.k, y: view.y + y * view.k, w: w * view.k, h: h * view.k });
   const short = (p) => (p.length > 14 ? 'FATTY ACIDS' : p);
   function hud(s) {
     c.fillStyle = '#0a1f25'; c.fillRect(0, 0, W, 112); c.fillStyle = C.amber; c.fillRect(0, 112, W, 4);
@@ -1124,13 +1136,14 @@ const Ctl = (function () {
     text('TIME LEFT', 1236, 42, 26, C.dim, { f: disp }); text(m + ':' + String(sec).padStart(2, '0'), 1236, 94, 52, left < 25 ? C.bad : C.ink, { f: mono });
     button('sound', 1404, 28, 176, 60, Snd.on && Voice.on ? 'SOUND ON' : 'SOUND OFF', { size: 26 });
   }
+  const message = (s) => s.bannerT > 0 && s.banner ? s.banner : s.T > 52 ? { text: 'Too hot: enzymes are denaturing. Their active sites are changing shape.', col: C.bad } : Math.abs(s.ph - 7) > 1.2 ? { text: 'The pH is off: active sites change shape and substrates stop fitting.', col: C.vio } : s.T < 36 ? { text: 'Cold: slow molecules, slow reactions. Warmer means faster.', col: C.cyan } : { text: 'Drag each substrate into the active site with the matching shape.', col: C.amber };
   function controls(s) {
     const x = 1210;
     box(x, 128, 370, 288, C.panel, C.line);
     text('TEMPERATURE', x + 18, 164, 28, C.dim, { f: disp }); text(fmt(s.T) + '°C', x + 18, 224, 60, s.T > 52 ? C.bad : C.amber, { f: mono }); text('set ' + s.Tset + '°', x + 352, 222, 28, C.dim, { f: mono, a: 'right' });
     const g = c.createLinearGradient(SL.x, 0, SL.x + SL.w, 0); g.addColorStop(0, '#3d8fd1'); g.addColorStop(0.45, '#55c8ff'); g.addColorStop(0.65, '#ffd060'); g.addColorStop(0.72, '#ff6a3d'); g.addColorStop(1, '#c4251a');
     box(SL.x, SL.y - 11, SL.w, 22, g, null, 11); const tx = SL.x + (s.Tset - 15) / 55 * SL.w; c.beginPath(); c.arc(tx, SL.y, 26, 0, 7); c.fillStyle = '#fff'; c.fill(); c.lineWidth = 9; c.strokeStyle = C.amber; c.stroke();
-    hits.push({ id: 'slider', x: SL.x - 30, y: SL.y - 42, w: SL.w + 60, h: 84 });
+    hit('slider', SL.x - 30, SL.y - 42, SL.w + 60, 84);
     button('minus', x + 18, 312, 160, 84, '− COOLER', { size: 34 }); button('plus', x + 192, 312, 160, 84, '+ WARMER', { size: 34 });
     const bad = Math.abs(s.ph - 7) > 1.2;
     box(x, 430, 370, 290, C.panel, bad ? C.bad : C.line);
@@ -1143,7 +1156,7 @@ const Ctl = (function () {
     box(x, 734, 370, 134, C.panel, C.line);
     text('ENZYMES WORKING', x + 18, 770, 28, C.dim, { f: disp }); text(n + '/' + there.length, x + 352, 776, 44, n === there.length ? C.ok : n ? C.amber : C.bad, { f: mono, a: 'right' });
     button('buy', x + 18, 788, 334, 66, 'FRESH ENZYME (' + s.spares + ' LEFT)', { size: 28 });
-    const msg = s.bannerT > 0 && s.banner ? s.banner : s.T > 52 ? { text: 'Too hot: enzymes are denaturing. Their active sites are changing shape.', col: C.bad } : Math.abs(s.ph - 7) > 1.2 ? { text: 'The pH is off: active sites change shape and substrates stop fitting.', col: C.vio } : s.T < 36 ? { text: 'Cold: slow molecules, slow reactions. Warmer means faster.', col: C.cyan } : { text: 'Drag each substrate into the active site with the matching shape.', col: C.amber };
+    const msg = message(s);
     box(20, 884, 1560, 96, s.flash > 0.01 ? '#3a130c' : C.panel, msg.col); c.fillStyle = msg.col; c.fillRect(20, 884, 12, 96);
     text(msg.text, 60, 944, 36, C.ink);
   }
@@ -1219,17 +1232,104 @@ const Ctl = (function () {
       text('You broke down ' + n + ' ' + TYPES[T_.of].substrate.toLowerCase() + (T_.of === 2 ? ' droplets' : ' molecules') + '. A successful batch needs at least ' + RULES.enough + '.', W / 2, 932, 32, ok ? C.ok : C.bad, { a: 'center' });
     }
   }
+  /* ----- the phone layout: 1000 units across, as tall as the phone is ----- */
+  const PWIDE = 1000;
+  function lines(t, maxW, size) { c.font = '500 ' + size + 'px ' + body; const out = []; let line = ''; t.split(' ').forEach((wd) => { const q = line ? line + ' ' + wd : wd; if (c.measureText(q).width > maxW && line) { out.push(line); line = wd; } else line = q; }); if (line) out.push(line); return out; }
+  function para(t, x, y, maxW, size, col, align) { const l = lines(t, maxW, size); l.forEach((q, i) => text(q, x, y + i * size * 1.28, size, col, { a: align || 'center', w: 500 })); return y + l.length * size * 1.28; }
+  // a screen drawn at its own size, then shrunk evenly if the phone is shorter than that
+  function fitted(h, V, paint) { const k = Math.min(1, V / h); view = { k, x: (PWIDE - PWIDE * k) / 2, y: (V - h * k) / 2 }; c.save(); c.translate(view.x, view.y); c.scale(k, k); paint(); c.restore(); view = { k: 1, x: 0, y: 0 }; }
+  function phoneReady() {
+    text('PILOT PRODUCTION SUITE', 500, 60, 36, C.dim, { a: 'center', f: disp });
+    text('REACTOR 3', 500, 200, 160, C.ink, { a: 'center', w: 700, f: disp });
+    para('Break down as much as you can in ' + RULES.time + ' seconds. Then food-test your batch.', 500, 285, 860, 46, C.amber);
+    TYPES.forEach((T_, i) => { const y = 420 + i * 176; box(60, y, 880, 160, C.panel, C.line); Game.drawSub(c, i, 180, y + 70, 0, 1.2, 1, false); text('→', 500, y + 90, 60, C.dim, { a: 'center' }); Game.drawProduct(c, i, 800, y + 66, 0.8, 1.05, 1); text(T_.substrate, 180, y + 144, 34, C.ink, { a: 'center', f: disp }); text(short(T_.product), 800, y + 144, 34, C.ink, { a: 'center', f: disp }); });
+    const rows = ['Drag each substrate into the active site that matches its shape.', 'Change the temperature. Warmer is faster, but too hot ruins enzymes.', 'Watch the pH. Add acid or alkali when something goes wrong.'];
+    rows.forEach((r, i) => { const y = 1015 + i * 128; c.beginPath(); c.arc(90, y - 14, 32, 0, 7); c.fillStyle = C.amber; c.fill(); text(String(i + 1), 90, y, 40, '#1c1100', { a: 'center', w: 700, f: disp }); para(r, 150, y, 800, 42, C.ink, 'left'); });
+    button('start', 110, 1400, 780, 160, 'START THE BATCH', { style: 'go', size: 72 });
+  }
+  function phonePlay(s, V) {
+    TYPES.forEach((T_, i) => { const x = 14 + i * 328; box(x, 10, 316, 128, C.panel, C.line); Game.drawProduct(c, i, x + 62, 60, 0.25, 0.7, 1); text(String(s.made[i]), x + 292, 84, 70, C.ink, { f: mono, a: 'right' }); text(short(T_.product), x + 158, 124, 30, C.dim, { f: disp, a: 'center' }); });
+    const left = Math.max(0, RULES.time - s.t), m = Math.floor(left / 60), sec = Math.floor(left % 60);
+    text('TIME LEFT', 24, 196, 36, C.dim, { f: disp }); text(m + ':' + String(sec).padStart(2, '0'), 190, 204, 58, left < 25 ? C.bad : C.ink, { f: mono });
+    button('sound', 700, 150, 286, 68, Snd.on && Voice.on ? 'SOUND ON' : 'SOUND OFF', { size: 34 });
+    const msg = message(s); box(14, 230, 972, 116, s.flash > 0.01 ? '#3a130c' : C.panel, msg.col); c.fillStyle = msg.col; c.fillRect(14, 230, 12, 116);
+    const l = lines(msg.text, 910, 38); l.forEach((q, i) => text(q, 52, 302 - (l.length - 1) * 24 + i * 48, 38, C.ink, { w: 500 }));
+    // the controls sit under your thumbs
+    const top = V - 556, fy = 362, fh = top - 14 - fy;
+    FD.x = 14; FD.y = fy; FD.k = 972 / Game.PW;
+    c.save(); c.translate(FD.x, FD.y); c.beginPath(); c.rect(0, 0, 972, fh); c.clip(); c.scale(FD.k, FD.k); Game.draw(c); c.restore();
+    c.strokeStyle = s.flash > 0.05 ? C.bad : C.line; c.lineWidth = 3; c.strokeRect(14, fy, 972, fh);
+    box(14, top, 972, 228, C.panel, C.line);
+    text('TEMPERATURE', 36, top + 54, 36, C.dim, { f: disp }); text(fmt(s.T) + '°C', 250, top + 66, 66, s.T > 52 ? C.bad : C.amber, { f: mono }); text('set ' + s.Tset + '°', 964, top + 60, 36, C.dim, { f: mono, a: 'right' });
+    SL.x = 220; SL.y = top + 148; SL.w = 560;
+    const g = c.createLinearGradient(SL.x, 0, SL.x + SL.w, 0); g.addColorStop(0, '#3d8fd1'); g.addColorStop(0.45, '#55c8ff'); g.addColorStop(0.65, '#ffd060'); g.addColorStop(0.72, '#ff6a3d'); g.addColorStop(1, '#c4251a');
+    box(SL.x, SL.y - 13, SL.w, 26, g, null, 13); const tx = SL.x + (s.Tset - 15) / 55 * SL.w; c.beginPath(); c.arc(tx, SL.y, 34, 0, 7); c.fillStyle = '#fff'; c.fill(); c.lineWidth = 11; c.strokeStyle = C.amber; c.stroke();
+    hit('slider', SL.x - 36, SL.y - 56, SL.w + 72, 112);
+    button('minus', 32, top + 96, 130, 112, '−', { size: 80 }); button('plus', 838, top + 96, 130, 112, '+', { size: 80 });
+    const y = top + 242, bad = Math.abs(s.ph - 7) > 1.2;
+    box(14, y, 972, 180, C.panel, bad ? C.bad : C.line);
+    text('pH', 36, y + 48, 38, C.dim, { f: disp }); text(s.ph.toFixed(1), 36, y + 124, 72, bad ? C.bad : C.ok, { f: mono }); text('best: 7', 36, y + 162, 30, C.dim, { f: mono });
+    button('acid', 250, y + 22, 354, 94, 'ADD ACID', { size: 44, fill: '#542418', stroke: '#ff9a6a' }); button('alkali', 618, y + 22, 354, 94, 'ADD ALKALI', { size: 44, fill: '#33245c', stroke: '#c8a8ff' });
+    ['#d8352a', '#ec8021', '#f5cf2e', '#7cc242', '#22a6a0', '#3b5db8', '#6a2f8a'].forEach((k, i) => { c.fillStyle = k; c.fillRect(250 + i * (722 / 7), y + 134, 722 / 7 + 1, 24); });
+    c.fillStyle = '#fff'; c.fillRect(250 + clamp((s.ph - 3) / 8, 0, 1) * 722 - 6, y + 124, 12, 44);
+    const there = Game.here(), n = there.filter((e) => Game.fits(e)).length, by = y + 194;
+    box(14, by, 972, 108, C.panel, C.line);
+    text('ENZYMES WORKING', 36, by + 68, 36, C.dim, { f: disp }); text(n + '/' + there.length, 430, by + 72, 52, n === there.length ? C.ok : n ? C.amber : C.bad, { f: mono, a: 'right' });
+    button('buy', 460, by + 14, 508, 80, 'FRESH ENZYME (' + s.spares + ' LEFT)', { size: 38 });
+  }
+  // the four food tests, two by two
+  function phoneTesting(s) {
+    text('TIME UP! TEST YOUR BATCH', 500, 80, 74, C.ink, { a: 'center', w: 700, f: disp });
+    TESTS.forEach((T_, i) => {
+      const x = 14 + (i % 2) * 492, y = 110 + Math.floor(i / 2) * 650, cx = x + 240, k = s.tests[i], ok = Game.passed(i), res = T_.result(s.made[T_.of], ok);
+      box(x, y, 480, 636, C.panel, k.done ? (ok ? C.ok : C.bad) : C.line);
+      text(T_.name, cx, y + 50, 44, C.ink, { a: 'center', w: 700, f: disp }); text(T_.looks, cx, y + 90, 32, C.dim, { a: 'center' });
+      c.save(); c.translate(0, y - 118); tube(i, cx, k, res); c.restore();
+      if (k.t < 0) button('test' + i, x + 20, y + 536, 440, 86, T_.add, { style: 'go', size: 46 });
+      else if (!k.done) text(T_.heat && k.t > T_.dur * 0.3 ? 'Heating…' : T_.shake && k.t > T_.dur * 0.3 ? 'Shaking…' : 'Adding…', cx, y + 592, 40, C.amber, { a: 'center' });
+      else { text(res.seen, cx, y + 524, 36, C.ink, { a: 'center' }); box(x + 20, y + 540, 440, 82, ok ? 'rgba(79,224,160,.18)' : 'rgba(255,106,61,.18)', null); text(ok ? '✓ SUCCESS' : '✗ NOT ENOUGH', cx, y + 596, 46, ok ? C.ok : C.bad, { a: 'center', w: 700, f: disp }); }
+    });
+    const v = s.verdict, y = 1424;
+    box(14, y, 972, 462, v ? 'rgba(255,176,46,.09)' : C.panel, v ? C.amber : C.line);
+    if (v) {
+      text(v.score + ' OF ' + TESTS.length + ' TESTS SUCCESSFUL', 500, y + 62, 52, v.win ? C.ok : C.bad, { a: 'center', w: 700, f: disp });
+      para('Hollis: ' + LINES[v.key], 500, y + 122, 900, 38, '#fff2d4');
+      button('start', 260, y + 332, 480, 108, 'PLAY AGAIN', { style: 'go', size: 56 });
+    } else if (s.last < 0) para('Each test looks for one substance. Press a button to run it.', 500, y + 190, 840, 48, C.ink);
+    else {
+      const T_ = TESTS[s.last], n = s.made[T_.of], ok = Game.passed(s.last), res = T_.result(n, ok);
+      const q = para(res.seen + ': ' + res.means, 500, y + 110, 880, 46, C.ink);
+      para('You broke down ' + n + ' ' + TYPES[T_.of].substrate.toLowerCase() + (T_.of === 2 ? ' droplets' : ' molecules') + '. A successful batch needs at least ' + RULES.enough + '.', 500, q + 50, 880, 38, ok ? C.ok : C.bad);
+    }
+  }
+  const onPhone = () => innerWidth / Math.max(1, innerHeight) < 1.15;
+  function drawPhone(s) {
+    const r = pc.getBoundingClientRect(), dpr = Math.min(2, window.devicePixelRatio || 1), w = Math.max(1, Math.round(r.width * dpr)), h = Math.max(1, Math.round(r.height * dpr));
+    if (pc.width !== w || pc.height !== h) { pc.width = w; pc.height = h; }
+    c = pc.getContext('2d'); const k = w / PWIDE, V = h / k;
+    c.setTransform(k, 0, 0, k, 0, 0); c.fillStyle = C.bg; c.fillRect(0, 0, PWIDE, V);
+    // the field is as tall as the space left between the message and the controls
+    const fh = Math.max(500, V - 556 - 14 - 362), fw = Math.max(760, Math.round(580 * 972 / fh)); Game.setField(fw, Math.round(fh * fw / 972), true);   // short phones see more field, drawn a little smaller
+    if (s.phase === 'ready') fitted(1600, V, phoneReady);
+    else if (s.phase === 'test') fitted(1900, V, () => phoneTesting(s));
+    else { const need = 556 + 14 + 362 + 500; if (V >= need) phonePlay(s, V); else fitted(need, need * Math.min(1, V / need), () => phonePlay(s, need)); }
+  }
   function draw() {
-    const sc = Lab.R.screens.kiosk, s = Game.s; c = sc.ctx; hits = [];
+    const sc = Lab.R.screens.kiosk, s = Game.s, tall = onPhone(); hits = []; view = { k: 1, x: 0, y: 0 };
+    pc.hidden = !tall; Lab.cover(tall); $('#app').dataset.phase = s.phase;
+    if (tall) { drawPhone(s); return; }
+    c = sc.ctx; Game.setField(1170, 740, false); SL.x = 1230; SL.y = 262; SL.w = 340; FD.x = PX; FD.y = PY; FD.k = 1;
     c.setTransform(1, 0, 0, 1, 0, 0); c.fillStyle = C.bg; c.fillRect(0, 0, W, H);
     if (s.phase === 'ready') ready();
     else if (s.phase === 'test') testing(s);
     else { hud(s); c.save(); c.translate(PX, PY); c.beginPath(); c.rect(0, 0, Game.PW, Game.PH); c.clip(); Game.draw(c); c.restore(); c.strokeStyle = s.flash > 0.05 ? C.bad : C.line; c.lineWidth = 3; c.strokeRect(PX, PY, Game.PW, Game.PH); controls(s); }
     sc.tex.needsUpdate = true;
   }
-  const at = (e) => Lab.screenAt(e.clientX, e.clientY);
+  // where a touch or click lands, in the units of whichever screen is showing
+  const at = (e) => { if (!onPhone()) return Lab.screenAt(e.clientX, e.clientY); const r = pc.getBoundingClientRect(), k = PWIDE / Math.max(1, r.width); return { x: (e.clientX - r.left) * k, y: (e.clientY - r.top) * k }; };
   const hitAt = (p) => hits.find((q) => p.x >= q.x && p.x <= q.x + q.w && p.y >= q.y && p.y <= q.y + q.h);
-  const inPlay = (p) => Game.s.phase === 'play' && p.x >= PX && p.x <= PX + Game.PW && p.y >= PY && p.y <= PY + Game.PH;
+  const inPlay = (p) => Game.s.phase === 'play' && p.x >= FD.x && p.x <= FD.x + Game.PW * FD.k && p.y >= FD.y && p.y <= FD.y + Game.PH * FD.k;
+  const fx = (p) => (p.x - FD.x) / FD.k, fy = (p) => (p.y - FD.y) / FD.k;
   const fromX = (x) => Game.setT(15 + (x - SL.x) / SL.w * 55);
   function act(id) {
     Snd.click();
@@ -1241,13 +1341,13 @@ const Ctl = (function () {
     acc = 1;
   }
   return {
-    down(e) { const p = at(e); if (!p) return false; if (inPlay(p)) { if (Game.grab(p.x - PX, p.y - PY)) dragging = 'sub'; return true; } const h = hitAt(p); if (!h) return Game.s.phase === 'play'; if (h.id === 'slider') { dragging = 'temp'; fromX(p.x); } else act(h.id); return true; },
-    move(e) { const p = at(e); if (!p) return; if (dragging === 'sub') Game.drag(p.x - PX, p.y - PY); else if (dragging === 'temp') fromX(p.x); },
+    down(e) { const p = at(e); if (!p) return false; if (inPlay(p)) { if (Game.grab(fx(p), fy(p))) dragging = 'sub'; return true; } const h = hitAt(p); if (!h) return Game.s.phase === 'play'; if (h.id === 'slider') { dragging = 'temp'; fromX(p.x); } else act(h.id); return true; },
+    move(e) { const p = at(e); if (!p) return; if (dragging === 'sub') Game.drag(fx(p), fy(p)); else if (dragging === 'temp') fromX(p.x); },
     up() { if (dragging === 'sub') Game.drop(); dragging = null; },
     over(e) { const p = at(e); if (!p) { hoverId = null; return null; } if (inPlay(p)) { hoverId = null; return 'grab'; } const h = hitAt(p); hoverId = h ? h.id : null; return h ? 'pointer' : null; },
     get dragging() { return !!dragging; },
     frame(dt) { acc += dt; if (acc > 0.03) { acc = 0; draw(); } },
-    init() { draw(); }, refresh() { }, tick() { }
+    init() { pc = document.createElement('canvas'); pc.id = 'phone'; pc.hidden = true; pc.setAttribute('aria-label', 'Reactor 3, the game screen'); $('#app').appendChild(pc); Nav.bind(pc); draw(); }, refresh() { draw(); }, tick() { }
   };
 })();
 
@@ -1283,7 +1383,7 @@ const Flow = (function () {
 
 (function boot() {
   Lab.init($('#gl')); Nav.init(); Nav.frame('room'); Ctl.init();
-  addEventListener('resize', () => { Lab.resize(); Nav.frame(); });
+  addEventListener('resize', () => { Lab.resize(); Nav.frame(); Ctl.refresh(); });
   Lab.update(0.016, { running: false, T: 25, Tset: 25, N: 1, conv: 0, pw: 0, charged: false, level: 1 });
   Flow.frame();
 })();
