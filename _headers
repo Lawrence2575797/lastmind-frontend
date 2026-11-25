@@ -9,6 +9,9 @@
 /create/football/*
   Cache-Control: no-cache
 
+/create/enzyme-lab/*
+  Cache-Control: no-cache
+
 /learn
   Cache-Control: no-cache
 /learn/*

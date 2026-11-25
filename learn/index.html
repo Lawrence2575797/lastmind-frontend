@@ -10825,6 +10825,13 @@ SQIDAQAB
                 { key: 'football-manager', title: 'Be the manager', image: '/assets/create/football-manager.jpg', description: 'Your club, your tactics, your season. Set the team up, sign the players and test your ideas on the pitch to find out what really wins matches', alt: 'A football manager in a long coat standing on the touchline under floodlights with a packed stadium behind him', href: '/create/football/?new=1' },
             ],
         },
+        {
+            key: 'enzymes', title: 'Enzymes', image: '/assets/create/enzyme-lab.jpg', description: 'Learn how enzymes work by running a reactor yourself',
+            alt: 'A reactor screen with three enzymes and floating starch, protein and fat molecules',
+            simulations: [
+                { key: 'enzyme-lab', title: 'Reactor 3: Enzymes', image: '/assets/create/enzyme-lab.jpg', description: 'GCSE Biology: fit each substrate into its enzyme, hold the temperature and pH, and fill every order before time runs out', alt: 'A reactor screen with three enzymes and floating starch, protein and fat molecules', href: '/create/enzyme-lab/' },
+            ],
+        },
     ];
     const CREATE_TEMPLATES = CREATE_TEMPLATES_ALL.filter((t) => CREATE_PAUSED.indexOf(t.key) < 0);
     let lawDemoOpening = false;
@@ -10852,7 +10859,7 @@ SQIDAQAB
         }
         if (/^doctor-(gcse|alevel|psych)$/.test(view)) { renderDoctorCareer(contentInner, view.slice(7)); return; }
         // what each project costs: the law projects are £4.99 a month and the football manager is £8.99 (with 30,000 Locks a month across the whole site); the biology and psychology ones are free
-        const CREATE_PRICES = { 'criminal-trial': '£4.99 / month', 'criminal-lawyer-career': '£4.99 / month', 'football-demo': 'Free', 'football-manager': '£8.99 / month', 'doctor-gcse': 'Free', 'doctor-alevel': 'Free', 'doctor-psych': 'Free' };
+        const CREATE_PRICES = { 'criminal-trial': '£4.99 / month', 'criminal-lawyer-career': '£4.99 / month', 'football-demo': 'Free', 'enzyme-lab': 'Free', 'football-manager': '£8.99 / month', 'doctor-gcse': 'Free', 'doctor-alevel': 'Free', 'doctor-psych': 'Free' };
         const card = (t, attrs = '') => `
                         <article class="create-card${attrs ? ' create-card-link' : ''}" ${attrs}>
                             <h3>${escapeHtml(t.title)}</h3>
@@ -10922,9 +10929,9 @@ SQIDAQAB
             // a paid project: clicking its card checks the subscription, and shows the checkout if there is none
             const paid = { 'football-manager': 'football', 'criminal-trial': 'law', 'criminal-lawyer-career': 'law' }[el.dataset.simulation];
             const open = async () => {
-                // The football demo is the sole guest project. Everything
+                // The football demo and the enzymes game are the guest projects. Everything
                 // else belongs to an account before any paid checkout starts.
-                if (el.dataset.simulation !== 'football-demo') {
+                if (!['football-demo', 'enzyme-lab'].includes(el.dataset.simulation)) {
                     const { data } = window.supabaseClient ? await window.supabaseClient.auth.getSession() : { data: null };
                     if (!data || !data.session || data.session.user?.is_anonymous) {
                         const back = paid ? `/learn/?needs=${encodeURIComponent(paid)}` : '/learn/';

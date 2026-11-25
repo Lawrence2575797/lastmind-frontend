@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Reactor 3: GCSE Enzymes Game | LastMind</title>
+<meta name="description" content="A free GCSE Biology game about enzymes. Match each substrate to its active site, keep the temperature and pH right, and fill every order before time runs out. No log in needed.">
+<meta name="theme-color" content="#080f11">
+<link rel="icon" href="/icons/lastmind-logo.png" type="image/png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+/* Industrial control-room look: ink-teal ground, safety amber for the thing you press, green for healthy, orange-red for trouble.
+   Layout: the lab on the left, one control station on the right holding everything. */
+:root{
+  --bg:#080f11; --panel2:rgba(11,23,27,.96); --line:rgba(150,215,205,.16); --line2:rgba(150,215,205,.30);
+  --ink:#e8f2f0; --dim:#8da9a6; --amber:#ffb02e; --ok:#4fe0a0; --bad:#ff6a3d; --cyan:#55c8ff; --enz:#8a93ff;
+  --disp:'Barlow Condensed','Arial Narrow',sans-serif; --body:'IBM Plex Sans','Segoe UI',system-ui,sans-serif; --mono:'IBM Plex Mono',ui-monospace,Consolas,monospace;
+}
+:root{color-scheme:dark}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--bg);color:var(--ink);font-family:var(--body);overflow:hidden;-webkit-user-select:none;user-select:none}
+#app{position:fixed;inset:0;overflow:hidden;background:#000}
+#gl{position:absolute;inset:0;width:100%;height:100%;display:block;cursor:grab;touch-action:none}
+#gl.drag{cursor:grabbing}
+#vig{position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse at 52% 48%,transparent 60%,rgba(0,0,0,.45) 100%)}
+button{font-family:var(--disp);letter-spacing:.06em;text-transform:uppercase;cursor:pointer;border:1px solid var(--line2);background:rgba(20,40,46,.85);color:var(--ink);padding:.55em 1em;font-size:15px;font-weight:600;border-radius:3px;transition:background .15s,border-color .15s,transform .05s}
+button:hover:not(:disabled){background:rgba(40,78,86,.9);border-color:rgba(180,235,225,.5)}
+button:active:not(:disabled){transform:translateY(1px)}
+button:disabled{opacity:.45;cursor:default}
+button:focus-visible,input:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+button.go{background:linear-gradient(#ffc04a,#f09a12);color:#1a1000;border-color:#ffd488}
+button.go:hover:not(:disabled){background:linear-gradient(#ffd070,#ffa91c)}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.tag{font-family:var(--disp);font-weight:600;letter-spacing:.14em;text-transform:uppercase;font-size:12px;color:var(--dim)}
+
+/* the control station: everything in one place */
+#station{position:absolute;z-index:7;right:14px;top:14px;bottom:14px;width:420px;display:none;flex-direction:column;gap:12px;padding:14px;background:var(--panel2);border:1px solid var(--line2);border-top:3px solid var(--amber);overflow:auto;scrollbar-width:thin;scrollbar-color:#2a4a50 transparent}
+#station.show{display:flex}
+#station>*{flex:none}
+#station h2{font-family:var(--disp);font-size:27px;font-weight:700;letter-spacing:.03em;line-height:1.05;text-transform:uppercase;margin-top:2px}
+.molwin{position:relative;border:1px solid var(--line2);background:#061519}
+.molwin canvas{display:block;width:100%;height:auto;aspect-ratio:784/440}
+.molstat{position:absolute;left:8px;right:8px;bottom:8px;padding:6px 10px;background:rgba(3,10,12,.86);border-left:3px solid var(--cyan);font-size:13.5px;font-weight:500;line-height:1.35}
+#bCloser{position:absolute;right:8px;top:8px;font-size:12px;padding:.3em .7em;background:rgba(3,10,12,.8)}
+.tline{display:flex;justify-content:space-between;align-items:baseline}
+.tline b{font-size:34px;font-weight:600;color:var(--amber)}
+#tSlide{-webkit-appearance:none;appearance:none;width:100%;height:34px;background:transparent;cursor:pointer;touch-action:none}
+#tSlide::-webkit-slider-runnable-track{height:10px;border-radius:5px;background:linear-gradient(90deg,#3d8fd1,#55c8ff 25%,#ffd060 60%,#ff6a3d)}
+#tSlide::-webkit-slider-thumb{-webkit-appearance:none;width:26px;height:26px;margin-top:-8px;border-radius:50%;background:#fff;border:4px solid var(--amber);box-shadow:0 2px 8px rgba(0,0,0,.6)}
+#tSlide::-moz-range-track{height:10px;border-radius:5px;background:linear-gradient(90deg,#3d8fd1,#55c8ff 25%,#ffd060 60%,#ff6a3d)}
+#tSlide::-moz-range-thumb{width:18px;height:18px;border-radius:50%;background:#fff;border:4px solid var(--amber)}
+.tsub{display:flex;justify-content:space-between;font-family:var(--mono);font-size:12px;color:var(--dim)}
+.meters{display:flex;flex-direction:column;gap:10px;border-top:1px solid var(--line);padding-top:12px}
+.mh{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-size:13.5px;color:#cfe0de}
+.mh b{font-family:var(--mono);font-size:16px;font-weight:600;font-variant-numeric:tabular-nums}
+.m.big .mh b{font-size:28px}
+.bar{position:relative;height:9px;margin-top:5px;background:#0e2227;border:1px solid var(--line)}
+.bar i{position:absolute;left:0;top:0;bottom:0;width:0;background:var(--ok);transition:width .25s linear}
+.m.big .bar{height:13px}
+.bar u{position:absolute;top:-4px;bottom:-4px;width:3px;margin-left:-1px;background:#fff}
+.lim{font-size:12px;color:var(--dim);margin-top:4px}
+#bGo{font-size:22px;padding:.65em}
+#bAgain{background:none;border:0;color:var(--dim);font-size:13px;padding:.2em;text-decoration:underline;margin-top:-6px}
+#bAgain:hover:not(:disabled){background:none;color:#fff}
+
+#tools{position:absolute;z-index:5;left:max(14px,env(safe-area-inset-left,0px));bottom:calc(14px + env(safe-area-inset-bottom,0px));display:flex;gap:6px}
+#tools button{padding:.35em .8em;font-size:13px;background:rgba(9,18,21,.85)}
+
+/* subtitles at the top, over the lab only */
+#sub{position:absolute;z-index:13;left:max(14px,env(safe-area-inset-left,0px));right:14px;top:calc(10px + env(safe-area-inset-top,0px));text-align:center;pointer-events:none;opacity:0;transition:opacity .25s}
+#sub.on{opacity:1}
+#app[data-v] #sub{display:none}
+#app[data-ov] #sub{right:14px;top:calc(62px + env(safe-area-inset-top,0px))}
+#sub .who{display:inline-block;font-family:var(--disp);font-weight:700;letter-spacing:.16em;font-size:13px;color:var(--amber);text-transform:uppercase;background:rgba(0,0,0,.75);padding:2px 9px;margin-bottom:4px}
+#sub .tx{display:block;max-width:900px;margin:0 auto;font-size:clamp(13px,1.35vw,18px);line-height:1.4;font-weight:500;color:#fff;text-shadow:0 1px 2px #000,0 0 14px rgba(0,0,0,.9);background:linear-gradient(90deg,transparent,rgba(0,0,0,.7) 8%,rgba(0,0,0,.7) 92%,transparent);padding:7px 26px}
+
+/* modal and intro */
+#modal,#intro{position:absolute;inset:0;z-index:20;display:none;align-items:center;justify-content:center;background:rgba(2,8,10,.72);backdrop-filter:blur(5px);padding:20px}
+#modal.show,#intro.show{display:flex}
+.sheet{width:min(620px,100%);max-height:calc(100vh - 40px);overflow:auto;background:var(--panel2);border:1px solid var(--line2);border-top:4px solid var(--amber);padding:24px 28px}
+.sheet.good{border-top-color:var(--ok)} .sheet.bad{border-top-color:var(--bad)}
+.sheet h1{font-family:var(--disp);font-size:44px;letter-spacing:.03em;text-transform:uppercase;line-height:1;font-weight:700}
+.sheet h2{font-family:var(--disp);font-size:32px;letter-spacing:.04em;text-transform:uppercase;font-weight:700;line-height:1.05}
+.sheet p{font-size:16px;line-height:1.55;color:#d5e5e3;margin-top:10px}
+.sheet .btns{display:flex;gap:10px;margin-top:20px;flex-wrap:wrap}
+.sheet button{font-size:17px;padding:.6em 1.3em}
+.res{width:100%;border-collapse:collapse;margin-top:14px;font-size:14px}
+.res td{padding:6px 4px;border-bottom:1px solid var(--line)}
+.res td:last-child{text-align:right;font-family:var(--mono);font-weight:600}
+.res .ok{color:var(--ok)} .res .bad{color:var(--bad)}
+.note{margin-top:12px;padding:10px 12px;background:rgba(85,200,255,.08);border-left:3px solid var(--cyan);font-size:14px;line-height:1.5;color:#d5eaf2}
+.say{margin-top:12px;padding:10px 12px;background:rgba(255,176,46,.09);border-left:3px solid var(--amber);font-size:15px;line-height:1.5;color:#fff0cf}
+.say b{font-family:var(--disp);letter-spacing:.12em;text-transform:uppercase;color:var(--amber);font-size:13px;display:block;margin-bottom:3px}
+
+/* molecular viewer, the full-screen closer look */
+#mol{position:absolute;inset:0;z-index:12;display:none;background:#04090b;grid-template-columns:1fr 330px;grid-template-rows:auto 1fr}
+#mol.show{display:grid}
+#mol .top{grid-column:1/3;display:flex;align-items:center;gap:14px;padding:10px 16px;border-bottom:1px solid var(--line);background:#071114}
+#mol .top h2{font-family:var(--disp);font-size:22px;letter-spacing:.08em;text-transform:uppercase;font-weight:700;margin-right:auto}
+#mol .tabs{display:flex;gap:4px}
+#mol .tabs button.on{background:var(--enz);color:#06061a;border-color:#c0c5ff}
+#molStage{position:relative;min-height:0}
+#molCanvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+#molCap{position:absolute;left:18px;right:18px;bottom:14px;background:rgba(4,10,12,.82);border:1px solid var(--line);border-left:3px solid var(--enz);padding:10px 14px;font-size:15px;line-height:1.5;min-height:62px;pointer-events:none}
+#molCap b{font-family:var(--disp);font-size:18px;letter-spacing:.08em;text-transform:uppercase;color:#c7caff;display:block;font-weight:700}
+#molSide{border-left:1px solid var(--line);background:#071114;padding:14px;overflow:auto;display:flex;flex-direction:column;gap:14px;min-height:0}
+#molSide h5{font-family:var(--disp);font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);font-weight:600;margin-bottom:6px}
+.stg{display:flex;flex-direction:column;gap:3px}
+.stg button{text-align:left;font-family:var(--body);text-transform:none;letter-spacing:0;font-size:13.5px;font-weight:500;padding:.42em .7em;display:flex;gap:9px;align-items:center;background:rgba(15,30,34,.7)}
+.stg button em{font-style:normal;font-family:var(--mono);font-size:12px;width:18px;height:18px;border-radius:50%;border:1px solid var(--dim);display:grid;place-items:center;flex:none;color:var(--dim)}
+.stg button.on{background:rgba(138,147,255,.2);border-color:var(--enz)}
+.stg button.on em{background:var(--enz);color:#06061a;border-color:var(--enz)}
+.stg button.hot.on{background:rgba(255,106,61,.2);border-color:var(--bad)}
+.stg button.hot.on em{background:var(--bad);border-color:var(--bad);color:#150600}
+.sl{display:flex;flex-direction:column;gap:5px}
+.sl label{display:flex;justify-content:space-between;font-size:13px}
+.sl label b{font-family:var(--mono);font-weight:600;color:var(--amber)}
+#molSide input[type=range]{width:100%;accent-color:var(--amber);height:22px}
+.cnt{display:grid;grid-template-columns:1fr auto;gap:4px 10px;font-size:13.5px}
+.cnt b{font-family:var(--mono);font-weight:600;text-align:right}
+.leg{font-size:12.5px;color:#a9c0bd;line-height:1.5;display:flex;flex-direction:column;gap:4px}
+.leg span i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:7px;vertical-align:-1px}
+.stepbtns{display:flex;gap:6px}
+.stepbtns button{flex:1}
+.chk{display:flex;gap:8px;align-items:center;font-size:13.5px;cursor:pointer}
+.chk input{accent-color:var(--amber);width:16px;height:16px}
+#mol.step .watchonly{display:none}
+#mol:not(.step) .steponly{display:none}
+@media (max-width:860px){
+  #mol{grid-template-columns:1fr;grid-template-rows:auto minmax(0,1fr) auto}
+  #mol .top{grid-column:1}
+  #molSide{border-left:0;border-top:1px solid var(--line);max-height:42vh}
+  #station{left:8px;right:8px;top:auto;bottom:8px;width:auto;height:64vh}
+  .molwin canvas{aspect-ratio:784/360;object-fit:cover}
+  #sub{right:14px}
+  #tools{top:auto;bottom:calc(64vh + 14px)}
+}
+#back{position:absolute;z-index:6;left:max(12px,env(safe-area-inset-left,0px));bottom:calc(10px + env(safe-area-inset-bottom,0px));font:600 13px/1 var(--disp);letter-spacing:.1em;text-transform:uppercase;color:var(--ink);text-decoration:none;background:rgba(9,18,21,.85);border:1px solid var(--line2);border-radius:3px;padding:8px 11px}
+#back:hover{border-color:var(--amber)}
+#nogl{position:fixed;inset:0;display:none;align-items:center;justify-content:center;text-align:center;padding:24px;font-size:16px;line-height:1.6}
+</style>
+</head>
+<body>
+<div id="app">
+  <canvas id="gl" aria-label="The Reactor 3 laboratory. The game is played on the screen inside the lab."></canvas>
+  <a id="back" href="/learn/">← LastMind</a>
+  <div id="vig"></div>
+  <div id="sub"><span class="who">Hollis · Production Manager</span><span class="tx" id="subTx"></span></div>
+
+</div>
+<div id="nogl"><p>This game needs 3D graphics, which this browser could not start. Try an up-to-date Chrome, Edge, Safari or Firefox.<br><a href="/learn/" style="color:#ffb02e">Back to LastMind</a></p></div>
+<script src="/create/enzyme-lab/vendor/three.min.js?v=r128"></script>
+<script src="/create/enzyme-lab/game.js?v=1"></script>
+<script>
+  // if the 3D scene never started, say so instead of leaving a black page
+  addEventListener('load', function () { var c = document.getElementById('gl'), ok = false; try { ok = !!window.THREE && !!(c.getContext('webgl2') || c.getContext('webgl')); } catch (e) { ok = false; } if (!ok) document.getElementById('nogl').style.display = 'flex'; });
+</script>
+</body>
+</html>
