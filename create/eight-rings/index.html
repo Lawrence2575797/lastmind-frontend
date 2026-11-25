@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Eight Rings: GCSE Circle Theorems Game | LastMind</title>
+<meta name="description" content="A free GCSE Maths game about circle theorems. Work out the missing angles, cut your shape and send it through eight gates, one theorem each. Edexcel GCSE. No log in needed.">
+<meta name="theme-color" content="#04050b">
+<link rel="icon" href="/icons/lastmind-logo.png" type="image/png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root{color-scheme:dark;--ink:#eef3ff;--dim:#8f9bbd;--panel:rgba(12,15,30,.88);--line:rgba(150,170,255,.24);--go:#ffd45a;--ok:#5dffb0;--bad:#ff6b6b;--disp:'Chakra Petch','Trebuchet MS',sans-serif;--body:'Atkinson Hyperlegible',Verdana,sans-serif}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;background:#04050b;color:var(--ink);font-family:var(--body)}
+#app{position:fixed;inset:0;background:#04050b}
+[hidden]{display:none!important}
+canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+#over{pointer-events:none}
+button,input{font:inherit;color:inherit}
+button{cursor:pointer;border:1px solid var(--line);background:rgba(40,48,90,.55);border-radius:8px}
+button:hover{border-color:rgba(200,215,255,.6)}
+button:focus-visible,input:focus-visible{outline:3px solid var(--go);outline-offset:2px}
+#top{position:absolute;left:0;right:0;top:env(safe-area-inset-top,0px);display:flex;align-items:center;gap:14px;padding:12px 16px}
+#where{font:600 15px var(--disp);letter-spacing:.14em;text-transform:uppercase;color:var(--dim);white-space:nowrap}
+#dots{display:flex;gap:7px;flex:1;justify-content:center}
+#dots i{width:13px;height:13px;border-radius:50%;border:2px solid var(--line)}
+#dots i.on{border-color:var(--go)}
+#dots i.done{background:var(--ok);border-color:var(--ok);box-shadow:0 0 10px var(--ok)}
+#mute{padding:7px 11px;font:600 13px var(--disp);letter-spacing:.08em;white-space:nowrap}
+#dock{position:absolute;left:50%;bottom:calc(12px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);width:min(680px,calc(100% - 24px));background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:13px 16px;text-align:center}
+#msg{font-size:15.5px;line-height:1.4;min-height:1.4em}
+#msg.bad{color:#ffb1a8}#msg.ok{color:var(--ok);font-weight:700;font-size:17px}
+#row{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:10px 18px;margin-top:11px}
+.ans{display:flex;align-items:center;gap:6px}
+.ans b{font:700 25px var(--disp);color:var(--go);min-width:1.1em}
+.ans button{width:38px;height:46px;font:700 22px var(--disp)}
+.ans input{width:86px;height:46px;text-align:center;font:700 24px var(--disp);background:#070916;border:2px solid var(--line);border-radius:8px}
+.ans input:focus{border-color:var(--go);outline:none}
+.ans span{font:600 18px var(--disp);color:var(--dim)}
+.big{height:48px;padding:0 24px;font:700 17px var(--disp);letter-spacing:.08em;text-transform:uppercase;background:linear-gradient(#ffe27d,#f3b21f);color:#1d1400;border-color:#ffeaa8}
+.big:disabled{opacity:.45;cursor:default}
+#steps{margin:9px auto 0;padding-left:22px;text-align:left;font-size:14.5px;line-height:1.45;max-width:60ch;color:#dbe4ff}
+#steps li{padding:2px 0}
+#dock{display:flex;flex-direction:column;max-height:max(200px,min(62%,calc(100% - 215px)));overflow:auto}
+#dock>*{flex:none}
+#dock>#steps{flex:0 1 auto;min-height:44px;overflow:auto;width:100%;align-self:center}
+#dots i.miss{background:var(--bad);border-color:var(--bad)}
+#sheet{display:flex;flex-direction:column}
+#sheet>*{flex:none}
+#sheet>ol{flex:0 1 auto;min-height:60px;overflow:auto;padding-right:10px}
+#sheet li em.y{color:var(--ok)}#sheet li em.n{color:var(--bad)}
+#hint{margin-top:9px;background:none;border:0;color:var(--dim);font-size:13.5px;text-decoration:underline;padding:2px}
+#rule{margin-top:9px;font-size:14.5px;line-height:1.4;color:#cdd8ff;border-top:1px solid var(--line);padding-top:9px}
+#card{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:16px;background:radial-gradient(ellipse at center,rgba(4,5,11,.12),rgba(4,5,11,.6))}
+#sheet{width:min(560px,100%);max-height:100%;overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:24px;text-align:center}
+#sheet h1{font:700 clamp(32px,8vw,52px) var(--disp);letter-spacing:.06em;text-transform:uppercase;text-wrap:balance}
+#sheet p{margin:12px auto 18px;line-height:1.5;max-width:44ch;color:#c9d2f3}
+#sheet ol{list-style:none;text-align:left;margin:14px 0 18px}
+#sheet li{display:flex;gap:12px;padding:8px 0;border-top:1px solid var(--line);font-size:14.5px;line-height:1.4}
+#sheet li i{flex:none;width:12px;height:12px;margin-top:4px;border-radius:50%}
+#sheet li em{margin-left:auto;flex:none;font-style:normal;font-size:13px;white-space:nowrap}
+#sheet .btns{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+#sheet .alt{height:48px;padding:0 20px;font:700 15px var(--disp);letter-spacing:.08em;text-transform:uppercase}
+#banner{position:absolute;left:16px;right:16px;bottom:calc(40px + env(safe-area-inset-bottom,0px));text-align:center;font:600 clamp(17px,3.4vw,26px) var(--disp);line-height:1.35;text-shadow:0 2px 14px #000,0 0 4px #000;pointer-events:none}
+#nogl{padding:40px 24px;text-align:center;line-height:1.6}
+@media (max-width:600px),(max-height:520px){#dock{padding:9px 11px}#sheet li{font-size:13px;line-height:1.35;padding:6px 0}#msg{font-size:14px;line-height:1.35}#steps{margin-top:6px;font-size:13.5px;line-height:1.38}#row{gap:7px 10px;margin-top:8px}.ans{gap:4px}.ans b{font-size:21px;min-width:.8em}.ans button{width:32px;height:42px}.ans input{width:52px;height:42px;font-size:21px}.ans span{display:none}.big{height:42px}#row .big{width:100%}#hint{margin-top:4px}#rule{margin-top:6px;font-size:13.5px}}
+@media (max-height:520px) and (min-width:600px){#dock{left:auto;right:12px;transform:none;width:min(340px,46%);max-height:calc(100% - 66px)}#steps{font-size:13px;line-height:1.35}}
+@media (max-height:520px){#sheet{padding:16px}#sheet h1{font-size:28px}#dock{padding:8px 11px}#row{margin-top:6px}.ans input,.ans button,.big{height:36px}#msg{font-size:13px}}
+@media (max-width:460px){#where{font-size:12px;letter-spacing:.08em}#dots{gap:4px}#dots i{width:10px;height:10px}#mute{font-size:11px;padding:6px 8px}}
+.back{font:600 13px/1 var(--disp);letter-spacing:.1em;text-transform:uppercase;color:var(--ink);text-decoration:none;background:rgba(12,15,30,.85);border:1px solid var(--line);border-radius:8px;padding:9px 11px;white-space:nowrap}
+.back:hover{border-color:rgba(200,215,255,.6)}
+.back:focus-visible{outline:3px solid var(--go);outline-offset:2px}
+#card>.back{position:absolute;left:12px;top:calc(10px + env(safe-area-inset-top,0px));z-index:2}
+#card{padding-top:calc(54px + env(safe-area-inset-top,0px))}
+@media (max-width:600px){#top{gap:8px;padding:12px 10px}#top .back{font-size:11px;padding:6px 8px;letter-spacing:0}#top .back span{display:none}#dots{gap:3px}#where{letter-spacing:.04em}}
+@media (max-height:520px){#card{padding-top:calc(46px + env(safe-area-inset-top,0px));padding-bottom:8px}}
+</style>
+</head>
+<body>
+<div id="app">
+  <canvas id="gl" aria-label="A dark room with a row of glowing rings. A coloured shape waits in front of the next ring."></canvas>
+  <canvas id="over" aria-hidden="true"></canvas>
+  <div id="top" hidden><a class="back" href="/learn/" aria-label="Back to LastMind">← <span>LastMind</span></a><span id="where"></span><span id="dots"></span><button id="mute" type="button">SOUND ON</button></div>
+  <form id="dock" hidden autocomplete="off">
+    <div id="msg" aria-live="polite"></div>
+    <ol id="steps" hidden></ol>
+    <div id="row"></div>
+    <button id="hint" type="button">Give me a clue</button>
+    <div id="rule" hidden></div>
+  </form>
+  <div id="banner" aria-live="polite"></div>
+  <div id="card"><a class="back" href="/learn/" aria-label="Back to LastMind">← LastMind</a><div id="sheet">
+    <h1>Eight Rings</h1>
+    <p>Each gate has a gap that only one shape will fit through. Work out the missing angles, cut your shape and send it through. One circle theorem per gate.</p>
+    <div class="btns"><button id="begin" class="big" type="button">Enter the room</button></div>
+  </div></div>
+</div>
+<script src="/create/eight-rings/vendor/three.min.js?v=r128"></script>
+<script src="/create/eight-rings/game.js?v=1"></script>
+</body>
+</html>

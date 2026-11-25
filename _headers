@@ -12,6 +12,9 @@
 /create/enzyme-lab/*
   Cache-Control: no-cache
 
+/create/eight-rings/*
+  Cache-Control: no-cache
+
 /learn
   Cache-Control: no-cache
 /learn/*
