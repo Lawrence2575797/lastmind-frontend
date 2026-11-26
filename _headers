@@ -15,6 +15,9 @@
 /create/eight-rings/*
   Cache-Control: no-cache
 
+/create/grand-prix/*
+  Cache-Control: no-cache
+
 /learn
   Cache-Control: no-cache
 /learn/*

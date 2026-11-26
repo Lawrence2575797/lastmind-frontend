@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Hypotenuse Grand Prix: GCSE Quadratic Graphs Racing Game | LastMind</title>
+<meta name="description" content="A free GCSE Maths racing game. Find the equations of straight lines and quadratics to plot your racing line, then watch your car race it. Edexcel GCSE. No log in needed.">
+<meta name="theme-color" content="#111821">
+<link rel="icon" href="/icons/lastmind-logo.png" type="image/png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@600;700;800&family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
+<style>
+/* timing-screen look: white boards and carbon black over a bright circuit, racing yellow for the thing to press */
+:root{color-scheme:light;--ink:#121a24;--dim:#556377;--panel:rgba(255,255,255,.96);--line:rgba(18,26,36,.16);--go:#ffcb1f;--blue:#1668d8;--red:#d62f2f;--ok:#0f8a4d;--carbon:#111821;--disp:'Saira Condensed','Arial Narrow',sans-serif;--body:'Atkinson Hyperlegible',Verdana,sans-serif}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;background:#8fb4d8;color:var(--ink);font-family:var(--body)}
+#app{position:fixed;inset:0;overflow:hidden;background:#8fb4d8}
+[hidden]{display:none!important}
+canvas.view{position:absolute;inset:0;width:100%;height:100%;display:block}
+#over{pointer-events:none}
+button,input{font:inherit;color:inherit}
+button{cursor:pointer;border:1px solid var(--line);background:#eef2f6;border-radius:8px;touch-action:manipulation}
+button:hover:not(:disabled){border-color:rgba(18,26,36,.5)}
+button:focus-visible,input:focus-visible{outline:3px solid var(--blue);outline-offset:2px}
+#top{position:absolute;z-index:3;left:12px;right:12px;top:calc(10px + env(safe-area-inset-top,0px));display:flex;align-items:center;gap:8px}
+.chip{background:var(--panel);border:0;border-radius:8px;box-shadow:0 3px 12px rgba(10,30,50,.2);font:700 16px/1 var(--disp);letter-spacing:.06em;text-transform:uppercase;padding:10px 12px;white-space:nowrap;font-variant-numeric:tabular-nums}
+#gap.up{background:var(--ok);color:#fff}#gap.down{background:var(--red);color:#fff}
+#space{flex:1}
+#calcBtn[aria-expanded="true"]{background:var(--carbon);color:#fff}
+#speedo{position:absolute;z-index:3;right:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));background:rgba(10,15,22,.82);color:#fff;border-radius:12px;padding:10px 16px 8px;display:grid;grid-template-columns:auto auto;align-items:end;column-gap:14px;font-family:var(--disp)}
+#spd{font:800 52px/.9 var(--disp);font-variant-numeric:tabular-nums;min-width:2.3em;text-align:right}
+#gear{font:800 44px/.9 var(--disp);color:var(--go);min-width:.8em;text-align:center}
+#speedo small{font:600 12px var(--disp);letter-spacing:.14em;text-transform:uppercase;color:#9fb0c4;text-align:right}
+#speedo small:last-of-type{text-align:center}
+#revs{grid-column:1/-1;height:6px;border-radius:3px;background:#27313f;margin-top:6px;overflow:hidden}
+#revs i{display:block;height:100%;width:0;background:linear-gradient(90deg,#33d17a 55%,#ffcb1f 78%,#ff4438)}
+
+/* the question card: a line of text, then the equation and one button */
+#dock{position:absolute;z-index:3;left:50%;bottom:calc(14px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);width:max-content;min-width:min(400px,calc(100% - 20px));max-width:calc(100% - 20px);max-height:calc(100% - 130px);overflow:auto;background:var(--panel);border-radius:14px;box-shadow:0 8px 28px rgba(10,30,50,.3);padding:14px 16px;display:flex;flex-direction:column;gap:11px}
+#dock>*{flex:none}
+#ask{display:flex;align-items:baseline;justify-content:space-between;gap:16px}
+#msg{font-size:16px;line-height:1.4;max-width:44ch}
+#msg b{font-family:var(--disp);font-size:1.25em;letter-spacing:.01em;white-space:nowrap}
+#hint{flex:none;background:none;border:0;color:var(--blue);font-size:14px;text-decoration:underline;padding:2px}
+#dock.open{width:min(560px,calc(100% - 20px))}
+#tip{font-size:14px;line-height:1.45;width:0;min-width:100%;max-height:min(330px,36vh);overflow:auto;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:9px 2px}
+#tip ol{padding-left:20px;display:flex;flex-direction:column;gap:5px}
+.eg{margin-top:10px;background:#eef3f9;border-radius:8px;padding:8px 12px;display:flex;flex-direction:column;gap:2px;font-variant-numeric:tabular-nums}
+.eg b{font:700 14px var(--disp);letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
+@media (min-width:860px) and (min-height:521px){#dock.open{width:min(860px,calc(100% - 20px))}#tip{display:grid;grid-template-columns:1.5fr 1fr;gap:18px;align-items:start;max-height:min(300px,40vh)}#tip[hidden]{display:none}.eg{margin-top:0}}
+#answer{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px 22px}
+#form{display:flex;align-items:center;gap:6px;font:700 28px/1 var(--disp);white-space:nowrap}
+#form sup{font-size:.6em}
+#form input{width:62px;height:46px;border:2px solid #b4c1d0;border-radius:8px;background:#fff;text-align:center;font:700 24px var(--disp)}
+#form input:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(22,104,216,.22)}
+.big{height:46px;padding:0 24px;font:800 18px var(--disp);letter-spacing:.08em;text-transform:uppercase;background:linear-gradient(#ffdd57,#f7b900);color:#231900;border-color:#e0a800}
+.big:disabled{opacity:.42;cursor:default}
+#go{flex:1 0 auto;min-width:130px}
+.alt{height:46px;padding:0 20px;font:800 17px var(--disp);letter-spacing:.08em;text-transform:uppercase;background:#fff;border:2px solid var(--ink)}
+
+#banner{position:absolute;z-index:2;left:16px;right:16px;top:calc(64px + env(safe-area-inset-top,0px));text-align:center;pointer-events:none}
+#banner span{display:inline-block;background:var(--panel);border-radius:8px;box-shadow:0 4px 16px rgba(10,30,50,.28);padding:9px 16px;font:800 clamp(18px,4.4vw,30px)/1.15 var(--disp);letter-spacing:.04em;text-transform:uppercase}
+#banner span.ok{background:var(--ok);color:#fff}#banner span.bad{background:var(--red);color:#fff}
+#banner span.count{font-size:clamp(60px,16vw,120px);background:var(--carbon);color:var(--go);min-width:2.2em}
+#card{position:absolute;z-index:6;inset:0;display:flex;align-items:center;justify-content:center;padding:16px;background:linear-gradient(rgba(10,30,50,0),rgba(10,30,50,.38))}
+#card.intro{align-items:flex-end;background:none}
+#sheet{width:min(600px,100%);max-height:100%;display:flex;flex-direction:column;background:var(--panel);border-radius:16px;box-shadow:0 16px 50px rgba(10,30,50,.45);padding:22px;text-align:center;overflow:auto}
+#sheet>*{flex:none}
+#sheet h1{font:800 clamp(32px,8vw,54px)/1 var(--disp);letter-spacing:.02em;text-transform:uppercase;text-wrap:balance}
+#sheet p{margin:10px auto 14px;line-height:1.5;max-width:46ch}
+#sheet>ol{flex:0 1 auto;min-height:70px;overflow:auto;list-style:none;text-align:left;margin:2px 0 14px;padding-right:8px}
+#sheet li{display:flex;align-items:center;gap:10px;padding:6px 0;border-top:1px solid var(--line);font-size:14px;line-height:1.35}
+.eqn{font-family:var(--disp);font-size:1.2em;white-space:nowrap}
+#sheet li .eqn{font-size:1.15em;display:block}
+#sheet li em{margin-left:auto;flex:none;font:800 15px var(--disp);font-style:normal;text-transform:uppercase;white-space:nowrap;min-width:5.2em;text-align:right}
+#sheet li em.y{color:var(--ok)}#sheet li em.n{color:var(--red)}
+#sheet li button{flex:none;padding:6px 10px;font:700 13px var(--disp);letter-spacing:.06em;text-transform:uppercase}
+#sheet li .sp{width:70px;flex:none}
+.btns{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+#calc{position:absolute;z-index:5;right:12px;top:calc(58px + env(safe-area-inset-top,0px));width:250px;background:var(--carbon);border-radius:14px;padding:10px;display:flex;flex-direction:column;gap:8px;box-shadow:0 12px 34px rgba(10,30,50,.45)}
+#calcScreen{background:#e9f3ec;border-radius:8px;padding:5px 10px;text-align:right;min-height:58px;display:flex;flex-direction:column;justify-content:flex-end;font-variant-numeric:tabular-nums}
+#calcWas{font-size:12px;color:var(--dim);min-height:16px;white-space:nowrap;overflow:hidden}
+#calcNow{font:700 22px var(--disp);white-space:nowrap;overflow:hidden;direction:rtl;text-align:right}
+#calcNow bdi{direction:ltr;unicode-bidi:isolate}
+#calcKeys{display:grid;grid-template-columns:repeat(5,1fr);gap:5px}
+#calcKeys button{height:38px;font:700 18px var(--disp);background:#fff;border:0}
+#calcKeys .fn{background:#cfe0f4}#calcKeys .op{background:#ffe9a3}#calcKeys .eq{background:linear-gradient(#ffdd57,#f7b900)}
+#nogl{padding:40px 24px;text-align:center;line-height:1.6}
+@media (max-width:600px){#top{gap:6px;left:8px;right:8px}.chip{font-size:13px;padding:8px 9px;letter-spacing:.03em}
+#dock{width:calc(100% - 16px);max-width:none;padding:11px 12px;gap:9px;bottom:calc(8px + env(safe-area-inset-bottom,0px))}#msg{font-size:14px}#form{font-size:25px;justify-content:center;flex:1}#form input{width:54px;height:42px;font-size:21px}#go{height:42px;flex-basis:100%}#dock.open{width:calc(100% - 16px)}#tip{font-size:13px;max-height:30vh}
+#calc{top:auto;left:8px;right:8px;width:auto;bottom:calc(8px + env(safe-area-inset-bottom,0px))}#calcKeys button{height:36px}#app.calcing #dock{visibility:hidden}
+#speedo{right:8px;bottom:calc(8px + env(safe-area-inset-bottom,0px));padding:7px 11px 6px}#spd{font-size:38px}#gear{font-size:32px}
+#sheet{padding:14px}#sheet li{font-size:12.5px;gap:7px}#sheet li .sp{width:46px}}
+@media (max-width:600px) and (max-height:660px){#msg{font-size:13px}#calcKeys button{height:31px}#calcScreen{min-height:42px}}
+@media (max-height:520px) and (min-width:600px){#dock{left:auto;right:10px;transform:none;width:300px;min-width:0;max-height:calc(100% - 62px);bottom:calc(10px + env(safe-area-inset-bottom,0px));padding:10px 12px;gap:8px}#msg{font-size:13.5px}#dock.open{width:340px}#tip{font-size:12.5px;max-height:38vh}#form{font-size:23px;justify-content:center;flex:1}#form input{width:50px;height:36px;font-size:19px}#go{height:38px;flex-basis:100%}
+#calc{top:calc(52px + env(safe-area-inset-top,0px));right:10px;width:300px;padding:7px;gap:5px}#calcScreen{min-height:36px;padding:2px 8px}#calcKeys{gap:4px}#calcKeys button{height:38px}#speedo{padding:6px 10px}#spd{font-size:34px}#gear{font-size:28px}#sheet{padding:12px}#sheet h1{font-size:28px}#sheet p{margin:5px auto 8px}}
+.back{display:inline-block;text-decoration:none;color:var(--ink)}
+#card>.back{position:absolute;left:12px;top:calc(10px + env(safe-area-inset-top,0px));z-index:2}
+#card{padding-top:calc(54px + env(safe-area-inset-top,0px))}
+@media (max-width:600px){#top .back span{display:none}}
+@media (max-height:520px){#card{padding-top:calc(48px + env(safe-area-inset-top,0px));padding-bottom:8px}}
+</style>
+</head>
+<body>
+<div id="app">
+  <canvas id="gl" class="view" aria-label="A racing circuit in daylight with two GT racing cars"></canvas>
+  <canvas id="over" class="view" aria-hidden="true"></canvas>
+  <div id="top" hidden><a class="chip back" href="/learn/" aria-label="Back to LastMind">← <span>LastMind</span></a><span class="chip" id="where"></span><span class="chip" id="gap" hidden></span><span id="space"></span><button class="chip" id="calcBtn" type="button" aria-expanded="false" aria-controls="calc" hidden>Calculator</button><button class="chip" id="mute" type="button">Sound on</button></div>
+  <div id="banner" aria-live="polite"></div>
+  <div id="speedo" hidden aria-hidden="true"><span id="spd">0</span><span id="gear">1</span><small>km/h</small><small>gear</small><div id="revs"><i></i></div></div>
+  <form id="dock" hidden autocomplete="off" novalidate>
+    <div id="ask"><div id="msg" aria-live="polite"></div><button id="hint" type="button" aria-expanded="false" aria-controls="tip">Show method</button></div>
+    <div id="tip" hidden></div>
+    <div id="answer"><div id="form"></div><button type="submit" class="big" id="go">Plot</button></div>
+  </form>
+  <div id="calc" role="group" aria-label="Calculator" hidden>
+    <div id="calcScreen"><div id="calcWas"></div><div id="calcNow" aria-live="polite"><bdi>0</bdi></div></div>
+    <div id="calcKeys"></div>
+  </div>
+  <div id="card" class="intro"><a class="chip back" href="/learn/">← LastMind</a><div id="sheet">
+    <h1>Hypotenuse Grand Prix</h1>
+    <p>Engineer the racing line: a curve for every corner and a straight line between them. You get one go at each: your car drives exactly what you plot, for two laps of wheel-to-wheel racing against the red car.</p>
+    <div class="btns"><button id="begin" class="big" type="button">Go to the pit wall</button></div>
+  </div></div>
+</div>
+<script src="/create/grand-prix/vendor/three.min.js?v=r128"></script>
+<script src="/create/grand-prix/game.js?v=1"></script>
+</body>
+</html>
