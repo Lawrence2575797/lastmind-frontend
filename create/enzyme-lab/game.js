@@ -2,7 +2,7 @@
 (function () {
 'use strict';
 const LINES = {"g-win": "Yes! All four tests came out right! You matched each substrate to its own active site, and you kept the temperature and pH right. Brilliant work!", "g-cold": "Not good enough! It was too cold. Cold molecules have less kinetic energy, so they move slowly and collide less often. Warm it up and go again!", "g-hot": "Not good enough! You overheated it and the enzymes denatured. Their active sites changed shape, so the substrates no longer fit, and cooling won't fix that. Go again, a bit cooler!", "g-ph": "Not good enough! The pH drifted too far. Away from the best pH, the active site changes shape and the substrate can't fit. Correct it faster next time!", "g-close": "So close! Your tests show not enough was broken down. Remember, every active site is a different shape, so each enzyme only works on its own substrate. Keep your enzymes busy and go again, a bit quicker!"};
-const CLIPS = {"g-win": "/create/enzyme-lab/voice/g-win.mp3?v=4", "g-cold": "/create/enzyme-lab/voice/g-cold.mp3?v=4", "g-hot": "/create/enzyme-lab/voice/g-hot.mp3?v=4", "g-ph": "/create/enzyme-lab/voice/g-ph.mp3?v=4", "g-close": "/create/enzyme-lab/voice/g-close.mp3?v=4"};
+const CLIPS = {"g-win": "/create/enzyme-lab/voice/g-win.mp3?v=6", "g-cold": "/create/enzyme-lab/voice/g-cold.mp3?v=6", "g-hot": "/create/enzyme-lab/voice/g-hot.mp3?v=6", "g-ph": "/create/enzyme-lab/voice/g-ph.mp3?v=6", "g-close": "/create/enzyme-lab/voice/g-close.mp3?v=6"};
 /* ============================================================
    CORE: helpers, the process model, the manager's voice, sound
    ============================================================ */
@@ -931,6 +931,60 @@ const Game = (function () {
     return s;
   }
   const shuffle = (a) => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+  /* ---------- the first time: a practice run before the clock starts. Each step waits until you have done it. ---------- */
+  const near7 = () => Math.abs(S.ph - 7) <= 0.7 && Math.abs(S.phShift) < 0.05;
+  const calm = () => { S.ph = 7; S.phShift = 0; };
+  const DEMO = [
+    { id: 'drag', text: 'Drag the glowing substrate into the active site with the same shape.', done: () => S.mine > 0 },
+    { id: 'warm', hi: 'plus', text: 'Warmer means faster. Press + until the temperature is set to about 37°.', enter: () => { S.T = S.Tset = 25; }, done: () => S.Tset >= 35 && S.Tset <= 45 },
+    { id: 'surge', hi: 'minus', text: 'Heater surge! Too hot ruins enzymes. Press − to set it to 37° or lower.', col: '#ff7a55', enter: () => { S.T = S.Tset = 51; S.flash = 1; Snd.alarm(); }, done: () => S.Tset <= 39 && S.T <= 41 },
+    { id: 'acid', hi: 'alkali', text: 'Acid leak! The shapes are warping. Press ADD ALKALI until pH is near 7.', col: '#ff9a6a', enter: () => { calm(); S.phShift = -2.7; S.flash = 1; Snd.alarm(); }, done: () => near7() },
+    { id: 'alkali', hi: 'acid', text: 'Alkali in the feed! Now press ADD ACID until pH is near 7.', col: '#c39bff', enter: () => { calm(); S.phShift = 2.8; S.flash = 1; Snd.alarm(); }, done: () => near7() },
+    { id: 'fresh', hi: 'buy', text: 'An overheated enzyme stays ruined when cooled. Press FRESH ENZYME.', col: '#ff7a55', enter: () => { calm(); S.T = S.Tset = 37; S.enz[0].heat = 0.85; }, done: () => S.enz.every((e) => e.heat + e.perm < 0.35) },
+    { id: 'ready', text: 'That is everything. The clock starts when you press the button.' }
+  ];
+  function stepIn(i) { const d = S.demo; d.i = i; d.ok = 0; d.t = 0; if (DEMO[i].enter) DEMO[i].enter(); }
+  function demo() {
+    reset(); delete $('#app').dataset.v; S.phase = 'demo'; S.demo = { i: 0, ok: 0, t: 0, sub: null };
+    // one enzyme and its substrate, held still a short drag apart: in front of the active site, in the clearest spot
+    const e = S.enz.find((q) => q.type === 0), s = S.subs.find((q) => q.type === 0); s.still = true;
+    let best = -1e9;
+    for (let a = -1.2; a <= 1.2; a += 0.15) for (let d = ER + 150; d <= ER + 250; d += 25) {
+      const x = e.x + Math.cos(e.base + a) * d, y = e.y + Math.sin(e.base + a) * d;
+      if (x < 80 || x > PW - 80 || y < 130 || y > PH - 80) continue;
+      const room = Math.min(...S.enz.filter((q) => q !== e).map((q) => Math.hypot(x - q.x, y - q.y))), score = Math.min(room, 330) - Math.abs(a) * 60 - Math.abs(d - ER - 190) * 0.3;
+      if (score > best) { best = score; s.x = x; s.y = y; }
+    }
+    S.demo.sub = s;
+  }
+  function demoUpdate(dt) {
+    const d = S.demo, st = DEMO[d.i]; d.t += dt;
+    if (!st.done) return;
+    if (!d.ok) { if (d.t > 0.4 && st.done()) { d.ok = 0.001; Snd.done(); } }
+    else { d.ok += dt; if (d.ok > 1.3) stepIn(d.i + 1); }
+  }
+  function demoInfo() {
+    if (S.phase !== 'demo') return null;
+    const d = S.demo, st = DEMO[d.i], busy = st.id === 'drag' && S.enz.some((e) => e.state === 'BIND' || e.state === 'COMPLEX');
+    return { id: st.id, step: d.i + 1, of: DEMO.length - 1, ready: st.id === 'ready', hi: d.ok ? null : st.hi || null,
+      text: d.ok ? '✓ Good.' : busy ? 'It fits! Wait a moment while the enzyme breaks it down.' : st.text, col: d.ok ? '#4fe0a0' : st.col || '#ffb02e' };
+  }
+  // the pointer that shows the drag
+  function demoGuide(c) {
+    const d = S.demo; if (!d || DEMO[d.i].id !== 'drag') return;
+    const s = d.sub; if (!s || s.state !== 'FREE') return;
+    const e = S.enz.find((q) => q.type === s.type), sp = sitePos(e), t = performance.now() / 1000, pulse = 8 * Math.sin(t * 6);
+    const ring = (x, y, r) => { c.beginPath(); c.arc(x, y, r, 0, 7); c.strokeStyle = '#ffd35a'; c.lineWidth = 7; c.stroke(); };
+    c.save();
+    if (S.held) { ring(sp.x, sp.y, 62 + pulse); c.restore(); return; }
+    ring(s.x, s.y, 62 + pulse);
+    c.setLineDash([14, 14]); c.lineDashOffset = -t * 60; c.strokeStyle = 'rgba(255,255,255,.85)'; c.lineWidth = 5; c.beginPath(); c.moveTo(s.x, s.y); c.lineTo(sp.x, sp.y); c.stroke(); c.setLineDash([]);
+    const k = (t * 0.6) % 1.25, q = easeOut(Math.min(1, k)), x = lerp(s.x, sp.x, q), y = lerp(s.y, sp.y, q);
+    // a hand: one pointing finger and a palm
+    c.translate(x, y); c.rotate(-0.5); c.fillStyle = '#fff'; c.strokeStyle = '#06161a'; c.lineWidth = 4; c.lineJoin = 'round';
+    c.beginPath(); c.moveTo(-9, 4); c.quadraticCurveTo(-9, -6, 0, -6); c.quadraticCurveTo(9, -6, 9, 4); c.lineTo(9, 30); c.quadraticCurveTo(34, 30, 34, 48); c.lineTo(30, 76); c.lineTo(-14, 76); c.lineTo(-30, 48); c.quadraticCurveTo(-30, 36, -9, 44); c.closePath(); c.fill(); c.stroke();
+    c.restore();
+  }
   function reset() {
     const order = Math.random() < 0.5 ? ['acid', 'alkali', 'heat'] : ['alkali', 'acid', 'heat'];
     S = { phase: 'ready', t: 0, T: 25, Tset: 25, ph: 7, phShift: 0, made: [0, 0, 0], tests: TESTS.map(() => ({ t: -1, done: false })), last: -1, endT: 0, mine: 0, auto: 0, wrong: 0, sumT: 0, phBad: 0, lost: new Set(), spares: RULES.spares,
@@ -943,15 +997,17 @@ const Game = (function () {
   const here = () => S.enz;
   function pop(x, y, text, col, big) { S.pops.push({ x: clamp(x, 160, PW - 160), y, text, col, t: 0, big }); }
   function banner(text, col) { S.banner = { text, col }; S.bannerT = 6; }
+  const running = () => S.phase === 'play' || S.phase === 'demo';
+  const takes = (e) => (S.phase === 'demo' ? 3 : reactTime(S.T, e.u));
   function start() { reset(); delete $('#app').dataset.v; S.phase = 'play'; banner('Each active site is a different shape. Find the substrate that matches.', '#ffb02e'); }
 
   function bind(e, s, mine) { let t = e.ang + Math.PI / 2; while (t - s.ang > Math.PI) t -= 2 * Math.PI; while (t - s.ang < -Math.PI) t += 2 * Math.PI; e.state = 'BIND'; e.timer = 0; e.sub = s; e.mine = mine; s.state = 'BOUND'; s.from = { x: s.x, y: s.y, ang: s.ang }; s.to = t; }
   function step(e, dt) {
     if (e.state === 'IDLE') return;
     const sp = sitePos(e), s = e.sub; e.timer += dt;
-    if (e.state === 'BIND') { const p = easeOut(clamp(e.timer / (e.mine ? 0.18 : 0.5), 0, 1)); s.x = lerp(s.from.x, sp.x, p); s.y = lerp(s.from.y, sp.y, p); s.ang = lerp(s.from.ang, s.to, p); if (p >= 1) { e.state = 'COMPLEX'; e.timer = 0; e.dur = reactTime(S.T, e.u); } }
+    if (e.state === 'BIND') { const p = easeOut(clamp(e.timer / (e.mine ? 0.18 : 0.5), 0, 1)); s.x = lerp(s.from.x, sp.x, p); s.y = lerp(s.from.y, sp.y, p); s.ang = lerp(s.from.ang, s.to, p); if (p >= 1) { e.state = 'COMPLEX'; e.timer = 0; e.dur = takes(e); } }
     else if (e.state === 'COMPLEX') {
-      s.x = sp.x; s.y = sp.y; s.ang = e.ang + Math.PI / 2; e.dur = reactTime(S.T, e.u); e.glow = 0.6 + 0.3 * Math.sin(e.timer * 11);
+      s.x = sp.x; s.y = sp.y; s.ang = e.ang + Math.PI / 2; e.dur = takes(e); e.glow = 0.6 + 0.3 * Math.sin(e.timer * 11);
       if (!fits(e)) { e.state = 'IDLE'; e.sub = null; s.state = 'FREE'; s.dir = e.ang; pop(sp.x, sp.y - 40, 'Shape changed: it fell out', '#ff7a55'); return; }
       if (e.timer >= e.dur) {
         const ox = Math.cos(e.ang), oy = Math.sin(e.ang);
@@ -968,18 +1024,20 @@ const Game = (function () {
     S.flash = 1; Snd.alarm(); setTimeout(() => Snd.alarm(), 450);
   }
   function update(dt) {
-    const t = performance.now() / 1000, live = S.phase === 'play';
+    const t = performance.now() / 1000, play = S.phase === 'play', live = running();
     if (live) {
-      S.t += dt; S.T += clamp(S.Tset - S.T, -4 * dt, 3.5 * dt);
+      if (play) S.t += dt; S.T += clamp(S.Tset - S.T, -4 * dt, 3.5 * dt);
       const move = clamp(S.phShift, -1.6 * dt, 1.6 * dt); S.ph = clamp(S.ph + move, 2, 12); S.phShift -= move;
-      S.sumT += S.T * dt; if (Math.abs(S.ph - RULES.phOpt) > 1.4) S.phBad += dt;
-      S.shocks.forEach((k) => { if (!k.done && S.t >= k.at) { k.done = true; shock(k.kind); } });
+      if (play) {
+        S.sumT += S.T * dt; if (Math.abs(S.ph - RULES.phOpt) > 1.4) S.phBad += dt;
+        S.shocks.forEach((k) => { if (!k.done && S.t >= k.at) { k.done = true; shock(k.kind); } });
+      } else demoUpdate(dt);
     }
     S.bannerT -= dt; S.flash = Math.max(0, S.flash - dt * 1.4);
     S.enz.forEach((e) => {
       if (live) {
-        if (S.T > 52) e.heat = Math.min(1, e.heat + (S.T - 52) * 0.009 * e.sus * dt);
-        const d = Math.abs(S.ph - RULES.phOpt); if (d > 3.2) e.perm = Math.min(1, e.perm + (d - 3.2) * 0.07 * e.sus * dt);
+        if (play && S.T > 52) e.heat = Math.min(1, e.heat + (S.T - 52) * 0.009 * e.sus * dt);
+        const d = Math.abs(S.ph - RULES.phOpt); if (play && d > 3.2) e.perm = Math.min(1, e.perm + (d - 3.2) * 0.07 * e.sus * dt);
         const key = e.type + ':' + e.gen; if (e.heat >= 0.35 && !S.lost.has(key)) { S.lost.add(key); pop(e.x, e.y - 100, TYPES[e.type].enzyme + ' denatured!', '#ff7a55', true); }
       }
       e.u += clamp(damage(e) - e.u, -0.8 * dt, 0.8 * dt);
@@ -990,7 +1048,7 @@ const Game = (function () {
       if (live) {
         step(e, dt);
         // now and then the matching substrate collides the right way round by chance
-        if (e.state === 'IDLE' && fits(e)) {
+        if (play && e.state === 'IDLE' && fits(e)) {
           e.wait -= dt;
           if (e.wait <= 0) { const sp = sitePos(e); let best = null, bd = 360; S.subs.forEach((s) => { if (s.type === e.type && s.state === 'FREE' && s !== S.held) { const d = Math.hypot(s.x - sp.x, s.y - sp.y); if (d < bd) { bd = d; best = s; } } }); if (best) { bind(e, best, false); e.wait = autoWait(S.T) * rnd(0.6, 1.4); } else e.wait = 0.5; }
         }
@@ -999,17 +1057,21 @@ const Game = (function () {
     const v = speedOf(S.T);
     S.subs.forEach((s) => {
       if (s.state !== 'FREE' || s === S.held) return;
+      if (s.still && S.phase === 'demo') { s.alpha = 1; return; }
       s.alpha = Math.min(1, s.alpha + dt * 2); s.dir += rnd(-1, 1) * 2.2 * Math.sqrt(dt); s.ang += s.angV * dt * (v / 130);
       s.x += Math.cos(s.dir) * v * s.e * dt; s.y += Math.sin(s.dir) * v * s.e * dt;
       if (s.x < 46 || s.x > PW - 46) { s.dir = Math.PI - s.dir; s.x = clamp(s.x, 46, PW - 46); }
       if (s.y < 46 || s.y > PH - 46) { s.dir = -s.dir; s.y = clamp(s.y, 46, PH - 46); }
+      // during the first practice step the others keep clear of the one being pointed at
+      const q = S.phase === 'demo' && S.demo.i === 0 ? S.demo.sub : null;
+      if (q && q !== s && q.state === 'FREE') { const dx = s.x - q.x, dy = s.y - q.y, d = Math.hypot(dx, dy); if (d < 165 && d > 1) { s.x = q.x + dx / d * 165; s.y = q.y + dy / d * 165; s.dir = Math.atan2(dy, dx); } }
       here().forEach((e) => { const dx = s.x - e.x, dy = s.y - e.y, d = Math.hypot(dx, dy), m = ER + 30; if (d < m && d > 1) { s.x = e.x + dx / d * m; s.y = e.y + dy / d * m; s.dir = Math.atan2(dy, dx) + rnd(-0.7, 0.7); } });
     });
     S.prods.forEach((p) => { p.age += dt; p.x += p.vx * dt; p.y += p.vy * dt; p.vx *= Math.pow(0.3, dt); p.vy *= Math.pow(0.3, dt); p.spread = Math.min(1, p.spread + dt * 2); if (p.age > 1.5) p.alpha -= dt * 1.3; });
     S.prods = S.prods.filter((p) => p.alpha > 0); S.subs = S.subs.filter((s) => s.state !== 'GONE');
     for (let k = 0; k < 3; k++) while (S.subs.filter((s) => s.type === k && s.state === 'FREE').length < PER) S.subs.push(substrate(k, true));
     S.pops.forEach((p) => { p.t += dt; p.y -= 30 * dt; }); S.pops = S.pops.filter((p) => p.t < 1.4);
-    if (live && S.t >= RULES.time) finish();
+    if (play && S.t >= RULES.time) finish();
     if (S.phase === 'test') {
       S.tests.forEach((k, i) => { if (k.t < 0 || k.done) return; k.t += dt; if (k.t >= TESTS[i].dur) { k.done = true; S.last = i; if (passed(i)) Snd.done(); else Snd.blip(170, 0.25, 'square', 0.04); } });
       if (S.tests.every((k) => k.done)) { S.endT += dt; if (!S.verdict && S.endT > 4) judge(); }
@@ -1024,11 +1086,11 @@ const Game = (function () {
     S.verdict = { win, key, score }; say(key, null, { pri: 6, once: false });
   }
   /* ---------- your hands ---------- */
-  function grab(x, y) { if (S.phase !== 'play') return false; let best = null, bd = 82; S.subs.forEach((s) => { if (s.state === 'FREE') { const d = Math.hypot(s.x - x, s.y - y); if (d < bd) { bd = d; best = s; } } }); if (!best) return false; S.held = best; best.x = x; best.y = y; Snd.blip(420, 0.05, 'triangle', 0.04); return true; }
+  function grab(x, y) { if (!running()) return false; let best = null, bd = 82; S.subs.forEach((s) => { if (s.state === 'FREE') { const d = Math.hypot(s.x - x, s.y - y); if (d < bd) { bd = d; best = s; } } }); if (!best) return false; S.held = best; best.x = x; best.y = y; Snd.blip(420, 0.05, 'triangle', 0.04); return true; }
   function nearest(x, y) { let best = null, bd = 1e9; here().forEach((e) => { const sp = sitePos(e), d = Math.min(Math.hypot(x - sp.x, y - sp.y), Math.hypot(x - e.x, y - e.y)); if (d < bd) { bd = d; best = e; } }); return { e: best, d: bd }; }
   function drag(x, y) { const s = S.held; if (!s) return; s.x = clamp(x, 20, PW - 20); s.y = clamp(y, 20, PH - 20); const n = nearest(s.x, s.y); if (n.e && n.d < 170) s.ang += wrapPi(n.e.ang + Math.PI / 2 - s.ang) * 0.4; }   // it turns to face any site you bring it to, so you can compare the shapes
   function drop() {
-    const s = S.held; if (!s) return; S.held = null; if (S.phase !== 'play') return;
+    const s = S.held; if (!s) return; S.held = null; if (!running()) return;
     const n = nearest(s.x, s.y); if (!n.e || n.d >= 118) return;
     const e = n.e, sp = sitePos(e), bounce = () => { s.dir = Math.atan2(s.y - e.y, s.x - e.x); s.x = clamp(e.x + Math.cos(s.dir) * (ER + 90), 50, PW - 50); s.y = clamp(e.y + Math.sin(s.dir) * (ER + 90), 50, PH - 50); };
     if (s.type !== e.type) { S.wrong++; pop(sp.x, sp.y - 40, 'Wrong shape for ' + TYPES[e.type].enzyme, '#ff9a6a', true); banner('Active sites are specific: only a substrate with the matching shape fits.', '#ff9a6a'); Snd.blip(150, 0.2, 'square', 0.05); bounce(); }
@@ -1037,9 +1099,9 @@ const Game = (function () {
     else bind(e, s, true);
   }
   function setT(v) { S.Tset = clamp(Math.round(v), 15, 70); }
-  function dose(dir) { if (S.phase !== 'play') return; S.phShift += dir * 0.9; pop(PW / 2, 60, dir < 0 ? 'Acid added' : 'Alkali added', dir < 0 ? '#ff9a6a' : '#c8a8ff'); Snd.blip(dir < 0 ? 330 : 520, 0.15, 'triangle', 0.05); }
+  function dose(dir) { if (!running()) return; S.phShift += dir * 0.9; pop(PW / 2, 60, dir < 0 ? 'Acid added' : 'Alkali added', dir < 0 ? '#ff9a6a' : '#c8a8ff'); Snd.blip(dir < 0 ? 330 : 520, 0.15, 'triangle', 0.05); }
   function buy() {
-    if (S.phase !== 'play') return;
+    if (!running()) return;
     if (!here().length) return;
     const worst = here().sort((a, b) => (b.heat + b.perm) - (a.heat + a.perm))[0];
     if (worst.heat + worst.perm < 0.15) { pop(PW / 2, 60, 'All your enzymes are fine', '#ffd070'); return; }
@@ -1102,8 +1164,9 @@ const Game = (function () {
     if (S.held) { c.shadowColor = '#fff'; c.shadowBlur = 24; drawSub(c, S.held.type, S.held.x, S.held.y, S.held.ang, SK, 1, false); c.shadowBlur = 0; drawSub(c, S.held.type, S.held.x, S.held.y, S.held.ang, SK, 1, true); }
     S.pops.forEach((p) => { c.globalAlpha = clamp(1.4 - p.t, 0, 1); c.font = '700 ' + (p.big ? 36 : 28) + "px 'Barlow Condensed',Arial Narrow"; c.textAlign = 'center'; c.lineWidth = 6; c.strokeStyle = 'rgba(0,0,0,.8)'; c.strokeText(p.text, p.x, p.y); c.fillStyle = p.col; c.fillText(p.text, p.x, p.y); c.globalAlpha = 1; });
     if (S.flash > 0) { c.fillStyle = `rgba(255,80,50,${S.flash * 0.3})`; c.fillRect(0, 0, PW, PH); }
+    if (S.phase === 'demo') demoGuide(c);
   }
-  return { start, update, draw, drawSub, drawProduct, grab, drag, drop, setT, dose, buy, reset, fits, sitePos, here, runTest, passed, setField, get PW() { return PW; }, get PH() { return PH; }, get s() { return S; } };
+  return { start, demo, demoInfo, update, draw, drawSub, drawProduct, grab, drag, drop, setT, dose, buy, reset, fits, sitePos, here, runTest, passed, setField, get PW() { return PW; }, get PH() { return PH; }, get s() { return S; } };
 })();
 
 /* ---------- the screen you play on ---------- */
@@ -1133,10 +1196,11 @@ const Ctl = (function () {
       text(String(s.made[i]), x + 372, 80, 62, C.ink, { f: mono, a: 'right' });
     });
     const left = Math.max(0, RULES.time - s.t), m = Math.floor(left / 60), sec = Math.floor(left % 60);
-    text('TIME LEFT', 1236, 42, 26, C.dim, { f: disp }); text(m + ':' + String(sec).padStart(2, '0'), 1236, 94, 52, left < 25 ? C.bad : C.ink, { f: mono });
+    if (s.phase === 'demo') button('skip', 1220, 28, 172, 60, 'SKIP DEMO', { size: 26 });
+    else { text('TIME LEFT', 1236, 42, 26, C.dim, { f: disp }); text(m + ':' + String(sec).padStart(2, '0'), 1236, 94, 52, left < 25 ? C.bad : C.ink, { f: mono }); }
     button('sound', 1404, 28, 176, 60, Snd.on && Voice.on ? 'SOUND ON' : 'SOUND OFF', { size: 26 });
   }
-  const message = (s) => s.bannerT > 0 && s.banner ? s.banner : s.T > 52 ? { text: 'Too hot: enzymes are denaturing. Their active sites are changing shape.', col: C.bad } : Math.abs(s.ph - 7) > 1.2 ? { text: 'The pH is off: active sites change shape and substrates stop fitting.', col: C.vio } : s.T < 36 ? { text: 'Cold: slow molecules, slow reactions. Warmer means faster.', col: C.cyan } : { text: 'Drag each substrate into the active site with the matching shape.', col: C.amber };
+  const message = (s) => s.phase === 'demo' ? Game.demoInfo() : s.bannerT > 0 && s.banner ? s.banner : s.T > 52 ? { text: 'Too hot: enzymes are denaturing. Their active sites are changing shape.', col: C.bad } : Math.abs(s.ph - 7) > 1.2 ? { text: 'The pH is off: active sites change shape and substrates stop fitting.', col: C.vio } : s.T < 36 ? { text: 'Cold: slow molecules, slow reactions. Warmer means faster.', col: C.cyan } : { text: 'Drag each substrate into the active site with the matching shape.', col: C.amber };
   function controls(s) {
     const x = 1210;
     box(x, 128, 370, 288, C.panel, C.line);
@@ -1229,8 +1293,22 @@ const Ctl = (function () {
     } else {
       const T_ = TESTS[s.last], n = s.made[T_.of], ok = Game.passed(s.last), res = T_.result(n, ok);
       text(res.seen + ': ' + res.means, W / 2, 866, 40, C.ink, { a: 'center' });
-      text('You broke down ' + n + ' ' + TYPES[T_.of].substrate.toLowerCase() + (T_.of === 2 ? ' droplets' : ' molecules') + '. A successful batch needs at least ' + RULES.enough + '.', W / 2, 932, 32, ok ? C.ok : C.bad, { a: 'center' });
+      text('You broke down ' + n + ' ' + TYPES[T_.of].substrate.toLowerCase() + (T_.of === 2 ? ' droplets' : ' molecules') + '.', W / 2, 932, 32, ok ? C.ok : C.bad, { a: 'center' });
     }
+  }
+  // practice: say where you are, ring the control to press, and finish with the start button
+  function demoMarks(w, h, big) {
+    const d = Game.demoInfo(); if (!d) return;
+    const cx = FD.x + w / 2, size = big ? 34 : 30;
+    if (!d.ready) { box(cx - 240, FD.y + 10, 480, size + 24, 'rgba(3,10,12,.88)', C.amber, 8); text('PRACTICE ' + d.step + ' OF ' + d.of + ' · NO TIMER', cx, FD.y + 22 + size * 0.8, size, C.amber, { a: 'center', f: disp, w: 700 }); }
+    else {
+      c.fillStyle = 'rgba(3,10,12,.82)'; c.fillRect(FD.x, FD.y, w, h);
+      const my = FD.y + h / 2, bw = Math.min(w - 80, 760), bh = big ? 160 : 140;
+      text('YOU ARE READY', cx, my - bh / 2 - 40, big ? 96 : 84, C.ink, { a: 'center', f: disp, w: 700 });
+      button('start', cx - bw / 2, my - bh / 2 + 20, bw, bh, 'START THE BATCH', { style: 'go', size: big ? 72 : 60 });
+    }
+    const q = d.hi && hits.find((z) => z.id === d.hi);
+    if (q) { const g = 8 + 5 * Math.sin(performance.now() / 150); c.save(); c.shadowColor = '#ffd35a'; c.shadowBlur = 26; box((q.x - view.x) / view.k - g, (q.y - view.y) / view.k - g, q.w / view.k + g * 2, q.h / view.k + g * 2, null, '#ffd35a', 18); c.lineWidth = 7; c.stroke(); c.restore(); }
   }
   /* ----- the phone layout: 1000 units across, as tall as the phone is ----- */
   const PWIDE = 1000;
@@ -1251,7 +1329,8 @@ const Ctl = (function () {
     shown = view;
     TYPES.forEach((T_, i) => { const x = 14 + i * 328; box(x, 10, 316, 128, C.panel, C.line); Game.drawProduct(c, i, x + 62, 60, 0.25, 0.7, 1); text(String(s.made[i]), x + 292, 84, 70, C.ink, { f: mono, a: 'right' }); text(short(T_.product), x + 158, 124, 30, C.dim, { f: disp, a: 'center' }); });
     const left = Math.max(0, RULES.time - s.t), m = Math.floor(left / 60), sec = Math.floor(left % 60);
-    text('TIME LEFT', 24, 196, 36, C.dim, { f: disp }); text(m + ':' + String(sec).padStart(2, '0'), 190, 204, 58, left < 25 ? C.bad : C.ink, { f: mono });
+    if (s.phase === 'demo') { text('PRACTICE', 24, 198, 46, C.amber, { f: disp, w: 700 }); button('skip', 360, 150, 300, 68, 'SKIP DEMO', { size: 34 }); }
+    else { text('TIME LEFT', 24, 196, 36, C.dim, { f: disp }); text(m + ':' + String(sec).padStart(2, '0'), 190, 204, 58, left < 25 ? C.bad : C.ink, { f: mono }); }
     button('sound', 700, 150, 286, 68, Snd.on && Voice.on ? 'SOUND ON' : 'SOUND OFF', { size: 34 });
     const msg = message(s); box(14, 230, 972, 116, s.flash > 0.01 ? '#3a130c' : C.panel, msg.col); c.fillStyle = msg.col; c.fillRect(14, 230, 12, 116);
     const l = lines(msg.text, 910, 38); l.forEach((q, i) => text(q, 52, 302 - (l.length - 1) * 24 + i * 48, 38, C.ink, { w: 500 }));
@@ -1277,6 +1356,7 @@ const Ctl = (function () {
     box(14, by, 972, 108, C.panel, C.line);
     text('ENZYMES WORKING', 36, by + 68, 36, C.dim, { f: disp }); text(n + '/' + there.length, 430, by + 72, 52, n === there.length ? C.ok : n ? C.amber : C.bad, { f: mono, a: 'right' });
     button('buy', 460, by + 14, 508, 80, 'FRESH ENZYME (' + s.spares + ' LEFT)', { size: 38 });
+    demoMarks(972, fh, true);
   }
   // the four food tests, two by two
   function phoneTesting(s) {
@@ -1300,7 +1380,7 @@ const Ctl = (function () {
     else {
       const T_ = TESTS[s.last], n = s.made[T_.of], ok = Game.passed(s.last), res = T_.result(n, ok);
       const q = para(res.seen + ': ' + res.means, 500, y + 110, 880, 46, C.ink);
-      para('You broke down ' + n + ' ' + TYPES[T_.of].substrate.toLowerCase() + (T_.of === 2 ? ' droplets' : ' molecules') + '. A successful batch needs at least ' + RULES.enough + '.', 500, q + 50, 880, 38, ok ? C.ok : C.bad);
+      para('You broke down ' + n + ' ' + TYPES[T_.of].substrate.toLowerCase() + (T_.of === 2 ? ' droplets' : ' molecules') + '.', 500, q + 50, 880, 38, ok ? C.ok : C.bad);
     }
   }
   const onPhone = () => innerWidth / Math.max(1, innerHeight) < 1.15;
@@ -1323,19 +1403,25 @@ const Ctl = (function () {
     c.setTransform(1, 0, 0, 1, 0, 0); c.fillStyle = C.bg; c.fillRect(0, 0, W, H);
     if (s.phase === 'ready') ready();
     else if (s.phase === 'test') testing(s);
-    else { hud(s); c.save(); c.translate(PX, PY); c.beginPath(); c.rect(0, 0, Game.PW, Game.PH); c.clip(); Game.draw(c); c.restore(); c.strokeStyle = s.flash > 0.05 ? C.bad : C.line; c.lineWidth = 3; c.strokeRect(PX, PY, Game.PW, Game.PH); controls(s); }
+    else { hud(s); c.save(); c.translate(PX, PY); c.beginPath(); c.rect(0, 0, Game.PW, Game.PH); c.clip(); Game.draw(c); c.restore(); c.strokeStyle = s.flash > 0.05 ? C.bad : C.line; c.lineWidth = 3; c.strokeRect(PX, PY, Game.PW, Game.PH); controls(s); demoMarks(Game.PW, Game.PH, false); }
     sc.tex.needsUpdate = true;
   }
   // where a touch or click lands, in the units of whichever screen is showing
   const at = (e) => { if (!onPhone()) return Lab.screenAt(e.clientX, e.clientY); const r = pc.getBoundingClientRect(), k = PWIDE / Math.max(1, r.width); return { x: (e.clientX - r.left) * k, y: (e.clientY - r.top) * k }; };
   const hitAt = (p) => hits.find((q) => p.x >= q.x && p.x <= q.x + q.w && p.y >= q.y && p.y <= q.y + q.h);
-  const inPlay = (p) => Game.s.phase === 'play' && lx(p) >= FD.x && lx(p) <= FD.x + Game.PW * FD.k && ly(p) >= FD.y && ly(p) <= FD.y + Game.PH * FD.k;
+  const inPlay = (p) => (Game.s.phase === 'play' || Game.s.phase === 'demo') && lx(p) >= FD.x && lx(p) <= FD.x + Game.PW * FD.k && ly(p) >= FD.y && ly(p) <= FD.y + Game.PH * FD.k;
   const lx = (p) => (p.x - shown.x) / shown.k, ly = (p) => (p.y - shown.y) / shown.k;   // a touch, in the playing screen's own units
   const fx = (p) => (lx(p) - FD.x) / FD.k, fy = (p) => (ly(p) - FD.y) / FD.k;
   const fromX = (x) => Game.setT(15 + (x - SL.x) / SL.w * 55);
   function act(id) {
     Snd.click();
-    if (id === 'start') { if (!G.started) { G.started = true; Snd.init(); Voice.init(); Voice.preload(); } Mgr.stop(); Game.start(); Nav.frame('play'); }
+    if (id === 'start' || id === 'skip') {
+      if (!G.started) { G.started = true; Snd.init(); Voice.init(); Voice.preload(); }
+      Mgr.stop();
+      // the practice comes first, once; finishing or skipping it is remembered
+      if (id === 'start' && Game.s.phase === 'ready' && !G.practised && !store.get('r3-practised')) Game.demo();
+      else { if (Game.s.phase === 'demo') { G.practised = true; store.set('r3-practised', '1'); } Game.start(); }
+      Nav.frame('play'); }
     else if (id === 'minus') Game.setT(Game.s.Tset - 2); else if (id === 'plus') Game.setT(Game.s.Tset + 2);
     else if (id === 'acid') Game.dose(-1); else if (id === 'alkali') Game.dose(1); else if (id === 'buy') Game.buy();
     else if (id.startsWith('test')) Game.runTest(+id.slice(4));
@@ -1343,10 +1429,10 @@ const Ctl = (function () {
     acc = 1;
   }
   return {
-    down(e) { const p = at(e); if (!p) return false; if (inPlay(p)) { if (Game.grab(fx(p), fy(p))) dragging = 'sub'; return true; } const h = hitAt(p); if (!h) return Game.s.phase === 'play'; if (h.id === 'slider') { dragging = 'temp'; fromX(lx(p)); } else act(h.id); return true; },
+    down(e) { const p = at(e); if (!p) return false; const h = hitAt(p); if (!h && inPlay(p)) { if (Game.grab(fx(p), fy(p))) dragging = 'sub'; return true; } if (!h) return Game.s.phase === 'play' || Game.s.phase === 'demo'; if (h.id === 'slider') { dragging = 'temp'; fromX(lx(p)); } else act(h.id); return true; },
     move(e) { const p = at(e); if (!p) return; if (dragging === 'sub') Game.drag(fx(p), fy(p)); else if (dragging === 'temp') fromX(lx(p)); },
     up() { if (dragging === 'sub') Game.drop(); dragging = null; },
-    over(e) { const p = at(e); if (!p) { hoverId = null; return null; } if (inPlay(p)) { hoverId = null; return 'grab'; } const h = hitAt(p); hoverId = h ? h.id : null; return h ? 'pointer' : null; },
+    over(e) { const p = at(e); if (!p) { hoverId = null; return null; } if (!hitAt(p) && inPlay(p)) { hoverId = null; return 'grab'; } const h = hitAt(p); hoverId = h ? h.id : null; return h ? 'pointer' : null; },
     get dragging() { return !!dragging; },
     frame(dt) { acc += dt; if (acc > 0.03) { acc = 0; draw(); } },
     init() { pc = document.createElement('canvas'); pc.id = 'phone'; pc.hidden = true; pc.setAttribute('aria-label', 'Reactor 3, the game screen'); $('#app').appendChild(pc); Nav.bind(pc); draw(); }, refresh() { draw(); }, tick() { }

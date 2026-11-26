@@ -68,6 +68,21 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--go);outline-off
 @media (max-height:520px) and (min-width:600px){#dock{left:auto;right:12px;transform:none;width:min(340px,46%);max-height:calc(100% - 66px)}#steps{font-size:13px;line-height:1.35}}
 @media (max-height:520px){#sheet{padding:16px}#sheet h1{font-size:28px}#dock{padding:8px 11px}#row{margin-top:6px}.ans input,.ans button,.big{height:36px}#msg{font-size:13px}}
 @media (max-width:460px){#where{font-size:12px;letter-spacing:.08em}#dots{gap:4px}#dots i{width:10px;height:10px}#mute{font-size:11px;padding:6px 8px}}
+#calcBtn{position:absolute;z-index:4;right:12px;top:calc(58px + env(safe-area-inset-top,0px));padding:9px 12px;font:600 13px var(--disp);letter-spacing:.08em;text-transform:uppercase;background:var(--panel)}
+#calcBtn[aria-expanded="true"]{border-color:var(--go);color:var(--go)}
+#calc{position:absolute;z-index:5;right:12px;top:calc(104px + env(safe-area-inset-top,0px));width:236px;background:#0c0f1e;border:1px solid var(--line);border-radius:14px;padding:10px;display:flex;flex-direction:column;gap:8px;box-shadow:0 10px 30px rgba(0,0,0,.5)}
+#calcScreen{background:#070916;border:1px solid var(--line);border-radius:8px;padding:6px 10px;text-align:right;min-height:62px;display:flex;flex-direction:column;justify-content:flex-end;font-variant-numeric:tabular-nums}
+#calcWas{font:500 13px var(--disp);color:var(--dim);min-height:17px;overflow:hidden;white-space:nowrap}
+#calcNow{font:700 25px var(--disp);overflow:hidden;white-space:nowrap}
+#calcKeys{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+#calcKeys button{height:42px;font:700 20px var(--disp);touch-action:manipulation}
+#calcKeys .op{color:var(--go)}
+#calcKeys .eq{background:linear-gradient(#ffe27d,#f3b21f);color:#1d1400;border-color:#ffeaa8}
+#calcKeys .wide{grid-column:span 2}
+/* on a phone it opens over the answer panel, so the diagram and its numbers stay in view */
+@media (max-width:600px){#calc{top:auto;left:12px;right:12px;width:auto;bottom:calc(12px + env(safe-area-inset-bottom,0px))}#calcScreen{min-height:50px}#calcWas{font-size:12px}#calcNow{font-size:22px}#calcKeys button{height:36px}#calcBtn{padding:7px 9px;font-size:11px;right:auto;left:12px;top:calc(52px + env(safe-area-inset-top,0px))}}
+@media (max-width:600px) and (max-height:660px){#calc{padding:7px;gap:5px;bottom:calc(8px + env(safe-area-inset-bottom,0px))}#calcScreen{min-height:40px;padding:3px 9px}#calcWas{min-height:14px;font-size:11px}#calcNow{font-size:18px}#calcKeys{gap:4px}#calcKeys button{height:31px;font-size:17px}}
+@media (max-height:520px) and (min-width:600px){#calc{top:calc(56px + env(safe-area-inset-top,0px));right:12px;width:min(340px,46%);padding:8px;gap:6px}#calcScreen{min-height:44px}#calcNow{font-size:19px}#calcKeys{gap:4px}#calcKeys button{height:34px;font-size:17px}#calcBtn{right:auto;left:12px}}
 .back{font:600 13px/1 var(--disp);letter-spacing:.1em;text-transform:uppercase;color:var(--ink);text-decoration:none;background:rgba(12,15,30,.85);border:1px solid var(--line);border-radius:8px;padding:9px 11px;white-space:nowrap}
 .back:hover{border-color:rgba(200,215,255,.6)}
 .back:focus-visible{outline:3px solid var(--go);outline-offset:2px}
@@ -90,6 +105,11 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--go);outline-off
     <div id="rule" hidden></div>
   </form>
   <div id="banner" aria-live="polite"></div>
+  <button id="calcBtn" type="button" aria-expanded="false" aria-controls="calc" hidden>Calculator</button>
+  <div id="calc" role="group" aria-label="Calculator" hidden>
+    <div id="calcScreen"><div id="calcWas"></div><div id="calcNow" aria-live="polite">0</div></div>
+    <div id="calcKeys"></div>
+  </div>
   <div id="card"><a class="back" href="/learn/" aria-label="Back to LastMind">← LastMind</a><div id="sheet">
     <h1>Eight Rings</h1>
     <p>Each gate has a gap that only one shape will fit through. Work out the missing angles, cut your shape and send it through. One circle theorem per gate.</p>
@@ -97,6 +117,6 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--go);outline-off
   </div></div>
 </div>
 <script src="/create/eight-rings/vendor/three.min.js?v=r128"></script>
-<script src="/create/eight-rings/game.js?v=1"></script>
+<script src="/create/eight-rings/game.js?v=2"></script>
 </body>
 </html>

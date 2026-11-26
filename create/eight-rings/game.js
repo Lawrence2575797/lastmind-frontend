@@ -255,7 +255,7 @@ let W = 1, H = 1;
 const cam = { p: new THREE.Vector3(5, 2.4, 11), l: new THREE.Vector3(0, -0.2, -6), f: 46 };
 const want = { p: new THREE.Vector3(), l: new THREE.Vector3(), f: 30, k: 3.5 };
 function designView(i) {
-  const dock = $('#dock'), top = 58, beside = H <= 520 && W >= 600, bottom = beside ? 10 : (dock.hidden ? 190 : dock.offsetHeight) + 18, room = beside ? W - (dock.offsetWidth || Math.min(340, W * 0.46)) - 24 : W, free = Math.max(120, H - top - bottom), z = ringZ(i) + 0.35, wide = i === 5 ? 1.5 : 1.34;
+  const dock = $('#dock'), top = 58, beside = H <= 520 && W >= 600, bottom = beside ? 10 : Math.max(dock.hidden ? 190 : dock.offsetHeight, W <= 600 && Calc.open ? $('#calc').offsetHeight : 0) + 18, room = beside ? W - (dock.offsetWidth || Math.min(340, W * 0.46)) - 24 : W, free = Math.max(120, H - top - bottom), z = ringZ(i) + 0.35, wide = i === 5 ? 1.5 : 1.34;
   const ppu = Math.min(room * 0.5 / wide, free * 0.5 / 1.32), fov = 28, dist = (H / 2) / Math.tan(fov * D2R / 2) / ppu, dy = (top + free / 2 - H / 2) / ppu, dx = (W - room) / 2 / ppu;
   want.p.set(dx, dy, z + dist); want.l.set(dx, dy, z); want.f = fov;
 }
@@ -292,7 +292,7 @@ function enterDesign(i) {
 function submit(e) {
   e.preventDefault(); if (S.phase === 'review') { next(); return; } if (S.phase !== 'design') return; const v = values(); if (!v.every((x) => x >= 1 && x <= 179)) return;
   if (document.activeElement) document.activeElement.blur();
-  S.mine = v; S.cut = cutShape(S.q, v); S.tries[S.i]++; S.fitted[S.i] = !S.cut.wrong.length; $('#steps').hidden = true; S.phase = 'windup'; S.t = 0; S.hint = false; lockDock(true); $('#rule').hidden = true; $('#hint').hidden = true; say('Cutting your shape…'); S.from = outlineOf(S.q, S.q.pts); S.to = outlineOf(S.q, S.cut.pts); sideView(S.i); want.k = 3; Snd.rush(200, 900, 0.7, 0.12);
+  if (W <= 600 || H <= 520) Calc.set(false); S.mine = v; S.cut = cutShape(S.q, v); S.tries[S.i]++; S.fitted[S.i] = !S.cut.wrong.length; $('#steps').hidden = true; S.phase = 'windup'; S.t = 0; S.hint = false; lockDock(true); $('#rule').hidden = true; $('#hint').hidden = true; say('Cutting your shape…'); S.from = outlineOf(S.q, S.q.pts); S.to = outlineOf(S.q, S.cut.pts); sideView(S.i); want.k = 3; Snd.rush(200, 900, 0.7, 0.12);
 }
 function review() {
   const q = S.q; S.phase = 'review'; S.t = 0; shape.scale.setScalar(1); shape.rotation.set(0, 0, 0); shape.position.set(0, 0, ringZ(S.i) + 0.35); exact(q, q.pts);
@@ -415,6 +415,54 @@ function step(dt) {
   dust.rotation.z = Math.sin(performance.now() / 20000) * 0.02;
 }
 
+/* ================= the calculator: add, take away, times, divide ================= */
+const Calc = {
+  open: false, text: '', done: false,
+  // times and divide first, then add and take away, left to right
+  work(t) {
+    const bits = t.match(/(\d+\.?\d*|\.\d+|[+−×÷])/g) || []; if (!bits.length) return null;
+    const nums = [], ops = []; let sign = 1, want = true;
+    for (const b of bits) {
+      if ('+−×÷'.includes(b)) { if (want) { if (b === '−') sign = -sign; continue; } ops.push(b); want = true; continue; }
+      let v = sign * parseFloat(b); sign = 1; want = false;
+      const op = ops[ops.length - 1];
+      if (nums.length === ops.length && (op === '×' || op === '÷')) { ops.pop(); const a = nums.pop(); if (op === '÷' && v === 0) return NaN; v = op === '×' ? a * v : a / v; }
+      nums.push(v);
+    }
+    let out = nums[0]; if (out === undefined) return null;
+    for (let i = 1; i < nums.length; i++) out = ops[i - 1] === '+' ? out + nums[i] : out - nums[i];
+    return parseFloat(out.toFixed(6));
+  },
+  press(k) {
+    const ops = '+−×÷';
+    if (k === 'C') { this.text = ''; this.done = false; $('#calcWas').textContent = ''; }
+    else if (k === '⌫') { this.text = this.done ? '' : this.text.slice(0, -1); this.done = false; }
+    else if (k === '=') {
+      const t = this.text.replace(/[+−×÷.]+$/, ''), v = this.work(t); if (v === null) return;
+      $('#calcWas').textContent = t + ' ='; if (Number.isNaN(v)) { this.text = ''; this.done = false; $('#calcNow').textContent = 'Can’t divide by 0'; return; }
+      this.text = String(v).replace('-', '−'); this.done = true;
+    } else if (this.text.length < 22) {
+      if (ops.includes(k)) { if (!this.text && k !== '−') return; this.text = this.text.replace(/[+−×÷]$/, '') + k; }
+      else {
+        if (this.done) { this.text = ''; $('#calcWas').textContent = ''; }
+        const last = this.text.split(/[+−×÷]/).pop(); if (k === '.' && last.includes('.')) return; this.text += k === '.' && !last ? '0.' : k;
+      }
+      this.done = false;
+    }
+    $('#calcNow').textContent = this.text || '0';
+  },
+  // shown only while there is an angle to work out
+  show() { const there = !$('#dock').hidden, btn = $('#calcBtn'), box = $('#calc'); if (btn.hidden === there) btn.hidden = !there; const see = there && this.open; if (box.hidden === see) box.hidden = !see; },
+  set(v) { this.open = v; $('#calcBtn').setAttribute('aria-expanded', String(v)); $('#calcBtn').textContent = v ? 'Close ✕' : 'Calculator'; this.show(); },
+  init() {
+    [['C', 'op'], ['⌫', 'op'], ['÷', 'op'], ['×', 'op'], ['7'], ['8'], ['9'], ['−', 'op'], ['4'], ['5'], ['6'], ['+', 'op'], ['1'], ['2'], ['3'], ['.'], ['0', 'wide'], ['=', 'eq wide']].forEach(([k, cls]) => {
+      const b = document.createElement('button'); b.type = 'button'; b.textContent = k; if (cls) b.className = cls; if (k === '⌫') b.setAttribute('aria-label', 'delete'); b.addEventListener('click', () => { Snd.tick(); this.press(k); }); $('#calcKeys').appendChild(b);
+    });
+    $('#calcBtn').addEventListener('click', () => { if (document.activeElement && document.activeElement.tagName === 'INPUT') document.activeElement.blur(); this.set(!this.open); });
+    $('#calc').addEventListener('keydown', (e) => { const k = { '-': '−', '*': '×', x: '×', '/': '÷', Enter: '=', '=': '=', Backspace: '⌫', Escape: 'esc', c: 'C' }[e.key] || (/^[0-9.+]$/.test(e.key) ? e.key : null); if (!k) return; e.preventDefault(); if (k === 'esc') this.set(false); else this.press(k); });
+  }
+};
+
 /* ================= the diagram drawn over the waiting shape ================= */
 const v3 = new THREE.Vector3();
 function scr(p) { v3.set(p[0], p[1] + shape.position.y, shape.position.z + DEPTH / 2).project(camera); return [(v3.x + 1) / 2 * W, (1 - v3.y) / 2 * H]; }
@@ -467,11 +515,12 @@ function resize() { const vv = window.visualViewport, seen = vv && Math.abs(vv.s
 addEventListener('resize', resize);
 if (window.visualViewport) { visualViewport.addEventListener('resize', resize); visualViewport.addEventListener('scroll', resize); }
 let last = performance.now();
-function frame(dt) { step(dt); renderer.render(scene, camera); diagram(); }
+function frame(dt) { step(dt); Calc.show(); renderer.render(scene, camera); diagram(); }
 function loop() { requestAnimationFrame(loop); const t = performance.now(), dt = Math.min(0.05, (t - last) / 1000); last = t; frame(dt); }
 
 $('#dock').addEventListener('submit', submit);
 $('#hint').addEventListener('click', showHint);
+Calc.init();
 $('#begin').addEventListener('click', startAll);
 $('#mute').addEventListener('click', () => { Snd.on = !Snd.on; if (Snd.out) Snd.out.gain.value = Snd.on ? 1 : 0; $('#mute').textContent = Snd.on ? 'SOUND ON' : 'SOUND OFF'; });
 resize(); STAGES.forEach((_, i) => buildPlate(i, question(i))); paint(STAGES[0].col); setShape([P(90), P(215), P(325)], [], [P(90), P(215), P(325)]);
