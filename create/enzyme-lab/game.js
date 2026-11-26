@@ -1024,7 +1024,7 @@ const Game = (function () {
     S.verdict = { win, key, score }; say(key, null, { pri: 6, once: false });
   }
   /* ---------- your hands ---------- */
-  function grab(x, y) { if (S.phase !== 'play') return false; let best = null, bd = 70; S.subs.forEach((s) => { if (s.state === 'FREE') { const d = Math.hypot(s.x - x, s.y - y); if (d < bd) { bd = d; best = s; } } }); if (!best) return false; S.held = best; best.x = x; best.y = y; Snd.blip(420, 0.05, 'triangle', 0.04); return true; }
+  function grab(x, y) { if (S.phase !== 'play') return false; let best = null, bd = 82; S.subs.forEach((s) => { if (s.state === 'FREE') { const d = Math.hypot(s.x - x, s.y - y); if (d < bd) { bd = d; best = s; } } }); if (!best) return false; S.held = best; best.x = x; best.y = y; Snd.blip(420, 0.05, 'triangle', 0.04); return true; }
   function nearest(x, y) { let best = null, bd = 1e9; here().forEach((e) => { const sp = sitePos(e), d = Math.min(Math.hypot(x - sp.x, y - sp.y), Math.hypot(x - e.x, y - e.y)); if (d < bd) { bd = d; best = e; } }); return { e: best, d: bd }; }
   function drag(x, y) { const s = S.held; if (!s) return; s.x = clamp(x, 20, PW - 20); s.y = clamp(y, 20, PH - 20); const n = nearest(s.x, s.y); if (n.e && n.d < 170) s.ang += wrapPi(n.e.ang + Math.PI / 2 - s.ang) * 0.4; }   // it turns to face any site you bring it to, so you can compare the shapes
   function drop() {
@@ -1112,7 +1112,7 @@ const Ctl = (function () {
   const C = { bg: '#06161a', panel: '#0c2329', line: 'rgba(150,215,205,.28)', ink: '#eef7f5', dim: '#93b0ac', amber: '#ffb02e', ok: '#4fe0a0', bad: '#ff6a3d', cyan: '#55c8ff', vio: '#b08cff' };
   const disp = "'Barlow Condensed','Arial Narrow',sans-serif", body = "'IBM Plex Sans','Segoe UI',sans-serif", mono = "'IBM Plex Mono',monospace";
   const SL = { x: 1230, y: 262, w: 340 }, FD = { x: PX, y: PY, k: 1 };   // temperature slider, and where the field is drawn
-  let c = null, hits = [], hoverId = null, dragging = null, acc = 1, pc = null, view = { k: 1, x: 0, y: 0 };
+  let c = null, hits = [], hoverId = null, dragging = null, acc = 1, pc = null, view = { k: 1, x: 0, y: 0 }, shown = view;   // shown: how the playing screen was last shrunk and moved
   function box(x, y, w, h, fill, stroke, r) { r = r == null ? 12 : r; c.beginPath(); c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r); c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath(); if (fill) { c.fillStyle = fill; c.fill(); } if (stroke) { c.strokeStyle = stroke; c.lineWidth = 2; c.stroke(); } }
   function text(t, x, y, size, col, o) { o = o || {}; c.font = (o.w || 600) + ' ' + size + 'px ' + (o.f || body); c.fillStyle = col || C.ink; c.textAlign = o.a || 'left'; c.textBaseline = 'alphabetic'; c.fillText(t, x, y); }
   function wrap(t, x, y, maxW, lh, size, col) { c.font = '500 ' + size + 'px ' + body; c.fillStyle = col; c.textAlign = 'left'; let line = ''; t.split(' ').forEach((wd) => { const q = line ? line + ' ' + wd : wd; if (c.measureText(q).width > maxW && line) { c.fillText(line, x, y); y += lh; line = wd; } else line = q; }); if (line) c.fillText(line, x, y); return y; }
@@ -1248,6 +1248,7 @@ const Ctl = (function () {
     button('start', 110, 1400, 780, 160, 'START THE BATCH', { style: 'go', size: 72 });
   }
   function phonePlay(s, V) {
+    shown = view;
     TYPES.forEach((T_, i) => { const x = 14 + i * 328; box(x, 10, 316, 128, C.panel, C.line); Game.drawProduct(c, i, x + 62, 60, 0.25, 0.7, 1); text(String(s.made[i]), x + 292, 84, 70, C.ink, { f: mono, a: 'right' }); text(short(T_.product), x + 158, 124, 30, C.dim, { f: disp, a: 'center' }); });
     const left = Math.max(0, RULES.time - s.t), m = Math.floor(left / 60), sec = Math.floor(left % 60);
     text('TIME LEFT', 24, 196, 36, C.dim, { f: disp }); text(m + ':' + String(sec).padStart(2, '0'), 190, 204, 58, left < 25 ? C.bad : C.ink, { f: mono });
@@ -1315,7 +1316,7 @@ const Ctl = (function () {
     else { const need = 556 + 14 + 362 + 500; if (V >= need) phonePlay(s, V); else fitted(need, need * Math.min(1, V / need), () => phonePlay(s, need)); }
   }
   function draw() {
-    const sc = Lab.R.screens.kiosk, s = Game.s, tall = onPhone(); hits = []; view = { k: 1, x: 0, y: 0 };
+    const sc = Lab.R.screens.kiosk, s = Game.s, tall = onPhone(); hits = []; view = shown = { k: 1, x: 0, y: 0 };
     pc.hidden = !tall; Lab.cover(tall); $('#app').dataset.phase = s.phase;
     if (tall) { drawPhone(s); return; }
     c = sc.ctx; Game.setField(1170, 740, false); SL.x = 1230; SL.y = 262; SL.w = 340; FD.x = PX; FD.y = PY; FD.k = 1;
@@ -1328,8 +1329,9 @@ const Ctl = (function () {
   // where a touch or click lands, in the units of whichever screen is showing
   const at = (e) => { if (!onPhone()) return Lab.screenAt(e.clientX, e.clientY); const r = pc.getBoundingClientRect(), k = PWIDE / Math.max(1, r.width); return { x: (e.clientX - r.left) * k, y: (e.clientY - r.top) * k }; };
   const hitAt = (p) => hits.find((q) => p.x >= q.x && p.x <= q.x + q.w && p.y >= q.y && p.y <= q.y + q.h);
-  const inPlay = (p) => Game.s.phase === 'play' && p.x >= FD.x && p.x <= FD.x + Game.PW * FD.k && p.y >= FD.y && p.y <= FD.y + Game.PH * FD.k;
-  const fx = (p) => (p.x - FD.x) / FD.k, fy = (p) => (p.y - FD.y) / FD.k;
+  const inPlay = (p) => Game.s.phase === 'play' && lx(p) >= FD.x && lx(p) <= FD.x + Game.PW * FD.k && ly(p) >= FD.y && ly(p) <= FD.y + Game.PH * FD.k;
+  const lx = (p) => (p.x - shown.x) / shown.k, ly = (p) => (p.y - shown.y) / shown.k;   // a touch, in the playing screen's own units
+  const fx = (p) => (lx(p) - FD.x) / FD.k, fy = (p) => (ly(p) - FD.y) / FD.k;
   const fromX = (x) => Game.setT(15 + (x - SL.x) / SL.w * 55);
   function act(id) {
     Snd.click();
@@ -1341,8 +1343,8 @@ const Ctl = (function () {
     acc = 1;
   }
   return {
-    down(e) { const p = at(e); if (!p) return false; if (inPlay(p)) { if (Game.grab(fx(p), fy(p))) dragging = 'sub'; return true; } const h = hitAt(p); if (!h) return Game.s.phase === 'play'; if (h.id === 'slider') { dragging = 'temp'; fromX(p.x); } else act(h.id); return true; },
-    move(e) { const p = at(e); if (!p) return; if (dragging === 'sub') Game.drag(fx(p), fy(p)); else if (dragging === 'temp') fromX(p.x); },
+    down(e) { const p = at(e); if (!p) return false; if (inPlay(p)) { if (Game.grab(fx(p), fy(p))) dragging = 'sub'; return true; } const h = hitAt(p); if (!h) return Game.s.phase === 'play'; if (h.id === 'slider') { dragging = 'temp'; fromX(lx(p)); } else act(h.id); return true; },
+    move(e) { const p = at(e); if (!p) return; if (dragging === 'sub') Game.drag(fx(p), fy(p)); else if (dragging === 'temp') fromX(lx(p)); },
     up() { if (dragging === 'sub') Game.drop(); dragging = null; },
     over(e) { const p = at(e); if (!p) { hoverId = null; return null; } if (inPlay(p)) { hoverId = null; return 'grab'; } const h = hitAt(p); hoverId = h ? h.id : null; return h ? 'pointer' : null; },
     get dragging() { return !!dragging; },
