@@ -18,6 +18,9 @@
 /create/grand-prix/*
   Cache-Control: no-cache
 
+/create/dry-gulch/*
+  Cache-Control: no-cache
+
 /learn
   Cache-Control: no-cache
 /learn/*
